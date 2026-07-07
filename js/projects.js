@@ -21,6 +21,15 @@ const ProjectsPage = (() => {
     return withSpecs ? Object.keys(withSpecs.specs) : [];
   }
 
+  // tên hiển thị cho một số cột thông số kỹ thuật (dữ liệu bên dưới giữ nguyên key gốc)
+  const SPEC_DISPLAY = {
+    'NUMBER_OF_STOPS': 'Số điểm dừng',
+    'CDT': 'Car Door Type',
+    'BRANCH_EFFICIENCY_FACTOR': 'BEF',
+    'INST_TIME_STANDARD': 'INS Time Standard',
+    'INST_TIME_TOTAL': 'INS Time Total',
+  };
+
   // rebuild the header + filter row only when the spec columns change,
   // so typing in a filter input doesn't lose focus
   function buildHead(headers) {
@@ -29,10 +38,10 @@ const ProjectsPage = (() => {
     if (builtHeaderKey === key && thead.querySelector('.filter-row')) return;
     builtHeaderKey = key;
     thead.innerHTML =
-      '<tr><th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Customer</th><th>Product Line</th><th>Giám sát</th><th>Target Hour</th>' +
-      headers.map(h => `<th>${h}</th>`).join('') +
+      '<tr><th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Customer</th><th>Product Line</th><th>Giám sát</th>' +
+      headers.map(h => `<th>${SPEC_DISPLAY[h] || h}</th>`).join('') +
       '<th></th></tr>';
-    const cols = new Array(7 + headers.length).fill(true).concat([false]);
+    const cols = new Array(6 + headers.length).fill(true).concat([false]);
     colFilters = TableFilter.build(thead, cols, render);
   }
 
@@ -47,7 +56,7 @@ const ProjectsPage = (() => {
         p,
         cells: [
           p.wbs, p.projectNumber || '', p.projectName || '', p.customer || '', p.productLine || '',
-          p.supervisor || '', fmt(p.targetHour),
+          p.supervisor || '',
           ...headers.map(h => (p.specs && p.specs[h]) || ''),
         ],
       }))
@@ -56,7 +65,7 @@ const ProjectsPage = (() => {
     document.querySelector('#projectsTable tbody').innerHTML = disp.map(d => `
       <tr>
         ${d.cells.map((c, i) => {
-          const cls = (i === 2 || i === 3) ? ' class="col-name"' : (i === 6 ? ' class="num"' : '');
+          const cls = (i === 2 || i === 3) ? ' class="col-name"' : '';
           return `<td${cls}>${c}</td>`;
         }).join('')}
         <td class="col-actions">
