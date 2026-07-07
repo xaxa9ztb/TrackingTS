@@ -163,23 +163,53 @@ const Importer = (() => {
     };
   }
 
-  // Mode 2a: standalone Yan_COM file -> only ADD new projects; rows whose WBS
-  // already exists are skipped (existing data is never touched)
+  // Mode 2a: standalone Yan_COM file.
+  // - WBS mới -> thêm dự án mới.
+  // - WBS đã có -> KHÔNG ghi đè dữ liệu cũ, nhưng điền bổ sung vào các ô
+  //   còn trống (kỹ thuật, giám sát, project number...) nếu file mới có giá trị.
   async function importProjectsFile(file) {
     const wb = await readWorkbook(file);
     const sheet = findSheet(wb, ['Yan_COM']) || wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-    const existingProjects = await DB.getAll('projects');
-    const existingWbs = new Set(existingProjects.map(p => p.wbs));
-
     const mapped = mapProjects(rows, null);
     if (!mapped.length) {
       throw new Error(`File "${file.name}": không nhận dạng được dữ liệu dự án (cần cấu trúc cột như sheet Yan_COM, WBS Element ở cột D)`);
     }
-    const fresh = mapped.filter(p => !existingWbs.has(p.wbs));
-    await DB.bulkPut('projects', fresh);
-    return { added: fresh.length, skipped: mapped.length - fresh.length };
+
+    const existingProjects = await DB.getAll('projects');
+    const byWbs = {};
+    existingProjects.forEach(p => byWbs[p.wbs] = p);
+
+    const toPut = [];
+    let added = 0, updated = 0, skipped = 0;
+    const isEmpty = v => v === undefined || v === null || v === '';
+
+    for (const np of mapped) {
+      const old = byWbs[np.wbs];
+      if (!old) {
+        toPut.push(np);
+        added++;
+        continue;
+      }
+      let changed = false;
+      for (const f of ['projectNumber', 'projectName', 'customer', 'productLine', 'supervisor', 'salesRep']) {
+        if (isEmpty(old[f]) && !isEmpty(np[f])) { old[f] = np[f]; changed = true; }
+      }
+      if (!old.netValue && np.netValue) { old.netValue = np.netValue; changed = true; }
+      if (!old.targetHour && !old.targetHourManual && np.targetHour) { old.targetHour = np.targetHour; changed = true; }
+      if (np.specs) {
+        if (!old.specs) old.specs = {};
+        for (const k of Object.keys(np.specs)) {
+          if (!isEmpty(np.specs[k]) && isEmpty(old.specs[k])) { old.specs[k] = np.specs[k]; changed = true; }
+        }
+      }
+      if (changed) { toPut.push(old); updated++; }
+      else skipped++;
+    }
+
+    await DB.bulkPut('projects', toPut);
+    return { added, updated, skipped };
   }
 
   // Mode 2b: standalone EE Data file -> only ADD new employees; duplicate

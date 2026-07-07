@@ -117,8 +117,9 @@ function openUpdateModal() {
         <div class="update-option">
           <div class="update-info">
             <b>2. Bổ sung Dự án (Yan_COM)</b>
-            <p>File có cấu trúc cột như sheet Yan_COM. Chỉ thêm dự án mới —
-            dòng <b>trùng WBS</b> với dữ liệu hiện có sẽ <b>bị bỏ qua</b>, không ghi đè.</p>
+            <p>File có cấu trúc cột như sheet Yan_COM. Thêm dự án mới; dòng <b>trùng WBS</b>
+            thì chỉ <b>điền bổ sung vào các ô còn trống</b> (thông số kỹ thuật, giám sát...),
+            <b>không ghi đè</b> dữ liệu đã có.</p>
           </div>
           <button class="btn btn-secondary" data-mode="projects">Chọn file</button>
         </div>
@@ -176,7 +177,7 @@ function openUpdateModal() {
             msg = `Đã thay thế toàn bộ: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.`;
           } else if (mode === 'projects') {
             const r = await Importer.importProjectsFile(files[0]);
-            msg = `Đã thêm ${r.added} dự án mới, bỏ qua ${r.skipped} dòng trùng WBS.`;
+            msg = `Đã thêm ${r.added} dự án mới, bổ sung thông tin cho ${r.updated} dự án đã có, bỏ qua ${r.skipped} dòng không có gì mới.`;
           } else if (mode === 'employees') {
             const r = await Importer.importEmployeesFile(files[0]);
             msg = `Đã thêm ${r.added} nhân viên mới, bỏ qua ${r.skipped} dòng trùng mã NV.`;
