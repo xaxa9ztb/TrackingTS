@@ -9,7 +9,7 @@ window.CONFIG = {
   DRIVE_FILE_ID: '13uhqhaSv7ftZ7OUr6SYcSQiYr-BMANcp',
 
   // API key của Google Cloud - để mọi người ĐỌC dữ liệu công khai (bước 3)
-  GOOGLE_API_KEY: 'AIzaSyB20Mngfbb8H8UynhThD_wzOqd1hoPFytwS',
+  GOOGLE_API_KEY: 'AIzaSyB20Mngfbb8H8UynhThD_wzOqd1hoPFytw',
 
   // OAuth Client ID - để admin đăng nhập Google và GHI dữ liệu (bước 3)
   GOOGLE_CLIENT_ID: '582334439349-v5atdq870ta952hh7trdnk99v21gflv5.apps.googleusercontent.com',
