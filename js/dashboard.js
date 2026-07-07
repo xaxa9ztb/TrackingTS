@@ -8,6 +8,49 @@ const Dashboard = (() => {
   // roles per user spec: sitesup = position title is supervisor / project engineer / project manager
   const SUP_TITLES = /superv|project\s*engineer|project\s*manager/i;
 
+  // activity code -> name, theo tiêu đề các cột V..BA của sheet TS All
+  const ACTIVITY_NAMES = {
+    '100': 'Đi đường đến công trình (Travel)',
+    '1110': 'Lắp đặt (NI Prod. Hours Fitter)',
+    '1191': 'Bảo trì tạm thời (Temporary Maintenance)',
+    '1192-0': 'NI Quality – logistics',
+    '1192-1': 'NI Quality – vật tư / FI / LPCA / Site Cause',
+    '1193': 'NI Quality – chuẩn bị (pre-work)',
+    '1194': 'NI Quality – sửa lỗi, hạng mục dở dang (open item)',
+    '1310': 'Lắp đặt MOD (MOD Prod. Hours Fitter)',
+    '1392-0': 'MOD Quality – logistics',
+    '1393': 'MOD Quality – chuẩn bị (pre-work)',
+    '1394': 'MOD Quality – open item',
+    '1400': 'Bảo trì (Maintenance)',
+    '1500': 'Call back',
+    '1600': 'Sửa chữa (Repair)',
+    '1700': 'An toàn (Safety)',
+    '1710': 'SAIS Acceptance Test',
+    '1715': 'SAIS Re-Inspection',
+    '1720': 'Kiểm tra bàn giao NI/EI (Inspection)',
+    '1725': 'CPSI',
+    '1731': 'Thử nghiệm & vận hành (T&C)',
+    '1900': 'Customer Legal Audit',
+    '5010': 'Họp (Meetings)',
+    '5021': 'Đào tạo trong lớp (Training-Classroom)',
+    '5022': 'Đào tạo tại công trường (Training-On the job)',
+    '5040': 'Việc hành chính khác (Other Administrative Task)',
+    '5060': 'Họp giao ban an toàn (Tool Box Meeting)',
+    '5090': 'Giám sát, an toàn, đi lại (Supervisor / ES1 NI)',
+    '6010': 'Nghỉ hưởng lương (Holiday / Annual Leave)',
+    '6010/1': 'Nghỉ hưởng lương (Holiday / Annual Leave)',
+    '6020': 'Nghỉ ốm, tai nạn (Illness / Medical)',
+    '6090': 'Nghỉ không lương (Unpaid Leave)',
+  };
+
+  // gộp các biến thể gõ tay: "100 ", "1192- 0"... về cùng một mã
+  function normalizeActCode(v) {
+    return String(v).trim().replace(/\s+/g, '');
+  }
+  function activityName(code) {
+    return ACTIVITY_NAMES[code] || '';
+  }
+
   function fmtVN(n) {
     return (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
   }
@@ -187,20 +230,21 @@ const Dashboard = (() => {
   function renderActivities(mainRows, grand) {
     const byAct = {};
     mainRows.forEach(r => {
-      const key = (r.activities && r.activities !== '#N/A') ? String(r.activities) : '(không có)';
+      const code = normalizeActCode(r.activities || '');
+      const key = (code && code !== '#N/A') ? code : '(không có)';
       byAct[key] = (byAct[key] || 0) + r.total;
     });
     const actRows = Object.entries(byAct)
-      .map(([act, hours]) => ({ act, hours }))
+      .map(([act, hours]) => ({ act, name: activityName(act), hours }))
       .filter(a => a.hours > 0)
       .sort((a, b) => b.hours - a.hours);
 
     document.querySelector('#actTable tbody').innerHTML = actRows.map(a =>
-      `<tr><td>${a.act}</td><td class="num">${fmtVN(a.hours)}</td><td class="num">${grand > 0 ? fmtPct(a.hours / grand * 100) : '-'}</td></tr>`
+      `<tr><td>${a.act}</td><td>${a.name}</td><td class="num">${fmtVN(a.hours)}</td><td class="num">${grand > 0 ? fmtPct(a.hours / grand * 100) : '-'}</td></tr>`
     ).join('');
     const total = actRows.reduce((s, a) => s + a.hours, 0);
     document.querySelector('#actTable tfoot').innerHTML =
-      `<tr><td>Tổng</td><td class="num">${fmtVN(total)}</td><td class="num">100%</td></tr>`;
+      `<tr><td>Tổng</td><td></td><td class="num">${fmtVN(total)}</td><td class="num">100%</td></tr>`;
 
     const slices = actRows.map((a, i) => ({ label: a.act, value: a.hours, color: Charts.colorFor(i) }));
     Charts.renderPie(document.getElementById('actPieChart'), slices);
