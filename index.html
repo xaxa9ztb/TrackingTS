@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thống Kê Giờ Công Dự Án</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="js/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">Thống Kê Giờ Công Dự Án</div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="projects">Dự án</button>
+      <button class="tab-btn" data-tab="timesheet">Bảng công</button>
+      <button class="tab-btn" data-tab="employees">Nhân viên</button>
+    </nav>
+    <div class="header-actions">
+      <span id="dataStatus" class="data-status">Chưa có dữ liệu</span>
+      <button id="btnImport" class="btn btn-primary admin-only">Cập nhật Data</button>
+      <button id="btnSaveDrive" class="btn btn-primary admin-only" style="display:none">Lưu lên Drive</button>
+      <button id="btnExport" class="btn btn-secondary">Export Excel</button>
+      <button id="btnAdmin" class="btn btn-secondary" style="display:none">🔒 Admin</button>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= DASHBOARD ================= -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="dash-toolbar">
+        <div class="field">
+          <label>Dự án</label>
+          <div id="projectCombo"></div>
+        </div>
+        <div class="field roles-field">
+          <label>Select</label>
+          <div class="role-toggles">
+            <label class="role-chip chip-sitesup"><input type="checkbox" id="chkSiteSup"> Site Sup</label>
+            <label class="role-chip chip-fitter"><input type="checkbox" id="chkFitter" checked> Fitter</label>
+          </div>
+        </div>
+        <div class="field date-field">
+          <label>Date / Ngày</label>
+          <div class="date-range">
+            <input type="date" id="dateFrom">
+            <input type="date" id="dateTo">
+          </div>
+          <div class="dual-slider">
+            <input type="range" id="sliderFrom" min="0" max="100" value="0" step="1">
+            <input type="range" id="sliderTo" min="0" max="100" value="100" step="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="card pie-card">
+          <h3>Bảng Tỉ lệ Giờ Công</h3>
+          <div class="pie-wrap">
+            <canvas id="pieChart"></canvas>
+          </div>
+        </div>
+
+        <div class="card table-card">
+          <table id="empTable" class="data-table">
+            <thead>
+              <tr>
+                <th>Name(Tên NV)</th><th>Mã NV</th><th class="num">Normal</th><th class="num">OT1</th>
+                <th class="num">OT2</th><th class="num">OT3</th><th class="num">Total Hour</th><th class="num">Tỉ lệ %</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+          </table>
+        </div>
+
+        <div class="card act-card">
+          <h3>Thống kê Giờ Công theo Activities</h3>
+          <div class="act-flex">
+            <table id="actTable" class="data-table">
+              <thead>
+                <tr><th>Activities</th><th class="num">Số giờ</th><th class="num">Tỉ lệ %</th></tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot></tfoot>
+            </table>
+            <div class="act-pie"><canvas id="actPieChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card gauge-card">
+          <svg id="gaugeSvg" viewBox="0 0 240 140"></svg>
+          <div class="gauge-value" id="gaugeValue">0</div>
+          <div class="gauge-scale">
+            <span id="gaugeMin">0</span><span id="gaugeMax">0</span>
+          </div>
+          <div class="gauge-target-edit admin-only">
+            Target giờ: <input type="number" id="targetHourInput" min="0" step="1">
+          </div>
+        </div>
+
+        <div class="card stats-card">
+          <div class="stat-block">
+            <div class="stat-value" id="statWbs">-</div>
+            <div class="stat-label">WBS Element</div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-block">
+              <div class="stat-value" id="statNormalTotal">0,0</div>
+              <div class="stat-label">Tổng Giờ công thường</div>
+            </div>
+            <div class="stat-block">
+              <div class="stat-value" id="statGrandTotal">0,0</div>
+              <div class="stat-label">Tổng Giờ Công</div>
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-block stat-block-wide">
+              <div class="stat-value small" id="statSiteSupName" title="">-</div>
+              <div class="stat-label">Giám sát (Supervisor)</div>
+            </div>
+            <div class="stat-block">
+              <div class="stat-value" id="statOT1">0,0</div>
+              <div class="stat-label">Tổng OT1</div>
+            </div>
+            <div class="stat-block">
+              <div class="stat-value" id="statOT2">0,0</div>
+              <div class="stat-label">Tổng OT2</div>
+            </div>
+            <div class="stat-block">
+              <div class="stat-value" id="statOT3">0,0</div>
+              <div class="stat-label">Tổng OT3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PROJECTS ================= -->
+    <section id="tab-projects" class="tab-panel">
+      <div class="panel-toolbar">
+        <input type="text" id="projectSearch" placeholder="Tìm dự án theo tên hoặc WBS...">
+        <button class="btn btn-primary admin-only" id="btnAddProject">+ Thêm dự án</button>
+      </div>
+      <div class="table-scroll">
+        <table id="projectsTable" class="data-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= TIMESHEET ================= -->
+    <section id="tab-timesheet" class="tab-panel">
+      <div class="panel-toolbar">
+        <input type="month" id="tsMonthFilter">
+        <div id="tsEmployeeCombo"></div>
+        <div id="tsProjectCombo"></div>
+        <button class="btn btn-primary admin-only" id="btnAddTimesheet">+ Thêm bảng công</button>
+      </div>
+      <div class="table-scroll">
+        <table id="timesheetTable" class="data-table">
+          <thead>
+            <tr>
+              <th>Ngày</th><th>Mã NV</th><th>Tên NV</th><th>Dự án / WBS</th><th>Activities</th>
+              <th class="num">Normal</th><th class="num">OT1</th><th class="num">OT2</th><th class="num">OT3</th><th>Vai trò</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= EMPLOYEES ================= -->
+    <section id="tab-employees" class="tab-panel">
+      <div class="panel-toolbar">
+        <input type="text" id="employeeSearch" placeholder="Tìm nhân viên theo tên hoặc mã NV...">
+        <button class="btn btn-primary admin-only" id="btnAddEmployee">+ Thêm nhân viên</button>
+      </div>
+      <div class="table-scroll">
+        <table id="employeesTable" class="data-table">
+          <thead>
+            <tr><th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Quản lý trực tiếp</th><th>Ngày vào làm</th><th>Ngày bắt đầu</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/importer.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/combo.js"></script>
+<script src="js/tablefilter.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/projects.js"></script>
+<script src="js/timesheet.js"></script>
+<script src="js/employees.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
