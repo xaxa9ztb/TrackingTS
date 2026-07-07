@@ -182,5 +182,48 @@ body:not(.admin-mode) .btn-icon { display: none !important; }
 
 @media (max-width: 1100px) {
   .dash-grid { grid-template-columns: 1fr; }
-  .pie-card, .legend-card, .table-card, .gauge-card, .stats-card { grid-column: 1; grid-row: auto; }
+  .pie-card, .table-card, .act-card, .gauge-card, .stats-card { grid-column: 1; grid-row: auto; }
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 768px) {
+  .topbar { padding: 8px 10px; gap: 8px; }
+  .brand { font-size: 15px; }
+  .tabs {
+    order: 3; flex: none; width: 100%;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  .tab-btn { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .header-actions { flex: 1; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .data-status { flex-basis: 100%; text-align: right; font-size: 11px; }
+  .btn { padding: 8px 10px; font-size: 12px; }
+
+  main { padding: 10px; }
+
+  .dash-toolbar { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px; }
+  .field select, .field input[type=date] { min-width: 0; width: 100%; }
+  .date-field, .roles-field { min-width: 0; }
+  .date-range input { flex: 1; min-width: 0; }
+  #projectCombo, .combo { min-width: 0; width: 100%; }
+
+  .dash-grid { gap: 10px; }
+  .card { padding: 12px; }
+  .pie-wrap { height: 240px; }
+  .table-card { max-height: 60vh; }
+  .act-flex { flex-direction: column; }
+  .act-pie { width: 100%; min-height: 240px; }
+  .stat-value { font-size: 22px; }
+  .gauge-value { font-size: 28px; }
+
+  .panel-toolbar { flex-wrap: wrap; gap: 8px; }
+  .panel-toolbar input[type=text], .panel-toolbar input[type=month] { flex: 1 1 100%; min-width: 0; }
+  .panel-toolbar #tsEmployeeCombo, .panel-toolbar #tsProjectCombo { flex: 1 1 100%; }
+  .table-scroll { max-height: 65vh; }
+  .data-table th, .data-table td { padding: 6px 8px; font-size: 12px; }
+
+  .modal-box { width: 95vw; max-width: 480px; padding: 14px; max-height: 90vh; }
+  .modal-grid { grid-template-columns: 1fr; }
+  .modal-grid label.full, .modal-grid label { grid-column: span 1; }
+  .update-modal { width: 95vw; }
+  .update-option { flex-direction: column; align-items: stretch; }
 }

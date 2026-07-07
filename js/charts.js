@@ -90,7 +90,16 @@ const Charts = (() => {
         ctx.fillStyle = '#333';
         ctx.textAlign = side === 1 ? 'left' : 'right';
         ctx.font = '12px Segoe UI';
-        ctx.fillText(l.name, labelX, l.y - 2);
+        // truncate the name if it would run past the canvas edge (narrow screens)
+        const maxTextW = side === 1 ? (W - labelX - 4) : (labelX - 4);
+        let name = l.name;
+        if (ctx.measureText(name).width > maxTextW) {
+          while (name.length > 1 && ctx.measureText(name + '…').width > maxTextW) {
+            name = name.slice(0, -1);
+          }
+          name += '…';
+        }
+        ctx.fillText(name, labelX, l.y - 2);
         ctx.font = 'bold 12px Segoe UI';
         ctx.fillText(l.pct, labelX, l.y + lineH);
       });

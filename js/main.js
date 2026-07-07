@@ -241,7 +241,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  document.getElementById('btnExport').addEventListener('click', () => Importer.exportWorkbook());
+  document.getElementById('btnExport').addEventListener('click', () => {
+    if (!Auth.isAdmin()) { alert('Chỉ admin mới được xuất dữ liệu.'); return; }
+    Importer.exportWorkbook();
+  });
 
   await Dashboard.init();
   await ProjectsPage.load();
