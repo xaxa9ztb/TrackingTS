@@ -150,32 +150,90 @@ const Importer = (() => {
     return dupIds.length;
   }
 
+  // Các mẫu file khác nhau đặt tên/thứ tự cột khác nhau: bản xuất "TS All"
+  // và template chấm công tháng "New TS" lệch nhau 1 cột ở nhóm Activities /
+  // Project / Work Number, và header của "New TS" nằm ở dòng thứ 8. Vì vậy
+  // ta xác định cột THEO TÊN TIÊU ĐỀ thay vì vị trí cố định; cột nào không
+  // tìm được header thì lùi về vị trí cũ của "TS All".
+  const TS_HEADER_PATTERNS = {
+    empId: /employee\s*no|mã\s*nv|hrms/i,
+    empName: /^\s*name|tên\s*nv/i,
+    date: /date|ngày/i,
+    timeFrom: /^\s*from\s*$/i,
+    timeTo: /^\s*to\s*$/i,
+    normal: /normal\s*hour|^\s*normal\s*$/i,
+    ot1: /^\s*ot1/i, ot2: /^\s*ot2/i, ot3: /^\s*ot3/i, ot4: /^\s*ot4/i,
+    ot5: /^\s*ot5/i, ot6: /^\s*ot6/i, ot7: /^\s*ot7/i,
+    activities: /^\s*activities\s*$/i,
+    projectName: /project\s*name|description/i,
+    wbs: /work\s*number/i,
+    category: /ni[\s\S]*mod[\s\S]*hr|^\s*category\s*$/i,
+    isFitter: /^\s*fitter\s*$/i,
+    isSiteSup: /site\s*sup/i,
+  };
+  // vị trí cột mặc định của "TS All" (dùng khi không dò được header)
+  const TS_LEGACY_COLS = {
+    empId: 0, empName: 1, date: 2, timeFrom: 4, timeTo: 5, normal: 6,
+    ot1: 8, ot2: 9, ot3: 10, ot4: 11, ot5: 12, ot6: 13, ot7: 14,
+    activities: 17, projectName: 18, wbs: 19, category: 20, isFitter: 54, isSiteSup: 55,
+  };
+
+  function detectTsColumns(rows) {
+    const norm = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+    let headerRow = -1;
+    for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      const cells = (rows[i] || []).map(norm);
+      const hasEmp = cells.some(c => TS_HEADER_PATTERNS.empId.test(c));
+      const hasDate = cells.some(c => /date|ngày/i.test(c) && !/week\s*day/i.test(c));
+      const hasHours = cells.some(c => TS_HEADER_PATTERNS.normal.test(c) || TS_HEADER_PATTERNS.timeFrom.test(c));
+      if (hasEmp && hasDate && hasHours) { headerRow = i; break; }
+    }
+    const cols = { ...TS_LEGACY_COLS };
+    if (headerRow >= 0) {
+      const header = (rows[headerRow] || []).map(norm);
+      for (const key of Object.keys(TS_HEADER_PATTERNS)) {
+        const idx = header.findIndex(c => {
+          if (!c) return false;
+          if (key === 'date' && /week\s*day/i.test(c)) return false;
+          return TS_HEADER_PATTERNS[key].test(c);
+        });
+        if (idx >= 0) cols[key] = idx;
+      }
+    }
+    return { headerRow: headerRow >= 0 ? headerRow : 0, cols };
+  }
+
   function mapTimesheets(rows) {
-    // TS All columns (0-indexed): 0 EmpNo,1 Name,2 Date,4 From,5 To,6 Normal,8 OT1,9 OT2,10 OT3,11 OT4,12 OT5,13 OT6,14 OT7,
-    // 15 Standby,17 Activities,18 ProjectName,19 WorkNumber,20 NI/MOD/HR,54 Fitter,55 Sitesup
-    return rows.slice(1).filter(r => r[0] !== undefined && r[0] !== '').map(r => {
-      const normal = toNum(r[6]);
-      const ot1 = toNum(r[8]), ot2 = toNum(r[9]), ot3 = toNum(r[10]);
-      const ot4 = toNum(r[11]), ot5 = toNum(r[12]), ot6 = toNum(r[13]), ot7 = toNum(r[14]);
+    const { headerRow, cols } = detectTsColumns(rows);
+    const out = [];
+    for (let i = headerRow + 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const empRaw = r[cols.empId];
+      if (empRaw === undefined || empRaw === '') continue;
+      const normal = toNum(r[cols.normal]);
+      const ot1 = toNum(r[cols.ot1]), ot2 = toNum(r[cols.ot2]), ot3 = toNum(r[cols.ot3]);
+      const ot4 = toNum(r[cols.ot4]), ot5 = toNum(r[cols.ot5]), ot6 = toNum(r[cols.ot6]), ot7 = toNum(r[cols.ot7]);
       const total = normal + ot1 + ot2 + ot3 + ot4 + ot5 + ot6 + ot7;
-      const wbsRaw = r[19];
+      const wbsRaw = r[cols.wbs];
       const wbs = (wbsRaw === undefined || wbsRaw === '' || wbsRaw === '#N/A') ? '' : String(wbsRaw).trim();
-      return {
+      const fitCell = r[cols.isFitter], supCell = r[cols.isSiteSup];
+      out.push({
         source: 'import',
-        empId: String(r[0]).trim(),
-        empName: r[1] || '',
-        date: excelSerialToISO(r[2]),
-        timeFrom: excelTimeToHHMM(r[4]),
-        timeTo: excelTimeToHHMM(r[5]),
+        empId: String(empRaw).trim(),
+        empName: r[cols.empName] || '',
+        date: excelSerialToISO(r[cols.date]),
+        timeFrom: excelTimeToHHMM(r[cols.timeFrom]),
+        timeTo: excelTimeToHHMM(r[cols.timeTo]),
         normal, ot1, ot2, ot3, ot4, ot5, ot6, ot7, total,
-        activities: r[17] || '',
-        projectNameFree: r[18] || '',
+        activities: r[cols.activities] !== undefined && r[cols.activities] !== '' ? String(r[cols.activities]).trim() : '',
+        projectNameFree: r[cols.projectName] || '',
         wbs,
-        category: r[20] || '',
-        isFitter: r[54] === 'X' || r[54] === 'x',
-        isSiteSup: r[55] === 'X' || r[55] === 'x',
-      };
-    });
+        category: r[cols.category] || '',
+        isFitter: fitCell === 'X' || fitCell === 'x',
+        isSiteSup: supCell === 'X' || supCell === 'x',
+      });
+    }
+    return out;
   }
 
   // Mode 1: full workbook (3 sheets) -> REPLACES the entire database.

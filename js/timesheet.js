@@ -86,10 +86,12 @@ const TimesheetPage = (() => {
     const e = employees.find(x => x.empId === empId);
     return e ? e.fullName : empId;
   }
-  function projectLabel(wbs) {
-    if (!wbs) return '(không xác định)';
-    const p = projects.find(x => x.wbs === wbs);
-    return p ? `${p.projectName} (${wbs})` : wbs;
+  // cột "Dự án": ưu tiên tên dự án tra theo WBS trong kho dự án; nếu WBS
+  // chưa có trong kho thì dùng tên dự án tự do (Project Name) từ file import
+  function projectName(r) {
+    const p = projects.find(x => x.wbs === r.wbs);
+    if (p) return p.projectName;
+    return r.projectNameFree || '';
   }
 
   function render() {
@@ -141,7 +143,7 @@ const TimesheetPage = (() => {
       r,
       cells: [
         r.date || '', r.timeFrom || '', r.timeTo || '', r.empId,
-        r.empName || employeeName(r.empId), projectLabel(r.wbs),
+        r.empName || employeeName(r.empId), projectName(r), r.wbs || '',
         r.activities || '', fmt(r.normal), fmt(r.ot1), fmt(r.ot2), fmt(r.ot3),
         r.isSiteSup ? 'Site Sup' : (r.isFitter ? 'Fitter' : ''),
       ],
@@ -152,7 +154,7 @@ const TimesheetPage = (() => {
     document.querySelector('#timesheetTable tbody').innerHTML = disp.slice(0, 500).map(d => `
       <tr${dupMode ? ` class="dup-row ${dupGroupOf.get(d.r.id) % 2 ? 'dup-b' : 'dup-a'}"` : ''}>
         <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.r.id}" ${selected.has(d.r.id) ? 'checked' : ''}></td>
-        ${d.cells.map((c, i) => `<td${i >= 7 && i <= 10 ? ' class="num"' : ''}>${c}</td>`).join('')}
+        ${d.cells.map((c, i) => `<td${i >= 8 && i <= 11 ? ' class="num"' : ''}>${c}</td>`).join('')}
         <td>
           <button class="btn-icon" data-edit="${d.r.id}">✏️</button>
           <button class="btn-icon" data-del="${d.r.id}">🗑️</button>
@@ -161,11 +163,11 @@ const TimesheetPage = (() => {
 
     if (disp.length > 500) {
       document.querySelector('#timesheetTable tbody').insertAdjacentHTML('beforeend',
-        `<tr><td colspan="14" style="text-align:center;color:#888">... và ${disp.length - 500} dòng khác (thu hẹp bộ lọc để xem)</td></tr>`);
+        `<tr><td colspan="15" style="text-align:center;color:#888">... và ${disp.length - 500} dòng khác (thu hẹp bộ lọc để xem)</td></tr>`);
     }
     if (dupMode && !disp.length) {
       document.querySelector('#timesheetTable tbody').innerHTML =
-        `<tr><td colspan="14" style="text-align:center;color:#888">Không tìm thấy dòng trùng lặp nào (theo bộ lọc hiện tại) 🎉</td></tr>`;
+        `<tr><td colspan="15" style="text-align:center;color:#888">Không tìm thấy dòng trùng lặp nào (theo bộ lọc hiện tại) 🎉</td></tr>`;
     }
 
     // sum over ALL filtered rows (not just the 500 displayed)
@@ -175,7 +177,7 @@ const TimesheetPage = (() => {
     const grand = sums.normal + sums.ot1 + sums.ot2 + sums.ot3;
     document.querySelector('#timesheetTable tfoot').innerHTML = `
       <tr>
-        <td colspan="8">Tổng (${disp.length} dòng)</td>
+        <td colspan="9">Tổng (${disp.length} dòng)</td>
         <td class="num">${fmt(sums.normal)}</td>
         <td class="num">${fmt(sums.ot1)}</td>
         <td class="num">${fmt(sums.ot2)}</td>
@@ -284,6 +286,7 @@ const TimesheetPage = (() => {
         timeFrom: fromVal,
         timeTo: toVal,
         wbs: wbsVal,
+        projectNameFree: r ? (r.projectNameFree || '') : '',
         activities: actVal,
         normal, ot1, ot2, ot3, ot4: 0, ot5: 0, ot6: 0, ot7: 0,
         total: normal + ot1 + ot2 + ot3,
@@ -333,10 +336,10 @@ const TimesheetPage = (() => {
       render();
     });
     document.getElementById('tsMonthFilter').addEventListener('change', render);
-    // checkbox column + 12 filterable columns + action column
+    // checkbox column + 13 filterable columns + action column
     colFilters = TableFilter.build(
       document.querySelector('#timesheetTable thead'),
-      ['chk', true, true, true, true, true, true, true, true, true, true, true, true, false],
+      ['chk', true, true, true, true, true, true, true, true, true, true, true, true, true, false],
       render
     );
   }
