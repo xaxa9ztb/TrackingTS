@@ -100,10 +100,28 @@ const Importer = (() => {
     });
   }
 
-  // một dòng bảng công là TRÙNG khi cùng nhân viên + ngày + dự án + hoạt động
-  // (nhân viên nhập 2 lần cùng 1 ngày thì chỉ ghi nhận 1 dòng)
+  // Excel lưu giờ dạng số thập phân (phần lẻ của 1 ngày): 0.3125 = 07:30.
+  // Nhận cả chuỗi "7:30" / "07h30" và Date; trả về 'HH:MM' hoặc ''.
+  function excelTimeToHHMM(v) {
+    if (v === undefined || v === null || v === '') return '';
+    if (v instanceof Date) {
+      return `${String(v.getHours()).padStart(2, '0')}:${String(v.getMinutes()).padStart(2, '0')}`;
+    }
+    if (typeof v === 'number') {
+      if (v >= 1 && v % 1 === 0) return ''; // số nguyên lớn = serial ngày, không phải giờ
+      const mins = Math.round((v % 1) * 24 * 60) % 1440;
+      return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+    }
+    const m = String(v).trim().match(/^(\d{1,2})[:hH.](\d{2})/);
+    if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
+    return '';
+  }
+
+  // một dòng bảng công là TRÙNG khi cùng nhân viên + ngày + giờ làm việc
+  // + dự án + hoạt động (nhân viên nhập 2 lần 1 ngày thì chỉ ghi nhận 1 dòng;
+  // giờ From/To nằm trong khoá để không xoá nhầm ca sáng / ca tối tách dòng)
   function tsKey(r) {
-    return [r.empId, r.date, r.wbs || '', String(r.activities || '')].join('|');
+    return [r.empId, r.date, r.timeFrom || '', r.timeTo || '', r.wbs || '', String(r.activities || '')].join('|');
   }
 
   function dedupeTimesheetRows(rows) {
@@ -133,7 +151,7 @@ const Importer = (() => {
   }
 
   function mapTimesheets(rows) {
-    // TS All columns (0-indexed): 0 EmpNo,1 Name,2 Date,6 Normal,8 OT1,9 OT2,10 OT3,11 OT4,12 OT5,13 OT6,14 OT7,
+    // TS All columns (0-indexed): 0 EmpNo,1 Name,2 Date,4 From,5 To,6 Normal,8 OT1,9 OT2,10 OT3,11 OT4,12 OT5,13 OT6,14 OT7,
     // 15 Standby,17 Activities,18 ProjectName,19 WorkNumber,20 NI/MOD/HR,54 Fitter,55 Sitesup
     return rows.slice(1).filter(r => r[0] !== undefined && r[0] !== '').map(r => {
       const normal = toNum(r[6]);
@@ -147,6 +165,8 @@ const Importer = (() => {
         empId: String(r[0]).trim(),
         empName: r[1] || '',
         date: excelSerialToISO(r[2]),
+        timeFrom: excelTimeToHHMM(r[4]),
+        timeTo: excelTimeToHHMM(r[5]),
         normal, ot1, ot2, ot3, ot4, ot5, ot6, ot7, total,
         activities: r[17] || '',
         projectNameFree: r[18] || '',
@@ -310,8 +330,8 @@ const Importer = (() => {
     projects.forEach(p => projAoa.push([p.wbs, p.projectNumber || '', p.projectName, p.customer, p.productLine, p.supervisor || '', p.salesRep, p.netValue, p.targetHour]));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(projAoa), 'Yan_COM');
 
-    const tsAoa = [['Employee No', 'Name', 'Date', 'Normal', 'OT1', 'OT2', 'OT3', 'OT4', 'OT5', 'OT6', 'OT7', 'Total', 'Activities', 'Project Name', 'Work Number', 'Category', 'Fitter', 'Sitesup']];
-    timesheets.forEach(t => tsAoa.push([t.empId, t.empName, t.date, t.normal, t.ot1, t.ot2, t.ot3, t.ot4, t.ot5, t.ot6, t.ot7, t.total, t.activities, t.projectNameFree, t.wbs, t.category, t.isFitter ? 'X' : '', t.isSiteSup ? 'X' : '']));
+    const tsAoa = [['Employee No', 'Name', 'Date', 'From', 'To', 'Normal', 'OT1', 'OT2', 'OT3', 'OT4', 'OT5', 'OT6', 'OT7', 'Total', 'Activities', 'Project Name', 'Work Number', 'Category', 'Fitter', 'Sitesup']];
+    timesheets.forEach(t => tsAoa.push([t.empId, t.empName, t.date, t.timeFrom || '', t.timeTo || '', t.normal, t.ot1, t.ot2, t.ot3, t.ot4, t.ot5, t.ot6, t.ot7, t.total, t.activities, t.projectNameFree, t.wbs, t.category, t.isFitter ? 'X' : '', t.isSiteSup ? 'X' : '']));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tsAoa), 'TS All');
 
     XLSX.writeFile(wb, 'Timesheet_Export.xlsx');

@@ -110,7 +110,7 @@ function openUpdateModal() {
             <b>1. Cập nhật toàn bộ</b>
             <p>File Excel đủ 3 sheet (EE DATA, Yan_COM, TS All) như "Data v1.xlsx".
             <b>Thay thế toàn bộ</b> dữ liệu hiện có trong app. Dòng bảng công <b>trùng lặp</b>
-            (cùng nhân viên, ngày, dự án, hoạt động) chỉ được ghi nhận <b>1 dòng</b>.</p>
+            (cùng nhân viên, ngày, giờ làm việc, dự án, hoạt động) chỉ được ghi nhận <b>1 dòng</b>.</p>
           </div>
           <button class="btn btn-primary" data-mode="full">Chọn file</button>
         </div>
@@ -138,7 +138,7 @@ function openUpdateModal() {
           <div class="update-info">
             <b>4. Bổ sung Bảng công (theo tháng)</b>
             <p>Chọn <b>1 hoặc nhiều file</b> chấm công (mỗi nhân viên 1 file/tháng, cột như
-            sheet TS All). Chỉ thêm dòng mới — dòng <b>trùng</b> (cùng nhân viên, ngày,
+            sheet TS All). Chỉ thêm dòng mới — dòng <b>trùng</b> (cùng nhân viên, ngày, giờ,
             dự án, hoạt động) sẽ <b>bị bỏ qua</b>, không ghi trùng.</p>
           </div>
           <button class="btn btn-secondary" data-mode="timesheets">Chọn files</button>
