@@ -10,6 +10,21 @@ const TimesheetPage = (() => {
 
   function fmt(n) { return (Math.round((n || 0) * 10) / 10).toFixed(1).replace('.', ','); }
 
+  // chu kỳ bảng công của tháng N: từ 16 tháng (N-1) đến 15 tháng N
+  // ví dụ chu kỳ tháng 7 = 16/06 -> 15/07
+  function cycleRange(month) { // month: 'yyyy-mm'
+    const [y, m] = month.split('-').map(Number);
+    const prevY = m === 1 ? y - 1 : y;
+    const prevM = m === 1 ? 12 : m - 1;
+    const pad = n => String(n).padStart(2, '0');
+    return { from: `${prevY}-${pad(prevM)}-16`, to: `${y}-${pad(m)}-15` };
+  }
+
+  function fmtDMY(iso) { // 'yyyy-mm-dd' -> 'dd/mm/yyyy'
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
   async function load() {
     selected.clear();
     timesheets = await DB.getAll('timesheets');
@@ -81,8 +96,15 @@ const TimesheetPage = (() => {
     const empFilter = empCombo ? empCombo.getValue() : '';
     const projFilter = projCombo ? projCombo.getValue() : '';
 
+    const cycleLabel = document.getElementById('tsCycleLabel');
     let rows = timesheets;
-    if (month) rows = rows.filter(r => (r.date || '').startsWith(month));
+    if (month) {
+      const { from, to } = cycleRange(month);
+      rows = rows.filter(r => r.date && r.date >= from && r.date <= to);
+      if (cycleLabel) cycleLabel.textContent = `Chu kỳ: ${fmtDMY(from)} – ${fmtDMY(to)}`;
+    } else if (cycleLabel) {
+      cycleLabel.textContent = '';
+    }
     if (empFilter) rows = rows.filter(r => r.empId === empFilter);
     if (projFilter) rows = rows.filter(r => r.wbs === projFilter);
     rows = rows.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -197,6 +219,18 @@ const TimesheetPage = (() => {
       const empId = empC.getValue();
       const date = document.getElementById('f_date').value;
       if (!empId || !date) { alert('Cần chọn nhân viên và ngày'); return false; }
+      const wbsVal = projC.getValue();
+      const actVal = document.getElementById('f_act').value;
+      // chống nhập trùng: cùng nhân viên + ngày + dự án + hoạt động chỉ ghi nhận 1 dòng
+      const dup = timesheets.find(t =>
+        (!r || t.id !== r.id) &&
+        t.empId === empId && t.date === date &&
+        (t.wbs || '') === (wbsVal || '') &&
+        String(t.activities || '') === String(actVal || ''));
+      if (dup) {
+        alert('Bảng công này đã được nhập trước đó (trùng nhân viên, ngày, dự án và hoạt động).\nChỉ ghi nhận 1 dòng — hãy sửa dòng đã có thay vì thêm mới.');
+        return false;
+      }
       const normal = parseFloat(document.getElementById('f_normal').value) || 0;
       const ot1 = parseFloat(document.getElementById('f_ot1').value) || 0;
       const ot2 = parseFloat(document.getElementById('f_ot2').value) || 0;
@@ -206,8 +240,8 @@ const TimesheetPage = (() => {
         empId,
         empName: employeeName(empId),
         date,
-        wbs: projC.getValue(),
-        activities: document.getElementById('f_act').value,
+        wbs: wbsVal,
+        activities: actVal,
         normal, ot1, ot2, ot3, ot4: 0, ot5: 0, ot6: 0, ot7: 0,
         total: normal + ot1 + ot2 + ot3,
         isFitter: document.getElementById('f_fitter').checked,

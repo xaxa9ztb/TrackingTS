@@ -100,6 +100,38 @@ const Importer = (() => {
     });
   }
 
+  // một dòng bảng công là TRÙNG khi cùng nhân viên + ngày + dự án + hoạt động
+  // (nhân viên nhập 2 lần cùng 1 ngày thì chỉ ghi nhận 1 dòng)
+  function tsKey(r) {
+    return [r.empId, r.date, r.wbs || '', String(r.activities || '')].join('|');
+  }
+
+  function dedupeTimesheetRows(rows) {
+    const seen = new Set();
+    return rows.filter(r => {
+      const k = tsKey(r);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  // dọn các dòng trùng lặp đã có sẵn trong database (giữ lại dòng nhập trước)
+  async function removeDuplicateTimesheets() {
+    const all = await DB.getAll('timesheets');
+    const seen = new Set();
+    const dupIds = [];
+    for (const r of all) {
+      const k = tsKey(r);
+      if (seen.has(k)) dupIds.push(r.id);
+      else seen.add(k);
+    }
+    if (!dupIds.length) return 0;
+    await Backup.snapshot(`Trước khi xoá ${dupIds.length} dòng bảng công trùng lặp (tự động)`);
+    await DB.bulkRemove('timesheets', dupIds);
+    return dupIds.length;
+  }
+
   function mapTimesheets(rows) {
     // TS All columns (0-indexed): 0 EmpNo,1 Name,2 Date,6 Normal,8 OT1,9 OT2,10 OT3,11 OT4,12 OT5,13 OT6,14 OT7,
     // 15 Standby,17 Activities,18 ProjectName,19 WorkNumber,20 NI/MOD/HR,54 Fitter,55 Sitesup
@@ -147,7 +179,8 @@ const Importer = (() => {
 
     const employees = mapEmployees(eeRows);
     const projects = mapProjects(projRows, existingByWbs);
-    const timesheets = mapTimesheets(tsRows);
+    const rawTimesheets = mapTimesheets(tsRows);
+    const timesheets = dedupeTimesheetRows(rawTimesheets);
 
     await Backup.snapshot('Trước khi cập nhật toàn bộ (tự động)');
     await DB.clear('employees');
@@ -161,6 +194,7 @@ const Importer = (() => {
       employees: employees.length,
       projects: projects.length,
       timesheets: timesheets.length,
+      duplicates: rawTimesheets.length - timesheets.length,
     };
   }
 
@@ -246,13 +280,12 @@ const Importer = (() => {
       allRows = allRows.concat(mapped);
     }
 
-    const keyOf = r => [r.empId, r.date, r.wbs, r.activities].join('|');
     const existing = await DB.getAll('timesheets');
-    const seenKeys = new Set(existing.map(keyOf));
+    const seenKeys = new Set(existing.map(tsKey));
 
     const fresh = [];
     for (const r of allRows) {
-      const k = keyOf(r);
+      const k = tsKey(r);
       if (!seenKeys.has(k)) {
         seenKeys.add(k); // also de-dupes within the imported batch itself
         fresh.push(r);
@@ -284,5 +317,5 @@ const Importer = (() => {
     XLSX.writeFile(wb, 'Timesheet_Export.xlsx');
   }
 
-  return { importFile, importProjectsFile, importEmployeesFile, importTimesheetFiles, exportWorkbook };
+  return { importFile, importProjectsFile, importEmployeesFile, importTimesheetFiles, exportWorkbook, removeDuplicateTimesheets };
 })();
