@@ -119,6 +119,7 @@ main { padding: 20px; }
 .panel-toolbar input[type=text], .panel-toolbar input[type=month], .panel-toolbar select {
   padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
 }
+.cycle-label { align-self: center; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
 .table-scroll { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 70vh; }
 #projectsTable th, #projectsTable td { white-space: nowrap; }
 #projectCombo { min-width: 320px; }

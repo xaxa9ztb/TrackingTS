@@ -109,7 +109,8 @@ function openUpdateModal() {
           <div class="update-info">
             <b>1. Cập nhật toàn bộ</b>
             <p>File Excel đủ 3 sheet (EE DATA, Yan_COM, TS All) như "Data v1.xlsx".
-            <b>Thay thế toàn bộ</b> dữ liệu hiện có trong app.</p>
+            <b>Thay thế toàn bộ</b> dữ liệu hiện có trong app. Dòng bảng công <b>trùng lặp</b>
+            (cùng nhân viên, ngày, dự án, hoạt động) chỉ được ghi nhận <b>1 dòng</b>.</p>
           </div>
           <button class="btn btn-primary" data-mode="full">Chọn file</button>
         </div>
@@ -275,7 +276,8 @@ function openUpdateModal() {
           let msg;
           if (mode === 'full') {
             const r = await Importer.importFile(files[0]);
-            msg = `Đã thay thế toàn bộ: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.`;
+            msg = `Đã thay thế toàn bộ: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.` +
+              (r.duplicates ? ` Đã loại ${r.duplicates} dòng trùng lặp.` : '');
           } else if (mode === 'projects') {
             const r = await Importer.importProjectsFile(files[0]);
             msg = `Đã thêm ${r.added} dự án mới, bổ sung thông tin cho ${r.updated} dự án đã có, bỏ qua ${r.skipped} dòng không có gì mới.`;
@@ -302,6 +304,8 @@ function openUpdateModal() {
 }
 
 async function refreshAllPages() {
+  // dữ liệu vừa import / khôi phục có thể chứa dòng bảng công trùng lặp
+  await Importer.removeDuplicateTimesheets();
   await Dashboard.reloadAndRefresh();
   await ProjectsPage.load();
   await TimesheetPage.load();
@@ -346,6 +350,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!Auth.isAdmin()) { alert('Chỉ admin mới được xuất dữ liệu.'); return; }
     Importer.exportWorkbook();
   });
+
+  // dữ liệu cũ (trên máy hoặc từ Drive) có thể còn dòng bảng công trùng lặp
+  try {
+    const removed = await Importer.removeDuplicateTimesheets();
+    if (removed) console.info(`Đã loại bỏ ${removed} dòng bảng công trùng lặp.`);
+  } catch (err) {
+    console.error('Lỗi dọn dòng bảng công trùng lặp:', err);
+  }
 
   await Dashboard.init();
   await ProjectsPage.load();

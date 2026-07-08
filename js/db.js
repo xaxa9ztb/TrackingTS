@@ -64,6 +64,15 @@ const DB = (() => {
     });
   }
 
+  async function bulkRemove(storeName, keys) {
+    const store = await tx(storeName, 'readwrite');
+    return new Promise((resolve, reject) => {
+      keys.forEach(k => store.delete(k));
+      store.transaction.oncomplete = () => resolve();
+      store.transaction.onerror = () => reject(store.transaction.error);
+    });
+  }
+
   async function remove(storeName, key) {
     const store = await tx(storeName, 'readwrite');
     return new Promise((resolve, reject) => {
@@ -91,5 +100,5 @@ const DB = (() => {
     });
   }
 
-  return { open, getAll, put, bulkPut, remove, clear, count };
+  return { open, getAll, put, bulkPut, remove, bulkRemove, clear, count };
 })();
