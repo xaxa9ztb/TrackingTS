@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thống Kê Giờ Công Dự Án</title>
-<link rel="stylesheet" href="css/style.css?v=2">
-<script src="js/xlsx.full.min.js?v=2"></script>
+<link rel="stylesheet" href="css/style.css?v=3">
+<script src="js/xlsx.full.min.js?v=3"></script>
 </head>
 <body>
 <div id="app">
@@ -161,6 +161,8 @@
         <span id="tsCycleLabel" class="cycle-label"></span>
         <div id="tsEmployeeCombo"></div>
         <div id="tsProjectCombo"></div>
+        <button class="btn btn-secondary" id="btnFindDupTs" title="Tìm các dòng nghi trùng lặp: cùng nhân viên có từ 2 dòng trở lên trong cùng 1 ngày">🔍 Tìm trùng lặp</button>
+        <span id="tsDupInfo" class="cycle-label"></span>
         <button class="btn btn-primary admin-only" id="btnAddTimesheet">+ Thêm bảng công</button>
         <button class="btn btn-danger admin-only" id="btnDelSelTs" style="display:none">Xoá đã chọn</button>
       </div>
@@ -204,18 +206,18 @@
 
 <div id="modalRoot"></div>
 
-<script src="js/config.js?v=2"></script>
-<script src="js/db.js?v=2"></script>
-<script src="js/backup.js?v=2"></script>
-<script src="js/cloud.js?v=2"></script>
-<script src="js/importer.js?v=2"></script>
-<script src="js/charts.js?v=2"></script>
-<script src="js/combo.js?v=2"></script>
-<script src="js/tablefilter.js?v=2"></script>
-<script src="js/dashboard.js?v=2"></script>
-<script src="js/projects.js?v=2"></script>
-<script src="js/timesheet.js?v=2"></script>
-<script src="js/employees.js?v=2"></script>
-<script src="js/main.js?v=2"></script>
+<script src="js/config.js?v=3"></script>
+<script src="js/db.js?v=3"></script>
+<script src="js/backup.js?v=3"></script>
+<script src="js/cloud.js?v=3"></script>
+<script src="js/importer.js?v=3"></script>
+<script src="js/charts.js?v=3"></script>
+<script src="js/combo.js?v=3"></script>
+<script src="js/tablefilter.js?v=3"></script>
+<script src="js/dashboard.js?v=3"></script>
+<script src="js/projects.js?v=3"></script>
+<script src="js/timesheet.js?v=3"></script>
+<script src="js/employees.js?v=3"></script>
+<script src="js/main.js?v=3"></script>
 </body>
 </html>
