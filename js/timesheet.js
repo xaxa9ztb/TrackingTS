@@ -7,6 +7,7 @@ const TimesheetPage = (() => {
   let colFilters = [];
   let selected = new Set();      // ids of rows ticked for bulk delete
   let lastFilteredIds = [];      // ids of all rows matching current filters
+  let dupMode = false;           // true = only show suspected-duplicate groups
 
   function fmt(n) { return (Math.round((n || 0) * 10) / 10).toFixed(1).replace('.', ','); }
 
@@ -107,7 +108,32 @@ const TimesheetPage = (() => {
     }
     if (empFilter) rows = rows.filter(r => r.empId === empFilter);
     if (projFilter) rows = rows.filter(r => r.wbs === projFilter);
-    rows = rows.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    // duplicate finder: keep only groups where one employee has 2+ rows on
+    // the same day; rows stay grouped so admin can compare and delete extras
+    const dupInfo = document.getElementById('tsDupInfo');
+    const dupGroupOf = new Map(); // row id -> group index (for striping)
+    if (dupMode) {
+      const groups = new Map();
+      rows.forEach(r => {
+        const k = `${r.empId}|${r.date || ''}`;
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(r);
+      });
+      const dupGroups = [...groups.values()]
+        .filter(g => g.length > 1)
+        .sort((a, b) => (b[0].date || '').localeCompare(a[0].date || '') || a[0].empId.localeCompare(b[0].empId));
+      rows = [];
+      dupGroups.forEach((g, i) => g.forEach(r => { dupGroupOf.set(r.id, i); rows.push(r); }));
+      if (dupInfo) {
+        dupInfo.textContent = dupGroups.length
+          ? `⚠️ ${dupGroups.length} nhóm nghi trùng (${rows.length} dòng)`
+          : '✓ Không có dòng nào trùng nhân viên + ngày';
+      }
+    } else {
+      if (dupInfo) dupInfo.textContent = '';
+      rows = rows.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }
 
     // display cells per row; per-column filters run on these strings
     const disp = rows.map(r => ({
@@ -122,7 +148,7 @@ const TimesheetPage = (() => {
     lastFilteredIds = disp.map(d => d.r.id);
 
     document.querySelector('#timesheetTable tbody').innerHTML = disp.slice(0, 500).map(d => `
-      <tr>
+      <tr${dupMode ? ` class="dup-row ${dupGroupOf.get(d.r.id) % 2 ? 'dup-b' : 'dup-a'}"` : ''}>
         <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.r.id}" ${selected.has(d.r.id) ? 'checked' : ''}></td>
         ${d.cells.map((c, i) => `<td${i >= 5 && i <= 8 ? ' class="num"' : ''}>${c}</td>`).join('')}
         <td>
@@ -134,6 +160,10 @@ const TimesheetPage = (() => {
     if (disp.length > 500) {
       document.querySelector('#timesheetTable tbody').insertAdjacentHTML('beforeend',
         `<tr><td colspan="12" style="text-align:center;color:#888">... và ${disp.length - 500} dòng khác (thu hẹp bộ lọc để xem)</td></tr>`);
+    }
+    if (dupMode && !disp.length) {
+      document.querySelector('#timesheetTable tbody').innerHTML =
+        `<tr><td colspan="12" style="text-align:center;color:#888">Không tìm thấy dòng trùng lặp nào (theo bộ lọc hiện tại) 🎉</td></tr>`;
     }
 
     // sum over ALL filtered rows (not just the 500 displayed)
@@ -275,6 +305,14 @@ const TimesheetPage = (() => {
 
   function wire() {
     document.getElementById('btnAddTimesheet').addEventListener('click', () => openForm(null));
+    document.getElementById('btnFindDupTs').addEventListener('click', () => {
+      dupMode = !dupMode;
+      const btn = document.getElementById('btnFindDupTs');
+      btn.textContent = dupMode ? '✕ Tắt lọc trùng lặp' : '🔍 Tìm trùng lặp';
+      btn.classList.toggle('btn-primary', dupMode);
+      btn.classList.toggle('btn-secondary', !dupMode);
+      render();
+    });
     document.getElementById('btnDelSelTs').addEventListener('click', removeSelected);
     document.getElementById('tsChkAll').addEventListener('change', (e) => {
       if (e.target.checked) lastFilteredIds.forEach(id => selected.add(id));
