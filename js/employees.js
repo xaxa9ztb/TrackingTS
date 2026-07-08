@@ -1,6 +1,8 @@
 const EmployeesPage = (() => {
   let employees = [];
   let colFilters = [];
+  let selected = new Set();
+  let lastFilteredIds = [];
 
   // EE Data dates arrive either as Excel serials ("39760") or "m.d.yyyy" strings -> dd/mm/yyyy
   function fmtShortDate(v) {
@@ -19,6 +21,7 @@ const EmployeesPage = (() => {
   }
 
   async function load() {
+    selected.clear();
     employees = await DB.getAll('employees');
     employees.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
     render();
@@ -32,16 +35,25 @@ const EmployeesPage = (() => {
         e,
         cells: [e.empId, e.fullName || '', e.position || '', e.supervisor || '', fmtShortDate(e.hireDate), fmtShortDate(e.startDate)],
       }))
-      .filter(d => TableFilter.match(colFilters, d.cells));
+      .filter(d => TableFilter.match(colFilters, d.cells, 1));
+
+    lastFilteredIds = disp.map(d => d.e.empId);
 
     document.querySelector('#employeesTable tbody').innerHTML = disp.map(d => `
       <tr>
+        <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.e.empId}" ${selected.has(d.e.empId) ? 'checked' : ''}></td>
         ${d.cells.map(c => `<td>${c}</td>`).join('')}
         <td>
           <button class="btn-icon" data-edit="${d.e.empId}">✏️</button>
           <button class="btn-icon" data-del="${d.e.empId}">🗑️</button>
         </td>
       </tr>`).join('');
+
+    document.querySelectorAll('#employeesTable .row-chk').forEach(chk => chk.addEventListener('change', () => {
+      if (chk.checked) selected.add(chk.dataset.id); else selected.delete(chk.dataset.id);
+      updateSelectionUI();
+    }));
+    updateSelectionUI();
 
     document.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openForm(b.dataset.edit)));
     document.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => remove(b.dataset.del)));
@@ -101,12 +113,36 @@ const EmployeesPage = (() => {
     await TimesheetPage.reloadFilters();
   }
 
+  function updateSelectionUI() {
+    const btn = document.getElementById('btnDelSelEmployees');
+    btn.style.display = selected.size ? '' : 'none';
+    btn.textContent = `Xoá đã chọn (${selected.size})`;
+    const chkAll = document.getElementById('empChkAll');
+    chkAll.checked = lastFilteredIds.length > 0 && lastFilteredIds.every(id => selected.has(id));
+  }
+
+  async function removeSelected() {
+    if (!selected.size) return;
+    if (!confirm(`Xoá ${selected.size} nhân viên đã chọn?`)) return;
+    await Backup.snapshot(`Trước khi xoá ${selected.size} nhân viên (tự động)`);
+    for (const id of selected) await DB.remove('employees', id);
+    await load();
+    await Dashboard.reloadAndRefresh();
+    await TimesheetPage.reloadFilters();
+  }
+
   function wire() {
     document.getElementById('btnAddEmployee').addEventListener('click', () => openForm(null));
+    document.getElementById('btnDelSelEmployees').addEventListener('click', removeSelected);
+    document.getElementById('empChkAll').addEventListener('change', (e) => {
+      if (e.target.checked) lastFilteredIds.forEach(id => selected.add(id));
+      else selected.clear();
+      render();
+    });
     document.getElementById('employeeSearch').addEventListener('input', render);
     colFilters = TableFilter.build(
       document.querySelector('#employeesTable thead'),
-      [true, true, true, true, true, true, false],
+      ['chk', true, true, true, true, true, true, false],
       render
     );
   }

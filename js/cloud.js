@@ -62,15 +62,24 @@ const Cloud = (() => {
     });
   }
 
+  let cachedToken = null;
+  let cachedTokenExpiry = 0;
+
   async function getToken() {
+    if (cachedToken && Date.now() < cachedTokenExpiry - 60000) return cachedToken;
     await loadGis();
     return new Promise((resolve, reject) => {
       const tc = google.accounts.oauth2.initTokenClient({
         client_id: CONFIG.GOOGLE_CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/drive.file',
         callback: (resp) => {
-          if (resp.access_token) resolve(resp.access_token);
-          else reject(new Error(resp.error || 'Không lấy được quyền truy cập Google'));
+          if (resp.access_token) {
+            cachedToken = resp.access_token;
+            cachedTokenExpiry = Date.now() + (parseInt(resp.expires_in, 10) || 3600) * 1000;
+            resolve(resp.access_token);
+          } else {
+            reject(new Error(resp.error || 'Không lấy được quyền truy cập Google'));
+          }
         },
         error_callback: (err) => reject(new Error(err.message || 'Đăng nhập Google bị huỷ')),
       });
@@ -127,8 +136,40 @@ const Cloud = (() => {
     return file.id;
   }
 
+  // Drive keeps old revisions of the file (~30 days). List them so a bad
+  // published update can be rolled back.
+  async function listDriveRevisions() {
+    if (!canWrite()) throw new Error('Chưa cấu hình Drive trong config.js');
+    const token = await getToken();
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${CONFIG.DRIVE_FILE_ID}/revisions?fields=revisions(id,modifiedTime,size)&pageSize=1000`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (!resp.ok) throw new Error('Không lấy được danh sách phiên bản (HTTP ' + resp.status + ')');
+    const j = await resp.json();
+    return (j.revisions || []).sort((a, b) => (a.modifiedTime < b.modifiedTime ? 1 : -1));
+  }
+
+  // Download an old revision's content and load it into the app (local only —
+  // press "Lưu lên Drive" afterwards to publish the rollback to everyone).
+  async function restoreDriveRevision(revisionId) {
+    const token = await getToken();
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${CONFIG.DRIVE_FILE_ID}/revisions/${revisionId}?alt=media`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (!resp.ok) throw new Error('Không tải được phiên bản cũ (HTTP ' + resp.status + ')');
+    const data = await resp.json();
+    await applyData(data);
+    return {
+      updatedAt: data.updatedAt || '',
+      employees: data.employees.length, projects: data.projects.length, timesheets: data.timesheets.length,
+    };
+  }
+
   return {
     configured, canWrite, loadFromDrive, saveToDrive, createDriveFile,
+    listDriveRevisions, restoreDriveRevision,
     getLastUpdatedAt: () => lastUpdatedAt,
   };
 })();

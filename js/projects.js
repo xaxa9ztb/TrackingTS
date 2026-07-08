@@ -2,8 +2,11 @@ const ProjectsPage = (() => {
   let projects = [];
   let colFilters = [];
   let builtHeaderKey = null;
+  let selected = new Set();
+  let lastFilteredIds = [];
 
   async function load() {
+    selected.clear();
     projects = await DB.getAll('projects');
     projects.sort((a, b) => (a.projectName || '').localeCompare(b.projectName || ''));
     render();
@@ -38,11 +41,17 @@ const ProjectsPage = (() => {
     if (builtHeaderKey === key && thead.querySelector('.filter-row')) return;
     builtHeaderKey = key;
     thead.innerHTML =
-      '<tr><th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Customer</th><th>Product Line</th><th>Giám sát</th>' +
+      '<tr><th class="chk-col"><input type="checkbox" id="projChkAll" title="Chọn tất cả"></th>' +
+      '<th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Customer</th><th>Product Line</th><th>Giám sát</th>' +
       headers.map(h => `<th>${SPEC_DISPLAY[h] || h}</th>`).join('') +
       '<th></th></tr>';
-    const cols = new Array(6 + headers.length).fill(true).concat([false]);
+    const cols = ['chk'].concat(new Array(6 + headers.length).fill(true)).concat([false]);
     colFilters = TableFilter.build(thead, cols, render);
+    thead.querySelector('#projChkAll').addEventListener('change', (e) => {
+      if (e.target.checked) lastFilteredIds.forEach(id => selected.add(id));
+      else selected.clear();
+      render();
+    });
   }
 
   function render() {
@@ -60,10 +69,13 @@ const ProjectsPage = (() => {
           ...headers.map(h => (p.specs && p.specs[h]) || ''),
         ],
       }))
-      .filter(d => TableFilter.match(colFilters, d.cells));
+      .filter(d => TableFilter.match(colFilters, d.cells, 1));
+
+    lastFilteredIds = disp.map(d => d.p.wbs);
 
     document.querySelector('#projectsTable tbody').innerHTML = disp.map(d => `
       <tr>
+        <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.p.wbs}" ${selected.has(d.p.wbs) ? 'checked' : ''}></td>
         ${d.cells.map((c, i) => {
           const cls = (i === 2 || i === 3) ? ' class="col-name"' : '';
           return `<td${cls}>${c}</td>`;
@@ -74,8 +86,30 @@ const ProjectsPage = (() => {
         </td>
       </tr>`).join('');
 
+    document.querySelectorAll('#projectsTable .row-chk').forEach(chk => chk.addEventListener('change', () => {
+      if (chk.checked) selected.add(chk.dataset.id); else selected.delete(chk.dataset.id);
+      updateSelectionUI();
+    }));
     document.querySelectorAll('#projectsTable [data-edit]').forEach(b => b.addEventListener('click', () => openForm(b.dataset.edit)));
     document.querySelectorAll('#projectsTable [data-del]').forEach(b => b.addEventListener('click', () => remove(b.dataset.del)));
+    updateSelectionUI();
+  }
+
+  function updateSelectionUI() {
+    const btn = document.getElementById('btnDelSelProjects');
+    btn.style.display = selected.size ? '' : 'none';
+    btn.textContent = `Xoá đã chọn (${selected.size})`;
+    const chkAll = document.getElementById('projChkAll');
+    if (chkAll) chkAll.checked = lastFilteredIds.length > 0 && lastFilteredIds.every(id => selected.has(id));
+  }
+
+  async function removeSelected() {
+    if (!selected.size) return;
+    if (!confirm(`Xoá ${selected.size} dự án đã chọn?`)) return;
+    await Backup.snapshot(`Trước khi xoá ${selected.size} dự án (tự động)`);
+    for (const id of selected) await DB.remove('projects', id);
+    await load();
+    await Dashboard.reloadAndRefresh();
   }
 
   function openForm(wbs) {
@@ -133,6 +167,7 @@ const ProjectsPage = (() => {
 
   function wire() {
     document.getElementById('btnAddProject').addEventListener('click', () => openForm(null));
+    document.getElementById('btnDelSelProjects').addEventListener('click', removeSelected);
     document.getElementById('projectSearch').addEventListener('input', render);
   }
 

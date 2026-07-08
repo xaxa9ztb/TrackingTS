@@ -143,6 +143,23 @@ function openUpdateModal() {
           <button class="btn btn-secondary" data-mode="timesheets">Chọn files</button>
         </div>
 
+        <div class="update-option">
+          <div class="update-info">
+            <b>5. Khôi phục dữ liệu cũ</b>
+            <p>Nếu bản cập nhật mới bị sai: quay về <b>bản sao lưu trên máy</b> (tự tạo trước mỗi
+            lần "Cập nhật toàn bộ" / xoá hàng loạt) hoặc <b>bản cũ của file trên Google Drive</b>.</p>
+          </div>
+          <button class="btn btn-secondary" id="updShowRestore">Xem bản sao lưu</button>
+        </div>
+
+        <div id="restorePanel" style="display:none">
+          <h4>Bản sao lưu trên máy này</h4>
+          <div id="localBackupList" class="backup-list">Đang tải...</div>
+          <h4>Bản cũ trên Google Drive</h4>
+          <button class="btn btn-secondary" id="btnLoadRevisions">Tải danh sách từ Drive (cần đăng nhập Google)</button>
+          <div id="driveRevList" class="backup-list"></div>
+        </div>
+
         <div id="updStatus" class="update-status"></div>
         <div class="modal-actions">
           <button class="btn btn-secondary" id="updClose">Đóng</button>
@@ -157,6 +174,90 @@ function openUpdateModal() {
   });
 
   const statusEl = root.querySelector('#updStatus');
+
+  // ---- restore section ----
+  const fmtTs = ts => (ts || '').slice(0, 16).replace('T', ' ');
+
+  async function renderLocalBackups() {
+    const items = await Backup.list();
+    const el = root.querySelector('#localBackupList');
+    if (!items.length) {
+      el.innerHTML = '<div class="backup-empty">Chưa có bản sao lưu nào trên máy này.</div>';
+      return;
+    }
+    el.innerHTML = items.map(b => `
+      <div class="backup-item">
+        <div>
+          <b>${fmtTs(b.ts)}</b> — ${b.label || 'thủ công'}<br>
+          <span class="backup-meta">${b.employees} NV · ${b.projects} dự án · ${b.timesheets} dòng công</span>
+        </div>
+        <button class="btn btn-secondary" data-restore-local="${b.id}">Khôi phục</button>
+      </div>`).join('');
+    el.querySelectorAll('[data-restore-local]').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('Khôi phục dữ liệu về bản sao lưu này?\n(Dữ liệu hiện tại sẽ được tự sao lưu trước khi khôi phục.)')) return;
+      statusEl.textContent = 'Đang khôi phục...';
+      statusEl.className = 'update-status';
+      try {
+        const r = await Backup.restore(parseInt(btn.dataset.restoreLocal, 10));
+        await refreshAllPages();
+        await renderLocalBackups();
+        statusEl.textContent = `✓ Đã khôi phục: ${r.employees} NV, ${r.projects} dự án, ${r.timesheets} dòng công.` +
+          (Cloud.canWrite() ? ' Kiểm tra lại số liệu rồi bấm "Lưu lên Drive" để xuất bản cho mọi người.' : '');
+        statusEl.className = 'update-status ok';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = '✗ Lỗi khôi phục: ' + err.message;
+        statusEl.className = 'update-status err';
+      }
+    }));
+  }
+
+  root.querySelector('#updShowRestore').addEventListener('click', () => {
+    const panel = root.querySelector('#restorePanel');
+    const show = panel.style.display === 'none';
+    panel.style.display = show ? '' : 'none';
+    if (show) renderLocalBackups();
+  });
+
+  const btnLoadRev = root.querySelector('#btnLoadRevisions');
+  if (!Cloud.canWrite()) btnLoadRev.disabled = true;
+  btnLoadRev.addEventListener('click', async () => {
+    statusEl.textContent = 'Đang lấy danh sách phiên bản từ Drive...';
+    statusEl.className = 'update-status';
+    try {
+      const revs = await Cloud.listDriveRevisions();
+      const el = root.querySelector('#driveRevList');
+      if (!revs.length) { el.innerHTML = '<div class="backup-empty">Không có phiên bản nào.</div>'; return; }
+      el.innerHTML = revs.map((rv, i) => `
+        <div class="backup-item">
+          <div>
+            <b>${fmtTs(rv.modifiedTime)}</b> ${i === 0 ? '(bản hiện tại)' : ''}<br>
+            <span class="backup-meta">${(rv.size / 1048576).toFixed(2)} MB</span>
+          </div>
+          ${i === 0 ? '' : `<button class="btn btn-secondary" data-restore-rev="${rv.id}">Khôi phục</button>`}
+        </div>`).join('');
+      el.querySelectorAll('[data-restore-rev]').forEach(btn => btn.addEventListener('click', async () => {
+        if (!confirm('Tải phiên bản cũ này về app?\n(Dữ liệu hiện tại sẽ được tự sao lưu trước. Sau khi kiểm tra, bấm "Lưu lên Drive" để xuất bản.)')) return;
+        statusEl.textContent = 'Đang tải phiên bản cũ...';
+        try {
+          await Backup.snapshot('Trước khi khôi phục từ Drive (tự động)');
+          const r = await Cloud.restoreDriveRevision(btn.dataset.restoreRev);
+          await refreshAllPages();
+          statusEl.textContent = `✓ Đã tải về bản ${fmtTs(r.updatedAt)}: ${r.employees} NV, ${r.projects} dự án, ${r.timesheets} dòng công. Kiểm tra số liệu rồi bấm "Lưu lên Drive" để xuất bản cho mọi người.`;
+          statusEl.className = 'update-status ok';
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = '✗ Lỗi: ' + err.message;
+          statusEl.className = 'update-status err';
+        }
+      }));
+      statusEl.textContent = '';
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = '✗ Lỗi: ' + err.message;
+      statusEl.className = 'update-status err';
+    }
+  });
 
   root.querySelectorAll('[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => {

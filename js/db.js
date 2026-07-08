@@ -1,7 +1,7 @@
 // IndexedDB wrapper: 3 stores - employees, projects, timesheets
 const DB = (() => {
   const DB_NAME = 'timesheet_app_db';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   let dbPromise = null;
 
   function open() {
@@ -21,6 +21,9 @@ const DB = (() => {
           ts.createIndex('empId', 'empId');
           ts.createIndex('wbs', 'wbs');
           ts.createIndex('date', 'date');
+        }
+        if (!db.objectStoreNames.contains('backups')) {
+          db.createObjectStore('backups', { keyPath: 'id', autoIncrement: true });
         }
       };
       req.onsuccess = (e) => resolve(e.target.result);

@@ -149,6 +149,7 @@ const Importer = (() => {
     const projects = mapProjects(projRows, existingByWbs);
     const timesheets = mapTimesheets(tsRows);
 
+    await Backup.snapshot('Trước khi cập nhật toàn bộ (tự động)');
     await DB.clear('employees');
     await DB.clear('projects');
     await DB.clear('timesheets');

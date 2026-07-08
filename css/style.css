@@ -179,6 +179,19 @@ body:not(.admin-mode) .btn-icon { display: none !important; }
 .update-status { min-height: 20px; font-size: 13px; margin-top: 4px; }
 .update-status.ok { color: #1e7e34; }
 .update-status.err { color: #c0392b; }
+#restorePanel h4 { margin: 12px 0 6px; font-size: 13px; }
+.backup-list { display: flex; flex-direction: column; gap: 6px; }
+.backup-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 13px;
+}
+.backup-meta { color: var(--text-muted); font-size: 12px; }
+.backup-empty { color: var(--text-muted); font-size: 12px; padding: 4px 0; }
+
+/* multi-select checkbox column */
+.chk-col { width: 30px; text-align: center !important; }
+.chk-col input { cursor: pointer; }
+body:not(.admin-mode) .chk-col { display: none; }
 
 @media (max-width: 1100px) {
   .dash-grid { grid-template-columns: 1fr; }

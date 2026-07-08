@@ -5,10 +5,13 @@ const TimesheetPage = (() => {
   let empCombo = null;
   let projCombo = null;
   let colFilters = [];
+  let selected = new Set();      // ids of rows ticked for bulk delete
+  let lastFilteredIds = [];      // ids of all rows matching current filters
 
   function fmt(n) { return (Math.round((n || 0) * 10) / 10).toFixed(1).replace('.', ','); }
 
   async function load() {
+    selected.clear();
     timesheets = await DB.getAll('timesheets');
     employees = await DB.getAll('employees');
     projects = await DB.getAll('projects');
@@ -92,10 +95,13 @@ const TimesheetPage = (() => {
         r.activities || '', fmt(r.normal), fmt(r.ot1), fmt(r.ot2), fmt(r.ot3),
         r.isSiteSup ? 'Site Sup' : (r.isFitter ? 'Fitter' : ''),
       ],
-    })).filter(d => TableFilter.match(colFilters, d.cells));
+    })).filter(d => TableFilter.match(colFilters, d.cells, 1));
+
+    lastFilteredIds = disp.map(d => d.r.id);
 
     document.querySelector('#timesheetTable tbody').innerHTML = disp.slice(0, 500).map(d => `
       <tr>
+        <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.r.id}" ${selected.has(d.r.id) ? 'checked' : ''}></td>
         ${d.cells.map((c, i) => `<td${i >= 5 && i <= 8 ? ' class="num"' : ''}>${c}</td>`).join('')}
         <td>
           <button class="btn-icon" data-edit="${d.r.id}">✏️</button>
@@ -105,7 +111,7 @@ const TimesheetPage = (() => {
 
     if (disp.length > 500) {
       document.querySelector('#timesheetTable tbody').insertAdjacentHTML('beforeend',
-        `<tr><td colspan="11" style="text-align:center;color:#888">... và ${disp.length - 500} dòng khác (thu hẹp bộ lọc để xem)</td></tr>`);
+        `<tr><td colspan="12" style="text-align:center;color:#888">... và ${disp.length - 500} dòng khác (thu hẹp bộ lọc để xem)</td></tr>`);
     }
 
     // sum over ALL filtered rows (not just the 500 displayed)
@@ -115,7 +121,7 @@ const TimesheetPage = (() => {
     const grand = sums.normal + sums.ot1 + sums.ot2 + sums.ot3;
     document.querySelector('#timesheetTable tfoot').innerHTML = `
       <tr>
-        <td colspan="5">Tổng (${disp.length} dòng)</td>
+        <td colspan="6">Tổng (${disp.length} dòng)</td>
         <td class="num">${fmt(sums.normal)}</td>
         <td class="num">${fmt(sums.ot1)}</td>
         <td class="num">${fmt(sums.ot2)}</td>
@@ -123,8 +129,37 @@ const TimesheetPage = (() => {
         <td colspan="2"><b>Tổng cộng: ${fmt(grand)}</b></td>
       </tr>`;
 
+    document.querySelectorAll('#timesheetTable .row-chk').forEach(chk => chk.addEventListener('change', () => {
+      const id = +chk.dataset.id;
+      if (chk.checked) selected.add(id); else selected.delete(id);
+      updateSelectionUI();
+    }));
     document.querySelectorAll('#timesheetTable [data-edit]').forEach(b => b.addEventListener('click', () => openForm(+b.dataset.edit)));
     document.querySelectorAll('#timesheetTable [data-del]').forEach(b => b.addEventListener('click', () => remove(+b.dataset.del)));
+    updateSelectionUI();
+  }
+
+  function updateSelectionUI() {
+    const btn = document.getElementById('btnDelSelTs');
+    btn.style.display = selected.size ? '' : 'none';
+    btn.textContent = `Xoá đã chọn (${selected.size})`;
+    const chkAll = document.getElementById('tsChkAll');
+    chkAll.checked = lastFilteredIds.length > 0 && lastFilteredIds.every(id => selected.has(id));
+  }
+
+  async function removeSelected() {
+    if (!selected.size) return;
+    if (!confirm(`Xoá ${selected.size} dòng bảng công đã chọn?`)) return;
+    await Backup.snapshot(`Trước khi xoá ${selected.size} dòng bảng công (tự động)`);
+    const store = (await DB.open()).transaction('timesheets', 'readwrite').objectStore('timesheets');
+    await new Promise((resolve, reject) => {
+      const tx = store.transaction;
+      selected.forEach(id => store.delete(id));
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    await load();
+    await Dashboard.reloadAndRefresh();
   }
 
   function openForm(id) {
@@ -206,11 +241,17 @@ const TimesheetPage = (() => {
 
   function wire() {
     document.getElementById('btnAddTimesheet').addEventListener('click', () => openForm(null));
+    document.getElementById('btnDelSelTs').addEventListener('click', removeSelected);
+    document.getElementById('tsChkAll').addEventListener('change', (e) => {
+      if (e.target.checked) lastFilteredIds.forEach(id => selected.add(id));
+      else selected.clear();
+      render();
+    });
     document.getElementById('tsMonthFilter').addEventListener('change', render);
-    // 10 filterable columns + action column
+    // checkbox column + 10 filterable columns + action column
     colFilters = TableFilter.build(
       document.querySelector('#timesheetTable thead'),
-      [true, true, true, true, true, true, true, true, true, true, false],
+      ['chk', true, true, true, true, true, true, true, true, true, true, false],
       render
     );
   }
