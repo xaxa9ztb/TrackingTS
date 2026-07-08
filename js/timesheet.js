@@ -109,14 +109,15 @@ const TimesheetPage = (() => {
     if (empFilter) rows = rows.filter(r => r.empId === empFilter);
     if (projFilter) rows = rows.filter(r => r.wbs === projFilter);
 
-    // duplicate finder: keep only groups where one employee has 2+ rows on
-    // the same day; rows stay grouped so admin can compare and delete extras
+    // duplicate finder: một dòng chỉ bị coi là trùng khi cùng nhân viên +
+    // cùng ngày + cùng khoảng giờ (From/To). Hai ca khác giờ trong cùng
+    // ngày (08:00–12:00 và 13:00–17:00) là hai dòng hợp lệ, không phải trùng.
     const dupInfo = document.getElementById('tsDupInfo');
     const dupGroupOf = new Map(); // row id -> group index (for striping)
     if (dupMode) {
       const groups = new Map();
       rows.forEach(r => {
-        const k = `${r.empId}|${r.date || ''}`;
+        const k = `${r.empId}|${r.date || ''}|${r.timeFrom || ''}|${r.timeTo || ''}`;
         if (!groups.has(k)) groups.set(k, []);
         groups.get(k).push(r);
       });
@@ -128,7 +129,7 @@ const TimesheetPage = (() => {
       if (dupInfo) {
         dupInfo.textContent = dupGroups.length
           ? `⚠️ ${dupGroups.length} nhóm nghi trùng (${rows.length} dòng)`
-          : '✓ Không có dòng nào trùng nhân viên + ngày';
+          : '✓ Không có dòng nào trùng nhân viên + ngày + giờ';
       }
     } else {
       if (dupInfo) dupInfo.textContent = '';
