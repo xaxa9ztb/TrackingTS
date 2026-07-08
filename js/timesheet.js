@@ -139,7 +139,8 @@ const TimesheetPage = (() => {
     const disp = rows.map(r => ({
       r,
       cells: [
-        r.date || '', r.empId, r.empName || employeeName(r.empId), projectLabel(r.wbs),
+        r.date || '', r.timeFrom || '', r.timeTo || '', r.empId,
+        r.empName || employeeName(r.empId), projectLabel(r.wbs),
         r.activities || '', fmt(r.normal), fmt(r.ot1), fmt(r.ot2), fmt(r.ot3),
         r.isSiteSup ? 'Site Sup' : (r.isFitter ? 'Fitter' : ''),
       ],
@@ -150,7 +151,7 @@ const TimesheetPage = (() => {
     document.querySelector('#timesheetTable tbody').innerHTML = disp.slice(0, 500).map(d => `
       <tr${dupMode ? ` class="dup-row ${dupGroupOf.get(d.r.id) % 2 ? 'dup-b' : 'dup-a'}"` : ''}>
         <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.r.id}" ${selected.has(d.r.id) ? 'checked' : ''}></td>
-        ${d.cells.map((c, i) => `<td${i >= 5 && i <= 8 ? ' class="num"' : ''}>${c}</td>`).join('')}
+        ${d.cells.map((c, i) => `<td${i >= 7 && i <= 10 ? ' class="num"' : ''}>${c}</td>`).join('')}
         <td>
           <button class="btn-icon" data-edit="${d.r.id}">✏️</button>
           <button class="btn-icon" data-del="${d.r.id}">🗑️</button>
@@ -159,11 +160,11 @@ const TimesheetPage = (() => {
 
     if (disp.length > 500) {
       document.querySelector('#timesheetTable tbody').insertAdjacentHTML('beforeend',
-        `<tr><td colspan="12" style="text-align:center;color:#888">... và ${disp.length - 500} dòng khác (thu hẹp bộ lọc để xem)</td></tr>`);
+        `<tr><td colspan="14" style="text-align:center;color:#888">... và ${disp.length - 500} dòng khác (thu hẹp bộ lọc để xem)</td></tr>`);
     }
     if (dupMode && !disp.length) {
       document.querySelector('#timesheetTable tbody').innerHTML =
-        `<tr><td colspan="12" style="text-align:center;color:#888">Không tìm thấy dòng trùng lặp nào (theo bộ lọc hiện tại) 🎉</td></tr>`;
+        `<tr><td colspan="14" style="text-align:center;color:#888">Không tìm thấy dòng trùng lặp nào (theo bộ lọc hiện tại) 🎉</td></tr>`;
     }
 
     // sum over ALL filtered rows (not just the 500 displayed)
@@ -173,7 +174,7 @@ const TimesheetPage = (() => {
     const grand = sums.normal + sums.ot1 + sums.ot2 + sums.ot3;
     document.querySelector('#timesheetTable tfoot').innerHTML = `
       <tr>
-        <td colspan="6">Tổng (${disp.length} dòng)</td>
+        <td colspan="8">Tổng (${disp.length} dòng)</td>
         <td class="num">${fmt(sums.normal)}</td>
         <td class="num">${fmt(sums.ot1)}</td>
         <td class="num">${fmt(sums.ot2)}</td>
@@ -230,6 +231,12 @@ const TimesheetPage = (() => {
       <label>Hoạt động
         <input id="f_act" value="${r ? (r.activities || '') : ''}">
       </label>
+      <label>Giờ bắt đầu (From)
+        <input id="f_from" type="time" value="${r ? (r.timeFrom || '') : ''}">
+      </label>
+      <label>Giờ kết thúc (To)
+        <input id="f_to" type="time" value="${r ? (r.timeTo || '') : ''}">
+      </label>
       <label>Giờ thường (Normal)
         <input id="f_normal" type="number" step="0.5" value="${r ? r.normal : 0}">
       </label>
@@ -251,14 +258,17 @@ const TimesheetPage = (() => {
       if (!empId || !date) { alert('Cần chọn nhân viên và ngày'); return false; }
       const wbsVal = projC.getValue();
       const actVal = document.getElementById('f_act').value;
-      // chống nhập trùng: cùng nhân viên + ngày + dự án + hoạt động chỉ ghi nhận 1 dòng
+      const fromVal = document.getElementById('f_from').value;
+      const toVal = document.getElementById('f_to').value;
+      // chống nhập trùng: cùng nhân viên + ngày + giờ + dự án + hoạt động chỉ ghi nhận 1 dòng
       const dup = timesheets.find(t =>
         (!r || t.id !== r.id) &&
         t.empId === empId && t.date === date &&
+        (t.timeFrom || '') === fromVal && (t.timeTo || '') === toVal &&
         (t.wbs || '') === (wbsVal || '') &&
         String(t.activities || '') === String(actVal || ''));
       if (dup) {
-        alert('Bảng công này đã được nhập trước đó (trùng nhân viên, ngày, dự án và hoạt động).\nChỉ ghi nhận 1 dòng — hãy sửa dòng đã có thay vì thêm mới.');
+        alert('Bảng công này đã được nhập trước đó (trùng nhân viên, ngày, giờ làm việc, dự án và hoạt động).\nChỉ ghi nhận 1 dòng — hãy sửa dòng đã có thay vì thêm mới.');
         return false;
       }
       const normal = parseFloat(document.getElementById('f_normal').value) || 0;
@@ -270,6 +280,8 @@ const TimesheetPage = (() => {
         empId,
         empName: employeeName(empId),
         date,
+        timeFrom: fromVal,
+        timeTo: toVal,
         wbs: wbsVal,
         activities: actVal,
         normal, ot1, ot2, ot3, ot4: 0, ot5: 0, ot6: 0, ot7: 0,
@@ -320,10 +332,10 @@ const TimesheetPage = (() => {
       render();
     });
     document.getElementById('tsMonthFilter').addEventListener('change', render);
-    // checkbox column + 10 filterable columns + action column
+    // checkbox column + 12 filterable columns + action column
     colFilters = TableFilter.build(
       document.querySelector('#timesheetTable thead'),
-      ['chk', true, true, true, true, true, true, true, true, true, true, false],
+      ['chk', true, true, true, true, true, true, true, true, true, true, true, true, false],
       render
     );
   }
