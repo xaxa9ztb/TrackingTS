@@ -21,9 +21,11 @@ const TimesheetPage = (() => {
     return { from: `${prevY}-${pad(prevM)}-16`, to: `${y}-${pad(m)}-15` };
   }
 
-  function fmtDMY(iso) { // 'yyyy-mm-dd' -> 'dd/mm/yyyy'
+  function fmtDate(iso) { // 'yyyy-mm-dd' -> 'dd-mm-yyyy'
+    if (!iso) return '';
     const [y, m, d] = iso.split('-');
-    return `${d}/${m}/${y}`;
+    if (!y || !m || !d) return iso;
+    return `${d}-${m}-${y}`;
   }
 
   async function load() {
@@ -86,6 +88,11 @@ const TimesheetPage = (() => {
     const e = employees.find(x => x.empId === empId);
     return e ? e.fullName : empId;
   }
+  // cột "Chức vụ": lấy chức danh của nhân viên trong bảng Nhân viên
+  function employeePosition(empId) {
+    const e = employees.find(x => x.empId === empId);
+    return e ? (e.position || '') : '';
+  }
   // cột "Dự án": ưu tiên tên dự án tra theo WBS trong kho dự án; nếu WBS
   // chưa có trong kho thì dùng tên dự án tự do (Project Name) từ file import
   function projectName(r) {
@@ -104,7 +111,7 @@ const TimesheetPage = (() => {
     if (month) {
       const { from, to } = cycleRange(month);
       rows = rows.filter(r => r.date && r.date >= from && r.date <= to);
-      if (cycleLabel) cycleLabel.textContent = `Chu kỳ: ${fmtDMY(from)} – ${fmtDMY(to)}`;
+      if (cycleLabel) cycleLabel.textContent = `Chu kỳ: ${fmtDate(from)} – ${fmtDate(to)}`;
     } else if (cycleLabel) {
       cycleLabel.textContent = '';
     }
@@ -142,10 +149,10 @@ const TimesheetPage = (() => {
     const disp = rows.map(r => ({
       r,
       cells: [
-        r.date || '', r.timeFrom || '', r.timeTo || '', r.empId,
+        fmtDate(r.date), r.timeFrom || '', r.timeTo || '', r.empId,
         r.empName || employeeName(r.empId), projectName(r), r.wbs || '',
         r.activities || '', fmt(r.normal), fmt(r.ot1), fmt(r.ot2), fmt(r.ot3),
-        r.isSiteSup ? 'Site Sup' : (r.isFitter ? 'Fitter' : ''),
+        employeePosition(r.empId),
       ],
     })).filter(d => TableFilter.match(colFilters, d.cells, 1));
 
