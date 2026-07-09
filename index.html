@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thống Kê Giờ Công Dự Án</title>
-<link rel="stylesheet" href="css/style.css?v=9">
-<script src="js/xlsx.full.min.js?v=9"></script>
+<link rel="stylesheet" href="css/style.css?v=11">
+<script src="js/xlsx.full.min.js?v=11"></script>
 </head>
 <body>
 <div id="app">
@@ -98,6 +98,7 @@
           <div class="gauge-scale">
             <span id="gaugeMin">0</span><span id="gaugeMax">0</span>
           </div>
+          <div id="targetSwatBadge" class="target-swat-badge" style="display:none">✓ đã cập nhật Swat</div>
           <div class="gauge-target-edit admin-only">
             Target giờ: <input type="number" id="targetHourInput" min="0" step="1">
           </div>
@@ -207,12 +208,13 @@
       <div class="panel-toolbar swat-toolbar">
         <span class="cycle-label">Chọn công trình ở ô “Tên công trình” của công cụ bên dưới (danh sách lấy từ tab Dự án).</span>
         <button class="btn btn-primary admin-only" id="swatWriteTarget" style="display:none">⤓ Ghi thành Target giờ dự án</button>
-        <a class="btn btn-secondary" href="tools/swat-hour/index.html" target="_blank" rel="noopener">↗ Mở toàn màn hình</a>
+        <a class="btn btn-secondary" href="tools/swat-hour/index.html?v=11" target="_blank" rel="noopener">↗ Mở toàn màn hình</a>
       </div>
       <div id="swatReadout" class="swat-readout"></div>
       <div class="swat-frame-wrap">
-        <iframe id="swatFrame" src="tools/swat-hour/index.html" title="SWAT Hour Calculator"></iframe>
+        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=11" title="SWAT Hour Calculator"></iframe>
       </div>
+      <div id="swatBonus" class="swat-bonus"></div>
     </section>
 
   </main>
@@ -220,19 +222,19 @@
 
 <div id="modalRoot"></div>
 
-<script src="js/config.js?v=9"></script>
-<script src="js/db.js?v=9"></script>
-<script src="js/backup.js?v=9"></script>
-<script src="js/cloud.js?v=9"></script>
-<script src="js/importer.js?v=9"></script>
-<script src="js/charts.js?v=9"></script>
-<script src="js/combo.js?v=9"></script>
-<script src="js/tablefilter.js?v=9"></script>
-<script src="js/dashboard.js?v=9"></script>
-<script src="js/projects.js?v=9"></script>
-<script src="js/timesheet.js?v=9"></script>
-<script src="js/employees.js?v=9"></script>
-<script src="js/swat.js?v=9"></script>
-<script src="js/main.js?v=9"></script>
+<script src="js/config.js?v=11"></script>
+<script src="js/db.js?v=11"></script>
+<script src="js/backup.js?v=11"></script>
+<script src="js/cloud.js?v=11"></script>
+<script src="js/importer.js?v=11"></script>
+<script src="js/charts.js?v=11"></script>
+<script src="js/combo.js?v=11"></script>
+<script src="js/tablefilter.js?v=11"></script>
+<script src="js/dashboard.js?v=11"></script>
+<script src="js/projects.js?v=11"></script>
+<script src="js/timesheet.js?v=11"></script>
+<script src="js/employees.js?v=11"></script>
+<script src="js/swat.js?v=11"></script>
+<script src="js/main.js?v=11"></script>
 </body>
 </html>
