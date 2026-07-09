@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thống Kê Giờ Công Dự Án</title>
-<link rel="stylesheet" href="css/style.css?v=7">
-<script src="js/xlsx.full.min.js?v=7"></script>
+<link rel="stylesheet" href="css/style.css?v=8">
+<script src="js/xlsx.full.min.js?v=8"></script>
 </head>
 <body>
 <div id="app">
@@ -17,6 +17,7 @@
       <button class="tab-btn" data-tab="projects">Dự án</button>
       <button class="tab-btn" data-tab="timesheet">Bảng công</button>
       <button class="tab-btn" data-tab="employees">Nhân viên</button>
+      <button class="tab-btn" data-tab="swat">SWAT Hour</button>
     </nav>
     <div class="header-actions">
       <span id="dataStatus" class="data-status">Chưa có dữ liệu</span>
@@ -201,23 +202,37 @@
       </div>
     </section>
 
+    <!-- ================= SWAT HOUR ================= -->
+    <section id="tab-swat" class="tab-panel">
+      <div class="panel-toolbar swat-toolbar">
+        <div id="swatProjectCombo"></div>
+        <button class="btn btn-primary admin-only" id="swatWriteTarget" style="display:none">⤓ Ghi thành Target giờ dự án</button>
+        <a class="btn btn-secondary" href="tools/swat-hour/index.html" target="_blank" rel="noopener">↗ Mở toàn màn hình</a>
+      </div>
+      <div id="swatReadout" class="swat-readout"></div>
+      <div class="swat-frame-wrap">
+        <iframe id="swatFrame" src="tools/swat-hour/index.html" title="SWAT Hour Calculator"></iframe>
+      </div>
+    </section>
+
   </main>
 </div>
 
 <div id="modalRoot"></div>
 
-<script src="js/config.js?v=7"></script>
-<script src="js/db.js?v=7"></script>
-<script src="js/backup.js?v=7"></script>
-<script src="js/cloud.js?v=7"></script>
-<script src="js/importer.js?v=7"></script>
-<script src="js/charts.js?v=7"></script>
-<script src="js/combo.js?v=7"></script>
-<script src="js/tablefilter.js?v=7"></script>
-<script src="js/dashboard.js?v=7"></script>
-<script src="js/projects.js?v=7"></script>
-<script src="js/timesheet.js?v=7"></script>
-<script src="js/employees.js?v=7"></script>
-<script src="js/main.js?v=7"></script>
+<script src="js/config.js?v=8"></script>
+<script src="js/db.js?v=8"></script>
+<script src="js/backup.js?v=8"></script>
+<script src="js/cloud.js?v=8"></script>
+<script src="js/importer.js?v=8"></script>
+<script src="js/charts.js?v=8"></script>
+<script src="js/combo.js?v=8"></script>
+<script src="js/tablefilter.js?v=8"></script>
+<script src="js/dashboard.js?v=8"></script>
+<script src="js/projects.js?v=8"></script>
+<script src="js/timesheet.js?v=8"></script>
+<script src="js/employees.js?v=8"></script>
+<script src="js/swat.js?v=8"></script>
+<script src="js/main.js?v=8"></script>
 </body>
 </html>

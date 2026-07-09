@@ -1,0 +1,12 @@
+SWAT Hour Calculator — Schindler Vietnam (NI)
+
+Copyright (c) 2026 Schindler Vietnam. All rights reserved.
+
+Đây là công cụ NỘI BỘ dùng cho mục đích tham khảo/ước tính giờ công lắp đặt.
+Không phải tài liệu chính thức phục vụ thanh toán; luôn đối chiếu với hồ sơ gốc.
+
+Internal use only. Do NOT publish internal project data (customer names,
+purchase orders, prices, YAN_COM extracts) together with this repository.
+
+Nếu bạn muốn dùng giấy phép mã nguồn mở khác (ví dụ MIT) cho phần mã công cụ,
+hãy thay thế nội dung file này cho phù hợp với chính sách của công ty.

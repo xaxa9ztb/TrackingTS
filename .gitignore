@@ -1,0 +1,12 @@
+# KHÔNG commit dữ liệu nội bộ lên GitHub — repo chỉ chứa mã nguồn.
+# Dữ liệu dự án (YAN_COM: tên khách hàng, PO, giá...) và file chấm công Excel
+# được nạp tại runtime trong trình duyệt, không được đưa vào git.
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+YAN_COM*
+timesheet-data.json
+
+# Thư viện đọc Excel bundled sẵn cho app thì vẫn giữ.
+!js/xlsx.full.min.js

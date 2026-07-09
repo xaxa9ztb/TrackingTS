@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SWAT Hour Calculator — Schindler Vietnam</title>
+<meta name="description" content="Công cụ ước tính giờ công lắp đặt thang máy (SWAT/fitter hour) và tiền thưởng theo Installation Incentive Scheme 2024/2025/2026 của Schindler Vietnam.">
+<meta name="author" content="Schindler Vietnam NI">
+<meta name="theme-color" content="#e2001a">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="SWAT Hour Calculator — Schindler Vietnam">
+<meta property="og:description" content="Ước tính giờ công lắp đặt & giờ công còn lại theo bảng công.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e2001a'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3E%E2%8F%B1%3C/text%3E%3C/svg%3E">
+<meta name="robots" content="noindex">
+<!-- Thư viện đọc .xlsx phía trình duyệt (cho tính năng nạp YAN_COM của admin). Cần internet; nếu offline vẫn nhập tay bình thường. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#243349; --line:#334155;
+    --txt:#e2e8f0; --muted:#94a3b8; --accent:#e2001a; --accent2:#38bdf8;
+    --good:#22c55e; --warn:#f59e0b; --chip:#0b3b57;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f1f5f9; --panel:#ffffff; --panel2:#f8fafc; --line:#e2e8f0;
+      --txt:#0f172a; --muted:#64748b; --chip:#e0f2fe; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.5}
+  header{background:linear-gradient(90deg,var(--accent),#8b0010);color:#fff;padding:16px 22px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+  header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.3px}
+  header .sub{font-size:12px;opacity:.85;margin-top:2px}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+  select,input[type=text],input[type=number]{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:14px;min-width:110px}
+  input:focus,select:focus{outline:2px solid var(--accent2);outline-offset:0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .card h2{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .card h2 .num{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .k{color:var(--muted)}
+  .row .v{font-variant-numeric:tabular-nums;font-weight:600}
+  .inputrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:4px 0}
+  .inputrow input,.inputrow select{max-width:150px}
+  .addons{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
+  @media(max-width:620px){.addons{grid-template-columns:1fr}}
+  .chk{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
+  .chk input{width:16px;height:16px;accent-color:var(--accent)}
+  .chk .h{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  .rt th,.rt td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  .rt th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}
+  .rt td.n,.rt th.n{text-align:right;font-variant-numeric:tabular-nums}
+  .total{background:var(--chip);border-radius:10px;padding:14px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+  .total .big{font-size:30px;font-weight:800;color:var(--accent2);font-variant-numeric:tabular-nums}
+  .total.money .big{color:var(--good)}
+  .pill{display:inline-block;background:var(--chip);color:var(--accent2);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600}
+  .note{font-size:12px;color:var(--muted);background:var(--panel2);border-left:3px solid var(--warn);border-radius:6px;padding:8px 10px;margin-top:10px}
+  .btn{background:var(--accent2);color:#032a3d;border:none;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px}
+  .btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .hide{display:none!important}
+  .warnbox{background:#7f1d1d22;border:1px solid #ef444455;color:#fca5a5;border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px}
+  .seg{display:inline-flex;border:1px solid rgba(255,255,255,.4);border-radius:8px;overflow:hidden}
+  .seg button{background:transparent;border:none;color:#fff;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600}
+  .seg button.on{background:#fff;color:var(--accent)}
+
+  /* ============ EXCEL-LIKE PRINT FORM ============ */
+  #excelform{display:none;background:#fff;color:#000;font-family:Calibri,Arial,sans-serif;font-size:9.5px;line-height:1.1;padding:6mm 6mm 4mm;max-width:1120px;margin:0 auto}
+  body.formview #excelform{display:block}
+  #excelform .ef-head{display:flex;justify-content:space-between;font-size:8.5px;color:#000;margin-bottom:6px}
+  #excelform .ef-title{font-weight:bold;text-decoration:underline;font-size:11px}
+  #excelform .ef-title2{font-weight:bold;text-decoration:underline;font-size:10px}
+  #excelform .ef-bind{font-size:9px;margin:1px 0 6px 30px}
+  #excelform .ef-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  #excelform table.ef{border-collapse:collapse;width:100%;table-layout:fixed}
+  #excelform table.ef td{padding:0.8px 4px;vertical-align:middle;word-wrap:break-word}
+  #excelform .ef-spec td{border:none}
+  #excelform .ef-sec{font-weight:bold;text-decoration:underline;font-size:10px;padding-top:4px}
+  #excelform .lbl{color:#000}
+  #excelform .unit{color:#000;font-style:italic;font-size:9px;text-align:center;width:26px}
+  #excelform .note{color:#000;font-size:9px;background:none;border:none;padding:0 0 0 6px;margin:0}
+  #excelform .val{text-align:right;font-weight:bold;padding-right:8px}
+  #excelform .in{background:#ccffcc;color:#006100;font-weight:bold;text-align:right;padding-right:8px}
+  #excelform .shape{background:#ffc7ce;color:#9c0006;font-weight:bold;text-align:right;padding-right:8px}
+  #excelform .scheme{background:#ffff00;color:#c00000;font-weight:bold;text-align:right;font-size:12px;padding-right:8px}
+  #excelform tr.opt td{background:#ffc000;color:#4a2c00}
+  #excelform tr.opt td.optval{text-align:right;font-weight:bold;color:#000;padding-right:8px}
+  /* right panel bordered like excel */
+  #excelform table.efr td{border:1px solid #b0b0b0;padding:0.8px 5px}
+  #excelform .efr .stepcol{width:44px;text-align:center;color:#000;font-size:9.5px}
+  #excelform .efr .hrcol{width:60px;text-align:right;font-variant-numeric:tabular-nums}
+  #excelform .efr .hdr{background:#f2f2f2;font-weight:bold}
+  #excelform .efr .redb{color:#c00000;font-weight:bold}
+  #excelform .efr .vlabel{writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;font-weight:bold;font-size:8.5px;width:16px;background:#fff}
+  #excelform .efr tr.eftot td{border:1px solid #b0b0b0;color:#c00000;font-weight:bold;background:#fff}
+  #excelform .ef-notebox{margin-top:10px}
+  #excelform .ef-notebox .cap{font-weight:bold;text-decoration:underline;font-size:9px}
+  #excelform .ef-notebox .box{border:1px solid #000;height:46px;margin-top:2px}
+  #excelform .ef-sign{display:flex;gap:120px;margin-top:10px;font-weight:bold;font-size:10px}
+
+  @media print{
+    header,.wrap{display:none!important}
+    #excelform{display:block!important;padding:0}
+    #excelform [data-noprint]{display:none!important}
+    #excelform>*{page-break-inside:avoid}
+    @page{size:A4 landscape;margin:7mm}
+    body{background:#fff}
+  }
+  @media print and (color){#excelform *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>SWAT Hour Calculator</h1>
+    <div class="sub" data-i18n="subtitle">Schindler Vietnam — Ước tính giờ lắp đặt & thưởng hiệu quả (Installation Incentive Scheme)</div>
+  </div>
+  <div class="seg" id="lang">
+    <button data-lang="vi" class="on">VN</button>
+    <button data-lang="en">EN</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="bar">
+    <div class="field">
+      <label data-i18n="year">Năm / Scheme</label>
+      <select id="year"><option>2024</option><option>2025</option><option selected>2026</option></select>
+    </div>
+    <div class="field">
+      <label data-i18n="product">Sản phẩm</label>
+      <select id="product">
+        <option value="s3300">S3300 / ES1</option>
+        <option value="es50">ES 5.0</option>
+        <option value="villa">Villa Lift</option>
+      </select>
+    </div>
+    <div class="field">
+      <label data-i18n="adminData">Dữ liệu dự án (admin)</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="file" id="yanFile" accept=".xlsx,.xls,.csv" style="display:none">
+        <button class="btn sec" onclick="document.getElementById('yanFile').click()" title="Admin nạp file YAN_COM để có danh sách công trình">📁 <span data-i18n="loadYan">Nạp YAN_COM</span></button>
+        <span id="yanStatus" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="field" style="flex:1"></div>
+    <div class="field" style="align-self:flex-end">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sec" onclick="shareLink()" title="Sao chép link chia sẻ (đã nhúng dữ liệu)">🔗 <span data-i18n="share">Chia sẻ</span></button>
+        <button class="btn sec" onclick="exportJSON()" title="Xuất dữ liệu JSON để tích hợp TrackingTS">{ } JSON</button>
+        <button class="btn sec" onclick="resetAll()" title="Xoá dữ liệu đã lưu, về mặc định">↺ <span data-i18n="reset">Reset</span></button>
+        <button class="btn sec" onclick="exportExcel()" data-i18n="xlsx">⬇ Xuất Excel</button>
+        <button class="btn" onclick="openForm()" data-i18n="viewform">📄 Xem form / Xuất PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- INPUT -->
+    <div>
+      <div class="card">
+        <h2><span class="num">1</span><span data-i18n="specs">Thông số kỹ thuật</span></h2>
+        <div class="inputrow"><span data-i18n="pname">Tên công trình</span><input type="text" id="pname" list="projectDL" value="Nhà Ở & VP Z Building" style="max-width:200px" placeholder="Chọn/nhập tên công trình…"><datalist id="projectDL"></datalist></div>
+        <div class="inputrow"><span data-i18n="pref">Mã số công trình / WBS</span><input type="text" id="pref" value="812503229"></div>
+        <div class="inputrow"><span data-i18n="version">Xuất xứ (AP / EU)</span>
+          <select id="version"><option>AP</option><option>EU</option></select></div>
+        <div class="inputrow"><span data-i18n="units">Tổng số thang (units)</span><input type="number" id="units" value="1" min="1"></div>
+        <div class="inputrow"><span data-i18n="etype">Loại thang</span><input type="text" id="etype" value="Passenger"></div>
+        <div class="inputrow"><span data-i18n="load">Tải trọng GQ (kg)</span><input type="number" id="load" value="900"></div>
+        <div class="inputrow"><span data-i18n="speed">Tốc độ (m/s)</span><input type="number" id="speed" value="1.5" step="0.25"></div>
+        <div class="inputrow"><span data-i18n="stops">Số điểm dừng (stops)</span><input type="number" id="stops" value="6" min="2" max="20"></div>
+        <div class="inputrow"><span data-i18n="cardoors">Số cửa car (1 / 2)</span><input type="number" id="cardoors" value="1" min="1" max="2"></div>
+        <div class="inputrow"><span data-i18n="travel">Hành trình (m)</span><input type="number" id="travel" value="14" step="0.1"></div>
+        <div class="inputrow"><span data-i18n="pit">Chiều sâu đáy hố / Pit (m)</span><input type="number" id="pit" value="1.3" step="0.1"></div>
+        <div class="inputrow"><span data-i18n="over">Hành trình vượt / Over travel (m)</span><input type="number" id="over" value="3.7" step="0.1"></div>
+        <div class="inputrow"><span data-i18n="shaft">Chiều sâu hố / Shaft depth (m)</span><input type="number" id="shaft" value="1.7" step="0.1"></div>
+
+        <div id="es50Block" class="hide">
+          <div class="inputrow"><span data-i18n="bt">Chiều rộng cửa tầng BT (mm)</span><input type="number" id="bt" value="900"></div>
+          <div class="inputrow"><span data-i18n="ld2">Số cửa tầng phía car door thứ 2</span><input type="number" id="ld2" value="0" min="0"></div>
+        </div>
+        <div id="villaBlock" class="hide">
+          <div class="inputrow"><span data-i18n="doortype">Loại cửa (0=Inox, 1=Kính)</span><input type="number" id="doortype" value="0" min="0" max="1"></div>
+        </div>
+
+        <div id="shapeBlock">
+          <div class="inputrow"><span data-i18n="shape">Giờ SHAPE (X extract)</span><input type="number" id="shape" value="254.6" step="0.1"></div>
+          <div class="inputrow"><span data-i18n="befshape">BEF trên SHAPE</span>
+            <input type="number" id="befshape" value="0.5" step="0.01" min="0.1" max="1"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="num">2</span><span data-i18n="addons">Hạng mục cộng thêm (chọn = Có)</span></h2>
+        <div class="addons" id="addons"></div>
+      </div>
+    </div>
+
+    <!-- RESULT -->
+    <div>
+      <div class="card">
+        <h2><span class="num">3</span><span data-i18n="result">Kết quả tính giờ</span></h2>
+        <div class="row"><span class="k" data-i18n="baseX">X — Giờ lắp thuần (BEF Scheme)</span><span class="v" id="rBase">–</span></div>
+        <div class="row"><span class="k" data-i18n="steps14">14 bước lắp đặt (Σ)</span><span class="v" id="rSteps">–</span></div>
+        <div class="row"><span class="k" data-i18n="safety">Safety Tasks (theo stops)</span><span class="v" id="rSafety">–</span></div>
+        <div class="row"><span class="k" data-i18n="noninstall">Non-installation Tasks (theo stops)</span><span class="v" id="rNon">–</span></div>
+        <div class="row"><span class="k" data-i18n="es50extra">Giờ cộng thêm ES5.0</span><span class="v" id="rEs50">–</span></div>
+        <div class="row"><span class="k" data-i18n="addonsum">Hạng mục phi tiêu chuẩn (Σ)</span><span class="v" id="rAddon">–</span></div>
+        <div class="row"><span class="k" data-i18n="coord">Điều phối đa unit / unit</span><span class="v" id="rCoord">–</span></div>
+        <div class="total">
+          <div>
+            <div class="pill" data-i18n="perunit">TOTAL FITTER HOUR / unit</div>
+            <div style="font-size:11px;color:var(--muted)" id="rSchemeInfo"></div>
+          </div>
+          <div class="big" id="rTotal">–</div>
+        </div>
+        <div id="warnBase" class="warnbox hide"></div>
+      </div>
+
+      <div class="card">
+        <h2><span class="num">4</span><span data-i18n="breakdown">Chi tiết 14 bước</span></h2>
+        <table class="rt"><thead><tr><th data-i18n="step">Bước</th><th data-i18n="stepname">Công đoạn</th><th class="n" data-i18n="hrs">Giờ</th></tr></thead>
+        <tbody id="stepBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROJECT HOURS BUDGET / REMAINING -->
+  <div class="card">
+    <h2><span class="num" style="background:var(--good)">Σ</span><span data-i18n="budgetTitle">Giờ công định mức & còn lại (toàn dự án) — cho dashboard TrackingTS</span></h2>
+    <div class="grid">
+      <div>
+        <div class="row"><span class="k" data-i18n="bPerUnit">Giờ công định mức / thang</span><span class="v" id="bPerUnit">–</span></div>
+        <div class="row"><span class="k" data-i18n="bUnits">Số thang (units)</span><span class="v" id="bUnits">–</span></div>
+        <div class="row"><span class="k" data-i18n="bBudget">Giờ công định mức toàn dự án (tối đa)</span><span class="v" id="bBudget" style="color:var(--accent2);font-size:16px">–</span></div>
+        <div class="inputrow"><span data-i18n="bUsed">Giờ công đã dùng (từ bảng công)</span><input type="number" id="usedHours" value="0" step="0.1" min="0"></div>
+      </div>
+      <div>
+        <div class="total"><div><div class="pill" style="background:#14532d33;color:var(--good)" data-i18n="bRemainPill">Giờ công CÒN LẠI</div><div id="bRemInfo" style="font-size:11px;color:var(--muted)"></div></div><div class="big" id="bRemain" style="color:var(--good)">–</div></div>
+        <div style="margin-top:12px">
+          <div style="height:18px;border-radius:9px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)"><div id="bBar" style="height:100%;width:0%;background:var(--good);transition:width .25s,background .25s"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px"><span id="bUsedPct">0%</span><span data-i18n="bUsedLabel">đã dùng / định mức</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCORECARD -->
+  <div class="card">
+    <h2><span class="num">5</span><span data-i18n="scorecard">SWAT Scorecard — Tiền thưởng</span> <span id="scScheme" class="pill" style="margin-left:6px"></span></h2>
+    <div class="grid">
+      <div>
+        <div class="inputrow"><span data-i18n="stdh">Giờ tiêu chuẩn / unit (từ mục 3)</span><input type="number" id="stdHour" step="0.1"></div>
+        <div class="inputrow"><span data-i18n="acth">Giờ thực tế / unit</span><input type="number" id="actHour" value="250" step="0.1"></div>
+        <div class="row"><span class="k" data-i18n="saving">Giờ tiết kiệm (Thực tế − Chuẩn)</span><span class="v" id="scSave">–</span></div>
+        <div class="row"><span class="k">Block 12h</span><span class="v" id="scBlock">–</span></div>
+        <div style="margin-top:10px">
+          <div class="chk"><input type="checkbox" id="c_sais" checked><label for="c_sais">SAIS PFY</label></div>
+          <div class="chk"><input type="checkbox" id="c_pqc" checked><label for="c_pqc">PQC ≥ 90%</label></div>
+          <div class="chk"><input type="checkbox" id="c_yellow" checked><label for="c_yellow" data-i18n="noyellow">Không Yellow Card</label></div>
+          <div class="chk"><input type="checkbox" id="c_tbt" checked><label for="c_tbt">Tool Box Talk (Site-sup)</label></div>
+          <div class="chk"><input type="checkbox" id="c_safe" checked><label for="c_safe">Safety Inspection (Site-sup)</label></div>
+          <div class="chk"><input type="checkbox" id="c_ff" checked><label for="c_ff">FF+ ≥ 90% (Site-sup)</label></div>
+          <div class="chk"><input type="checkbox" id="c_oil"><label for="c_oil" data-i18n="oil">Quality Boost: Zero Square Item on OIL (+15%)</label></div>
+        </div>
+      </div>
+      <div>
+        <div class="row"><span class="k" data-i18n="fscore">Fitter score (cần ≥ 3)</span><span class="v" id="scFScore">–</span></div>
+        <div class="row"><span class="k" data-i18n="sscore">Site-sup score (cần ≥ 6)</span><span class="v" id="scSScore">–</span></div>
+        <div class="row"><span class="k" data-i18n="baseInc">Thưởng nền / unit (Fitter)</span><span class="v" id="scBaseF">–</span></div>
+        <div class="row"><span class="k" data-i18n="baseIncS">Thưởng nền (Site-sup)</span><span class="v" id="scBaseS">–</span></div>
+        <div class="total money"><div class="pill" style="color:var(--good);background:#14532d33" data-i18n="fitterpay">Thưởng Fitter / unit</div><div class="big" id="scPayF">–</div></div>
+        <div class="total money"><div class="pill" style="color:var(--good);background:#14532d33" data-i18n="sitepay">Thưởng Site-sup / unit</div><div class="big" id="scPayS">–</div></div>
+        <div class="total money"><div class="pill" style="color:var(--good);background:#14532d33" data-i18n="totalpay">TỔNG thưởng / unit</div><div class="big" id="scPayT">–</div></div>
+      </div>
+    </div>
+    <div class="note" data-i18n="scnote">Bảng tiền thưởng và ngưỡng điều chỉnh lấy nguyên theo file Scorecard 2025. Đơn vị: VND.</div>
+  </div>
+
+  <div class="note" id="globalNote"></div>
+  <footer style="text-align:center;color:var(--muted);font-size:11px;padding:14px 0 24px;line-height:1.6">
+    <div data-i18n="disclaimer">⚠ Công cụ nội bộ để tham khảo — không phải tài liệu chính thức của Schindler. Vui lòng đối chiếu file gốc khi dùng cho mục đích thanh toán.</div>
+    <div>SWAT Hour Calculator · <span id="appVersion"></span> · <span data-i18n="madefor">một phần của</span> TrackingTS</div>
+  </footer>
+</div>
+
+<!-- ============ EXCEL-LIKE PRINT FORM (in ra giống form Excel) ============ -->
+<div id="excelform">
+  <div class="toolbar" style="margin-bottom:8px" data-noprint>
+    <button class="btn" onclick="window.print()">🖨 In / Lưu PDF</button>
+    <button class="btn sec" onclick="exportExcel()">⬇ Xuất Excel</button>
+    <button class="btn sec" onclick="closeForm()">↩ Quay lại bộ tính</button>
+  </div>
+  <div class="ef-head"><div>Schindler Vietnam Ltd.<br>NI - Volume Business Fulfillment Team</div><div>Standard Installation Hours</div></div>
+  <div id="efTitle"></div>
+  <div class="ef-body">
+    <div id="efLeft"></div>
+    <div id="efRight"></div>
+  </div>
+  <div class="ef-notebox"><div class="cap" id="efNoteCap">Additional note (comments by PM + Site sup)</div><div class="box"></div></div>
+  <div class="ef-sign"><div>Prepare by</div><div>Installation team</div></div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const STEP_EN=["Checking and storing of material, receiving & checking tools.","installation of hoisting equiment and testing hitchpoint",
+ "plumbing and hoistway survey","installing of mechanical pit componets","installating of car structure for use as working platform",
+ "installating of brackets and guide rails","installaling of headroom components and commissioning of machine",
+ "installation of traction media and preparing for installation travel","installing of car sill and landing doors",
+ "wiring in hoistway and pit","completing of car","final tasks before commissioning","commissioning","SAIS and other inspectinos (PQC)"];
+const STEP_VI=["Kiểm tra và lưu trữ vật tư thang máy, nhận đồ nghề","Lắp hệ thống an toàn (barrier..), test móc","Thả chì và khảo sát chi tiết hố thang",
+ "Lắp các thiết bị đáy hố","Lắp khung car để làm việc như là working platform","Lắp giá đỡ ray và ray dẫn hướng","Lắp thiết bị đỉnh hố, lắp máy kéo",
+ "Lắp cáp tải, cáp governor","Lắp cửa tầng","Hoàn thiện dây dọc hố và pit hố","Hoàn thiện xe thang",
+ "Chạy U-D và canh chỉnh cho công tác vận hành tốc độ định mức","Vận hành thang tốc độ định mức và chuẩn bị SAIS","SAIS và PQC"];
+
+const COEF_STD=[0.0459589918838103,0.0337462622810765,0.0266595472020504,0.0562879111490816,0.0572404955147373,
+ 0.17385732592909,0.0696283639470312,0.0568133276377616,0.172827851345579,0.0687740281930799,
+ 0.0632208457923964,0.103122597180692,0.0718624519436138];
+const COEF_VILLA=[0.066877333896326,0.036672110396809,0.0337468693935981,0.0557578399784598,0.0516581059524689,
+ 0.130039203634085,0.0549440815674532,0.052182617217871,0.12889384272977,0.0642462135790307,
+ 0.0578514769598997,0.119382432191518,0.146534640837386];
+const STEP14=16;
+const BEF_SCHEME={2024:0.65,2025:0.70,2026:0.75};
+
+function safetyHours(s){const b={2:15,3:16,4:17,5:20,6:21,7:22,8:23,9:24,10:25};
+ const a={11:30,12:30,13:30,14:32,15:32,16:32,17:35,18:35,19:35,20:35};return (s<=10?b[s]:a[s])||0;}
+function nonInstallHours(y,s){
+ const B={2024:[49,55,62],2025:[49,55,60],2026:[48,52,56]},A={2024:[74,86,100],2025:[78,90,100],2026:[60,66,72]};
+ if(s<2||s>20)return 0; if(s<=10){const t=B[y];return s<=4?t[0]:s<=7?t[1]:t[2];}
+ const t=A[y];return s<=13?t[0]:s<=16?t[1]:t[2];}
+const VILLA_BASE={2024:{2:109,3:122,4:133,5:139},2025:{2:109,3:122,4:133,5:139},2026:{2:139,3:152,4:163,5:169}};
+function villaNon(y,s){const v={2024:[49,55],2025:[49,55],2026:[48,52]}[y];return s<=4?v[0]:v[1];}
+const ES50_B={2:131,3:138,4:146,5:154,6:169,7:185,8:208,9:219,10:231};
+const ES50_A={11:234,12:243,13:263,14:313,15:327,16:346,17:362,18:386,19:404,20:419};
+
+// [key, viUI, enLeft, enRight, hours, note, viLeft, viRight]
+function addonList(product,stops){
+ const steel=stops>10?16:8;
+ const base=[
+  ["upcountry","Công trình tỉnh","Up-Country ( out side HCMC and HN)","Up-Country ( out side HCMC, HN, DN)",32,"(0=No, 1=Yes) - additional travel hours","Công trình tỉnh","Công trình tỉnh"],
+  ["decor","Trang trí sàn xe thang (loca)","Local Decoration","Local Decoration",16,"(0=No, 1=Yes)","Trang trí sàn xe thang (loca)","Trang trí xe thang"],
+  ["floor","Trang trí xe thang (loca)","Local flooring","Local flooring",8,"(0=No, 1=Yes)","Trang trí xe thang (loca)","Trang trí sàn xe thang"],
+  ["card","Thẻ từ","Card Reader","Card Reader",8,"(0=No, 1=Yes)","Thẻ từ","Thẻ từ"],
+  ["cwsg","Thắng cơ đối trọng","Counterweight safety gear ?","Counterweight safety gear ?",8,"(0=No, 1=Yes)","Thắng cơ đối trọng","Thắng cơ đối trọng"],
+  ["camera","Camera","Camera","Camera",8,"(0=No, 1=Yes)","Camera","Camera"],
+  ["aircon","Máy Lạnh","Aircon","Aircon",8,"(0=No, 1=Yes)","Máy Lạnh","Máy Lạnh"],
+  ["tsd","Bộ TSD","TSD","TSD",8,"(0=No, 1=Yes)","Bộ TSD","Bộ TSD"],
+  ["glass","Xe thang trang trí bằng vách kính","Lift car glass decoration","Lift car glass decoration",8,"(0=No, 1=Yes)","Xe thang trang trí bằng vách kính","Xe thang trang trí bằng vách kính"],
+  ["steel","Phối hợp trong trường hợp hố thép","Co-ordinate in case steel-shaft","Co-ordinate in case steel-shaft",steel,"(0=No, 1=Yes)","Phối hợp trong trường hợp hố thép","Phối hợp trong trường hợp hố thép"]
+ ];
+ if(product==="villa") base.splice(1,0,["glassdoor","Cửa tầng là cửa kính","Glass landing door","Glass landing door",8,"(0=No, 1=Yes)","Cửa tầng là cửa kính","Cửa tầng là cửa kính"]);
+ return base;
+}
+function coordHours(u){return u===2?16:u===3?30:u===4?48:u>4?80:0;}
+
+// Scheme thưởng theo NĂM. Năm 2024 dùng file scorecard 2025 (folder 2024 chứa bản 2025). 2026 có site-sup cao hơn.
+function scSchemeYear(year){return year>=2026?2026:2025;}
+function unitIncentive(year,s){ // giống nhau ở mọi scheme
+ if(s>=2&&s<=10)return s<=4?11875000:s<=7?13870000:16150000;
+ if(s>=11&&s<=20)return s<=13?18430000:s<=16?20710000:22990000;return 0;}
+function siteIncentive(year,s){
+ if(scSchemeYear(year)>=2026){
+  if(s>=2&&s<=10)return s<=4?2612500:s<=7?3051400:3553000;
+  if(s>=11&&s<=20)return s<=13?4054600:s<=16?4556200:5057800;return 0;
+ }
+ if(s>=2&&s<=10)return s<=4?2375000:s<=7?2850000:3800000;
+ if(s>=11&&s<=20)return s<=13?4275000:s<=16?4750000:5225000;return 0;}
+function fitterPay(s,base,block,boost){if(base===0)return 0;let p;const cap=s<=10?4.5:5.5;
+ if(block<=-3)p=base+3600000;else if(block>=-3&&block<0)p=base-Math.ceil(block)*1200000;else if(block>=0&&block<=cap)p=base-Math.floor(block)*1000000;else p=0;
+ return p+(boost?base*0.15:0);}
+function sitePay(s,base,block,boost){if(base===0)return 0;let p;const cap=s<=10?4.5:5.5;const lo=s<=10?-4:-3;
+ if(block<=lo)p=base+1800000;else if(block>=-4&&block<0)p=base-Math.ceil(block)*600000;else if(block>=0&&block<=cap)p=base-Math.floor(block)*500000;else p=0;
+ return p+(boost?base*0.15:0);}
+
+/* ================= I18N (giao diện; form in luôn dùng nhãn EN gốc của Excel) ================= */
+const I18N={
+ vi:{subtitle:"Schindler Vietnam — Ước tính giờ lắp đặt & thưởng hiệu quả (Installation Incentive Scheme)",year:"Năm / Scheme",product:"Sản phẩm",
+  viewform:"📄 Xem form / Xuất PDF",xlsx:"⬇ Xuất Excel",specs:"Thông số kỹ thuật",pname:"Tên công trình",pref:"Mã số công trình / WBS",version:"Xuất xứ (AP / EU)",
+  units:"Tổng số thang (units)",etype:"Loại thang",load:"Tải trọng GQ (kg)",speed:"Tốc độ (m/s)",stops:"Số điểm dừng (stops)",
+  cardoors:"Số cửa car (1 / 2)",travel:"Hành trình (m)",pit:"Chiều sâu đáy hố / Pit (m)",over:"Hành trình vượt (m)",shaft:"Chiều sâu hố (m)",
+  bt:"Chiều rộng cửa tầng BT (mm)",ld2:"Số cửa tầng phía car door thứ 2",doortype:"Loại cửa (0=Inox, 1=Kính)",shape:"Giờ SHAPE (X extract)",
+  befshape:"BEF trên SHAPE",addons:"Hạng mục cộng thêm (chọn = Có)",result:"Kết quả tính giờ",baseX:"X — Giờ lắp thuần (BEF Scheme)",
+  steps14:"14 bước lắp đặt (Σ)",safety:"Safety Tasks (theo stops)",noninstall:"Non-installation Tasks (theo stops)",es50extra:"Giờ cộng thêm ES5.0",
+  addonsum:"Hạng mục phi tiêu chuẩn (Σ)",coord:"Điều phối đa unit / unit",perunit:"TOTAL FITTER HOUR / unit",breakdown:"Chi tiết 14 bước",
+  step:"Bước",stepname:"Công đoạn",hrs:"Giờ",scorecard:"SWAT Scorecard — Tiền thưởng",stdh:"Giờ tiêu chuẩn / unit (từ mục 3)",
+  acth:"Giờ thực tế / unit",saving:"Giờ tiết kiệm (Thực tế − Chuẩn)",noyellow:"Không Yellow Card",oil:"Quality Boost: Zero Square Item on OIL (+15%)",
+  fscore:"Fitter score (cần ≥ 3)",sscore:"Site-sup score (cần ≥ 6)",baseInc:"Thưởng nền / unit (Fitter)",baseIncS:"Thưởng nền (Site-sup)",
+  fitterpay:"Thưởng Fitter / unit",sitepay:"Thưởng Site-sup / unit",totalpay:"TỔNG thưởng / unit",
+  scnote:"Thưởng nền theo scheme từng năm (2026 site-sup cao hơn 2024/2025). (*) Folder 2024 dùng bản scorecard 2025. Đơn vị: VND.",
+  share:"Chia sẻ",reset:"Reset",adminData:"Dữ liệu dự án (admin)",loadYan:"Nạp YAN_COM",budgetTitle:"Giờ công định mức & còn lại (toàn dự án) — cho dashboard TrackingTS",
+  bPerUnit:"Giờ công định mức / thang",bUnits:"Số thang (units)",bBudget:"Giờ công định mức toàn dự án (tối đa)",
+  bUsed:"Giờ công đã dùng (từ bảng công)",bRemainPill:"Giờ công CÒN LẠI",bUsedLabel:"đã dùng / định mức",
+  disclaimer:"⚠ Công cụ nội bộ để tham khảo — không phải tài liệu chính thức của Schindler. Vui lòng đối chiếu file gốc khi dùng cho mục đích thanh toán.",madefor:"một phần của"},
+ en:{subtitle:"Schindler Vietnam — Installation hours & incentive estimator",year:"Year / Scheme",product:"Product",viewform:"📄 View form / Export PDF",xlsx:"⬇ Export Excel",
+  specs:"Technical specification",pname:"Project name",pref:"Project ref / WBS",version:"Unit version (AP / EU)",units:"Total units",etype:"Elevator type",
+  load:"Rated load GQ (kg)",speed:"Speed (m/s)",stops:"No. of stops",cardoors:"No. of car doors (1 / 2)",travel:"Lift travel (m)",pit:"Pit depth (m)",
+  over:"Over travel (m)",shaft:"Shaft depth (m)",bt:"Landing door width BT (mm)",ld2:"Landing doors on 2nd car-door side",doortype:"Door type (0=Steel,1=Glass)",
+  shape:"SHAPE hours (X extract)",befshape:"BEF on SHAPE",addons:"Additional scope (checked = Yes)",result:"Hours result",baseX:"X — Purely installation (Scheme BEF)",
+  steps14:"14 installation steps (Σ)",safety:"Safety Tasks (by stops)",noninstall:"Non-installation Tasks (by stops)",es50extra:"ES5.0 additional hours",
+  addonsum:"Non-standard scope (Σ)",coord:"Multi-unit coordination / unit",perunit:"TOTAL FITTER HOUR / unit",breakdown:"14-step breakdown",step:"Step",
+  stepname:"Activity",hrs:"Hrs",scorecard:"SWAT Scorecard — Incentive",stdh:"Standard hours / unit (from #3)",acth:"Actual hours / unit",
+  saving:"Saving hours (Actual − Standard)",noyellow:"No Yellow Card",oil:"Quality Boost: Zero Square Item on OIL (+15%)",fscore:"Fitter score (need ≥ 3)",
+  sscore:"Site-sup score (need ≥ 6)",baseInc:"Base incentive / unit (Fitter)",baseIncS:"Base incentive (Site-sup)",fitterpay:"Fitter incentive / unit",
+  sitepay:"Site-sup incentive / unit",totalpay:"TOTAL incentive / unit",scnote:"Base incentive per year's scheme (2026 site-sup is higher than 2024/2025). (*) 2024 folder uses the 2025 scorecard. Currency: VND.",
+  share:"Share",reset:"Reset",adminData:"Project data (admin)",loadYan:"Load YAN_COM",budgetTitle:"Standard vs remaining fitter hours (whole project) — for TrackingTS dashboard",
+  bPerUnit:"Standard hours / unit",bUnits:"Total units",bBudget:"Standard hours whole project (max)",
+  bUsed:"Hours already used (timesheet)",bRemainPill:"REMAINING hours",bUsedLabel:"used / standard",
+  disclaimer:"⚠ Internal reference tool — not an official Schindler document. Verify against source files before using for payment.",madefor:"part of"}
+};
+let LANG="vi";
+
+/* ================= HELPERS ================= */
+const $=id=>document.getElementById(id);
+const fmt=(n,d=1)=>Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const money=n=>Math.round(n).toLocaleString('vi-VN')+' ₫';
+const gv=id=>$(id).value;
+const gn=id=>+$(id).value||0;
+
+function applyLang(){
+ document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(I18N[LANG][k])el.textContent=I18N[LANG][k];});
+ document.documentElement.lang=LANG; buildAddons(); calc();
+}
+function buildAddons(){
+ const product=gv('product'),stops=gn('stops');const list=addonList(product,stops);const cont=$('addons');
+ const prev={};cont.querySelectorAll('input').forEach(i=>prev[i.dataset.key]=i.checked);cont.innerHTML='';
+ list.forEach(a=>{const[key,vi,,,h]=a;const d=document.createElement('label');d.className='chk';
+  d.innerHTML=`<input type="checkbox" data-key="${key}" data-h="${h}"><span>${vi}</span><span class="h">+${h}h</span>`;
+  if(prev[key])d.querySelector('input').checked=true;d.querySelector('input').addEventListener('change',calc);cont.appendChild(d);});
+}
+
+/* ================= CORE CALC ================= */
+let ST={};   // trạng thái tính toán hiện tại (dùng cho cả kết quả & form in)
+function computeBaseX(year,product,stops){
+ let x=0,warn="",baseLabel="";
+ if(product==="villa"){x=(VILLA_BASE[year]||{})[stops]||0;if(!x)warn="Villa Lift chỉ áp dụng 2–5 điểm dừng.";}
+ else if(product==="es50"){
+   if(year===2024){x=gn('shape')*(+gv('befshape'))/BEF_SCHEME[year];}
+   else{x=stops<=10?(ES50_B[stops]||0):(ES50_A[stops]||0);if(!x)warn="ES5.0 áp dụng 2–20 điểm dừng.";}
+ } else {x=gn('shape')*(+gv('befshape'))/BEF_SCHEME[year];}
+ return {x,warn};
+}
+function calc(){
+ const year=+gv('year'),product=gv('product'),stops=gn('stops'),units=gn('units')||1;
+ $('es50Block').classList.toggle('hide',product!=='es50');
+ $('villaBlock').classList.toggle('hide',product!=='villa');
+ $('shapeBlock').classList.toggle('hide',!(product==='s3300'||(product==='es50'&&year===2024)));
+
+ const {x,warn}=computeBaseX(year,product,stops);
+ const coef=product==='villa'?COEF_VILLA:COEF_STD;
+ const steps=[];let stepsSum=0;
+ for(let i=0;i<13;i++){const h=coef[i]*(x-16);steps.push(h);stepsSum+=h;}
+ steps.push(STEP14);stepsSum+=STEP14;
+
+ const safety=safetyHours(stops);
+ const non=product==='villa'?villaNon(year,stops):nonInstallHours(year,stops);
+
+ // ES5.0 extra
+ let es50={eBT:0,eLoad:0,e2nd:0,eLD2:0,total:0};
+ if(product==='es50'){
+   const bt=gn('bt'),load=gn('load'),cd=gn('cardoors'),ld2=gn('ld2'),step9=steps[8];
+   es50.eBT=bt<1200?stops:stops*1.5; es50.eLoad=load<1200?16:20; es50.e2nd=cd===2?8:0;
+   es50.eLD2=(cd===2&&ld2<=stops)?(step9/stops*ld2+(bt<1200?ld2:ld2*1.5)):0;
+   es50.total=es50.eBT+es50.eLoad+es50.e2nd+es50.eLD2;
+ }
+ // add-ons
+ const addons=[];let addonSum=0;
+ document.querySelectorAll('#addons input').forEach(i=>{const on=i.checked,h=+i.dataset.h;const v=on?h:0;addonSum+=v;addons.push({key:i.dataset.key,on,h,v});});
+
+ let coordPerUnit=0,coordTotal=0;
+ if(stops>10&&product!=='villa'&&units>=2){coordTotal=coordHours(units);coordPerUnit=coordTotal/units;}
+
+ const total=x+safety+non+es50.total+addonSum+coordPerUnit;
+
+ ST={year,product,stops,units,x,steps,stepsSum,safety,non,es50,addons,addonSum,coordPerUnit,coordTotal,total};
+
+ // ----- panel kết quả -----
+ $('rBase').textContent=fmt(x);$('rSteps').textContent=fmt(stepsSum);
+ $('rSafety').textContent='+ '+fmt(safety,0);$('rNon').textContent='+ '+fmt(non,0);
+ $('rEs50').textContent=product==='es50'?'+ '+fmt(es50.total):'–';
+ $('rAddon').textContent='+ '+fmt(addonSum,0);$('rCoord').textContent=coordPerUnit?'+ '+fmt(coordPerUnit):'–';
+ $('rTotal').textContent=fmt(total);
+ $('rSchemeInfo').textContent=`Scheme ${year} · BEF ${BEF_SCHEME[year]} · ${product.toUpperCase()} · ${stops} stops`;
+ const body=$('stepBody');body.innerHTML='';
+ steps.forEach((h,i)=>body.insertAdjacentHTML('beforeend',`<tr><td>${i+1}</td><td>${(LANG==='vi'?STEP_VI:STEP_EN)[i]}</td><td class="n">${fmt(h)}</td></tr>`));
+ body.insertAdjacentHTML('beforeend',`<tr style="font-weight:700"><td></td><td>Σ (= X)</td><td class="n">${fmt(stepsSum)}</td></tr>`);
+
+ const wb=$('warnBase');let ew="";
+ if(year===2024&&product==='s3300'&&stops<=10)ew=" (Template 2024 below gốc dùng SHAPE/0.65; công cụ dùng SHAPE×BEFshape/0.65 nhất quán với các bản khác.)";
+ if(year===2026&&product==='es50'&&stops<=10)ew=" (File 2026 ES5.0 below để trống ô giờ nền — dùng tạm bảng 2025: 131–231.)";
+ if(warn||ew){wb.classList.remove('hide');wb.textContent=(warn||"")+ew;}else wb.classList.add('hide');
+
+ if(!$('stdHour').dataset.touched)$('stdHour').value=Math.round(total*10)/10;
+ updateBudget();
+ scorecard();
+ renderForm();
+ saveLocal();
+ postResult();
+}
+
+/* ===== Giờ công định mức toàn dự án & còn lại (cho TrackingTS) ===== */
+function updateBudget(){
+ const s=ST;if(!s.product)return;
+ const budget=s.total*s.units;      // giờ công định mức (tối đa) toàn dự án
+ const used=gn('usedHours');
+ const remain=budget-used;
+ const pct=budget>0?Math.min(100,Math.max(0,used/budget*100)):0;
+ $('bPerUnit').textContent=fmt(s.total);
+ $('bUnits').textContent=s.units;
+ $('bBudget').textContent=fmt(budget);
+ $('bRemain').textContent=fmt(remain);
+ $('bUsedPct').textContent=Math.round(pct)+'%';
+ const bar=$('bBar');bar.style.width=pct+'%';
+ const col=pct>=100?'var(--accent)':pct>=85?'var(--warn)':'var(--good)';
+ bar.style.background=col;$('bRemain').style.color=remain<0?'var(--accent)':'var(--good)';
+ $('bRemInfo').textContent=`= ${fmt(budget)} − ${fmt(used)} (${s.units} thang)`;
+ ST.budget=budget;ST.used=used;ST.remain=remain;ST.usedPct=pct;
+}
+
+function scorecard(){
+ const year=+gv('year'),stops=gn('stops'),std=gn('stdHour'),act=gn('actHour');const save=act-std,block=save/12;
+ $('scSave').textContent=fmt(save);$('scBlock').textContent=fmt(block,2);
+ const scy=scSchemeYear(year);const el=$('scScheme');if(el)el.textContent='Scheme '+scy+(year<2025?' *':'');
+ const sais=$('c_sais').checked?1:0,pqc=$('c_pqc').checked?1:0,yellow=$('c_yellow').checked?1:0,
+  tbt=$('c_tbt').checked?1:0,safe=$('c_safe').checked?1:0,ff=$('c_ff').checked?1:0,boost=$('c_oil').checked;
+ const fs=sais+pqc+yellow,ss=sais+pqc+yellow+tbt+safe+ff;
+ $('scFScore').textContent=fs+' / 3';$('scSScore').textContent=ss+' / 6';
+ const bf=unitIncentive(year,stops),bs=siteIncentive(year,stops);$('scBaseF').textContent=money(bf);$('scBaseS').textContent=money(bs);
+ const pf=fs>=3?fitterPay(stops,bf,block,boost):0,ps=ss>=6?sitePay(stops,bs,block,boost):0;
+ $('scPayF').textContent=money(pf);$('scPayS').textContent=money(ps);$('scPayT').textContent=money(pf+ps);
+ if(ST.product){saveLocal();postResult();}
+}
+
+/* ================= EXCEL-FORM RENDER ================= */
+function fitForm(){
+ // Tự co giãn (zoom) để form vừa đúng 1 trang A4 ngang khi in
+ const el=$('excelform');if(!el)return;el.style.zoom='1';
+ const pageW=1060,pageH=735; // px @96dpi, A4 ngang trừ lề 7mm
+ const w=el.scrollWidth,h=el.scrollHeight;if(!h)return;
+ const z=Math.min(1,pageW/w,pageH/h);el.style.zoom=z;
+}
+function openForm(){document.body.classList.add('formview');renderForm();fitForm();window.scrollTo(0,0);}
+function closeForm(){document.body.classList.remove('formview');window.scrollTo(0,0);}
+window.addEventListener('beforeprint',()=>{document.body.classList.add('formview');renderForm();fitForm();});
+
+/* nhãn form theo ngôn ngữ (VN = đúng sheet "Lifts (VN)"; EN = sheet "Lifts (EN)") */
+const FL={
+ vi:{specTitle:'Bảng tóm tắt thông số kỹ thuật',instHour:'Số giờ lắp đặt',
+  title:(p,ab)=>p==='s3300'?`3300/ES1 - THỜI GIAN LẮP ĐẶT CHUẨN - ÁP DỤNG TỪ ${ab?'11 ĐIỂM DỪNG TỚI 20':'2 ĐIỂM DỪNG TỚI 10'} ĐIỂM DỪNG`:p==='es50'?`ES5.0 - THỜI GIAN LẮP ĐẶT CHUẨN - ÁP DỤNG TỪ ${ab?'11 ĐIỂM DỪNG TỚI 20':'2 ĐIỂM DỪNG TỚI 10'} ĐIỂM DỪNG`:`VILLA LIFT - THỜI GIAN LẮP ĐẶT CHUẨN`,
+  apply:b=>`Áp dụng với thang có config BEF trên SHAPE là ${String(b).replace('.',',')}`,
+  pname:'Tên Công trình',pref:'Mã số công trình',version:'Xuất xứ (AP or EU)',units:'Tổng số thang',
+  prodLabel:p=>p==='s3300'?'':'Dòng thang',etype:'Loại thang',load:'Tải trọng',speed:'Tốc độ',stops:'Số điểm dừng',
+  cardoors:'Số lượng cửa xe thang',carNote:'',bt:'Chiều rộng cửa tầng',es50cardoors:'Số lượng của car',ld2:'Số cửa tầng phía của xe thang thứ 2',
+  villaDoor:'Loại cửa',villaDoorNote:'(0=HL.st.st, 1=Glass door)',travel:'Hành trình',pit:'Chiều sâu đáy hố',over:'Hành trình vượt',shaft:'Chiều sâu hố thang',
+  overNote:'(Chiều cao tầng trung bình 3,5m)',
+  shape:b=>`Giờ công X từ SHAPE (BEF=${b})`,scheme:(sc,y)=>`Giờ công X với chỉ tiêu BEF=${String(sc).replace('.',',')} cùng với 1-fitter installation trong Scheme ${y}`,
+  es50base:y=>`X hours cho ES5.0 theo chương trình thưởng hiệu quả ${y}`,
+  purely:(p,sc)=>p==='es50'?'Purely installation Hours for ES5.0':p==='villa'?'Purely installation Hours for Villa Lift':`Purely installation Hours (BEF=${sc})`,
+  stepWord:'Bước',steps:STEP_VI,
+  stdScope:'Giờ công cộng thêm cho các phần việc ngoài 14 bước lắp đặt',safety:'Giờ công tham gia các hoạt động An Toàn',
+  noninstall:'Giờ công tham gia các hoạt động phục vụ việc hoàn thành dự án ngoài 14 bước lắp đặt',
+  es50scope:'Giờ công cộng thêm cho dòng thang ES5.0',es50BT:'Giờ công cộng thêm do chiều rộng cửa tầng (BT)',es50Load:'Giờ công cộng thêm do tại trọng (GQ)',
+  es50e2:'Giờ công cộng thêm do số lượng cửa car',es50LD2:'Giờ công cộng thêm cho cửa tầng (phía cửa xe thang thứ 2)',
+  nonstd:'Giờ công cộng thêm cho các phần việc non-standard trong HĐ',total:'TỔNG CỘNG THỜI GIAN FITTER cho MỖI UNIT',
+  coord:'Giờ công điều phối dự án & EI Final HO (dự án ≥ 2 thang)',
+  note:'Các ghi chú (nếu có) từ Quản lý dự án, Kĩ Sư Dự Án và Giám Sát Công trình',prepBy:'Chuẩn bị bởi',team:'Đội lắp đặt'},
+ en:{specTitle:'SPECIFICATION SUMMARY - LIFTS',instHour:'installation hour',
+  title:(p,ab)=>p==='s3300'?`3300/ES1 - INSTALLATION HOURS ESTIMATE CALCULATION - FROM ${ab?'11 STOPS TO 20':'2 STOPS TO 10'} STOPS`:p==='es50'?`ES5.0 - INSTALLATION HOURS ESTIMATE CALCULATION - FROM ${ab?'11 STOPS TO 20':'2 STOPS TO 10'} STOPS`:`VILLA LIFT - INSTALLATION HOURS ESTIMATE CALCULATION`,
+  apply:b=>`Apply for ES1 with config BEF on SHAPE = ${String(b).replace('.',',')}`,
+  pname:'Project Name ?',pref:'Project Reference Number ?',version:'Unit verson  (AP or EU)',units:'Total No. Of Units On Whole Project ?',
+  prodLabel:p=>p==='es50'?'Product':p==='villa'?'Product':'ES1/S3300',etype:'Elevator type',load:'Contract Load  ?',speed:'Speed ?',stops:'No. of Entrances ?',
+  cardoors:'No. of Car Doors ?',carNote:'Per Lift (Count Front + Rear if applicable)',bt:'Landing door width (BT)',es50cardoors:'No. of Car Doors ?',ld2:'No. Of Landing door in 2nd Car door side',
+  villaDoor:'Type Of Door ?',villaDoorNote:'(0=HL.st.st, 1=Glass door)',travel:'Lift Travel ?',pit:'Pit Depth?',over:'Over Travel ?',shaft:'Shaft Depth ?',
+  overNote:'(Average 3.5m floor height)',
+  shape:b=>`X hours with BEF=${b} Extract from SHAPE`,scheme:(sc,y)=>`X Hours with BEF=${sc} which binding into 1-man installation and ${y} Scheme`,
+  es50base:y=>`X hours for ES5.0 in ${y} Installation Incentive Scheme`,
+  purely:(p,sc)=>p==='es50'?'Purely installation Hours for ES5.0':p==='villa'?'Purely installation Hours for Villa Lift':`Purely installation Hour (BEF=${sc})`,
+  stepWord:'step',steps:STEP_EN,
+  stdScope:'Additional Local standard scope',safety:'Safety Tasks Participation',noninstall:'Non-installation Tasks Participation - Yhrs',
+  es50scope:'Additional Hours for ES5.0',es50BT:'Additional hours for landing door width (BT)',es50Load:'Additional hours for Rated Load (GQ)',
+  es50e2:'Additional for second entrance',es50LD2:'Additional hours for landing door in 2nd Car-door side',
+  nonstd:'Additional Local Nonstandard scope',total:'TOTAL FITTER HOUR per Unit',
+  coord:'Extra Hour for Project Coordination (project ≥ 2 units)',
+  note:'Additional note (comments by PM + Site sup)',prepBy:'Prepare by',team:'Installation team'}
+};
+
+function specRow(label,value,cls,unit,note){
+ return `<tr><td class="lbl">${label}</td><td class="unit">${unit||''}</td><td class="${cls}">${value}</td><td class="note">${note||''}</td></tr>`;
+}
+function renderForm(){
+ const s=ST;if(!s.product)return;
+ const F=FL[LANG];
+ const year=s.year,product=s.product,stops=s.stops,befshape=+gv('befshape'),scheme=BEF_SCHEME[year];
+ const above=stops>10;
+ // ----- title -----
+ const apply=product==='s3300'?`<div class="ef-title2">${F.apply(befshape)}</div>`:'';
+ $('efTitle').innerHTML=`<div class="ef-title">${F.title(product,above)}</div>${apply}<div class="ef-bind">Binding into ${year} Installation Incentive Scheme</div>`;
+
+ // ----- LEFT: spec -----
+ let L=`<table class="ef ef-spec"><colgroup><col style="width:56%"><col style="width:8%"><col style="width:16%"><col style="width:20%"></colgroup>`;
+ L+=`<tr><td class="ef-sec" colspan="4">${F.specTitle}</td></tr>`;
+ L+=specRow(F.pname,gv('pname'),'in');
+ L+=specRow(F.pref,gv('pref'),'in');
+ L+=specRow(F.version,gv('version'),'in');
+ L+=specRow(F.units,gv('units'),'in');
+ L+=specRow(F.prodLabel(product), product==='es50'?'ES5.0':(product==='villa'?'Villa Lift':'ES1'),'in');
+ L+=specRow(F.etype,gv('etype'),'in');
+ L+=specRow(F.load,gv('load'),'in','kg');
+ L+=specRow(F.speed,gv('speed'),'in','m/s');
+ L+=specRow(F.stops,gv('stops'),'in');
+ if(product==='es50'){
+   L+=specRow(F.bt,gv('bt'),'in');
+   L+=specRow(F.es50cardoors,gv('cardoors'),'in','',F.carNote);
+   L+=specRow(F.ld2,gv('ld2'),'in');
+ } else if(product==='villa'){
+   L+=specRow(F.villaDoor,gv('doortype'),'in','',F.villaDoorNote);
+ } else {
+   L+=specRow(F.cardoors,gv('cardoors'),'in','',F.carNote);
+ }
+ L+=specRow(F.travel,gv('travel'),'in','m');
+ L+=specRow(F.pit,gv('pit'),'in','m');
+ L+=specRow(F.over,gv('over'),'in','m',F.overNote);
+ L+=specRow(F.shaft,gv('shaft'),'in','m');
+ // base rows
+ if(product==='s3300'||(product==='es50'&&year===2024)){
+   L+=specRow(F.shape(befshape),fmt(gn('shape')),'shape');
+   L+=specRow(F.scheme(scheme,year),fmt(s.x),'scheme');
+ } else if(product==='es50'){
+   L+=specRow(F.es50base(year),fmt(s.x),'scheme');
+ }
+ // options (orange)
+ const list=addonList(product,stops);
+ s.addons.forEach(a=>{const m=list.find(x=>x[0]===a.key);const label=m?(LANG==='vi'?m[6]:m[2]):a.key;const note=m?m[5]:'';
+   L+=`<tr class="opt"><td>${label}</td><td></td><td class="optval">${a.on?'1.0':'0.0'}</td><td class="note">${note}</td></tr>`;});
+ L+=`</table>`;
+ $('efLeft').innerHTML=L;
+
+ // ----- RIGHT: hours -----
+ let R=`<table class="ef efr"><colgroup><col style="width:44px"><col><col style="width:60px"></colgroup>`;
+ R+=`<tr><td class="hdr" style="border:none"></td><td class="hdr" style="border:none"></td><td class="hdr hrcol">${F.instHour}</td></tr>`;
+ R+=`<tr><td class="stepcol"></td><td class="redb">${F.purely(product,scheme)}</td><td class="hrcol redb">${fmt(s.x)}</td></tr>`;
+ s.steps.forEach((h,i)=>{R+=`<tr><td class="stepcol">${F.stepWord} ${i+1}</td><td>${F.steps[i]}</td><td class="hrcol">${fmt(h)}</td></tr>`;});
+ // standard scope (nhãn dọc bao 3 dòng)
+ R+=`<tr><td class="vlabel" rowspan="3">${F.stdScope}</td><td class="hdr">${F.stdScope}</td><td class="hrcol hdr"></td></tr>`;
+ R+=`<tr><td>${F.safety}</td><td class="hrcol">${fmt(s.safety,0)}</td></tr>`;
+ R+=`<tr><td>${F.noninstall}</td><td class="hrcol">${fmt(s.non,0)}</td></tr>`;
+ // ES5.0 additional hours
+ if(product==='es50'){
+   R+=`<tr><td class="vlabel" rowspan="5">${F.es50scope}</td><td class="hdr">${F.es50scope}</td><td class="hrcol hdr"></td></tr>`;
+   R+=`<tr><td>${F.es50BT}</td><td class="hrcol">${fmt(s.es50.eBT,0)}</td></tr>`;
+   R+=`<tr><td>${F.es50Load}</td><td class="hrcol">${fmt(s.es50.eLoad,0)}</td></tr>`;
+   R+=`<tr><td>${F.es50e2}</td><td class="hrcol">${fmt(s.es50.e2nd,0)}</td></tr>`;
+   R+=`<tr><td>${F.es50LD2}</td><td class="hrcol">${fmt(s.es50.eLD2,1)}</td></tr>`;
+ }
+ // nonstandard scope
+ const na=s.addons.length;
+ R+=`<tr><td class="vlabel" rowspan="${na+1}">${F.nonstd}</td><td class="hdr">${F.nonstd}</td><td class="hrcol hdr"></td></tr>`;
+ s.addons.forEach(a=>{const m=list.find(x=>x[0]===a.key);const label=m?(LANG==='vi'?m[7]:m[3]):a.key;
+   R+=`<tr><td>${label}</td><td class="hrcol">${fmt(a.v,0)}</td></tr>`;});
+ // total — hàng đỏ full-width giống Excel (có điều phối: tổng đầu chưa gồm, tổng sau gồm — như Excel J34/J36)
+ const baseTotal=s.total-s.coordPerUnit;
+ R+=`<tr class="eftot"><td></td><td style="text-align:right;font-size:11.5px">${F.total}</td><td class="hrcol" style="font-size:11.5px">${fmt(baseTotal)}</td></tr>`;
+ if(s.coordTotal){
+   R+=`<tr><td class="stepcol"></td><td>${F.coord}</td><td class="hrcol">${fmt(s.coordTotal,0)}</td></tr>`;
+   R+=`<tr class="eftot"><td></td><td style="text-align:right;font-size:11.5px">${F.total}</td><td class="hrcol" style="font-size:11.5px">${fmt(s.total)}</td></tr>`;
+ }
+ R+=`</table>`;
+ $('efRight').innerHTML=R;
+
+ // note + chữ ký theo ngôn ngữ
+ $('efNoteCap').textContent=F.note;
+ document.querySelector('#excelform .ef-sign').innerHTML=`<div>${F.prepBy}</div><div>${F.team}</div>`;
+}
+
+/* ================= XUẤT EXCEL (.xls Excel mở trực tiếp) ================= */
+function exportExcel(){
+ if(!ST.product)calc();
+ const s=ST,F=FL[LANG];
+ const year=s.year,product=s.product,stops=s.stops,befshape=+gv('befshape'),scheme=BEF_SCHEME[year],above=stops>10;
+ const list=addonList(product,stops);
+ const esc=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ const IN='background:#CCFFCC;color:#006100;font-weight:bold',SH='background:#FFC7CE;color:#9C0006;font-weight:bold',
+  SC='background:#FFFF00;color:#C00000;font-weight:bold',OP='background:#FFC000;color:#4A2C00',
+  HDR='background:#F2F2F2;font-weight:bold',RED='color:#C00000;font-weight:bold',BRD='border:1px solid #B0B0B0';
+
+ // ----- LEFT rows -----
+ const Lr=[]; Lr.push(['sec',F.specTitle]);
+ const pL=(l,v,vs,u,n)=>Lr.push(['r',l,u||'',v,n||'',vs||'']);
+ pL(F.pname,gv('pname'),IN); pL(F.pref,gv('pref'),IN); pL(F.version,gv('version'),IN); pL(F.units,gv('units'),IN);
+ pL(F.prodLabel(product),product==='es50'?'ES5.0':product==='villa'?'Villa Lift':'ES1',IN);
+ pL(F.etype,gv('etype'),IN); pL(F.load,gv('load'),IN,'kg'); pL(F.speed,gv('speed'),IN,'m/s'); pL(F.stops,gv('stops'),IN);
+ if(product==='es50'){pL(F.bt,gv('bt'),IN);pL(F.es50cardoors,gv('cardoors'),IN,'',F.carNote);pL(F.ld2,gv('ld2'),IN);}
+ else if(product==='villa'){pL(F.villaDoor,gv('doortype'),IN,'',F.villaDoorNote);}
+ else{pL(F.cardoors,gv('cardoors'),IN,'',F.carNote);}
+ pL(F.travel,gv('travel'),IN,'m'); pL(F.pit,gv('pit'),IN,'m'); pL(F.over,gv('over'),IN,'m',F.overNote); pL(F.shaft,gv('shaft'),IN,'m');
+ if(product==='s3300'||(product==='es50'&&year===2024)){pL(F.shape(befshape),fmt(gn('shape')),SH);pL(F.scheme(scheme,year),fmt(s.x),SC);}
+ else if(product==='es50'){pL(F.es50base(year),fmt(s.x),SC);}
+ s.addons.forEach(a=>{const m=list.find(x=>x[0]===a.key);Lr.push(['opt',LANG==='vi'?m[6]:m[2],'',a.on?'1.0':'0.0',m[5]]);});
+
+ // ----- RIGHT rows -----
+ const Rr=[]; Rr.push(['hdr','','',F.instHour]); Rr.push(['pur','',F.purely(product,scheme),fmt(s.x)]);
+ s.steps.forEach((h,i)=>Rr.push(['step',F.stepWord+' '+(i+1),F.steps[i],fmt(h)]));
+ Rr.push(['sec','',F.stdScope,'']); Rr.push(['it','',F.safety,fmt(s.safety,0)]); Rr.push(['it','',F.noninstall,fmt(s.non,0)]);
+ if(product==='es50'){Rr.push(['sec','',F.es50scope,'']);Rr.push(['it','',F.es50BT,fmt(s.es50.eBT,0)]);
+  Rr.push(['it','',F.es50Load,fmt(s.es50.eLoad,0)]);Rr.push(['it','',F.es50e2,fmt(s.es50.e2nd,0)]);Rr.push(['it','',F.es50LD2,fmt(s.es50.eLD2,1)]);}
+ Rr.push(['sec','',F.nonstd,'']);
+ s.addons.forEach(a=>{const m=list.find(x=>x[0]===a.key);Rr.push(['it','',LANG==='vi'?m[7]:m[3],fmt(a.v,0)]);});
+ const baseTotal=s.total-s.coordPerUnit;
+ Rr.push(['tot','',F.total,fmt(baseTotal)]);
+ if(s.coordTotal){Rr.push(['it','',F.coord,fmt(s.coordTotal,0)]);Rr.push(['tot','',F.total,fmt(s.total)]);}
+
+ // ----- build combined table -----
+ let rows=`<tr><td colspan=8 style="font-weight:bold;font-size:13px">${esc(F.title(product,above))}</td></tr>`;
+ if(product==='s3300')rows+=`<tr><td colspan=8 style="font-weight:bold">${esc(F.apply(befshape))}</td></tr>`;
+ rows+=`<tr><td colspan=8>Binding into ${year} Installation Incentive Scheme</td></tr><tr></tr>`;
+ const n=Math.max(Lr.length,Rr.length);
+ for(let i=0;i<n;i++){
+   const l=Lr[i],r=Rr[i];let c='';
+   if(!l)c+='<td></td><td></td><td></td><td></td>';
+   else if(l[0]==='sec')c+=`<td colspan=4 style="font-weight:bold;text-decoration:underline">${esc(l[1])}</td>`;
+   else c+=`<td>${esc(l[1])}</td><td style="text-align:center;font-style:italic">${esc(l[2])}</td><td style="${l[0]==='opt'?OP:(l[5]||'')};text-align:right">${esc(l[3])}</td><td style="font-size:9px;${l[0]==='opt'?OP:''}">${esc(l[4])}</td>`;
+   c+='<td> </td>';
+   if(!r)c+='<td></td><td></td><td></td>';
+   else{let ds='',vs='';if(r[0]==='hdr'){ds=HDR;vs=HDR;}else if(r[0]==='pur'||r[0]==='tot'){ds=RED;vs=RED;}else if(r[0]==='sec')ds=HDR;
+     c+=`<td style="${BRD};text-align:center;font-size:9px">${esc(r[1])}</td><td style="${BRD};${ds}">${esc(r[2])}</td><td style="${BRD};${vs};text-align:right">${esc(r[3])}</td>`;}
+   rows+=`<tr>${c}</tr>`;
+ }
+ rows+=`<tr></tr><tr><td colspan=8 style="font-weight:bold;text-decoration:underline">${esc(F.note)}</td></tr>`;
+ rows+=`<tr><td colspan=8 style="height:50px;border:1px solid #000"> </td></tr><tr></tr>`;
+ rows+=`<tr><td colspan=2 style="font-weight:bold">${esc(F.prepBy)}</td><td colspan=3></td><td colspan=3 style="font-weight:bold">${esc(F.team)}</td></tr>`;
+
+ const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">'+
+  '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'+
+  '<x:Name>SWAT Hour</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>'+
+  '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="0" cellspacing="0">'+rows+'</table></body></html>';
+ const blob=new Blob(['﻿'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+ const nm=(gv('pname')||'SWAT').replace(/[^\wÀ-ỹ -]/g,'').trim().slice(0,40)||'SWAT';
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SWAT_${nm}_${product}_${year}.xls`;
+ document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);document.body.removeChild(a);},100);
+}
+
+/* ================= LƯU TRỮ · CHIA SẺ · TÍCH HỢP TrackingTS ================= */
+const APP_VERSION='v1.1';
+const INPUT_IDS=['year','product','stops','units','version','etype','load','speed','cardoors','travel','pit','over','shaft','bt','ld2','doortype','shape','befshape','pname','pref','usedHours','actHour'];
+const SC_IDS=['c_sais','c_pqc','c_yellow','c_tbt','c_safe','c_ff','c_oil'];
+const b64e=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const b64d=s=>JSON.parse(decodeURIComponent(escape(atob(s))));
+
+function getState(){
+ const v={};INPUT_IDS.forEach(id=>{const e=$(id);if(e)v[id]=e.value;});
+ const a={};document.querySelectorAll('#addons input').forEach(i=>a[i.dataset.key]=i.checked);
+ const sc={};SC_IDS.forEach(id=>sc[id]=$(id).checked);
+ return {lang:LANG,v,a,sc,std_touched:!!$('stdHour').dataset.touched,std:$('stdHour').value};
+}
+function applyInputs(map){ // nhận map id→value (từ TrackingTS hoặc state)
+ if(!map)return;
+ // đổi sản phẩm/năm trước để build đúng
+ ['year','product'].forEach(id=>{if(map[id]!=null&&$(id))$(id).value=map[id];});
+ INPUT_IDS.forEach(id=>{if(map[id]!=null&&$(id))$(id).value=map[id];});
+ buildAddons();
+}
+function setState(st){
+ if(!st)return;
+ if(st.lang&&st.lang!==LANG){LANG=st.lang;document.querySelectorAll('#lang button').forEach(x=>x.classList.toggle('on',x.dataset.lang===LANG));}
+ applyInputs(st.v||st);
+ if(st.a)document.querySelectorAll('#addons input').forEach(i=>{if(st.a[i.dataset.key]!=null)i.checked=st.a[i.dataset.key];});
+ if(st.sc)SC_IDS.forEach(id=>{if(st.sc[id]!=null)$(id).checked=st.sc[id];});
+ if(st.std_touched){$('stdHour').dataset.touched=1;$('stdHour').value=st.std;}
+ applyLang();
+}
+function saveLocal(){try{localStorage.setItem('swat_state',JSON.stringify(getState()));}catch(e){}}
+function loadLocal(){try{const s=localStorage.getItem('swat_state');if(s){setState(JSON.parse(s));return true;}}catch(e){}return false;}
+function loadFromHash(){const m=location.hash.match(/[#&]d=([^&]+)/);if(m){try{setState(b64d(decodeURIComponent(m[1])));return true;}catch(e){}}return false;}
+function resetAll(){try{localStorage.removeItem('swat_state');}catch(e){}location.hash='';location.reload();}
+
+function toast(msg){let t=$('__toast');if(!t){t=document.createElement('div');t.id='__toast';t.style.cssText='position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.4);opacity:0;transition:opacity .2s';document.body.appendChild(t);}t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(()=>t.style.opacity='0',2200);}
+
+function shareLink(){
+ const url=location.origin+location.pathname+'#d='+encodeURIComponent(b64e(getState()));
+ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>toast('Đã sao chép link chia sẻ ✓'),()=>prompt('Link chia sẻ:',url));}
+ else prompt('Link chia sẻ:',url);
+ try{history.replaceState(null,'',url);}catch(e){}
+}
+
+/* Kết quả có cấu trúc — hợp đồng dữ liệu cho TrackingTS */
+function getResult(){
+ const s=ST;
+ return {
+  tool:'SWAT_Hour_Calculator',version:APP_VERSION,generated_at:new Date().toISOString(),
+  project:{name:gv('pname'),ref:gv('pref'),year:s.year,product:s.product,scheme_bef:BEF_SCHEME[s.year],
+   stops:s.stops,units:s.units,version:gv('version'),elevator_type:gv('etype'),
+   load_kg:gn('load'),speed:gn('speed'),travel_m:gn('travel'),pit_m:gn('pit'),over_m:gn('over'),shaft_m:gn('shaft')},
+  hours:{purely_installation_X:round1(s.x),standard_per_unit:round1(s.total),
+   standard_whole_project:round1(s.budget||s.total*s.units),used:round1(s.used||0),
+   remaining:round1((s.budget||s.total*s.units)-(s.used||0)),used_pct:Math.round(s.usedPct||0),
+   safety:s.safety,non_installation:s.non,es50_extra:round1(s.es50?s.es50.total:0),
+   addons:round1(s.addonSum),coordination_per_unit:round1(s.coordPerUnit)},
+  incentive_2025:{fitter_vnd:scPay('scPayF'),sitesup_vnd:scPay('scPayS'),total_vnd:scPay('scPayT')}
+ };
+}
+function round1(n){return Math.round((+n||0)*10)/10;}
+function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
+
+function exportJSON(){
+ const data=getResult();
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+ const nm=(gv('pname')||'SWAT').replace(/[^\wÀ-ỹ -]/g,'').trim().slice(0,40)||'SWAT';
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SWAT_${nm}_${gv('product')}_${gv('year')}.json`;
+ document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},100);
+}
+
+/* API cho nhúng iframe trong TrackingTS */
+function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
+window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}});
+window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l)};
+
+/* ================= NẠP DỮ LIỆU DỰ ÁN TỪ YAN_COM ================= */
+/* Mapping (cột GRP_* trong YAN_COM → ô nhập):
+   GQ→Tải trọng · VKN→Tốc độ · NUMBER_OF_STOPS→Số điểm dừng · HQ→Hành trình(m)
+   HSG→Pit(mm/1000) · HSK→Hành trình vượt(mm/1000) · TS_MIN→Chiều sâu hố(mm/1000)
+   BRANCH_EFFICIENCY_FACTOR→BEF · INST_TIME_STANDARD→Giờ SHAPE
+   Bộ TSD ✓ khi HSG_TYPE='Low pit' hoặc HSK_TYPE='Reduced head' */
+let PROJECTS=[];
+function numTok(v){if(v==null)return 0;const s=String(v).split('|')[0].replace(/,/g,'').replace(/\s/g,'').trim();const n=parseFloat(s);return isNaN(n)?0:n;}
+function detectProduct(d){d=(d||'').toString().toLowerCase();if(d.includes('villa'))return 'villa';if(d.includes('5.0')||d.includes('es5')||d.includes('es 5'))return 'es50';return 's3300';}
+function parseYan(rows){
+ if(!rows||!rows.length)return [];
+ const hdr=rows[0].map(h=>String(h==null?'':h).trim());
+ const col=n=>hdr.findIndex(h=>h===n), colc=n=>hdr.findIndex(h=>h.toLowerCase().includes(n));
+ const ci={gq:col('GRP_GQ'),vkn:col('GRP_VKN'),stops:col('GRP_NUMBER_OF_STOPS'),hq:col('GRP_HQ'),hsg:col('GRP_HSG'),
+  hsk:col('GRP_HSK'),ts:col('GRP_TS_MIN'),bef:col('GRP_BRANCH_EFFICIENCY_FACTOR'),shape:col('GRP_INST_TIME_STANDARD'),
+  hsgt:col('GRP_HSG_TYPE'),hskt:col('GRP_HSK_TYPE'),name:col('Project name'),num:col('Project number'),wbs:col('WBS Element'),desc:col('Product Line Description')};
+ if(ci.name<0)ci.name=colc('project name'); if(ci.stops<0)ci.stops=colc('number_of_stops');
+ const out=[];
+ for(let i=1;i<rows.length;i++){const r=rows[i];if(!r)continue;
+  const name=String(r[ci.name]==null?'':r[ci.name]).trim();if(!name)continue;
+  const wbs=String(ci.wbs>=0&&r[ci.wbs]!=null?r[ci.wbs]:'').trim();
+  const num=String(ci.num>=0&&r[ci.num]!=null?r[ci.num]:'').trim();
+  out.push({label:name+(wbs?'  —  WBS '+wbs:''),pname:name,pref:num||wbs,product:detectProduct(r[ci.desc]),
+   load:numTok(r[ci.gq]),speed:numTok(r[ci.vkn]),stops:numTok(r[ci.stops]),travel:numTok(r[ci.hq]),
+   pit:numTok(r[ci.hsg])/1000,over:numTok(r[ci.hsk])/1000,shaft:numTok(r[ci.ts])/1000,
+   bef:numTok(r[ci.bef]),shape:numTok(r[ci.shape]),
+   tsd:String(ci.hsgt>=0?r[ci.hsgt]:'').toLowerCase().includes('low pit')||String(ci.hskt>=0?r[ci.hskt]:'').toLowerCase().includes('reduced head')});
+ }
+ return out;
+}
+function loadProjects(list){
+ PROJECTS=Array.isArray(list)?list:[];
+ $('projectDL').innerHTML=PROJECTS.map(p=>`<option value="${String(p.label).replace(/"/g,'&quot;')}"></option>`).join('');
+ $('yanStatus').textContent=PROJECTS.length?('✓ '+PROJECTS.length+' công trình'):'';
+ try{localStorage.setItem('swat_projects',JSON.stringify(PROJECTS));}catch(e){}
+}
+function onYanFile(e){
+ const f=e.target.files[0];if(!f)return;e.target.value='';
+ const isCsv=/\.csv$/i.test(f.name);
+ if(typeof XLSX==='undefined'&&!isCsv){alert('Cần kết nối internet để đọc file .xlsx (thư viện XLSX chưa tải được).\nHoặc lưu YAN_COM thành .csv rồi nạp lại.');return;}
+ const rd=new FileReader();
+ rd.onload=ev=>{try{
+  let rows;
+  if(isCsv&&typeof XLSX==='undefined'){rows=ev.target.result.split(/\r?\n/).map(l=>l.split(','));}
+  else{const wb=XLSX.read(ev.target.result,{type:'array'});const ws=wb.Sheets['Yan_COM']||wb.Sheets[wb.SheetNames[0]];rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});}
+  const list=parseYan(rows);
+  if(!list.length){alert('Không tìm thấy dữ liệu công trình. Kiểm tra đúng file YAN_COM (có cột "Project name", "GRP_...")?');return;}
+  loadProjects(list);toast('Đã nạp '+list.length+' công trình từ YAN_COM ✓');
+ }catch(err){alert('Lỗi đọc file: '+err.message);}};
+ if(isCsv&&typeof XLSX==='undefined')rd.readAsText(f,'utf-8');else rd.readAsArrayBuffer(f);
+}
+function applyProject(p){
+ if(!p)return;const set=(id,v)=>{const e=$(id);if(e&&v!==''&&v!=null&&!(typeof v==='number'&&isNaN(v)))e.value=v;};
+ $('pname').value=p.pname;set('pref',p.pref);if(p.product)$('product').value=p.product;
+ const r2=n=>Math.round((+n||0)*100)/100;
+ set('load',p.load||'');set('speed',p.speed||'');set('stops',p.stops||'');set('travel',r2(p.travel));
+ set('pit',r2(p.pit));set('over',r2(p.over));set('shaft',r2(p.shaft));
+ if(p.bef)set('befshape',p.bef);if(p.shape)set('shape',round1(p.shape));
+ buildAddons();
+ const tsd=document.querySelector('#addons input[data-key=tsd]');if(tsd)tsd.checked=!!p.tsd;
+ delete $('stdHour').dataset.touched; // cho phép giờ chuẩn cập nhật lại theo dự án mới
+ calc();toast('Đã nạp thông số: '+p.pname);
+}
+function onPnameChange(){const v=$('pname').value.trim();const p=PROJECTS.find(x=>x.label===v)||PROJECTS.find(x=>x.pname===v);if(p)applyProject(p);}
+
+/* ================= EVENTS ================= */
+$('yanFile').addEventListener('change',onYanFile);
+$('pname').addEventListener('change',onPnameChange);
+['year','product','stops','units','version','etype','load','speed','cardoors','travel','pit','over','shaft','bt','ld2','doortype','shape','befshape','pname','pref','usedHours'].forEach(id=>{
+ $(id).addEventListener('input',()=>{if(id==='product'||id==='stops')buildAddons();calc();});
+});
+$('stdHour').addEventListener('input',e=>{e.target.dataset.touched=1;scorecard();});
+$('actHour').addEventListener('input',scorecard);
+['c_sais','c_pqc','c_yellow','c_tbt','c_safe','c_ff','c_oil'].forEach(id=>$(id).addEventListener('change',scorecard));
+document.querySelectorAll('#lang button').forEach(b=>b.addEventListener('click',()=>{
+ document.querySelectorAll('#lang button').forEach(x=>x.classList.remove('on'));b.classList.add('on');LANG=b.dataset.lang;applyLang();}));
+
+$('globalNote').textContent="Nguồn: các file 'STD installation hours' (2024/2025/2026) + 'SWAT Scorecard 2025'. Form in ra tái hiện đúng bố cục & nội dung form Excel gốc (SPECIFICATION SUMMARY + installation hour + TOTAL FITTER HOUR).";
+$('appVersion').textContent=APP_VERSION;
+
+/* Nạp lại danh sách công trình đã lưu (nếu admin từng nạp YAN_COM trên trình duyệt này) */
+try{const sp=localStorage.getItem('swat_projects');if(sp)loadProjects(JSON.parse(sp));}catch(e){}
+
+/* Khởi tạo: ưu tiên dữ liệu từ URL (#d=...) > localStorage > mặc định */
+if(!loadFromHash() && !loadLocal()){ buildAddons(); applyLang(); }
+</script>
+</body>
+</html>
