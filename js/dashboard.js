@@ -143,6 +143,8 @@ const Dashboard = (() => {
 
     document.getElementById('statWbs').textContent = wbs || '-';
     targetHourInput.value = project ? (project.targetHour || 0) : 0;
+    const swatBadge = document.getElementById('targetSwatBadge');
+    if (swatBadge) swatBadge.style.display = (project && project.targetSwat) ? '' : 'none';
 
     if (!wbs) {
       renderEmpty();
@@ -284,6 +286,7 @@ const Dashboard = (() => {
       if (!project) return;
       project.targetHour = parseFloat(targetHourInput.value) || 0;
       project.targetHourManual = true;
+      project.targetSwat = false; // sửa tay -> không còn là số từ SWAT
       await DB.put('projects', project);
       refresh();
     });
