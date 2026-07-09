@@ -1,36 +1,31 @@
 // Tab "SWAT Hour": nhúng công cụ tính giờ công lắp đặt (tools/swat-hour) và
-// nối dữ liệu 2 chiều với TrackingTS.
-//  - Chọn 1 dự án ở đây (hoặc đồng bộ từ Dashboard) -> đổ thông số kỹ thuật
-//    (từ specs YAN_COM) + giờ đã dùng (tổng bảng công theo WBS) sang công cụ.
-//  - Công cụ tính xong trả về giờ định mức / còn lại -> hiển thị lại; có nút
-//    ghi "giờ định mức toàn dự án" thành Target giờ của dự án.
+// nối dữ liệu với TrackingTS. Toàn bộ danh sách công trình được đổ từ tab
+// Dự án của TrackingTS vào ô "Tên công trình" (droplist) của công cụ — không
+// còn nạp YAN_COM bằng tay. Chọn 1 công trình -> tự điền thông số kỹ thuật
+// (từ specs) + giờ đã dùng (tổng bảng công theo WBS); công cụ tính xong trả
+// kết quả -> hiển thị giờ định mức/còn lại, admin ghi thành Target giờ dự án.
 const SwatPage = (() => {
   let projects = [];
   let timesheets = [];
-  let combo = null;
   let lastResult = null;
   let currentWbs = '';
 
   function frame() { return document.getElementById('swatFrame'); }
   function swatWin() { const f = frame(); return f && f.contentWindow; }
-
+  function swatApi() { try { const w = swatWin(); return (w && w.SWAT) || null; } catch (e) { return null; } }
   function fmtVN(n) { return (Math.round((+n || 0) * 10) / 10).toFixed(1).replace('.', ','); }
-
-  function populateCombo() {
-    if (combo) combo.setItems(projects.map(p => ({ value: p.wbs, label: `${p.projectName} (${p.wbs})` })));
-  }
 
   async function load() {
     projects = await DB.getAll('projects');
     timesheets = await DB.getAll('timesheets');
     projects.sort((a, b) => (a.projectName || '').localeCompare(b.projectName || ''));
-    populateCombo();
+    pushList();
   }
 
   // giờ đã dùng của 1 dự án = tổng cột total của các dòng bảng công cùng WBS
   function usedHoursFor(wbs) {
-    return timesheets.filter(t => t.wbs === wbs)
-      .reduce((s, t) => s + (+t.total || 0), 0);
+    return Math.round(timesheets.filter(t => t.wbs === wbs)
+      .reduce((s, t) => s + (+t.total || 0), 0) * 10) / 10;
   }
 
   function detectProduct(desc) {
@@ -59,67 +54,65 @@ const SwatPage = (() => {
     return isNaN(n) ? null : n;
   }
 
-  // xây payload SWAT_SET từ 1 dự án TrackingTS. Chỉ đưa các ô có dữ liệu thật
-  // để không ghi đè giá trị mặc định / người dùng tự nhập bằng số 0.
-  function projectToInputs(p) {
+  // 1 dự án TrackingTS -> phần tử danh sách cho droplist của công cụ
+  function toToolItem(p) {
     const s = p.specs || {};
-    const m = {
+    const div = (val, d) => { const n = numTok(val); return n == null ? '' : Math.round((n / d) * 100) / 100; };
+    return {
+      label: `${p.projectName || '(không tên)'} (${p.wbs})`,
       pname: p.projectName || '',
-      pref: p.projectNumber || p.wbs || '',
+      pref: p.wbs || '',
       product: detectProduct(p.productLine),
-      usedHours: Math.round(usedHoursFor(p.wbs) * 10) / 10,
+      load: numTok(spec(s, 'GQ')) || '',
+      speed: numTok(spec(s, 'VKN')) || '',
+      stops: numTok(spec(s, 'NUMBER_OF_STOPS', 'NUMBEROFSTOPS', 'STOPS')) || '',
+      travel: numTok(spec(s, 'HQ')) || '',
+      pit: div(spec(s, 'HSG'), 1000),
+      over: div(spec(s, 'HSK'), 1000),
+      shaft: div(spec(s, 'TS_MIN'), 1000),
+      bef: numTok(spec(s, 'BRANCH_EFFICIENCY_FACTOR', 'BEF')) || '',
+      shape: numTok(spec(s, 'INST_TIME_STANDARD')) || '',
+      tsd: /low pit/i.test(spec(s, 'HSG_TYPE')) || /reduced head/i.test(spec(s, 'HSK_TYPE')),
+      usedHours: usedHoursFor(p.wbs),
     };
-    const put = (id, val, div) => {
-      const n = numTok(val);
-      if (n != null) m[id] = div ? Math.round((n / div) * 100) / 100 : n;
-    };
-    put('stops', spec(s, 'NUMBER_OF_STOPS', 'NUMBEROFSTOPS', 'STOPS'));
-    put('load', spec(s, 'GQ'));
-    put('speed', spec(s, 'VKN'));
-    put('travel', spec(s, 'HQ'));
-    put('pit', spec(s, 'HSG'), 1000);
-    put('over', spec(s, 'HSK'), 1000);
-    put('shaft', spec(s, 'TS_MIN'), 1000);
-    put('befshape', spec(s, 'BRANCH_EFFICIENCY_FACTOR', 'BEF'));
-    put('shape', spec(s, 'INST_TIME_STANDARD'));
-    return m;
   }
 
-  // đẩy dự án sang công cụ, đọc kết quả trả về (dùng API trực tiếp cùng origin,
-  // fallback postMessage nếu bị chặn)
+  // đổ danh sách công trình vào droplist "Tên công trình" của công cụ
+  function pushList() {
+    const api = swatApi();
+    if (!api || typeof api.loadProjects !== 'function') return false;
+    try { api.loadProjects(projects.map(toToolItem)); return true; } catch (e) { return false; }
+  }
+
+  // Dashboard đổi dự án -> chọn đúng công trình đó trong công cụ
   function pushProject(wbs) {
     const p = projects.find(x => x.wbs === wbs);
-    if (!p) return;
+    const api = swatApi();
+    if (!p || !api) return;
     currentWbs = wbs;
-    const inputs = projectToInputs(p);
-    const w = swatWin();
-    try {
-      if (w && w.SWAT && typeof w.SWAT.setInputs === 'function') {
-        w.SWAT.setInputs(inputs);
-        renderResult(w.SWAT.getResult());
-        return;
-      }
-    } catch (e) { /* khác origin -> dùng postMessage */ }
-    if (w) w.postMessage({ type: 'SWAT_SET', data: inputs }, '*');
+    try { api.setInputs(toToolItem(p)); renderResult(api.getResult()); } catch (e) { /* ignore */ }
   }
 
   function renderResult(r) {
     lastResult = r || null;
+    if (r && r.project && r.project.ref) currentWbs = String(r.project.ref).trim();
     const box = document.getElementById('swatReadout');
     const btn = document.getElementById('swatWriteTarget');
     if (!r || !r.hours) {
-      box.innerHTML = '<span class="swat-muted">Chọn một dự án để tính giờ công định mức.</span>';
+      box.innerHTML = '<span class="swat-muted">Chọn công trình ở ô “Tên công trình” của công cụ bên dưới để tính giờ công định mức.</span>';
       btn.style.display = 'none';
       return;
     }
     const h = r.hours;
     box.innerHTML = `
+      <div class="swat-stat"><span>Công trình</span><b class="swat-small">${r.project.name || '-'}</b></div>
       <div class="swat-stat"><span>Giờ định mức / thang</span><b>${fmtVN(h.standard_per_unit)}</b></div>
       <div class="swat-stat"><span>Giờ định mức toàn dự án</span><b>${fmtVN(h.standard_whole_project)}</b></div>
       <div class="swat-stat"><span>Đã dùng (bảng công)</span><b>${fmtVN(h.used)}</b></div>
       <div class="swat-stat"><span>Còn lại</span><b class="${(+h.remaining) < 0 ? 'swat-neg' : 'swat-pos'}">${fmtVN(h.remaining)}</b></div>
       <div class="swat-stat"><span>Đã dùng</span><b>${Math.round(h.used_pct || 0)}%</b></div>`;
-    btn.style.display = (currentWbs && Auth.isAdmin()) ? '' : 'none';
+    const known = currentWbs && projects.some(p => p.wbs === currentWbs);
+    btn.style.display = (known && Auth.isAdmin()) ? '' : 'none';
     btn.textContent = `⤓ Ghi ${fmtVN(h.standard_whole_project)} thành Target giờ dự án`;
   }
 
@@ -127,39 +120,31 @@ const SwatPage = (() => {
     if (!lastResult || !currentWbs) return;
     const target = Math.round((+lastResult.hours.standard_whole_project || 0) * 10) / 10;
     const p = projects.find(x => x.wbs === currentWbs);
-    if (!p) return;
-    if (!confirm(`Ghi Target giờ của dự án "${p.projectName}" = ${fmtVN(target)} giờ?`)) return;
+    if (!p) { alert('Không tìm thấy dự án tương ứng WBS ' + currentWbs + ' trong tab Dự án.'); return; }
+    if (!confirm(`Ghi Target giờ của dự án "${p.projectName}" (WBS ${p.wbs}) = ${fmtVN(target)} giờ?`)) return;
     p.targetHour = target;
     p.targetHourManual = true;
     await DB.put('projects', p);
     await load();
     await Dashboard.reloadAndRefresh();
     alert('Đã cập nhật Target giờ. Kiểm tra lại trên Dashboard' +
-      (Cloud && Cloud.canWrite && Cloud.canWrite() ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
+      (typeof Cloud !== 'undefined' && Cloud.canWrite && Cloud.canWrite() ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
   }
 
   // Dashboard gọi khi người dùng đổi dự án đang chọn, để đồng bộ sang tab SWAT
-  function syncFromDashboard(wbs) {
-    if (!wbs || !combo) return;
-    combo.setValue(wbs);
-    pushProject(wbs);
-  }
+  function syncFromDashboard(wbs) { if (wbs) pushProject(wbs); }
 
   function wire() {
-    combo = Combo.create(document.getElementById('swatProjectCombo'), {
-      placeholder: 'Chọn dự án để tính giờ công...',
-      onChange: () => { const v = combo.getValue(); if (v) pushProject(v); else renderResult(null); },
-    });
-    populateCombo(); // đổ danh sách dự án (load() có thể đã chạy trước khi combo tồn tại)
     document.getElementById('swatWriteTarget').addEventListener('click', writeTarget);
-    // khi công cụ tự tính lại (người dùng chỉnh trong iframe) -> cập nhật readout
+    // công cụ tự tính lại (chọn công trình / chỉnh thông số) -> cập nhật readout
     window.addEventListener('message', (ev) => {
       const d = ev.data;
       if (d && d.type === 'SWAT_RESULT') renderResult(d.data);
     });
-    // nạp lại danh sách dự án vào combo khi iframe đã sẵn sàng
+    // khi iframe nạp xong -> đổ danh sách công trình và đồng bộ dự án đang chọn
     const f = frame();
-    if (f) f.addEventListener('load', () => { if (currentWbs) pushProject(currentWbs); });
+    if (f) f.addEventListener('load', () => { pushList(); if (currentWbs) pushProject(currentWbs); });
+    pushList();
     renderResult(null);
   }
 
