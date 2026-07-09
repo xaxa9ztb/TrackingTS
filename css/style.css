@@ -138,6 +138,7 @@ main { padding: 20px; }
 }
 .swat-stat span { font-size: 12px; color: var(--text-muted); }
 .swat-stat b { font-size: 18px; color: var(--blue-dark); }
+.swat-stat b.swat-small { font-size: 13px; }
 .swat-stat b.swat-pos { color: #1e7e34; }
 .swat-stat b.swat-neg { color: #c0392b; }
 .swat-frame-wrap {

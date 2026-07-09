@@ -13,8 +13,6 @@
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e2001a'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3E%E2%8F%B1%3C/text%3E%3C/svg%3E">
 <meta name="robots" content="noindex">
-<!-- Thư viện đọc .xlsx phía trình duyệt (cho tính năng nạp YAN_COM của admin). Cần internet; nếu offline vẫn nhập tay bình thường. -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#0f172a; --panel:#1e293b; --panel2:#243349; --line:#334155;
@@ -143,11 +141,9 @@
       </select>
     </div>
     <div class="field">
-      <label data-i18n="adminData">Dữ liệu dự án (admin)</label>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input type="file" id="yanFile" accept=".xlsx,.xls,.csv" style="display:none">
-        <button class="btn sec" onclick="document.getElementById('yanFile').click()" title="Admin nạp file YAN_COM để có danh sách công trình">📁 <span data-i18n="loadYan">Nạp YAN_COM</span></button>
-        <span id="yanStatus" style="font-size:11px;color:var(--muted)"></span>
+      <label data-i18n="adminData">Dữ liệu dự án</label>
+      <div style="display:flex;gap:6px;align-items:center;min-height:32px">
+        <span id="yanStatus" style="font-size:12px;color:var(--muted)" data-i18n="projSource">Lấy từ tab Dự án (TrackingTS)</span>
       </div>
     </div>
     <div class="field" style="flex:1"></div>
@@ -394,7 +390,7 @@ const I18N={
   fscore:"Fitter score (cần ≥ 3)",sscore:"Site-sup score (cần ≥ 6)",baseInc:"Thưởng nền / unit (Fitter)",baseIncS:"Thưởng nền (Site-sup)",
   fitterpay:"Thưởng Fitter / unit",sitepay:"Thưởng Site-sup / unit",totalpay:"TỔNG thưởng / unit",
   scnote:"Thưởng nền theo scheme từng năm (2026 site-sup cao hơn 2024/2025). (*) Folder 2024 dùng bản scorecard 2025. Đơn vị: VND.",
-  share:"Chia sẻ",reset:"Reset",adminData:"Dữ liệu dự án (admin)",loadYan:"Nạp YAN_COM",budgetTitle:"Giờ công định mức & còn lại (toàn dự án) — cho dashboard TrackingTS",
+  share:"Chia sẻ",reset:"Reset",adminData:"Dữ liệu dự án",projSource:"Lấy từ tab Dự án (TrackingTS)",budgetTitle:"Giờ công định mức & còn lại (toàn dự án) — cho dashboard TrackingTS",
   bPerUnit:"Giờ công định mức / thang",bUnits:"Số thang (units)",bBudget:"Giờ công định mức toàn dự án (tối đa)",
   bUsed:"Giờ công đã dùng (từ bảng công)",bRemainPill:"Giờ công CÒN LẠI",bUsedLabel:"đã dùng / định mức",
   disclaimer:"⚠ Công cụ nội bộ để tham khảo — không phải tài liệu chính thức của Schindler. Vui lòng đối chiếu file gốc khi dùng cho mục đích thanh toán.",madefor:"một phần của"},
@@ -409,7 +405,7 @@ const I18N={
   saving:"Saving hours (Actual − Standard)",noyellow:"No Yellow Card",oil:"Quality Boost: Zero Square Item on OIL (+15%)",fscore:"Fitter score (need ≥ 3)",
   sscore:"Site-sup score (need ≥ 6)",baseInc:"Base incentive / unit (Fitter)",baseIncS:"Base incentive (Site-sup)",fitterpay:"Fitter incentive / unit",
   sitepay:"Site-sup incentive / unit",totalpay:"TOTAL incentive / unit",scnote:"Base incentive per year's scheme (2026 site-sup is higher than 2024/2025). (*) 2024 folder uses the 2025 scorecard. Currency: VND.",
-  share:"Share",reset:"Reset",adminData:"Project data (admin)",loadYan:"Load YAN_COM",budgetTitle:"Standard vs remaining fitter hours (whole project) — for TrackingTS dashboard",
+  share:"Share",reset:"Reset",adminData:"Project data",projSource:"From Projects tab (TrackingTS)",budgetTitle:"Standard vs remaining fitter hours (whole project) — for TrackingTS dashboard",
   bPerUnit:"Standard hours / unit",bUnits:"Total units",bBudget:"Standard hours whole project (max)",
   bUsed:"Hours already used (timesheet)",bRemainPill:"REMAINING hours",bUsedLabel:"used / standard",
   disclaimer:"⚠ Internal reference tool — not an official Schindler document. Verify against source files before using for payment.",madefor:"part of"}
@@ -820,56 +816,17 @@ function postResult(){try{if(window.parent&&window.parent!==window)window.parent
 window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}});
 window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l)};
 
-/* ================= NẠP DỮ LIỆU DỰ ÁN TỪ YAN_COM ================= */
-/* Mapping (cột GRP_* trong YAN_COM → ô nhập):
-   GQ→Tải trọng · VKN→Tốc độ · NUMBER_OF_STOPS→Số điểm dừng · HQ→Hành trình(m)
-   HSG→Pit(mm/1000) · HSK→Hành trình vượt(mm/1000) · TS_MIN→Chiều sâu hố(mm/1000)
-   BRANCH_EFFICIENCY_FACTOR→BEF · INST_TIME_STANDARD→Giờ SHAPE
-   Bộ TSD ✓ khi HSG_TYPE='Low pit' hoặc HSK_TYPE='Reduced head' */
+/* ================= DANH SÁCH DỰ ÁN (nạp từ TrackingTS – tab Dự án) ================= */
+/* TrackingTS gọi SWAT.loadProjects([...]) để đổ danh sách công trình vào ô
+   "Tên công trình" (droplist). Mỗi phần tử: {label,pname,pref(WBS),product,
+   load,speed,stops,travel,pit,over,shaft,bef,shape,tsd,usedHours}. Không còn
+   nạp YAN_COM bằng tay — mọi dữ liệu đến từ tab Dự án của TrackingTS. */
 let PROJECTS=[];
-function numTok(v){if(v==null)return 0;const s=String(v).split('|')[0].replace(/,/g,'').replace(/\s/g,'').trim();const n=parseFloat(s);return isNaN(n)?0:n;}
-function detectProduct(d){d=(d||'').toString().toLowerCase();if(d.includes('villa'))return 'villa';if(d.includes('5.0')||d.includes('es5')||d.includes('es 5'))return 'es50';return 's3300';}
-function parseYan(rows){
- if(!rows||!rows.length)return [];
- const hdr=rows[0].map(h=>String(h==null?'':h).trim());
- const col=n=>hdr.findIndex(h=>h===n), colc=n=>hdr.findIndex(h=>h.toLowerCase().includes(n));
- const ci={gq:col('GRP_GQ'),vkn:col('GRP_VKN'),stops:col('GRP_NUMBER_OF_STOPS'),hq:col('GRP_HQ'),hsg:col('GRP_HSG'),
-  hsk:col('GRP_HSK'),ts:col('GRP_TS_MIN'),bef:col('GRP_BRANCH_EFFICIENCY_FACTOR'),shape:col('GRP_INST_TIME_STANDARD'),
-  hsgt:col('GRP_HSG_TYPE'),hskt:col('GRP_HSK_TYPE'),name:col('Project name'),num:col('Project number'),wbs:col('WBS Element'),desc:col('Product Line Description')};
- if(ci.name<0)ci.name=colc('project name'); if(ci.stops<0)ci.stops=colc('number_of_stops');
- const out=[];
- for(let i=1;i<rows.length;i++){const r=rows[i];if(!r)continue;
-  const name=String(r[ci.name]==null?'':r[ci.name]).trim();if(!name)continue;
-  const wbs=String(ci.wbs>=0&&r[ci.wbs]!=null?r[ci.wbs]:'').trim();
-  const num=String(ci.num>=0&&r[ci.num]!=null?r[ci.num]:'').trim();
-  out.push({label:name+(wbs?'  —  WBS '+wbs:''),pname:name,pref:num||wbs,product:detectProduct(r[ci.desc]),
-   load:numTok(r[ci.gq]),speed:numTok(r[ci.vkn]),stops:numTok(r[ci.stops]),travel:numTok(r[ci.hq]),
-   pit:numTok(r[ci.hsg])/1000,over:numTok(r[ci.hsk])/1000,shaft:numTok(r[ci.ts])/1000,
-   bef:numTok(r[ci.bef]),shape:numTok(r[ci.shape]),
-   tsd:String(ci.hsgt>=0?r[ci.hsgt]:'').toLowerCase().includes('low pit')||String(ci.hskt>=0?r[ci.hskt]:'').toLowerCase().includes('reduced head')});
- }
- return out;
-}
 function loadProjects(list){
  PROJECTS=Array.isArray(list)?list:[];
  $('projectDL').innerHTML=PROJECTS.map(p=>`<option value="${String(p.label).replace(/"/g,'&quot;')}"></option>`).join('');
- $('yanStatus').textContent=PROJECTS.length?('✓ '+PROJECTS.length+' công trình'):'';
+ const st=$('yanStatus');if(st)st.textContent=PROJECTS.length?('✓ '+PROJECTS.length+' công trình'):'Chưa có danh sách — mở từ TrackingTS';
  try{localStorage.setItem('swat_projects',JSON.stringify(PROJECTS));}catch(e){}
-}
-function onYanFile(e){
- const f=e.target.files[0];if(!f)return;e.target.value='';
- const isCsv=/\.csv$/i.test(f.name);
- if(typeof XLSX==='undefined'&&!isCsv){alert('Cần kết nối internet để đọc file .xlsx (thư viện XLSX chưa tải được).\nHoặc lưu YAN_COM thành .csv rồi nạp lại.');return;}
- const rd=new FileReader();
- rd.onload=ev=>{try{
-  let rows;
-  if(isCsv&&typeof XLSX==='undefined'){rows=ev.target.result.split(/\r?\n/).map(l=>l.split(','));}
-  else{const wb=XLSX.read(ev.target.result,{type:'array'});const ws=wb.Sheets['Yan_COM']||wb.Sheets[wb.SheetNames[0]];rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});}
-  const list=parseYan(rows);
-  if(!list.length){alert('Không tìm thấy dữ liệu công trình. Kiểm tra đúng file YAN_COM (có cột "Project name", "GRP_...")?');return;}
-  loadProjects(list);toast('Đã nạp '+list.length+' công trình từ YAN_COM ✓');
- }catch(err){alert('Lỗi đọc file: '+err.message);}};
- if(isCsv&&typeof XLSX==='undefined')rd.readAsText(f,'utf-8');else rd.readAsArrayBuffer(f);
 }
 function applyProject(p){
  if(!p)return;const set=(id,v)=>{const e=$(id);if(e&&v!==''&&v!=null&&!(typeof v==='number'&&isNaN(v)))e.value=v;};
@@ -878,6 +835,7 @@ function applyProject(p){
  set('load',p.load||'');set('speed',p.speed||'');set('stops',p.stops||'');set('travel',r2(p.travel));
  set('pit',r2(p.pit));set('over',r2(p.over));set('shaft',r2(p.shaft));
  if(p.bef)set('befshape',p.bef);if(p.shape)set('shape',round1(p.shape));
+ if(p.usedHours!=null)set('usedHours',p.usedHours); // giờ đã dùng từ bảng công TrackingTS
  buildAddons();
  const tsd=document.querySelector('#addons input[data-key=tsd]');if(tsd)tsd.checked=!!p.tsd;
  delete $('stdHour').dataset.touched; // cho phép giờ chuẩn cập nhật lại theo dự án mới
@@ -886,7 +844,6 @@ function applyProject(p){
 function onPnameChange(){const v=$('pname').value.trim();const p=PROJECTS.find(x=>x.label===v)||PROJECTS.find(x=>x.pname===v);if(p)applyProject(p);}
 
 /* ================= EVENTS ================= */
-$('yanFile').addEventListener('change',onYanFile);
 $('pname').addEventListener('change',onPnameChange);
 ['year','product','stops','units','version','etype','load','speed','cardoors','travel','pit','over','shaft','bt','ld2','doortype','shape','befshape','pname','pref','usedHours'].forEach(id=>{
  $(id).addEventListener('input',()=>{if(id==='product'||id==='stops')buildAddons();calc();});
