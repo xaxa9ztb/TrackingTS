@@ -256,9 +256,11 @@ const Dashboard = (() => {
     projCombo = Combo.create(document.getElementById('projectCombo'), {
       placeholder: 'Chọn / gõ tên dự án hoặc WBS...',
       onChange: () => {
-        updateDateBoundsForProject(projCombo.getValue());
+        const wbs = projCombo.getValue();
+        updateDateBoundsForProject(wbs);
         syncSlidersFromDates();
         refresh();
+        if (typeof SwatPage !== 'undefined' && wbs) SwatPage.syncFromDashboard(wbs);
       },
     });
 

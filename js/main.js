@@ -310,6 +310,7 @@ async function refreshAllPages() {
   await ProjectsPage.load();
   await TimesheetPage.load();
   await EmployeesPage.load();
+  await SwatPage.load();
   await updateDataStatus();
 }
 
@@ -366,5 +367,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   TimesheetPage.wire();
   await EmployeesPage.load();
   EmployeesPage.wire();
+  await SwatPage.load();
+  SwatPage.wire();
   await updateDataStatus();
 });
