@@ -156,6 +156,43 @@ const SwatPage = (() => {
       (typeof Cloud !== 'undefined' && Cloud.canWrite && Cloud.canWrite() ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
   }
 
+  // Báo cáo tổng quan: công cụ xin dữ liệu giờ công (fitter + activities) của dự
+  // án đang xem -> gom số liệu (ưu tiên Dashboard, có fallback tự tính) -> gửi
+  // ngược vào iframe để công cụ dựng trang PDF tổng quan.
+  function localOverview(wbs) {
+    const p = projects.find(x => x.wbs === wbs);
+    const rows = timesheets.filter(t => t.wbs === wbs);
+    const byEmp = {};
+    rows.forEach(r => {
+      if (!byEmp[r.empId]) byEmp[r.empId] = { empId: r.empId, name: (employeesById[r.empId] || {}).fullName || r.empName || r.empId, normal: 0, ot1: 0, ot2: 0, ot3: 0, total: 0 };
+      const g = byEmp[r.empId];
+      g.normal += +r.normal || 0; g.ot1 += +r.ot1 || 0; g.ot2 += +r.ot2 || 0; g.ot3 += +r.ot3 || 0; g.total += +r.total || 0;
+    });
+    const emp = Object.values(byEmp).sort((a, b) => b.total - a.total);
+    const grand = emp.reduce((s, e) => s + e.total, 0);
+    const byAct = {};
+    rows.forEach(r => {
+      const code = String(r.activities || '').trim().replace(/\s+/g, '');
+      const key = (code && code !== '#N/A') ? code : '(không có)';
+      byAct[key] = (byAct[key] || 0) + (+r.total || 0);
+    });
+    const act = Object.entries(byAct).map(([a, h]) => ({ act: a, name: '', hours: h })).filter(a => a.hours > 0).sort((a, b) => b.hours - a.hours);
+    return {
+      wbs, projectName: p ? p.projectName : '', supervisor: p ? p.supervisor : '', swatTargetHour: p ? (p.swatTargetHour || 0) : 0, grand,
+      emp: emp.map(e => ({ name: e.name, empId: e.empId, normal: e.normal, ot1: e.ot1, ot2: e.ot2, ot3: e.ot3, total: e.total, pct: grand > 0 ? e.total / grand * 100 : 0 })),
+      act: act.map(a => ({ act: a.act, name: a.name, hours: a.hours, pct: grand > 0 ? a.hours / grand * 100 : 0 })),
+    };
+  }
+  function sendOverview() {
+    const w = swatWin();
+    const wbs = currentWbs;
+    if (!w || !wbs) return;
+    let data = null;
+    try { if (typeof Dashboard !== 'undefined' && Dashboard.reportData) data = Dashboard.reportData(wbs); } catch (e) { /* ignore */ }
+    if (!data || !data.emp) data = localOverview(wbs);
+    try { w.postMessage({ type: 'SWAT_OVERVIEW_DATA', data }, '*'); } catch (e) { /* ignore */ }
+  }
+
   function syncFromDashboard(wbs) { if (wbs) pushProject(wbs); }
 
   function wire() {
@@ -164,6 +201,7 @@ const SwatPage = (() => {
       if (!d) return;
       if (d.type === 'SWAT_RESULT') renderResult(d.data);
       else if (d.type === 'SWAT_WRITE_TARGET') writeTarget();
+      else if (d.type === 'SWAT_OVERVIEW_REPORT') sendOverview();
     });
     const f = frame();
     if (f) f.addEventListener('load', () => { pushList(); if (currentWbs) pushProject(currentWbs); });

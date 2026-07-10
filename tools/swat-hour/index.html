@@ -48,9 +48,14 @@
   /* searchable combo cho Tên công trình (kiểu như Dashboard) */
   .pcombo{position:relative;width:210px;max-width:210px;justify-self:end}
   .pcombo input{max-width:none;width:100%;padding-right:26px}
+  /* Tên công trình: full-width để hiển thị trọn tên dài (dạng ô rộng riêng 1 dòng) */
+  .inputrow.pname-row{grid-template-columns:1fr;gap:4px}
+  .inputrow.pname-row>span{font-weight:600}
+  .inputrow.pname-row .pcombo{width:100%;max-width:none;justify-self:stretch}
+  .inputrow.pname-row .pcombo input{width:100%;font-weight:600}
   .pcombo-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
   .pcombo-list{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.35)}
-  .pcombo-item{padding:7px 10px;cursor:pointer;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pcombo-item{padding:7px 10px;cursor:pointer;font-size:13px;white-space:normal;word-break:break-word;line-height:1.35}
   .pcombo-item:hover,.pcombo-item.on{background:var(--panel2)}
   .pcombo-empty{padding:8px 10px;color:var(--muted);font-size:13px}
   #bonusTable td.num,#bonusTable th.num{text-align:right}
@@ -132,6 +137,22 @@
   #scorecardform .sc-yes{color:#006100;font-weight:bold}
   #scorecardform .sc-no{color:#c00000;font-weight:bold}
 
+  /* BÁO CÁO TỔNG QUAN (trang 3) */
+  #overviewform{display:none;background:#fff;color:#000;font-family:Calibri,Arial,sans-serif;font-size:11px;line-height:1.2;padding:6mm;max-width:1000px;margin:16px auto 0}
+  body.overviewview #overviewform{display:block}
+  #overviewform .ov-head{font-weight:bold;font-size:16px;text-align:center}
+  #overviewform .ov-sub{text-align:center;margin:2px 0 10px;font-size:12px}
+  #overviewform .ov-kpis{display:flex;gap:10px;margin-bottom:12px}
+  #overviewform .ov-kpi{flex:1;border:1px solid #999;border-radius:6px;padding:8px;text-align:center}
+  #overviewform .ov-kpi .v{font-size:18px;font-weight:bold;color:#0a7a3a}
+  #overviewform .ov-kpi .l{font-size:10px;color:#444;margin-top:2px}
+  #overviewform .ov-h2{font-weight:bold;font-size:12px;margin:12px 0 4px;border-left:4px solid #e2001a;padding-left:6px}
+  #overviewform table.ov-t{border-collapse:collapse;width:100%;margin-bottom:6px}
+  #overviewform .ov-t td,#overviewform .ov-t th{border:1px solid #999;padding:3px 7px}
+  #overviewform .ov-t th{background:#f2f2f2;text-align:left}
+  #overviewform .ov-t .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #overviewform .ov-t tfoot td{font-weight:bold;background:#fafafa}
+
   /* Hours = A4 ngang; Scorecard = A4 dọc */
   @page ef{size:A4 landscape;margin:7mm}
   @page sc{size:A4 portrait;margin:7mm}
@@ -141,6 +162,8 @@
     #excelform [data-noprint]{display:none!important}
     #excelform>*{page-break-inside:avoid}
     #scorecardform{display:block!important;padding:0;page:sc;page-break-before:always}
+    #overviewform{display:none;padding:0;page:sc;page-break-before:always}
+    body.overviewview #overviewform{display:block!important}
     body{background:#fff}
   }
   @media print and (color){#excelform *,#scorecardform *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -182,6 +205,7 @@
         <button class="btn sec" onclick="resetAll()" title="Xoá dữ liệu đã lưu, về mặc định">↺ <span data-i18n="reset">Reset</span></button>
         <button class="btn" id="btnWriteTarget" onclick="reqWriteTarget()" style="display:none" title="Ghi Swat Hour Target + lưu thông số cho dự án (TrackingTS)">⤓ Ghi Swat Target</button>
         <button class="btn sec" onclick="exportExcel()" data-i18n="xlsx">⬇ Xuất Excel</button>
+        <button class="btn" id="btnOverview" onclick="reqOverviewReport()" style="display:none" title="Xuất báo cáo tổng quan (PDF): thông số SWAT + thống kê giờ công + tỉ lệ theo hoạt động (dự án đã ghi target)">📊 Báo cáo tổng quan</button>
         <button class="btn" onclick="openForm()" data-i18n="viewform">📄 Xem form / Xuất PDF</button>
       </div>
     </div>
@@ -192,7 +216,7 @@
     <div>
       <div class="card">
         <h2><span class="num">1</span><span data-i18n="specs">Thông số kỹ thuật</span></h2>
-        <div class="inputrow"><span data-i18n="pname">Tên công trình</span><div class="pcombo"><input type="text" id="pname" autocomplete="off" value="Nhà Ở & VP Z Building" placeholder="Chọn/gõ tên công trình…"><button type="button" id="pnameClear" class="pcombo-clear" tabindex="-1">×</button><div id="pnameList" class="pcombo-list" hidden></div></div></div>
+        <div class="inputrow pname-row"><span data-i18n="pname">Tên công trình</span><div class="pcombo"><input type="text" id="pname" autocomplete="off" value="Nhà Ở & VP Z Building" placeholder="Chọn/gõ tên công trình…"><button type="button" id="pnameClear" class="pcombo-clear" tabindex="-1">×</button><div id="pnameList" class="pcombo-list" hidden></div></div></div>
         <div class="inputrow"><span data-i18n="pref">Mã số công trình / WBS</span><input type="text" id="pref" value="812503229"></div>
         <div class="inputrow"><span data-i18n="version">Xuất xứ (AP / EU)</span>
           <select id="version"><option>AP</option><option>EU</option></select></div>
@@ -354,6 +378,9 @@
 
 <!-- ============ SCORECARD PRINT FORM (trang 2) ============ -->
 <div id="scorecardform"></div>
+
+<!-- ============ BÁO CÁO TỔNG QUAN (trang 3 — dữ liệu giờ công từ dashboard) ============ -->
+<div id="overviewform"></div>
 
 <script>
 /* ================= CONFIG ================= */
@@ -610,8 +637,8 @@ function fitScorecard(){
  const w=el.scrollWidth,h=el.scrollHeight;if(!w)return;
  el.style.zoom=Math.min(1,pageW/w,pageH/h);
 }
-function openForm(){document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();window.scrollTo(0,0);}
-function closeForm(){document.body.classList.remove('formview');window.scrollTo(0,0);}
+function openForm(){document.body.classList.remove('overviewview');document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();window.scrollTo(0,0);}
+function closeForm(){document.body.classList.remove('formview','overviewview');window.scrollTo(0,0);}
 window.addEventListener('beforeprint',()=>{document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();});
 
 /* nhãn form theo ngôn ngữ (VN = đúng sheet "Lifts (VN)"; EN = sheet "Lifts (EN)") */
@@ -827,7 +854,16 @@ function renderScorecard(){
  el.innerHTML=buildScorecardTable();
 }
 
-/* ================= XUẤT EXCEL (.xls Excel mở trực tiếp) ================= */
+/* ================= XUẤT EXCEL (2 sheet tách hẳn — SheetJS) ================= */
+/* Nạp SheetJS: trang cha TrackingTS đã có window.parent.XLSX; nếu chạy độc lập
+   thì tải động từ ../../js/xlsx.full.min.js. */
+function withXLSX(cb){
+ let X=window.XLSX;
+ if(!X){try{if(window.parent&&window.parent!==window)X=window.parent.XLSX;}catch(e){}}
+ if(X)return cb(X);
+ const sc=document.createElement('script');sc.src='../../js/xlsx.full.min.js?v=17';
+ sc.onload=()=>cb(window.XLSX||null);sc.onerror=()=>cb(null);document.head.appendChild(sc);
+}
 function exportExcel(){
  if(!ST.product)calc();
  const s=ST,F=FL[LANG];
@@ -887,22 +923,37 @@ function exportExcel(){
  const hoursTable='<table border="0" cellspacing="0">'+rows+'</table>';
  const scTable=ST.scdata?buildScorecardTable():'';
 
- // Xuất .xls dạng MHTML (mso web archive): MỖI phần = 1 worksheet riêng biệt,
- // giữ nguyên định dạng HTML (font/màu/viền/merge). Excel mở tách đúng 2 sheet.
- const wbHtml='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta http-equiv=Content-Type content="text/html; charset=utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'+
-  '<x:ExcelWorksheet><x:Name>Installation Hours</x:Name><x:WorksheetSource HRef="sheet001.htm"/></x:ExcelWorksheet>'+
-  (scTable?'<x:ExcelWorksheet><x:Name>SWAT SCORE CARD</x:Name><x:WorksheetSource HRef="sheet002.htm"/></x:ExcelWorksheet>':'')+
-  '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body></body></html>';
- const sheetDoc=t=>'<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta http-equiv=Content-Type content="text/html; charset=utf-8"></head><body>'+t+'</body></html>';
- const b64=s=>btoa(unescape(encodeURIComponent(s))).replace(/(.{76})/g,'$1\r\n');
- const B='----=_NextPart_SWAT';
- const part=(loc,doc)=>'--'+B+'\r\nContent-Location: file:///C:/SWAT/'+loc+'\r\nContent-Transfer-Encoding: base64\r\nContent-Type: text/html; charset="utf-8"\r\n\r\n'+b64(doc)+'\r\n\r\n';
- let mht='MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="'+B+'"\r\n\r\n'+
-  part('workbook.htm',wbHtml)+part('sheet001.htm',sheetDoc(hoursTable))+(scTable?part('sheet002.htm',sheetDoc(scTable)):'')+'--'+B+'--\r\n';
- const blob=new Blob([mht],{type:'application/vnd.ms-excel'});
+ // Xuất Excel: 2 SHEET TÁCH HẲN (Installation Hours + SWAT SCORE CARD) bằng
+ // SheetJS -> file .xlsx nhị phân thật, mở ổn định ở mọi trình xem (kể cả
+ // điện thoại / Google Sheets). Giữ bố cục & ô gộp; màu nền không đi kèm.
+ // Nếu không có SheetJS -> fallback mso-HTML (giữ định dạng, có thể gộp 1 sheet).
  const nm=(gv('pname')||'SWAT').replace(/[^\wÀ-ỹ -]/g,'').trim().slice(0,40)||'SWAT';
- const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SWAT_${nm}_${product}_${year}.xls`;
- document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);document.body.removeChild(a);},100);
+ const fname=`SWAT_${nm}_${product}_${year}`;
+ const msoFallback=()=>{
+  const sheets='<x:ExcelWorksheet><x:Name>Installation Hours</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>'+
+   (scTable?'<x:ExcelWorksheet><x:Name>SWAT SCORE CARD</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>':'');
+  const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">'+
+   '<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">'+
+   '<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'+sheets+'</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>'+
+   '<body>'+hoursTable+(scTable?'<br style="page-break-before:always">'+scTable:'')+'</body></html>';
+  const blob=new Blob(['﻿'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname+'.xls';
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);document.body.removeChild(a);},100);
+ };
+ withXLSX(X=>{
+  if(!(X&&X.utils&&X.utils.table_to_sheet)){msoFallback();return;}
+  const tmp=document.createElement('div');
+  tmp.style.cssText='position:fixed;left:-99999px;top:0;visibility:hidden';
+  tmp.innerHTML='<div id="__xh">'+hoursTable+'</div>'+(scTable?'<div id="__xs">'+scTable+'</div>':'');
+  document.body.appendChild(tmp);
+  try{
+   const wb=X.utils.book_new();
+   X.utils.book_append_sheet(wb,X.utils.table_to_sheet(tmp.querySelector('#__xh table'),{raw:true}),'Installation Hours');
+   if(scTable)X.utils.book_append_sheet(wb,X.utils.table_to_sheet(tmp.querySelector('#__xs table'),{raw:true}),'SWAT SCORE CARD');
+   X.writeFile(wb,fname+'.xlsx');
+  }catch(e){msoFallback();}
+  finally{document.body.removeChild(tmp);}
+ });
 }
 
 /* ================= LƯU TRỮ · CHIA SẺ · TÍCH HỢP TrackingTS ================= */
@@ -962,7 +1013,7 @@ function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
 
 /* API cho nhúng iframe trong TrackingTS */
 function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
-window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}});
+window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}else if(d&&d.type==='SWAT_OVERVIEW_DATA'){try{renderOverview(d.data);}catch(e){}}});
 window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b),setCanWrite:b=>setCanWrite(b)};
 
 /* ============ DANH SÁCH DỰ ÁN + COMBO "TÊN CÔNG TRÌNH" (kiểu Dashboard) ============ */
@@ -986,9 +1037,46 @@ function loadProjects(list){
  try{localStorage.setItem('swat_projects',JSON.stringify(PROJECTS));}catch(e){}
  if($('pnameList')&&!$('pnameList').hidden)renderPList();
 }
-function setConfirmed(ok){const b=$('confirmBadge');if(!b)return;b.textContent=ok?'✓ đã xác nhận Swat':'• chưa xác nhận Swat';b.className='confirm-badge '+(ok?'ok':'no');}
+let __confirmed=false;
+function setConfirmed(ok){__confirmed=!!ok;const b=$('confirmBadge');if(b){b.textContent=ok?'✓ đã xác nhận Swat':'• chưa xác nhận Swat';b.className='confirm-badge '+(ok?'ok':'no');}const ob=$('btnOverview');if(ob)ob.style.display=ok?'':'none';}
 function setCanWrite(on){const b=$('btnWriteTarget');if(b)b.style.display=on?'':'none';}
 function reqWriteTarget(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_WRITE_TARGET'},'*');}catch(e){}}
+/* Báo cáo tổng quan PDF: xin dữ liệu giờ công (fitter + activities) từ TrackingTS */
+function reqOverviewReport(){
+ if(!__confirmed){toast('Báo cáo tổng quan chỉ dành cho dự án đã ghi Swat Target.');return;}
+ if(!(window.parent&&window.parent!==window)){toast('Cần mở trong TrackingTS để lấy dữ liệu giờ công.');return;}
+ try{window.parent.postMessage({type:'SWAT_OVERVIEW_REPORT'},'*');toast('Đang tạo báo cáo tổng quan…');}catch(e){}
+}
+function ovN(n){return (Math.round((+n||0)*10)/10).toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1});}
+function ovP(n){return ovN(n)+'%';}
+function renderOverview(data){
+ const el=$('overviewform');if(!el)return;
+ data=data||{};
+ const eh=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+ const emp=data.emp||[],act=data.act||[],grand=+data.grand||0,target=+data.swatTargetHour||0;
+ const empRows=emp.length?emp.map(e=>`<tr><td>${eh(e.name)}</td><td>${eh(e.empId)}</td><td class="n">${ovN(e.normal)}</td><td class="n">${ovN(e.ot1)}</td><td class="n">${ovN(e.ot2)}</td><td class="n">${ovN(e.ot3)}</td><td class="n">${ovN(e.total)}</td><td class="n">${ovP(e.pct)}</td></tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:#666">Chưa có dữ liệu giờ công cho dự án này</td></tr>';
+ const actRows=act.length?act.map(a=>`<tr><td>${eh(a.act)}</td><td>${eh(a.name)}</td><td class="n">${ovN(a.hours)}</td><td class="n">${ovP(a.pct)}</td></tr>`).join(''):'<tr><td colspan="4" style="text-align:center;color:#666">Chưa có dữ liệu</td></tr>';
+ const dt=new Date();const dstr=('0'+dt.getDate()).slice(-2)+'/'+('0'+(dt.getMonth()+1)).slice(-2)+'/'+dt.getFullYear();
+ el.innerHTML=
+  '<div class="ov-head">BÁO CÁO TỔNG QUAN DỰ ÁN</div>'+
+  '<div class="ov-sub"><b>'+eh(data.projectName||gv('pname'))+'</b> — WBS: '+eh(data.wbs||gv('pref'))+(data.supervisor?' — Giám sát: '+eh(data.supervisor):'')+' — Ngày xuất: '+dstr+'</div>'+
+  '<div class="ov-kpis">'+
+   '<div class="ov-kpi"><div class="v">'+ovN(grand)+'</div><div class="l">Tổng giờ công đã chấm</div></div>'+
+   '<div class="ov-kpi"><div class="v">'+ovN(target)+'</div><div class="l">Swat Hour Target</div></div>'+
+   '<div class="ov-kpi"><div class="v">'+ovN(target-grand)+'</div><div class="l">Còn lại (Target − đã chấm)</div></div>'+
+  '</div>'+
+  '<div class="ov-h2">Thống kê giờ công theo nhân viên (Fitter)</div>'+
+  '<table class="ov-t"><thead><tr><th>Tên NV</th><th>Mã NV</th><th class="n">Normal</th><th class="n">OT1</th><th class="n">OT2</th><th class="n">OT3</th><th class="n">Tổng</th><th class="n">Tỉ lệ</th></tr></thead>'+
+   '<tbody>'+empRows+'</tbody>'+
+   '<tfoot><tr><td colspan="6">Tổng cộng</td><td class="n">'+ovN(grand)+'</td><td class="n">'+(grand>0?'100,0%':'-')+'</td></tr></tfoot></table>'+
+  '<div class="ov-h2">Tỉ lệ giờ công theo hoạt động (Activities)</div>'+
+  '<table class="ov-t"><thead><tr><th>Mã</th><th>Hoạt động</th><th class="n">Số giờ</th><th class="n">Tỉ lệ</th></tr></thead><tbody>'+actRows+'</tbody></table>';
+ // In: gồm form SWAT + scorecard + trang tổng quan
+ document.body.classList.add('formview','overviewview');
+ renderForm();renderScorecard();fitForm();fitScorecard();
+ window.scrollTo(0,0);
+ setTimeout(()=>{try{window.print();}catch(e){}},80);
+}
 function selectProject(wbs){const p=PROJECTS.find(x=>String(x.pref)===String(wbs));if(p)applyProject(p);}
 function applyProject(p){
  if(!p)return;const set=(id,v)=>{const e=$(id);if(e&&v!==''&&v!=null&&!(typeof v==='number'&&isNaN(v)))e.value=v;};
@@ -1008,6 +1096,7 @@ function applyProject(p){
    delete $('stdHour').dataset.touched;
  }
  setConfirmed(!!p.confirmed);
+ $('pname').title=$('pname').value;
  calc();toast('Đã nạp thông số: '+p.pname);
 }
 
@@ -1033,7 +1122,7 @@ function renderBonus6(){
 
 /* ================= EVENTS ================= */
 $('pname').addEventListener('focus',()=>{pcActive=-1;renderPList();});
-$('pname').addEventListener('input',()=>{pcActive=-1;renderPList();});
+$('pname').addEventListener('input',()=>{pcActive=-1;$('pname').title=$('pname').value;renderPList();});
 $('pname').addEventListener('keydown',e=>{const list=$('pnameList');if(list.hidden)return;
  if(e.key==='ArrowDown'){e.preventDefault();pcActive=Math.min(pcActive+1,pcMatches.length-1);renderPList();}
  else if(e.key==='ArrowUp'){e.preventDefault();pcActive=Math.max(pcActive-1,0);renderPList();}
