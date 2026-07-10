@@ -105,6 +105,11 @@ main { padding: 20px; }
 .gauge-one { flex: 1 1 220px; min-width: 200px; }
 .gauge-cap { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
 .gauge-one .gauge-value { font-size: 28px; }
+.gauge-remain { font-size: 12px; font-weight: 700; margin-top: 2px; min-height: 14px; }
+.gauge-remain.pos { color: #1e7e34; }
+.gauge-remain.neg { color: #c0392b; }
+.btn-sm { padding: 4px 10px; font-size: 12px; margin-top: 8px; }
+#btnGoSwat { display: inline-block; }
 .gauge-target-edit { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
 .gauge-target-edit input { width: 60px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; }
 

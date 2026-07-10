@@ -55,6 +55,10 @@
   .pcombo-empty{padding:8px 10px;color:var(--muted);font-size:13px}
   #bonusTable td.num,#bonusTable th.num{text-align:right}
   #bonusTable tfoot td{font-weight:700;border-top:2px solid var(--line)}
+  #bonusTable{font-size:12px}
+  #bonusTable th,#bonusTable td{padding:4px 8px}
+  #bonusNote{font-size:11px}
+  @media(max-width:620px){#bonusTable{font-size:11px}#bonusTable th,#bonusTable td{padding:3px 5px}}
   .confirm-badge{font-size:12px;font-weight:700;padding:3px 9px;border-radius:10px;white-space:nowrap}
   .confirm-badge.ok{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
   .confirm-badge.no{color:#7c2d12;background:#fef3c7;border:1px solid #fcd34d}
@@ -163,17 +167,20 @@
     </div>
     <div class="field">
       <label data-i18n="product">Sản phẩm</label>
-      <select id="product">
-        <option value="s3300">S3300 / ES1</option>
-        <option value="es50">ES 5.0</option>
-        <option value="villa">Villa Lift</option>
-      </select>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="product">
+          <option value="s3300">S3300 / ES1</option>
+          <option value="es50">ES 5.0</option>
+          <option value="villa">Villa Lift</option>
+        </select>
+        <span id="confirmBadge" class="confirm-badge no">• chưa xác nhận Swat</span>
+      </div>
     </div>
     <div class="field" style="flex:1"></div>
     <div class="field" style="align-self:flex-end">
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <button class="btn sec" onclick="resetAll()" title="Xoá dữ liệu đã lưu, về mặc định">↺ <span data-i18n="reset">Reset</span></button>
-        <span id="confirmBadge" class="confirm-badge no">• chưa xác nhận Swat</span>
+        <button class="btn" id="btnWriteTarget" onclick="reqWriteTarget()" style="display:none" title="Ghi Swat Hour Target + lưu thông số cho dự án (TrackingTS)">⤓ Ghi Swat Target</button>
         <button class="btn sec" onclick="exportExcel()" data-i18n="xlsx">⬇ Xuất Excel</button>
         <button class="btn" onclick="openForm()" data-i18n="viewform">📄 Xem form / Xuất PDF</button>
       </div>
@@ -956,7 +963,7 @@ function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
 /* API cho nhúng iframe trong TrackingTS */
 function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
 window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}});
-window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b)};
+window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b),setCanWrite:b=>setCanWrite(b)};
 
 /* ============ DANH SÁCH DỰ ÁN + COMBO "TÊN CÔNG TRÌNH" (kiểu Dashboard) ============ */
 /* TrackingTS gọi SWAT.loadProjects([...]) đổ danh sách công trình (tab Dự án)
@@ -980,6 +987,8 @@ function loadProjects(list){
  if($('pnameList')&&!$('pnameList').hidden)renderPList();
 }
 function setConfirmed(ok){const b=$('confirmBadge');if(!b)return;b.textContent=ok?'✓ đã xác nhận Swat':'• chưa xác nhận Swat';b.className='confirm-badge '+(ok?'ok':'no');}
+function setCanWrite(on){const b=$('btnWriteTarget');if(b)b.style.display=on?'':'none';}
+function reqWriteTarget(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_WRITE_TARGET'},'*');}catch(e){}}
 function selectProject(wbs){const p=PROJECTS.find(x=>String(x.pref)===String(wbs));if(p)applyProject(p);}
 function applyProject(p){
  if(!p)return;const set=(id,v)=>{const e=$(id);if(e&&v!==''&&v!=null&&!(typeof v==='number'&&isNaN(v)))e.value=v;};
