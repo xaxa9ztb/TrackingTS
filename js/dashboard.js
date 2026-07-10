@@ -339,5 +339,41 @@ const Dashboard = (() => {
     refresh();
   }
 
-  return { init, reloadAndRefresh, refresh };
+  // Số liệu tổng quan cho 1 dự án (dùng cho báo cáo PDF của tab SWAT): thống kê
+  // giờ công theo nhân viên + tỉ lệ theo activities, trên TOÀN BỘ bảng công của
+  // dự án (không lọc ngày/vai trò).
+  function reportData(wbs) {
+    if (!wbs) return null;
+    const project = projects.find(p => p.wbs === wbs);
+    const rows = rowsForProject(wbs);
+    const byEmp = {};
+    rows.forEach(r => {
+      if (!byEmp[r.empId]) byEmp[r.empId] = { empId: r.empId, name: displayName(r.empId, r.empName), normal: 0, ot1: 0, ot2: 0, ot3: 0, total: 0 };
+      const g = byEmp[r.empId];
+      g.normal += +r.normal || 0; g.ot1 += +r.ot1 || 0; g.ot2 += +r.ot2 || 0; g.ot3 += +r.ot3 || 0; g.total += +r.total || 0;
+    });
+    const empRows = Object.values(byEmp).sort((a, b) => b.total - a.total);
+    const grand = empRows.reduce((s, e) => s + e.total, 0);
+    const byAct = {};
+    rows.forEach(r => {
+      const code = normalizeActCode(r.activities || '');
+      const key = (code && code !== '#N/A') ? code : '(không có)';
+      byAct[key] = (byAct[key] || 0) + (+r.total || 0);
+    });
+    const actRows = Object.entries(byAct)
+      .map(([act, hours]) => ({ act, name: activityName(act), hours }))
+      .filter(a => a.hours > 0)
+      .sort((a, b) => b.hours - a.hours);
+    return {
+      wbs,
+      projectName: project ? project.projectName : '',
+      supervisor: project ? project.supervisor : '',
+      swatTargetHour: project ? (project.swatTargetHour || 0) : 0,
+      grand,
+      emp: empRows.map(e => ({ name: e.name, empId: e.empId, normal: e.normal, ot1: e.ot1, ot2: e.ot2, ot3: e.ot3, total: e.total, pct: grand > 0 ? e.total / grand * 100 : 0 })),
+      act: actRows.map(a => ({ act: a.act, name: a.name, hours: a.hours, pct: grand > 0 ? a.hours / grand * 100 : 0 })),
+    };
+  }
+
+  return { init, reloadAndRefresh, refresh, reportData };
 })();
