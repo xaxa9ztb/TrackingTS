@@ -55,6 +55,9 @@
   .pcombo-empty{padding:8px 10px;color:var(--muted);font-size:13px}
   #bonusTable td.num,#bonusTable th.num{text-align:right}
   #bonusTable tfoot td{font-weight:700;border-top:2px solid var(--line)}
+  .confirm-badge{font-size:12px;font-weight:700;padding:3px 9px;border-radius:10px;white-space:nowrap}
+  .confirm-badge.ok{color:#065f46;background:#d1fae5;border:1px solid #6ee7b7}
+  .confirm-badge.no{color:#7c2d12;background:#fef3c7;border:1px solid #fcd34d}
   .addons{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
   @media(max-width:620px){.addons{grid-template-columns:1fr}}
   .chk{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
@@ -125,13 +128,15 @@
   #scorecardform .sc-yes{color:#006100;font-weight:bold}
   #scorecardform .sc-no{color:#c00000;font-weight:bold}
 
+  /* Hours = A4 ngang; Scorecard = A4 dọc */
+  @page ef{size:A4 landscape;margin:7mm}
+  @page sc{size:A4 portrait;margin:7mm}
   @media print{
     header,.wrap{display:none!important}
-    #excelform{display:block!important;padding:0}
+    #excelform{display:block!important;padding:0;page:ef}
     #excelform [data-noprint]{display:none!important}
     #excelform>*{page-break-inside:avoid}
-    #scorecardform{display:block!important;padding:0;page-break-before:always}
-    @page{size:A4 landscape;margin:7mm}
+    #scorecardform{display:block!important;padding:0;page:sc;page-break-before:always}
     body{background:#fff}
   }
   @media print and (color){#excelform *,#scorecardform *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -166,8 +171,9 @@
     </div>
     <div class="field" style="flex:1"></div>
     <div class="field" style="align-self:flex-end">
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <button class="btn sec" onclick="resetAll()" title="Xoá dữ liệu đã lưu, về mặc định">↺ <span data-i18n="reset">Reset</span></button>
+        <span id="confirmBadge" class="confirm-badge no">• chưa xác nhận Swat</span>
         <button class="btn sec" onclick="exportExcel()" data-i18n="xlsx">⬇ Xuất Excel</button>
         <button class="btn" onclick="openForm()" data-i18n="viewform">📄 Xem form / Xuất PDF</button>
       </div>
@@ -590,9 +596,16 @@ function fitForm(){
  const w=el.scrollWidth,h=el.scrollHeight;if(!h)return;
  const z=Math.min(1,pageW/w,pageH/h);el.style.zoom=z;
 }
-function openForm(){document.body.classList.add('formview');renderForm();renderScorecard();fitForm();window.scrollTo(0,0);}
+function fitScorecard(){
+ // Co giãn để scorecard vừa 1 trang A4 DỌC khi in
+ const el=$('scorecardform');if(!el)return;el.style.zoom='1';
+ const pageW=718,pageH=1040; // px @96dpi, A4 dọc trừ lề 7mm
+ const w=el.scrollWidth,h=el.scrollHeight;if(!w)return;
+ el.style.zoom=Math.min(1,pageW/w,pageH/h);
+}
+function openForm(){document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();window.scrollTo(0,0);}
 function closeForm(){document.body.classList.remove('formview');window.scrollTo(0,0);}
-window.addEventListener('beforeprint',()=>{document.body.classList.add('formview');renderForm();renderScorecard();fitForm();});
+window.addEventListener('beforeprint',()=>{document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();});
 
 /* nhãn form theo ngôn ngữ (VN = đúng sheet "Lifts (VN)"; EN = sheet "Lifts (EN)") */
 const FL={
@@ -865,16 +878,21 @@ function exportExcel(){
  rows+=`<tr><td colspan=2 style="font-weight:bold">${esc(F.prepBy)}</td><td colspan=3></td><td colspan=3 style="font-weight:bold">${esc(F.team)}</td></tr>`;
 
  const hoursTable='<table border="0" cellspacing="0">'+rows+'</table>';
- // Scorecard = worksheet riêng "SWAT SCORE CARD", dựng y hệt file gốc
  const scTable=ST.scdata?buildScorecardTable():'';
- const sheets='<x:ExcelWorksheet><x:Name>Installation Hours</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>'+
-  (scTable?'<x:ExcelWorksheet><x:Name>SWAT SCORE CARD</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>':'');
 
- const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">'+
-  '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'+sheets+
-  '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>'+
-  hoursTable+(scTable?'<br style="page-break-before:always">'+scTable:'')+'</body></html>';
- const blob=new Blob(['﻿'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+ // Xuất .xls dạng MHTML (mso web archive): MỖI phần = 1 worksheet riêng biệt,
+ // giữ nguyên định dạng HTML (font/màu/viền/merge). Excel mở tách đúng 2 sheet.
+ const wbHtml='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta http-equiv=Content-Type content="text/html; charset=utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'+
+  '<x:ExcelWorksheet><x:Name>Installation Hours</x:Name><x:WorksheetSource HRef="sheet001.htm"/></x:ExcelWorksheet>'+
+  (scTable?'<x:ExcelWorksheet><x:Name>SWAT SCORE CARD</x:Name><x:WorksheetSource HRef="sheet002.htm"/></x:ExcelWorksheet>':'')+
+  '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body></body></html>';
+ const sheetDoc=t=>'<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta http-equiv=Content-Type content="text/html; charset=utf-8"></head><body>'+t+'</body></html>';
+ const b64=s=>btoa(unescape(encodeURIComponent(s))).replace(/(.{76})/g,'$1\r\n');
+ const B='----=_NextPart_SWAT';
+ const part=(loc,doc)=>'--'+B+'\r\nContent-Location: file:///C:/SWAT/'+loc+'\r\nContent-Transfer-Encoding: base64\r\nContent-Type: text/html; charset="utf-8"\r\n\r\n'+b64(doc)+'\r\n\r\n';
+ let mht='MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="'+B+'"\r\n\r\n'+
+  part('workbook.htm',wbHtml)+part('sheet001.htm',sheetDoc(hoursTable))+(scTable?part('sheet002.htm',sheetDoc(scTable)):'')+'--'+B+'--\r\n';
+ const blob=new Blob([mht],{type:'application/vnd.ms-excel'});
  const nm=(gv('pname')||'SWAT').replace(/[^\wÀ-ỹ -]/g,'').trim().slice(0,40)||'SWAT';
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SWAT_${nm}_${product}_${year}.xls`;
  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);document.body.removeChild(a);},100);
@@ -938,7 +956,7 @@ function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
 /* API cho nhúng iframe trong TrackingTS */
 function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
 window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}});
-window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l)};
+window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b)};
 
 /* ============ DANH SÁCH DỰ ÁN + COMBO "TÊN CÔNG TRÌNH" (kiểu Dashboard) ============ */
 /* TrackingTS gọi SWAT.loadProjects([...]) đổ danh sách công trình (tab Dự án)
@@ -961,17 +979,26 @@ function loadProjects(list){
  try{localStorage.setItem('swat_projects',JSON.stringify(PROJECTS));}catch(e){}
  if($('pnameList')&&!$('pnameList').hidden)renderPList();
 }
+function setConfirmed(ok){const b=$('confirmBadge');if(!b)return;b.textContent=ok?'✓ đã xác nhận Swat':'• chưa xác nhận Swat';b.className='confirm-badge '+(ok?'ok':'no');}
+function selectProject(wbs){const p=PROJECTS.find(x=>String(x.pref)===String(wbs));if(p)applyProject(p);}
 function applyProject(p){
  if(!p)return;const set=(id,v)=>{const e=$(id);if(e&&v!==''&&v!=null&&!(typeof v==='number'&&isNaN(v)))e.value=v;};
- $('pname').value=p.pname;set('pref',p.pref);if(p.product)$('product').value=p.product;
  const r2=n=>Math.round((+n||0)*100)/100;
- set('load',p.load||'');set('speed',p.speed||'');set('stops',p.stops||'');set('travel',r2(p.travel));
- set('pit',r2(p.pit));set('over',r2(p.over));set('shaft',r2(p.shaft));
- if(p.bef)set('befshape',p.bef);if(p.shape)set('shape',round1(p.shape));
- if(p.usedHours!=null)set('usedHours',p.usedHours);
- buildAddons();
- const tsd=document.querySelector('#addons input[data-key=tsd]');if(tsd)tsd.checked=!!p.tsd;
- delete $('stdHour').dataset.touched;
+ if(p.saved){
+   // đã "xác nhận Swat" trước đó -> khôi phục nguyên trạng mục 1 & 2
+   setState(p.saved);
+   if(p.usedHours!=null)set('usedHours',p.usedHours); // giờ đã dùng luôn lấy mới nhất
+ } else {
+   $('pname').value=p.pname;set('pref',p.pref);if(p.product)$('product').value=p.product;
+   set('load',p.load||'');set('speed',p.speed||'');set('stops',p.stops||'');set('travel',r2(p.travel));
+   set('pit',r2(p.pit));set('over',r2(p.over));set('shaft',r2(p.shaft));
+   if(p.bef)set('befshape',p.bef);if(p.shape)set('shape',round1(p.shape));
+   if(p.usedHours!=null)set('usedHours',p.usedHours);
+   buildAddons();
+   const tsd=document.querySelector('#addons input[data-key=tsd]');if(tsd)tsd.checked=!!p.tsd;
+   delete $('stdHour').dataset.touched;
+ }
+ setConfirmed(!!p.confirmed);
  calc();toast('Đã nạp thông số: '+p.pname);
 }
 

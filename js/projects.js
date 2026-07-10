@@ -42,10 +42,10 @@ const ProjectsPage = (() => {
     builtHeaderKey = key;
     thead.innerHTML =
       '<tr><th class="chk-col"><input type="checkbox" id="projChkAll" title="Chọn tất cả"></th>' +
-      '<th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Customer</th><th>Product Line</th><th>Giám sát</th>' +
+      '<th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Customer</th><th>Product Line</th><th>Giám sát</th><th>SWAT Target Hour</th>' +
       headers.map(h => `<th>${SPEC_DISPLAY[h] || h}</th>`).join('') +
       '<th></th></tr>';
-    const cols = ['chk'].concat(new Array(6 + headers.length).fill(true)).concat([false]);
+    const cols = ['chk'].concat(new Array(7 + headers.length).fill(true)).concat([false]);
     colFilters = TableFilter.build(thead, cols, render);
     thead.querySelector('#projChkAll').addEventListener('change', (e) => {
       if (e.target.checked) lastFilteredIds.forEach(id => selected.add(id));
@@ -66,6 +66,7 @@ const ProjectsPage = (() => {
         cells: [
           p.wbs, p.projectNumber || '', p.projectName || '', p.customer || '', p.productLine || '',
           p.supervisor || '',
+          p.swatTargetHour != null ? fmt(p.swatTargetHour) : '',
           ...headers.map(h => (p.specs && p.specs[h]) || ''),
         ],
       }))
