@@ -137,21 +137,46 @@
   #scorecardform .sc-yes{color:#006100;font-weight:bold}
   #scorecardform .sc-no{color:#c00000;font-weight:bold}
 
-  /* BÁO CÁO TỔNG QUAN (trang 3) */
-  #overviewform{display:none;background:#fff;color:#000;font-family:Calibri,Arial,sans-serif;font-size:11px;line-height:1.2;padding:6mm;max-width:1000px;margin:16px auto 0}
+  /* BÁO CÁO TỔNG QUAN — tài liệu độc lập, chuyên nghiệp, responsive */
+  #overviewform{display:none;color:#111827;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-size:12.5px;line-height:1.45;max-width:840px;margin:18px auto;padding:0 12px}
   body.overviewview #overviewform{display:block}
-  #overviewform .ov-head{font-weight:bold;font-size:16px;text-align:center}
-  #overviewform .ov-sub{text-align:center;margin:2px 0 10px;font-size:12px}
-  #overviewform .ov-kpis{display:flex;gap:10px;margin-bottom:12px}
-  #overviewform .ov-kpi{flex:1;border:1px solid #999;border-radius:6px;padding:8px;text-align:center}
-  #overviewform .ov-kpi .v{font-size:18px;font-weight:bold;color:#0a7a3a}
-  #overviewform .ov-kpi .l{font-size:10px;color:#444;margin-top:2px}
-  #overviewform .ov-h2{font-weight:bold;font-size:12px;margin:12px 0 4px;border-left:4px solid #e2001a;padding-left:6px}
-  #overviewform table.ov-t{border-collapse:collapse;width:100%;margin-bottom:6px}
-  #overviewform .ov-t td,#overviewform .ov-t th{border:1px solid #999;padding:3px 7px}
-  #overviewform .ov-t th{background:#f2f2f2;text-align:left}
+  body.overviewview header,body.overviewview .wrap{display:none!important}
+  #overviewform .ov-toolbar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:12px}
+  #overviewform .ov-doc{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.07);background:#fff}
+  #overviewform .ov-band{background:linear-gradient(135deg,#e2001a,#9e0016);color:#fff;padding:16px 22px}
+  #overviewform .ov-band h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.3px}
+  #overviewform .ov-band .ov-meta{margin-top:5px;font-size:12px;opacity:.95;line-height:1.5}
+  #overviewform .ov-inner{padding:18px 22px 22px}
+  #overviewform .ov-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}
+  #overviewform .ov-kpi{border:1px solid #eef0f2;border-radius:11px;padding:11px 10px;text-align:center;background:#f8fafc}
+  #overviewform .ov-kpi .v{font-size:19px;font-weight:800;color:#111827}
+  #overviewform .ov-kpi .l{font-size:10.5px;color:#5b6672;margin-top:3px}
+  #overviewform .ov-kpi.good .v{color:#0a7a3a}
+  #overviewform .ov-kpi.bad .v{color:#c0261a}
+  #overviewform .ov-sec{font-weight:800;font-size:13.5px;margin:18px 0 8px;padding-left:9px;border-left:4px solid #e2001a}
+  #overviewform .ov-specs{display:grid;grid-template-columns:1fr 1fr;gap:2px 26px}
+  #overviewform .ov-specs .sp{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted #e0e4e8;padding:5px 2px}
+  #overviewform .ov-specs .sp span{color:#5b6672}
+  #overviewform .ov-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #overviewform table.ov-t{border-collapse:collapse;width:100%;min-width:440px;font-size:12.5px}
+  #overviewform .ov-t th,#overviewform .ov-t td{border:1px solid #e6e8eb;padding:7px 10px;text-align:left}
+  #overviewform .ov-t thead th{background:#f3f4f6;font-weight:700;white-space:nowrap}
   #overviewform .ov-t .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  #overviewform .ov-t tfoot td{font-weight:bold;background:#fafafa}
+  #overviewform .ov-t tbody tr:nth-child(even){background:#fafbfc}
+  #overviewform .ov-t tfoot td,#overviewform .ov-t tr.grand td{font-weight:800;background:#f3f4f6}
+  #overviewform .ov-t tr.sub td{font-weight:700;background:#fbfbfc}
+  #overviewform .ov-hours td:first-child{font-weight:500}
+  #overviewform .ov-note{font-size:11.5px;color:#5b6672;margin:6px 2px 0}
+  #overviewform .badge-pos{color:#0a7a3a;font-weight:700}
+  #overviewform .badge-neg{color:#c0261a;font-weight:700}
+  @media(max-width:640px){
+    #overviewform{font-size:12px;padding:0 6px;margin:8px auto}
+    #overviewform .ov-inner{padding:14px}
+    #overviewform .ov-kpis{grid-template-columns:repeat(2,1fr)}
+    #overviewform .ov-specs{grid-template-columns:1fr}
+    #overviewform .ov-band h1{font-size:16px}
+    #overviewform .ov-kpi .v{font-size:17px}
+  }
 
   /* Hours = A4 ngang; Scorecard = A4 dọc */
   @page ef{size:A4 landscape;margin:7mm}
@@ -162,8 +187,12 @@
     #excelform [data-noprint]{display:none!important}
     #excelform>*{page-break-inside:avoid}
     #scorecardform{display:block!important;padding:0;page:sc;page-break-before:always}
-    #overviewform{display:none;padding:0;page:sc;page-break-before:always}
-    body.overviewview #overviewform{display:block!important}
+    #overviewform{display:none!important}
+    /* Chế độ báo cáo tổng quan: chỉ in trang tổng quan (bỏ form SWAT & scorecard) */
+    body.overviewview #excelform,body.overviewview #scorecardform{display:none!important}
+    body.overviewview #overviewform{display:block!important;page:sc;margin:0;max-width:none;padding:0}
+    body.overviewview #overviewform .ov-toolbar{display:none!important}
+    body.overviewview #overviewform .ov-doc{border:none;box-shadow:none;border-radius:0}
     body{background:#fff}
   }
   @media print and (color){#excelform *,#scorecardform *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -639,7 +668,7 @@ function fitScorecard(){
 }
 function openForm(){document.body.classList.remove('overviewview');document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();window.scrollTo(0,0);}
 function closeForm(){document.body.classList.remove('formview','overviewview');window.scrollTo(0,0);}
-window.addEventListener('beforeprint',()=>{document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();});
+window.addEventListener('beforeprint',()=>{if(document.body.classList.contains('overviewview'))return;document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();});
 
 /* nhãn form theo ngôn ngữ (VN = đúng sheet "Lifts (VN)"; EN = sheet "Lifts (EN)") */
 const FL={
@@ -861,7 +890,7 @@ function withXLSX(cb){
  let X=window.XLSX;
  if(!X){try{if(window.parent&&window.parent!==window)X=window.parent.XLSX;}catch(e){}}
  if(X)return cb(X);
- const sc=document.createElement('script');sc.src='../../js/xlsx.full.min.js?v=17';
+ const sc=document.createElement('script');sc.src='../../js/xlsx.full.min.js?v=18';
  sc.onload=()=>cb(window.XLSX||null);sc.onerror=()=>cb(null);document.head.appendChild(sc);
 }
 function exportExcel(){
@@ -1049,33 +1078,77 @@ function reqOverviewReport(){
 }
 function ovN(n){return (Math.round((+n||0)*10)/10).toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1});}
 function ovP(n){return ovN(n)+'%';}
+/* Báo cáo tổng quan: tài liệu độc lập (KHÔNG kèm form SWAT & scorecard). Gồm:
+   thông tin dự án · thông số thang · giờ công định mức SWAT · giờ đã chấm theo
+   người (+còn lại/overrun, dự phòng) · dự kiến chi thưởng theo người. */
 function renderOverview(data){
  const el=$('overviewform');if(!el)return;
- data=data||{};
+ if(!ST.product){try{calc();}catch(e){}}
+ const s=ST;data=data||{};
  const eh=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
- const emp=data.emp||[],act=data.act||[],grand=+data.grand||0,target=+data.swatTargetHour||0;
- const empRows=emp.length?emp.map(e=>`<tr><td>${eh(e.name)}</td><td>${eh(e.empId)}</td><td class="n">${ovN(e.normal)}</td><td class="n">${ovN(e.ot1)}</td><td class="n">${ovN(e.ot2)}</td><td class="n">${ovN(e.ot3)}</td><td class="n">${ovN(e.total)}</td><td class="n">${ovP(e.pct)}</td></tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:#666">Chưa có dữ liệu giờ công cho dự án này</td></tr>';
- const actRows=act.length?act.map(a=>`<tr><td>${eh(a.act)}</td><td>${eh(a.name)}</td><td class="n">${ovN(a.hours)}</td><td class="n">${ovP(a.pct)}</td></tr>`).join(''):'<tr><td colspan="4" style="text-align:center;color:#666">Chưa có dữ liệu</td></tr>';
- const dt=new Date();const dstr=('0'+dt.getDate()).slice(-2)+'/'+('0'+(dt.getMonth()+1)).slice(-2)+'/'+dt.getFullYear();
+ const prodLabel=s.product==='es50'?'ES 5.0':s.product==='villa'?'Villa Lift':'S3300 / ES1';
+ const emp=data.emp||[],grand=+data.grand||0,target=+data.swatTargetHour||0;
+ const sc=s.scdata||{},reserve=+sc.reserve||0;
+ const diff=Math.round((target-grand)*10)/10;
+ const remainHtml=target>0?(diff>=0?'<span class="badge-pos">còn lại '+ovN(diff)+'h</span>':'<span class="badge-neg">overrun '+ovN(-diff)+'h</span>'):'—';
+ const dt=new Date(),dstr=('0'+dt.getDate()).slice(-2)+'/'+('0'+(dt.getMonth()+1)).slice(-2)+'/'+dt.getFullYear();
+
+ // — Thông số thang —
+ const specPairs=[
+  ['Sản phẩm',prodLabel],['Năm / Scheme',s.year],['Số điểm dừng (stops)',fmt(s.stops,0)],
+  ['Số thang (units)',fmt(s.units,0)],['Xuất xứ',eh(gv('version'))],['Loại thang',eh(gv('etype'))],
+  ['Tải trọng (kg)',fmt(gn('load'),0)],['Tốc độ (m/s)',eh(gv('speed'))],['Số cửa car',eh(gv('cardoors'))],
+  ['Hành trình (m)',eh(gv('travel'))],['Pit (m)',eh(gv('pit'))],['Over travel (m)',eh(gv('over'))],['Shaft depth (m)',eh(gv('shaft'))],
+ ];
+ const specHtml=specPairs.map(p=>`<div class="sp"><span>${p[0]}</span><b>${p[1]}</b></div>`).join('');
+
+ // — Giờ công định mức SWAT —
+ const hRows=[['Giờ công 14 bước lắp đặt (X)',s.stepsSum],['Safety Tasks',s.safety],['Non-installation Tasks',s.non]];
+ if(s.product==='es50')hRows.push(['Giờ cộng thêm ES5.0',s.es50.total]);
+ hRows.push(['Hạng mục cộng thêm (Σ)',s.addonSum]);
+ if(s.coordPerUnit)hRows.push(['Điều phối dự án / unit',s.coordPerUnit]);
+ const budget=s.budget||s.total*s.units;
+ const hoursHtml=hRows.map(r=>`<tr><td>${r[0]}</td><td class="n">${fmt(r[1])}</td></tr>`).join('')+
+  `<tr class="sub"><td>TỔNG giờ công định mức / thang</td><td class="n">${fmt(s.total)}</td></tr>`+
+  `<tr class="grand"><td>TỔNG định mức toàn dự án (× ${fmt(s.units,0)} thang)</td><td class="n">${fmt(budget)}</td></tr>`;
+
+ // — Giờ đã chấm theo người —
+ const empHtml=emp.length?emp.map(e=>`<tr><td>${eh(e.name)}</td><td>${eh(e.empId)}</td><td class="n">${ovN(e.normal)}</td><td class="n">${ovN(e.ot1)}</td><td class="n">${ovN(e.ot2)}</td><td class="n">${ovN(e.ot3)}</td><td class="n">${ovN(e.total)}</td><td class="n">${ovP(e.pct)}</td></tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:#777">Chưa có dữ liệu giờ công cho dự án này</td></tr>';
+
+ // — Chi thưởng theo người —
+ let bonusHtml,bonusNote='';
+ if(PEOPLE.length){const B=computeBonusRows();
+  bonusHtml=B.rows.map(r=>`<tr><td>${eh(r.name)}</td><td>${eh(r.empId)}</td><td>${r.role}</td><td class="n">${fmt(r.hours)}</td><td class="n">${r.pct==null?'—':fmt(r.pct)+'%'}</td><td class="n">${money(r.bonus)}</td></tr>`).join('')+
+   `<tr class="grand"><td colspan="5">TỔNG dự kiến chi thưởng</td><td class="n">${money(B.total)}</td></tr>`;
+  bonusNote=`Fitter chia theo tỉ lệ giờ công (pool ${money(B.fitterPool)}); Site-sup ${money(B.supPool)}${B.supCount>1?' — chia đều '+B.supCount+' người':''}. Số liệu tham khảo.`;
+ }else bonusHtml='<tr><td colspan="6" style="text-align:center;color:#777">Chưa có danh sách nhân viên</td></tr>';
+
  el.innerHTML=
-  '<div class="ov-head">BÁO CÁO TỔNG QUAN DỰ ÁN</div>'+
-  '<div class="ov-sub"><b>'+eh(data.projectName||gv('pname'))+'</b> — WBS: '+eh(data.wbs||gv('pref'))+(data.supervisor?' — Giám sát: '+eh(data.supervisor):'')+' — Ngày xuất: '+dstr+'</div>'+
-  '<div class="ov-kpis">'+
-   '<div class="ov-kpi"><div class="v">'+ovN(grand)+'</div><div class="l">Tổng giờ công đã chấm</div></div>'+
-   '<div class="ov-kpi"><div class="v">'+ovN(target)+'</div><div class="l">Swat Hour Target</div></div>'+
-   '<div class="ov-kpi"><div class="v">'+ovN(target-grand)+'</div><div class="l">Còn lại (Target − đã chấm)</div></div>'+
-  '</div>'+
-  '<div class="ov-h2">Thống kê giờ công theo nhân viên (Fitter)</div>'+
-  '<table class="ov-t"><thead><tr><th>Tên NV</th><th>Mã NV</th><th class="n">Normal</th><th class="n">OT1</th><th class="n">OT2</th><th class="n">OT3</th><th class="n">Tổng</th><th class="n">Tỉ lệ</th></tr></thead>'+
-   '<tbody>'+empRows+'</tbody>'+
-   '<tfoot><tr><td colspan="6">Tổng cộng</td><td class="n">'+ovN(grand)+'</td><td class="n">'+(grand>0?'100,0%':'-')+'</td></tr></tfoot></table>'+
-  '<div class="ov-h2">Tỉ lệ giờ công theo hoạt động (Activities)</div>'+
-  '<table class="ov-t"><thead><tr><th>Mã</th><th>Hoạt động</th><th class="n">Số giờ</th><th class="n">Tỉ lệ</th></tr></thead><tbody>'+actRows+'</tbody></table>';
- // In: gồm form SWAT + scorecard + trang tổng quan
- document.body.classList.add('formview','overviewview');
- renderForm();renderScorecard();fitForm();fitScorecard();
+  '<div class="ov-toolbar" data-noprint><button class="btn" onclick="window.print()">🖨 In / Lưu PDF</button><button class="btn sec" onclick="closeForm()">↩ Đóng</button></div>'+
+  '<div class="ov-doc"><div class="ov-band"><h1>BÁO CÁO TỔNG QUAN DỰ ÁN</h1>'+
+   '<div class="ov-meta">'+eh(data.projectName||gv('pname'))+' · WBS: '+eh(data.wbs||gv('pref'))+(data.supervisor?' · Giám sát: '+eh(data.supervisor):'')+' · '+prodLabel+' · Scheme '+s.year+' · Ngày xuất: '+dstr+'</div></div>'+
+   '<div class="ov-inner">'+
+    '<div class="ov-kpis">'+
+     '<div class="ov-kpi"><div class="v">'+ovN(grand)+'</div><div class="l">Giờ công đã chấm</div></div>'+
+     '<div class="ov-kpi"><div class="v">'+ovN(target)+'</div><div class="l">Swat Hour Target</div></div>'+
+     '<div class="ov-kpi '+(diff>=0?'good':'bad')+'"><div class="v">'+(target>0?(diff>=0?ovN(diff):'-'+ovN(-diff)):'—')+'</div><div class="l">'+(diff>=0?'Còn lại (h)':'Overrun (h)')+'</div></div>'+
+     '<div class="ov-kpi"><div class="v">'+ovN(reserve)+'</div><div class="l">Dự phòng chấm thêm (h)</div></div>'+
+    '</div>'+
+    '<div class="ov-sec">Thông số thang</div><div class="ov-specs">'+specHtml+'</div>'+
+    '<div class="ov-sec">Giờ công định mức SWAT (/ thang)</div>'+
+    '<div class="ov-tblwrap"><table class="ov-t ov-hours"><thead><tr><th>Hạng mục</th><th class="n">Giờ</th></tr></thead><tbody>'+hoursHtml+'</tbody></table></div>'+
+    '<div class="ov-sec">Giờ công đã chấm theo nhân viên</div>'+
+    '<div class="ov-tblwrap"><table class="ov-t"><thead><tr><th>Tên NV</th><th>Mã NV</th><th class="n">Normal</th><th class="n">OT1</th><th class="n">OT2</th><th class="n">OT3</th><th class="n">Tổng</th><th class="n">Tỉ lệ</th></tr></thead><tbody>'+empHtml+
+     '</tbody><tfoot><tr><td colspan="6">Tổng cộng</td><td class="n">'+ovN(grand)+'</td><td class="n">'+(grand>0?'100,0%':'—')+'</td></tr></tfoot></table></div>'+
+    '<p class="ov-note">So với Swat Hour Target ('+ovN(target)+'h): '+remainHtml+'. Đã bao gồm '+ovN(reserve)+'h dự phòng chấm thêm.</p>'+
+    '<div class="ov-sec">Dự kiến chi thưởng theo nhân viên (VND)</div>'+
+    '<div class="ov-tblwrap"><table class="ov-t"><thead><tr><th>Tên NV</th><th>Mã NV</th><th>Vai trò</th><th class="n">Giờ công</th><th class="n">Tỉ lệ</th><th class="n">Tiền thưởng</th></tr></thead><tbody>'+bonusHtml+'</tbody></table></div>'+
+    (bonusNote?'<p class="ov-note">'+bonusNote+'</p>':'')+
+   '</div></div>';
+
+ document.body.classList.remove('formview');
+ document.body.classList.add('overviewview');
  window.scrollTo(0,0);
- setTimeout(()=>{try{window.print();}catch(e){}},80);
 }
 function selectProject(wbs){const p=PROJECTS.find(x=>String(x.pref)===String(wbs));if(p)applyProject(p);}
 function applyProject(p){
@@ -1102,22 +1175,26 @@ function applyProject(p){
 
 /* ---- Mục 6: dự kiến tiền thưởng theo người ---- */
 function setPeople(list){PEOPLE=Array.isArray(list)?list:[];renderBonus6();}
-function renderBonus6(){
- const body=$('bonusBody'),foot=$('bonusFoot'),note=$('bonusNote');if(!body)return;
- const vi=LANG==='vi';
+/* tính các dòng thưởng theo người (dùng chung cho mục 6 & báo cáo tổng quan) */
+function computeBonusRows(){
  const fitterPool=ST.scdata?ST.scdata.pf:0,supPool=ST.scdata?ST.scdata.ps:0;
- if(!PEOPLE.length){body.innerHTML=`<tr><td colspan="6" style="color:var(--muted)">${vi?'Chọn công trình để xem dự kiến tiền thưởng theo người.':'Select a project to see per-person incentive.'}</td></tr>`;foot.innerHTML='';note.textContent='';return;}
  const sups=PEOPLE.filter(p=>p.role==='sup'),fitters=PEOPLE.filter(p=>p.role!=='sup');
  const totFit=fitters.reduce((s,p)=>s+(+p.hours||0),0);
  const rows=[];
  fitters.forEach(p=>rows.push({name:p.name,empId:p.empId,role:'Fitter',hours:+p.hours||0,pct:totFit>0?(+p.hours||0)/totFit*100:0,bonus:totFit>0?fitterPool*(+p.hours||0)/totFit:0}));
  sups.forEach(p=>rows.push({name:p.name,empId:p.empId,role:'Supervisor',hours:+p.hours||0,pct:null,bonus:sups.length>0?supPool/sups.length:0}));
  rows.sort((a,b)=>b.bonus-a.bonus);
+ return {rows,fitterPool,supPool,supCount:sups.length,total:rows.reduce((s,r)=>s+r.bonus,0)};
+}
+function renderBonus6(){
+ const body=$('bonusBody'),foot=$('bonusFoot'),note=$('bonusNote');if(!body)return;
+ const vi=LANG==='vi';
+ if(!PEOPLE.length){body.innerHTML=`<tr><td colspan="6" style="color:var(--muted)">${vi?'Chọn công trình để xem dự kiến tiền thưởng theo người.':'Select a project to see per-person incentive.'}</td></tr>`;foot.innerHTML='';note.textContent='';return;}
+ const B=computeBonusRows();
  const eh=t=>String(t==null?'':t).replace(/</g,'&lt;');
- body.innerHTML=rows.map(r=>`<tr><td>${eh(r.name)}</td><td>${eh(r.empId)}</td><td>${r.role}</td><td class="num">${fmt(r.hours)}</td><td class="num">${r.pct==null?'-':fmt(r.pct)+'%'}</td><td class="num">${money(r.bonus)}</td></tr>`).join('');
- const tot=rows.reduce((s,r)=>s+r.bonus,0);
- foot.innerHTML=`<tr><td colspan="5">${vi?'Tổng cộng':'Total'} (${rows.length})</td><td class="num">${money(tot)}</td></tr>`;
- note.textContent=vi?`Fitter: chia theo tỉ lệ giờ công / tổng giờ fitter (tổng ${money(fitterPool)}). Site-sup: ${money(supPool)}${sups.length>1?' (chia đều '+sups.length+' người)':''}. Số liệu tham khảo.`:`Fitters split by hours share (pool ${money(fitterPool)}). Site-sup: ${money(supPool)}. Reference only.`;
+ body.innerHTML=B.rows.map(r=>`<tr><td>${eh(r.name)}</td><td>${eh(r.empId)}</td><td>${r.role}</td><td class="num">${fmt(r.hours)}</td><td class="num">${r.pct==null?'-':fmt(r.pct)+'%'}</td><td class="num">${money(r.bonus)}</td></tr>`).join('');
+ foot.innerHTML=`<tr><td colspan="5">${vi?'Tổng cộng':'Total'} (${B.rows.length})</td><td class="num">${money(B.total)}</td></tr>`;
+ note.textContent=vi?`Fitter: chia theo tỉ lệ giờ công / tổng giờ fitter (tổng ${money(B.fitterPool)}). Site-sup: ${money(B.supPool)}${B.supCount>1?' (chia đều '+B.supCount+' người)':''}. Số liệu tham khảo.`:`Fitters split by hours share (pool ${money(B.fitterPool)}). Site-sup: ${money(B.supPool)}. Reference only.`;
 }
 
 /* ================= EVENTS ================= */
