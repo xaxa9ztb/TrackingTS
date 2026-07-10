@@ -574,7 +574,10 @@ function scorecard(){
  const bf=unitIncentive(year,stops),bs=siteIncentive(year,stops);$('scBaseF').textContent=money(bf);$('scBaseS').textContent=money(bs);
  const pf=fs>=3?fitterPay(stops,bf,block,boost):0,ps=ss>=6?sitePay(stops,bs,block,boost):0;
  $('scPayF').textContent=money(pf);$('scPayS').textContent=money(ps);$('scPayT').textContent=money(pf+ps);
- ST.scdata={scy,std,used,reserve,act,save,block,fs,ss,crit:{sais,pqc,yellow,tbt,safe,ff,boost:boost?1:0},bf,bs,pf,ps,tot:pf+ps};
+ // phần thưởng Quality Boost (chênh lệch khi tích OIL) để hiển thị đúng dòng trong scorecard gốc
+ const pfNo=fs>=3?fitterPay(stops,bf,block,false):0,psNo=ss>=6?sitePay(stops,bs,block,false):0;
+ const boostF=Math.round(pf-pfNo),boostS=Math.round(ps-psNo);
+ ST.scdata={scy,std,used,reserve,act,save,block,fs,ss,crit:{sais,pqc,yellow,tbt,safe,ff,boost:boost?1:0},bf,bs,pf,ps,tot:pf+ps,boostF,boostS};
  try{renderBonus6();}catch(e){}
  if(ST.product){saveLocal();postResult();}
 }
@@ -721,54 +724,87 @@ function renderForm(){
 }
 
 /* các dòng scorecard (dùng chung cho form in & xuất Excel) */
-function scorecardRows(){
- const d=ST.scdata;if(!d)return [];
- const vi=LANG==='vi';
- const L={std:vi?'Giờ tiêu chuẩn / unit':'Standard hours / unit',used:vi?'Giờ đã dùng (bảng công)':'Used hours (timesheet)',
-  reserve:vi?'Giờ dự phòng':'Reserve hours',act:vi?'Giờ thực tế (đã dùng + dự phòng)':'Actual (used + reserve)',
-  save:vi?'Giờ tiết kiệm (Thực tế − Chuẩn)':'Saved hours (Actual − Standard)',block:vi?'Số block 12 giờ':'12-hour blocks',
-  hSec:vi?'GIỜ CÔNG':'HOURS',cSec:vi?'TIÊU CHÍ CHẤT LƯỢNG':'QUALITY CRITERIA',pSec:vi?'TIỀN THƯỞNG (VND)':'INCENTIVE (VND)',
-  fscore:vi?'Điểm Fitter (cần ≥ 3)':'Fitter score (need ≥ 3)',sscore:vi?'Điểm Site-sup (cần ≥ 6)':'Site-sup score (need ≥ 6)',
-  baseF:vi?'Thưởng nền / unit (Fitter)':'Base incentive / unit (Fitter)',baseS:vi?'Thưởng nền (Site-sup)':'Base incentive (Site-sup)',
-  payF:vi?'Thưởng Fitter / unit':'Fitter incentive / unit',payS:vi?'Thưởng Site-sup / unit':'Site-sup incentive / unit',payT:vi?'TỔNG thưởng / unit':'TOTAL incentive / unit'};
- const crit=[['SAIS PFY',d.crit.sais],['PQC ≥ 90%',d.crit.pqc],[vi?'Không Yellow Card':'No Yellow Card',d.crit.yellow],
-  ['Tool Box Talk (Site-sup)',d.crit.tbt],['Safety Inspection (Site-sup)',d.crit.safe],['FF+ ≥ 90% (Site-sup)',d.crit.ff],
-  [vi?'Quality Boost OIL (+15%)':'Quality Boost OIL (+15%)',d.crit.boost]];
- // mỗi dòng: {t:'sec'|'h'|'c'|'m', label, value}
- const rows=[{t:'sec',label:L.hSec}];
- rows.push({t:'h',label:L.std,value:fmt(d.std)});
- rows.push({t:'h',label:L.used,value:fmt(d.used)});
- rows.push({t:'h',label:L.reserve,value:fmt(d.reserve)});
- rows.push({t:'h',label:L.act,value:fmt(d.act)});
- rows.push({t:'h',label:L.save,value:fmt(d.save)});
- rows.push({t:'h',label:L.block,value:fmt(d.block,2)});
- rows.push({t:'sec',label:L.cSec});
- crit.forEach(c=>rows.push({t:'c',label:c[0],value:c[1]}));
- rows.push({t:'h',label:L.fscore,value:d.fs+' / 3'});
- rows.push({t:'h',label:L.sscore,value:d.ss+' / 6'});
- rows.push({t:'sec',label:L.pSec});
- rows.push({t:'m',label:L.baseF,value:d.bf});
- rows.push({t:'m',label:L.baseS,value:d.bs});
- rows.push({t:'m',label:L.payF,value:d.pf});
- rows.push({t:'m',label:L.payS,value:d.ps});
- rows.push({t:'m',label:L.payT,value:d.tot});
- return rows;
+/* Dựng lại y hệt "SWAT SCORE CARD" của file Excel gốc (Arial, ô mục vàng
+   #FFFF00, ô giá trị vàng nhạt #FFFF99, ô Quality Boost xanh #99CCFF, viền
+   đen). 2024 & 2025 dùng chung bản 2025; 2026 dùng bản 2026. Dải điểm dừng:
+   ≤10 -> "2 stops to 10 stops"; >10 -> "11 stops to 20 stops". */
+function buildScorecardTable(){
+ const d=ST.scdata;if(!d)return '';
+ const g=n=>Math.round(+n||0).toLocaleString('vi-VN');
+ const eh=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ const dt=new Date(),dstr=(dt.getMonth()+1)+'/'+dt.getDate()+'/'+String(dt.getFullYear()).slice(2);
+ const F='font-family:Arial,Helvetica,sans-serif;font-size:11pt;padding:2px 6px;';
+ const Y=F+'background:#FFFF00;font-weight:bold;text-align:center;border-left:2px solid #000;';
+ const SEC=F+'font-weight:bold;font-size:12pt;';
+ const box=F+'border:1px solid #000;',bc=box+'text-align:center;',br=box+'text-align:right;';
+ const lblR=box+'text-align:right;font-weight:bold;',brb=box+'text-align:right;font-weight:bold;';
+ const yv=box+'background:#FFFF99;text-align:center;',yvr=box+'background:#FFFF99;text-align:right;font-weight:bold;';
+ const blv=box+'background:#99CCFF;text-align:right;font-weight:bold;';
+ const td=(c,st,span)=>`<td${span?` colspan="${span}"`:''} style="${st||F}">${c==null?'':c}</td>`;
+ const e=()=>td('',F),ee=()=>e()+e(); // A, B trống
+ let R='';const tr=c=>{R+='<tr>'+c+'</tr>';};
+ // — tiêu đề (B..J) —
+ tr(e()+td('Installation Score Card',F+'font-weight:bold;font-size:18pt;',9));
+ tr(e()+td('This Installation score card to assess the quality &amp; efficiency of project installation in individual project which binding to Fulfillment Efficiency Incentive Policy issued in '+d.scy,F+'font-size:10pt;',9));
+ tr(e()+td('Apply for '+(gn('stops')>10?'11 stops to 20 stops':'2 stops to 10 stops'),F,9));
+ tr(e());
+ // — A. Project in Brief — (nhãn ở cột C, giá trị cột D)
+ tr(td('A',Y)+td('Project in Brief',SEC,9));
+ const brief=(l,v,st)=>tr(ee()+td(l,F)+td(v,st||F));
+ brief('Date/Ngày',dstr,F+'text-align:left;');
+ brief('PM Name','&nbsp;');
+ brief('Project Name/Tên Công Trình',eh(gv('pname')));
+ brief('WBS',eh(gv('pref')),F+'text-align:left;');
+ brief('Stops/Điểm dừng',gn('stops'),F+'text-align:left;');
+ brief('Số PE1','&nbsp;',F+'text-align:left;');
+ brief('Standard Hours/Giờ tiêu chuẩn',fmt(d.std),bc);
+ brief('Actual Hour/Giờ thực tế',fmt(d.act),bc.replace('border','font-weight:bold;border'));
+ brief('Saving hours/Giờ công saving',fmt(d.save),yv.replace('center','center;font-weight:bold'));
+ brief('Block 12hrs Saving',fmt(d.block,2),yv);
+ tr(e());
+ // — B. Criteria — (C nhãn, D giá trị, E điểm)
+ tr(td('B',Y)+td('Criteria',SEC,2)+e()+td('Score',bc));
+ const crit=(l,v,sc)=>tr(ee()+td(l,F)+td(v,bc)+td(sc,yv));
+ crit('SAIS PFY',d.crit.sais?'Yes':'No',d.crit.sais);
+ crit('PQC >= 90%',d.crit.pqc?'Yes':'No',d.crit.pqc);
+ crit('Yellow Card?',d.crit.yellow?'No':'Yes',d.crit.yellow);
+ tr(e());
+ // — C. Additional Criteria for Site-sup —
+ tr(td('C',Y)+td('Additional Criteria for Site-sup',SEC,2)+e()+td('Score',bc));
+ crit('Tool Box Talk',d.crit.tbt?'Yes':'No',d.crit.tbt);
+ crit('Safety Inspection',d.crit.safe?'Yes':'No',d.crit.safe);
+ crit('FF+ compliance for Site-sup tasks',d.crit.ff?'Yes':'No',d.crit.ff);
+ tr(e());
+ // — D. Quality Boost —
+ tr(td('D',Y)+td('Quality Boost',SEC,9));
+ crit('Zero Square Item on OIL',d.crit.boost?'Yes':'No',d.crit.boost);
+ tr(e());
+ tr(ee()+td('Total Fitter Score',lblR)+td(d.fs,brb)+td('# Incentive criteria: Achieve 3 points',F,5));
+ tr(ee()+td('Total Site sup Score',lblR)+td(d.ss,brb)+td('# Incentive criteria: Achieve 6 points',F,5));
+ tr(e());
+ // — E. Incentive — (A=E, C nhãn, D giá trị)
+ tr(td('E',Y)+e()+td('Unit based Incentive',lblR)+td(g(d.bf),yvr));
+ tr(ee()+td("Site-sup's based incentive",lblR)+td(g(d.bs),yvr));
+ tr(e());
+ tr(ee()+td('Quality Boost Deserved for Fitter',lblR)+td(g(d.boostF),blv));
+ tr(ee()+td('Quality Boost Deserved for Site-sup',lblR)+td(g(d.boostS),blv));
+ tr(ee()+td('Final incentive for unit to be paid based on actual hour',lblR)+td(g(d.pf),yvr));
+ tr(ee()+td('Final Incentive for Site-sup to be paid based on actual hour',lblR)+td(g(d.ps),yvr));
+ tr(ee()+td('Total Incentive to be paid based on actual hour',lblR)+td(g(d.tot),yvr));
+ tr(e());tr(e());
+ tr(ee()+td('Completed by PM/PE and Site-sup',F)+e()+e()+td('Verify by - FIN, NI controller',F,5));
+ tr(e());tr(e());tr(e());
+ tr(ee()+td('Overall perforamnce commented by NI Manager / Approve',F,8));
+ tr(e());tr(e());tr(e());
+ tr(ee()+td('Aprpoved by NI-Director',F,8));
+ const cols='<colgroup><col style="width:26px"><col style="width:44px"><col style="width:360px"><col style="width:120px"><col style="width:110px"><col style="width:120px"><col style="width:150px"><col style="width:10px"><col style="width:10px"><col style="width:96px"></colgroup>';
+ return '<table style="border-collapse:collapse;table-layout:fixed">'+cols+R+'</table>';
 }
 
 function renderScorecard(){
  const el=$('scorecardform');if(!el)return;
  if(!ST.product||!ST.scdata){el.innerHTML='';return;}
- const vi=LANG==='vi',eh=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
- const rows=scorecardRows();
- let body='';
- rows.forEach(r=>{
-  if(r.t==='sec')body+=`<tr class="sc-sec"><td colspan="2">${eh(r.label)}</td></tr>`;
-  else if(r.t==='c')body+=`<tr><td>${eh(r.label)}</td><td class="sc-val">${r.value?'<span class="sc-yes">✓</span>':'<span class="sc-no">✗</span>'}</td></tr>`;
-  else if(r.t==='m')body+=`<tr><td>${eh(r.label)}</td><td class="sc-money">${money(r.value)}</td></tr>`;
-  else body+=`<tr><td>${eh(r.label)}</td><td class="sc-val">${eh(r.value)}</td></tr>`;
- });
- el.innerHTML=`<div class="sc-head">SWAT SCORECARD — Scheme ${ST.scdata.scy}${ST.scdata.scy<2025?' *':''}</div>`+
-  `<table><tr><th style="width:62%">${vi?'Công trình':'Project'}</th><td>${eh(gv('pname'))} — ${eh(gv('pref'))}</td></tr>${body}</table>`;
+ el.innerHTML=buildScorecardTable();
 }
 
 /* ================= XUẤT EXCEL (.xls Excel mở trực tiếp) ================= */
@@ -828,23 +864,16 @@ function exportExcel(){
  rows+=`<tr><td colspan=8 style="height:50px;border:1px solid #000"> </td></tr><tr></tr>`;
  rows+=`<tr><td colspan=2 style="font-weight:bold">${esc(F.prepBy)}</td><td colspan=3></td><td colspan=3 style="font-weight:bold">${esc(F.team)}</td></tr>`;
 
- // ----- SCORECARD (cùng sheet, cách 2 dòng) -----
- if(ST.scdata){
-  const MB='color:#006100;font-weight:bold;text-align:right',NL=BRD;
-  rows+=`<tr></tr><tr></tr><tr><td colspan=8 style="font-weight:bold;font-size:13px;color:#C00000">SWAT SCORECARD — Scheme ${ST.scdata.scy}${ST.scdata.scy<2025?' *':''}</td></tr>`;
-  rows+=`<tr><td colspan=2 style="font-weight:bold">${esc(LANG==='vi'?'Công trình':'Project')}</td><td colspan=6>${esc(gv('pname'))} — ${esc(gv('pref'))}</td></tr>`;
-  scorecardRows().forEach(r=>{
-   if(r.t==='sec'){rows+=`<tr><td colspan=8 style="${HDR};text-decoration:underline">${esc(r.label)}</td></tr>`;}
-   else if(r.t==='c'){rows+=`<tr><td colspan=6 style="${NL}">${esc(r.label)}</td><td colspan=2 style="${NL};text-align:center;font-weight:bold;color:${r.value?'#006100':'#C00000'}">${r.value?'✓':'✗'}</td></tr>`;}
-   else if(r.t==='m'){rows+=`<tr><td colspan=6 style="${NL}">${esc(r.label)}</td><td colspan=2 style="${NL};${MB}">${esc(money(r.value))}</td></tr>`;}
-   else {rows+=`<tr><td colspan=6 style="${NL}">${esc(r.label)}</td><td colspan=2 style="${NL};text-align:right">${esc(r.value)}</td></tr>`;}
-  });
- }
+ const hoursTable='<table border="0" cellspacing="0">'+rows+'</table>';
+ // Scorecard = worksheet riêng "SWAT SCORE CARD", dựng y hệt file gốc
+ const scTable=ST.scdata?buildScorecardTable():'';
+ const sheets='<x:ExcelWorksheet><x:Name>Installation Hours</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>'+
+  (scTable?'<x:ExcelWorksheet><x:Name>SWAT SCORE CARD</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>':'');
 
  const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">'+
-  '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'+
-  '<x:Name>SWAT Hour</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>'+
-  '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="0" cellspacing="0">'+rows+'</table></body></html>';
+  '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>'+sheets+
+  '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>'+
+  hoursTable+(scTable?'<br style="page-break-before:always">'+scTable:'')+'</body></html>';
  const blob=new Blob(['﻿'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
  const nm=(gv('pname')||'SWAT').replace(/[^\wÀ-ỹ -]/g,'').trim().slice(0,40)||'SWAT';
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`SWAT_${nm}_${product}_${year}.xls`;
