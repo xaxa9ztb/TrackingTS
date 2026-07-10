@@ -90,92 +90,103 @@
   .seg button{background:transparent;border:none;color:#fff;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600}
   .seg button.on{background:#fff;color:var(--accent)}
 
-  /* ============ EXCEL-LIKE PRINT FORM ============ */
-  #excelform{display:none;background:#fff;color:#000;font-family:Calibri,Arial,sans-serif;font-size:9.5px;line-height:1.1;padding:6mm 6mm 4mm;max-width:1120px;margin:0 auto}
+  /* ============ EXCEL-LIKE PRINT FORM (styling qua class .efdoc để dùng lại cho batch) ============ */
+  #excelform{display:none}
   body.formview #excelform{display:block}
-  #excelform .ef-head{display:flex;justify-content:space-between;font-size:8.5px;color:#000;margin-bottom:6px}
-  #excelform .ef-title{font-weight:bold;text-decoration:underline;font-size:11px}
-  #excelform .ef-title2{font-weight:bold;text-decoration:underline;font-size:10px}
-  #excelform .ef-bind{font-size:9px;margin:1px 0 6px 30px}
-  #excelform .ef-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-  #excelform table.ef{border-collapse:collapse;width:100%;table-layout:fixed}
-  #excelform table.ef td{padding:0.8px 4px;vertical-align:middle;word-wrap:break-word}
-  #excelform .ef-spec td{border:none}
-  #excelform .ef-sec{font-weight:bold;text-decoration:underline;font-size:10px;padding-top:4px}
-  #excelform .lbl{color:#000}
-  #excelform .unit{color:#000;font-style:italic;font-size:9px;text-align:center;width:26px}
-  #excelform .note{color:#000;font-size:9px;background:none;border:none;padding:0 0 0 6px;margin:0}
-  #excelform .val{text-align:right;font-weight:bold;padding-right:8px}
-  #excelform .in{background:#ccffcc;color:#006100;font-weight:bold;text-align:right;padding-right:8px}
-  #excelform .shape{background:#ffc7ce;color:#9c0006;font-weight:bold;text-align:right;padding-right:8px}
-  #excelform .scheme{background:#ffff00;color:#c00000;font-weight:bold;text-align:right;font-size:12px;padding-right:8px}
-  #excelform tr.opt td{background:#ffc000;color:#4a2c00}
-  #excelform tr.opt td.optval{text-align:right;font-weight:bold;color:#000;padding-right:8px}
+  .efdoc{background:#fff;color:#000;font-family:Calibri,Arial,sans-serif;font-size:9.5px;line-height:1.1;padding:6mm 6mm 4mm;max-width:1120px;margin:0 auto}
+  .efdoc .ef-head{display:flex;justify-content:space-between;font-size:8.5px;color:#000;margin-bottom:6px}
+  .efdoc .ef-title{font-weight:bold;text-decoration:underline;font-size:11px}
+  .efdoc .ef-title2{font-weight:bold;text-decoration:underline;font-size:10px}
+  .efdoc .ef-bind{font-size:9px;margin:1px 0 6px 30px}
+  .efdoc .ef-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .efdoc table.ef{border-collapse:collapse;width:100%;table-layout:fixed}
+  .efdoc table.ef td{padding:0.8px 4px;vertical-align:middle;word-wrap:break-word}
+  .efdoc .ef-spec td{border:none}
+  .efdoc .ef-sec{font-weight:bold;text-decoration:underline;font-size:10px;padding-top:4px}
+  .efdoc .lbl{color:#000}
+  .efdoc .unit{color:#000;font-style:italic;font-size:9px;text-align:center;width:26px}
+  .efdoc .note{color:#000;font-size:9px;background:none;border:none;padding:0 0 0 6px;margin:0}
+  .efdoc .val{text-align:right;font-weight:bold;padding-right:8px}
+  .efdoc .in{background:#ccffcc;color:#006100;font-weight:bold;text-align:right;padding-right:8px}
+  .efdoc .shape{background:#ffc7ce;color:#9c0006;font-weight:bold;text-align:right;padding-right:8px}
+  .efdoc .scheme{background:#ffff00;color:#c00000;font-weight:bold;text-align:right;font-size:12px;padding-right:8px}
+  .efdoc tr.opt td{background:#ffc000;color:#4a2c00}
+  .efdoc tr.opt td.optval{text-align:right;font-weight:bold;color:#000;padding-right:8px}
   /* right panel bordered like excel */
-  #excelform table.efr td{border:1px solid #b0b0b0;padding:0.8px 5px}
-  #excelform .efr .stepcol{width:44px;text-align:center;color:#000;font-size:9.5px}
-  #excelform .efr .hrcol{width:60px;text-align:right;font-variant-numeric:tabular-nums}
-  #excelform .efr .hdr{background:#f2f2f2;font-weight:bold}
-  #excelform .efr .redb{color:#c00000;font-weight:bold}
-  #excelform .efr .vlabel{writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;font-weight:bold;font-size:8.5px;width:16px;background:#fff}
-  #excelform .efr tr.eftot td{border:1px solid #b0b0b0;color:#c00000;font-weight:bold;background:#fff}
-  #excelform .ef-notebox{margin-top:10px}
-  #excelform .ef-notebox .cap{font-weight:bold;text-decoration:underline;font-size:9px}
-  #excelform .ef-notebox .box{border:1px solid #000;height:46px;margin-top:2px}
-  #excelform .ef-sign{display:flex;gap:120px;margin-top:10px;font-weight:bold;font-size:10px}
+  .efdoc table.efr td{border:1px solid #b0b0b0;padding:0.8px 5px}
+  .efdoc .efr .stepcol{width:44px;text-align:center;color:#000;font-size:9.5px}
+  .efdoc .efr .hrcol{width:60px;text-align:right;font-variant-numeric:tabular-nums}
+  .efdoc .efr .hdr{background:#f2f2f2;font-weight:bold}
+  .efdoc .efr .redb{color:#c00000;font-weight:bold}
+  .efdoc .efr .vlabel{writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;font-weight:bold;font-size:8.5px;width:16px;background:#fff}
+  .efdoc .efr tr.eftot td{border:1px solid #b0b0b0;color:#c00000;font-weight:bold;background:#fff}
+  .efdoc .ef-notebox{margin-top:10px}
+  .efdoc .ef-notebox .cap{font-weight:bold;text-decoration:underline;font-size:9px}
+  .efdoc .ef-notebox .box{border:1px solid #000;height:46px;margin-top:2px}
+  .efdoc .ef-sign{display:flex;gap:120px;margin-top:10px;font-weight:bold;font-size:10px}
 
-  /* SCORECARD print form (trang 2) */
-  #scorecardform{display:none;background:#fff;color:#000;font-family:Calibri,Arial,sans-serif;font-size:11px;line-height:1.15;padding:6mm;max-width:1120px;margin:16px auto 0}
+  /* SCORECARD print form — styling qua class .scdoc */
+  #scorecardform{display:none}
   body.formview #scorecardform{display:block}
-  #scorecardform .sc-head{font-weight:bold;font-size:14px;text-align:center;margin-bottom:8px}
-  #scorecardform table{border-collapse:collapse;width:100%}
-  #scorecardform td,#scorecardform th{border:1px solid #808080;padding:3px 8px}
-  #scorecardform th{background:#f2f2f2;text-align:left}
-  #scorecardform .sc-val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  #scorecardform .sc-money{text-align:right;font-weight:bold;color:#006100;white-space:nowrap}
-  #scorecardform .sc-sec{background:#dbeafe;font-weight:bold}
-  #scorecardform .sc-yes{color:#006100;font-weight:bold}
-  #scorecardform .sc-no{color:#c00000;font-weight:bold}
+  .scdoc{background:#fff;color:#000;font-family:Calibri,Arial,sans-serif;font-size:11px;line-height:1.15;padding:6mm;max-width:1120px;margin:16px auto 0}
+  .scdoc .sc-head{font-weight:bold;font-size:14px;text-align:center;margin-bottom:8px}
+  .scdoc table{border-collapse:collapse;width:100%}
+  .scdoc td,.scdoc th{border:1px solid #808080;padding:3px 8px}
+  .scdoc th{background:#f2f2f2;text-align:left}
+  .scdoc .sc-val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .scdoc .sc-money{text-align:right;font-weight:bold;color:#006100;white-space:nowrap}
+  .scdoc .sc-sec{background:#dbeafe;font-weight:bold}
+  .scdoc .sc-yes{color:#006100;font-weight:bold}
+  .scdoc .sc-no{color:#c00000;font-weight:bold}
 
-  /* BÁO CÁO TỔNG QUAN — tài liệu độc lập, chuyên nghiệp, responsive */
-  #overviewform{display:none;color:#111827;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-size:12.5px;line-height:1.45;max-width:840px;margin:18px auto;padding:0 12px}
+  /* BÁO CÁO TỔNG QUAN — styling qua class .ovdoc (dùng lại cho batch) */
+  #overviewform{display:none;max-width:840px;margin:18px auto;padding:0 12px}
   body.overviewview #overviewform{display:block}
-  body.overviewview header,body.overviewview .wrap{display:none!important}
-  #overviewform .ov-toolbar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:12px}
-  #overviewform .ov-doc{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.07);background:#fff}
-  #overviewform .ov-band{background:linear-gradient(135deg,#e2001a,#9e0016);color:#fff;padding:16px 22px}
-  #overviewform .ov-band h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.3px}
-  #overviewform .ov-band .ov-meta{margin-top:5px;font-size:12px;opacity:.95;line-height:1.5}
-  #overviewform .ov-inner{padding:18px 22px 22px}
-  #overviewform .ov-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}
-  #overviewform .ov-kpi{border:1px solid #eef0f2;border-radius:11px;padding:11px 10px;text-align:center;background:#f8fafc}
-  #overviewform .ov-kpi .v{font-size:19px;font-weight:800;color:#111827}
-  #overviewform .ov-kpi .l{font-size:10.5px;color:#5b6672;margin-top:3px}
-  #overviewform .ov-kpi.good .v{color:#0a7a3a}
-  #overviewform .ov-kpi.bad .v{color:#c0261a}
-  #overviewform .ov-sec{font-weight:800;font-size:13.5px;margin:18px 0 8px;padding-left:9px;border-left:4px solid #e2001a}
-  #overviewform .ov-specs{display:grid;grid-template-columns:1fr 1fr;gap:2px 26px}
-  #overviewform .ov-specs .sp{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted #e0e4e8;padding:5px 2px}
-  #overviewform .ov-specs .sp span{color:#5b6672}
-  #overviewform .ov-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #overviewform table.ov-t{border-collapse:collapse;width:100%;min-width:440px;font-size:12.5px}
-  #overviewform .ov-t th,#overviewform .ov-t td{border:1px solid #e6e8eb;padding:7px 10px;text-align:left}
-  #overviewform .ov-t thead th{background:#f3f4f6;font-weight:700;white-space:nowrap}
-  #overviewform .ov-t .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  #overviewform .ov-t tbody tr:nth-child(even){background:#fafbfc}
-  #overviewform .ov-t tfoot td,#overviewform .ov-t tr.grand td{font-weight:800;background:#f3f4f6}
-  #overviewform .ov-t tr.sub td{font-weight:700;background:#fbfbfc}
-  #overviewform .ov-hours td:first-child{font-weight:500}
-  #overviewform .ov-note{font-size:11.5px;color:#5b6672;margin:6px 2px 0}
-  #overviewform .badge-pos{color:#0a7a3a;font-weight:700}
-  #overviewform .badge-neg{color:#c0261a;font-weight:700}
+  body.overviewview header,body.overviewview .wrap,body.batchview header,body.batchview .wrap{display:none!important}
+  .ovdoc{color:#111827;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-size:12.5px;line-height:1.45}
+  .ov-toolbar{display:flex;gap:8px;justify-content:flex-end;margin-bottom:12px;max-width:840px;margin-left:auto;margin-right:auto}
+  .ovdoc .ov-doc{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.07);background:#fff}
+  .ovdoc .ov-band{background:linear-gradient(135deg,#e2001a,#9e0016);color:#fff;padding:16px 22px}
+  .ovdoc .ov-band h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.3px}
+  .ovdoc .ov-band .ov-meta{margin-top:5px;font-size:12px;opacity:.95;line-height:1.5}
+  .ovdoc .ov-inner{padding:18px 22px 22px}
+  .ovdoc .ov-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}
+  .ovdoc .ov-kpi{border:1px solid #eef0f2;border-radius:11px;padding:11px 10px;text-align:center;background:#f8fafc}
+  .ovdoc .ov-kpi .v{font-size:19px;font-weight:800;color:#111827}
+  .ovdoc .ov-kpi .l{font-size:10.5px;color:#5b6672;margin-top:3px}
+  .ovdoc .ov-kpi.good .v{color:#0a7a3a}
+  .ovdoc .ov-kpi.bad .v{color:#c0261a}
+  .ovdoc .ov-sec{font-weight:800;font-size:13.5px;margin:18px 0 8px;padding-left:9px;border-left:4px solid #e2001a}
+  .ovdoc .ov-specs{display:grid;grid-template-columns:1fr 1fr;gap:2px 26px}
+  .ovdoc .ov-specs .sp{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted #e0e4e8;padding:5px 2px}
+  .ovdoc .ov-specs .sp span{color:#5b6672}
+  .ovdoc .ov-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ovdoc table.ov-t{border-collapse:collapse;width:100%;min-width:440px;font-size:12.5px}
+  .ovdoc .ov-t th,.ovdoc .ov-t td{border:1px solid #e6e8eb;padding:7px 10px;text-align:left}
+  .ovdoc .ov-t thead th{background:#f3f4f6;font-weight:700;white-space:nowrap}
+  .ovdoc .ov-t .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ovdoc .ov-t tbody tr:nth-child(even){background:#fafbfc}
+  .ovdoc .ov-t tfoot td,.ovdoc .ov-t tr.grand td{font-weight:800;background:#f3f4f6}
+  .ovdoc .ov-t tr.sub td{font-weight:700;background:#fbfbfc}
+  .ovdoc .ov-hours td:first-child{font-weight:500}
+  .ovdoc .ov-note{font-size:11.5px;color:#5b6672;margin:6px 2px 0}
+  .ovdoc .badge-pos{color:#0a7a3a;font-weight:700}
+  .ovdoc .badge-neg{color:#c0261a;font-weight:700}
+
+  /* BATCH REPORT — nhiều dự án trong 1 tài liệu để in/PDF một lần */
+  #batchform{display:none;padding:0 12px 24px}
+  body.batchview #batchform{display:block}
+  #batchform .batch-page{margin:0 auto 18px}
+  #batchform .bp-ov{max-width:840px}
+  #batchform .batch-info{max-width:840px;margin:0 auto 10px;font-size:12px;color:#5b6672}
+
   @media(max-width:640px){
     #overviewform{font-size:12px;padding:0 6px;margin:8px auto}
-    #overviewform .ov-inner{padding:14px}
-    #overviewform .ov-kpis{grid-template-columns:repeat(2,1fr)}
-    #overviewform .ov-specs{grid-template-columns:1fr}
-    #overviewform .ov-band h1{font-size:16px}
-    #overviewform .ov-kpi .v{font-size:17px}
+    .ovdoc .ov-inner{padding:14px}
+    .ovdoc .ov-kpis{grid-template-columns:repeat(2,1fr)}
+    .ovdoc .ov-specs{grid-template-columns:1fr}
+    .ovdoc .ov-band h1{font-size:16px}
+    .ovdoc .ov-kpi .v{font-size:17px}
   }
 
   /* Hours = A4 ngang; Scorecard = A4 dọc */
@@ -184,18 +195,28 @@
   @media print{
     header,.wrap{display:none!important}
     #excelform{display:block!important;padding:0;page:ef}
-    #excelform [data-noprint]{display:none!important}
+    .efdoc [data-noprint]{display:none!important}
     #excelform>*{page-break-inside:avoid}
     #scorecardform{display:block!important;padding:0;page:sc;page-break-before:always}
-    #overviewform{display:none!important}
-    /* Chế độ báo cáo tổng quan: chỉ in trang tổng quan (bỏ form SWAT & scorecard) */
+    #overviewform,#batchform{display:none!important}
+    /* Báo cáo tổng quan: chỉ in trang tổng quan (bỏ form SWAT & scorecard) */
     body.overviewview #excelform,body.overviewview #scorecardform{display:none!important}
     body.overviewview #overviewform{display:block!important;page:sc;margin:0;max-width:none;padding:0}
-    body.overviewview #overviewform .ov-toolbar{display:none!important}
+    body.overviewview .ov-toolbar{display:none!important}
     body.overviewview #overviewform .ov-doc{border:none;box-shadow:none;border-radius:0}
+    /* Batch: chỉ in #batchform, mỗi dự án 1 (hoặc 2) trang */
+    body.batchview #excelform,body.batchview #scorecardform,body.batchview #overviewform{display:none!important}
+    body.batchview #batchform{display:block!important;padding:0}
+    body.batchview .ov-toolbar,body.batchview .batch-info{display:none!important}
+    #batchform .batch-page{page-break-after:always;margin:0}
+    #batchform .batch-page:last-child{page-break-after:auto}
+    #batchform .bp-ef{page:ef}
+    #batchform .bp-sc{page:sc}
+    #batchform .bp-ov{page:sc;max-width:none}
+    #batchform .bp-ov .ov-doc{border:none;box-shadow:none;border-radius:0}
     body{background:#fff}
   }
-  @media print and (color){#excelform *,#scorecardform *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  @media print and (color){.efdoc *,.scdoc *,.ovdoc *,#batchform *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style>
 </head>
 <body>
@@ -389,7 +410,7 @@
 </div>
 
 <!-- ============ EXCEL-LIKE PRINT FORM (in ra giống form Excel) ============ -->
-<div id="excelform">
+<div id="excelform" class="efdoc">
   <div class="toolbar" style="margin-bottom:8px" data-noprint>
     <button class="btn" onclick="window.print()">🖨 In / Lưu PDF</button>
     <button class="btn sec" onclick="exportExcel()">⬇ Xuất Excel</button>
@@ -406,10 +427,13 @@
 </div>
 
 <!-- ============ SCORECARD PRINT FORM (trang 2) ============ -->
-<div id="scorecardform"></div>
+<div id="scorecardform" class="scdoc"></div>
 
-<!-- ============ BÁO CÁO TỔNG QUAN (trang 3 — dữ liệu giờ công từ dashboard) ============ -->
-<div id="overviewform"></div>
+<!-- ============ BÁO CÁO TỔNG QUAN (dữ liệu giờ công từ dashboard) ============ -->
+<div id="overviewform" class="ovdoc"></div>
+
+<!-- ============ BATCH REPORT (nhiều dự án trong 1 tài liệu) ============ -->
+<div id="batchform"></div>
 
 <script>
 /* ================= CONFIG ================= */
@@ -666,9 +690,9 @@ function fitScorecard(){
  const w=el.scrollWidth,h=el.scrollHeight;if(!w)return;
  el.style.zoom=Math.min(1,pageW/w,pageH/h);
 }
-function openForm(){document.body.classList.remove('overviewview');document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();window.scrollTo(0,0);}
-function closeForm(){document.body.classList.remove('formview','overviewview');window.scrollTo(0,0);}
-window.addEventListener('beforeprint',()=>{if(document.body.classList.contains('overviewview'))return;document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();});
+function openForm(){document.body.classList.remove('overviewview','batchview');document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();window.scrollTo(0,0);}
+function closeForm(){document.body.classList.remove('formview','overviewview','batchview');window.scrollTo(0,0);}
+window.addEventListener('beforeprint',()=>{if(document.body.classList.contains('overviewview')||document.body.classList.contains('batchview'))return;document.body.classList.add('formview');renderForm();renderScorecard();fitForm();fitScorecard();});
 
 /* nhãn form theo ngôn ngữ (VN = đúng sheet "Lifts (VN)"; EN = sheet "Lifts (EN)") */
 const FL={
@@ -890,7 +914,7 @@ function withXLSX(cb){
  let X=window.XLSX;
  if(!X){try{if(window.parent&&window.parent!==window)X=window.parent.XLSX;}catch(e){}}
  if(X)return cb(X);
- const sc=document.createElement('script');sc.src='../../js/xlsx.full.min.js?v=18';
+ const sc=document.createElement('script');sc.src='../../js/xlsx.full.min.js?v=19';
  sc.onload=()=>cb(window.XLSX||null);sc.onerror=()=>cb(null);document.head.appendChild(sc);
 }
 function exportExcel(){
@@ -1042,7 +1066,7 @@ function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
 
 /* API cho nhúng iframe trong TrackingTS */
 function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
-window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}else if(d&&d.type==='SWAT_OVERVIEW_DATA'){try{renderOverview(d.data);}catch(e){}}});
+window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}else if(d&&d.type==='SWAT_OVERVIEW_DATA'){try{renderOverview(d.data);}catch(e){}}else if(d&&d.type==='SWAT_BATCH'){try{runBatch(d.mode,d.projects);}catch(e){}}});
 window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b),setCanWrite:b=>setCanWrite(b)};
 
 /* ============ DANH SÁCH DỰ ÁN + COMBO "TÊN CÔNG TRÌNH" (kiểu Dashboard) ============ */
@@ -1081,9 +1105,9 @@ function ovP(n){return ovN(n)+'%';}
 /* Báo cáo tổng quan: tài liệu độc lập (KHÔNG kèm form SWAT & scorecard). Gồm:
    thông tin dự án · thông số thang · giờ công định mức SWAT · giờ đã chấm theo
    người (+còn lại/overrun, dự phòng) · dự kiến chi thưởng theo người. */
-function renderOverview(data){
- const el=$('overviewform');if(!el)return;
- if(!ST.product){try{calc();}catch(e){}}
+/* Dựng nội dung .ov-doc của báo cáo tổng quan cho DỰ ÁN đang ở trong ST hiện
+   tại (dùng cho cả xem đơn lẻ lẫn batch). data = số liệu giờ công từ dashboard. */
+function buildOverviewDoc(data){
  const s=ST;data=data||{};
  const eh=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
  const prodLabel=s.product==='es50'?'ES 5.0':s.product==='villa'?'Villa Lift':'S3300 / ES1';
@@ -1123,8 +1147,7 @@ function renderOverview(data){
   bonusNote=`Fitter chia theo tỉ lệ giờ công (pool ${money(B.fitterPool)}); Site-sup ${money(B.supPool)}${B.supCount>1?' — chia đều '+B.supCount+' người':''}. Số liệu tham khảo.`;
  }else bonusHtml='<tr><td colspan="6" style="text-align:center;color:#777">Chưa có danh sách nhân viên</td></tr>';
 
- el.innerHTML=
-  '<div class="ov-toolbar" data-noprint><button class="btn" onclick="window.print()">🖨 In / Lưu PDF</button><button class="btn sec" onclick="closeForm()">↩ Đóng</button></div>'+
+ return (
   '<div class="ov-doc"><div class="ov-band"><h1>BÁO CÁO TỔNG QUAN DỰ ÁN</h1>'+
    '<div class="ov-meta">'+eh(data.projectName||gv('pname'))+' · WBS: '+eh(data.wbs||gv('pref'))+(data.supervisor?' · Giám sát: '+eh(data.supervisor):'')+' · '+prodLabel+' · Scheme '+s.year+' · Ngày xuất: '+dstr+'</div></div>'+
    '<div class="ov-inner">'+
@@ -1144,10 +1167,57 @@ function renderOverview(data){
     '<div class="ov-sec">Dự kiến chi thưởng theo nhân viên (VND)</div>'+
     '<div class="ov-tblwrap"><table class="ov-t"><thead><tr><th>Tên NV</th><th>Mã NV</th><th>Vai trò</th><th class="n">Giờ công</th><th class="n">Tỉ lệ</th><th class="n">Tiền thưởng</th></tr></thead><tbody>'+bonusHtml+'</tbody></table></div>'+
     (bonusNote?'<p class="ov-note">'+bonusNote+'</p>':'')+
-   '</div></div>';
-
- document.body.classList.remove('formview');
+   '</div></div>');
+}
+function renderOverview(data){
+ const el=$('overviewform');if(!el)return;
+ if(!ST.product){try{calc();}catch(e){}}
+ el.innerHTML='<div class="ov-toolbar" data-noprint><button class="btn" onclick="window.print()">🖨 In / Lưu PDF</button><button class="btn sec" onclick="closeForm()">↩ Đóng</button></div>'+buildOverviewDoc(data);
+ document.body.classList.remove('formview','batchview');
  document.body.classList.add('overviewview');
+ window.scrollTo(0,0);
+}
+/* ---- BATCH REPORT: nhiều dự án trong 1 tài liệu (in/PDF một lần) ---- */
+function efInnerNoToolbar(){
+ const c=$('excelform').cloneNode(true);
+ c.querySelectorAll('[data-noprint]').forEach(n=>n.remove());
+ c.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));
+ return c.innerHTML;
+}
+function fitBatch(){
+ document.querySelectorAll('#batchform .bp-ef').forEach(el=>{el.style.zoom='1';const w=el.scrollWidth,h=el.scrollHeight;if(w&&h)el.style.zoom=Math.min(1,1060/w,735/h);});
+ document.querySelectorAll('#batchform .bp-sc').forEach(el=>{el.style.zoom='1';const w=el.scrollWidth,h=el.scrollHeight;if(w&&h)el.style.zoom=Math.min(1,718/w,1040/h);});
+}
+function closeBatch(){document.body.classList.remove('batchview');$('batchform').innerHTML='';window.scrollTo(0,0);}
+function runBatch(mode,list){
+ const bf=$('batchform');if(!bf)return;
+ if(!Array.isArray(list)||!list.length){toast('Không có dự án để xuất báo cáo.');return;}
+ const savedState=getState(),savedPeople=PEOPLE.slice();
+ let pages='';
+ list.forEach(it=>{
+  try{
+   if(it.state)setState(it.state);
+   if(it.usedHours!=null)$('usedHours').value=it.usedHours;
+   PEOPLE=Array.isArray(it.people)?it.people:[];
+   calc(); // tính lại ST + scdata + renderForm cho dự án này
+   if(mode==='form'){
+    renderForm();
+    pages+='<div class="batch-page bp-ef efdoc">'+efInnerNoToolbar()+'</div>';
+    const scHtml=buildScorecardTable();
+    if(scHtml)pages+='<div class="batch-page bp-sc scdoc">'+scHtml+'</div>';
+   }else{
+    pages+='<div class="batch-page bp-ov ovdoc">'+buildOverviewDoc(it.overview)+'</div>';
+   }
+  }catch(e){/* bỏ qua dự án lỗi */}
+ });
+ // khôi phục trạng thái đang làm việc (không đổi dự án đang xem)
+ PEOPLE=savedPeople;try{setState(savedState);calc();}catch(e){}
+ const label=mode==='form'?'Form giờ công + Scorecard':'Báo cáo tổng quan';
+ bf.innerHTML='<div class="ov-toolbar" data-noprint><button class="btn" onclick="window.print()">🖨 In / Lưu PDF</button><button class="btn sec" onclick="closeBatch()">↩ Đóng</button></div>'+
+  '<div class="batch-info">Batch report — '+label+' · '+list.length+' dự án</div>'+pages;
+ document.body.classList.remove('formview','overviewview');
+ document.body.classList.add('batchview');
+ fitBatch();
  window.scrollTo(0,0);
 }
 function selectProject(wbs){const p=PROJECTS.find(x=>String(x.pref)===String(wbs));if(p)applyProject(p);}

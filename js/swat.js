@@ -193,6 +193,60 @@ const SwatPage = (() => {
     try { w.postMessage({ type: 'SWAT_OVERVIEW_DATA', data }, '*'); } catch (e) { /* ignore */ }
   }
 
+  // ---- BATCH REPORT (admin): xuất báo cáo hàng loạt cho nhiều dự án ----
+  function confirmedProjects() {
+    // chỉ dự án ĐÃ GHI Swat Target (có cờ + thông số đã lưu để dựng lại)
+    return projects.filter(p => p.targetSwat && p.swatState)
+      .sort((a, b) => (a.projectName || '').localeCompare(b.projectName || ''));
+  }
+  function batchProjectData(wbs) {
+    const p = projects.find(x => x.wbs === wbs);
+    if (!p) return null;
+    let overview = null;
+    try { if (typeof Dashboard !== 'undefined' && Dashboard.reportData) overview = Dashboard.reportData(wbs); } catch (e) { /* ignore */ }
+    if (!overview || !overview.emp) overview = localOverview(wbs);
+    return { wbs, projectName: p.projectName, state: p.swatState || null, usedHours: usedHoursFor(wbs), people: peopleFor(wbs), overview };
+  }
+  function openBatchReport() {
+    if (!Auth.isAdmin()) { alert('Chỉ admin mới dùng được Batch report.'); return; }
+    const list = confirmedProjects();
+    if (!list.length) { alert('Chưa có dự án nào đã ghi Swat Target Hour để xuất báo cáo.'); return; }
+    const rows = list.map(p =>
+      `<label style="display:block;padding:4px 4px;border-bottom:1px solid var(--border)"><input type="checkbox" class="batch-proj" value="${p.wbs}" checked> ${(p.projectName || '(không tên)')} <span style="color:var(--text-muted)">(${p.wbs})</span></label>`
+    ).join('');
+    const body = `
+      <div class="full">
+        <label style="font-weight:600">Loại báo cáo</label>
+        <div style="display:flex;gap:18px;margin:6px 0 2px;flex-wrap:wrap">
+          <label><input type="radio" name="batchMode" value="overview" checked> Báo cáo tổng quan</label>
+          <label><input type="radio" name="batchMode" value="form"> Form bảng tính giờ công + Scorecard</label>
+        </div>
+      </div>
+      <div class="full">
+        <label style="font-weight:600">Dự án (đã ghi Swat Target) — <a href="#" id="batchSelAll">bỏ chọn tất cả</a></label>
+        <div id="batchProjList" style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:2px 6px">${rows}</div>
+      </div>`;
+    Modal.open('Batch report — xuất nhiều dự án', body, async () => {
+      const mode = (document.querySelector('input[name=batchMode]:checked') || {}).value || 'overview';
+      const wbsList = [...document.querySelectorAll('.batch-proj:checked')].map(c => c.value);
+      if (!wbsList.length) { alert('Chọn ít nhất 1 dự án.'); return false; }
+      const data = wbsList.map(batchProjectData).filter(Boolean);
+      const w = swatWin();
+      if (!w) { alert('Chưa mở được công cụ SWAT.'); return false; }
+      try { w.postMessage({ type: 'SWAT_BATCH', mode, projects: data }, '*'); } catch (e) { /* ignore */ }
+      return true;
+    });
+    // toggle chọn/bỏ tất cả
+    const selAll = document.getElementById('batchSelAll');
+    if (selAll) selAll.addEventListener('click', (e) => {
+      e.preventDefault();
+      const boxes = [...document.querySelectorAll('.batch-proj')];
+      const anyOff = boxes.some(b => !b.checked);
+      boxes.forEach(b => b.checked = anyOff);
+      selAll.textContent = anyOff ? 'bỏ chọn tất cả' : 'chọn tất cả';
+    });
+  }
+
   function syncFromDashboard(wbs) { if (wbs) pushProject(wbs); }
 
   function wire() {
@@ -205,6 +259,8 @@ const SwatPage = (() => {
     });
     const f = frame();
     if (f) f.addEventListener('load', () => { pushList(); if (currentWbs) pushProject(currentWbs); });
+    const bb = document.getElementById('btnBatchReport');
+    if (bb) bb.addEventListener('click', openBatchReport);
     pushList();
   }
 
