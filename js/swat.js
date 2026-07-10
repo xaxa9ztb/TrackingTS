@@ -81,6 +81,8 @@ const SwatPage = (() => {
       shape: numTok(spec(s, 'INST_TIME_STANDARD')) || '',
       tsd: /low\s*pit/i.test(spec(s, 'HSG_TYPE')) || /reduced\s*head/i.test(spec(s, 'HSK_TYPE')),
       usedHours: usedHoursFor(p.wbs),
+      saved: p.swatState || null,   // trạng thái mục 1&2 đã "xác nhận Swat" (nếu có)
+      confirmed: !!p.targetSwat,
     };
   }
 
@@ -113,7 +115,14 @@ const SwatPage = (() => {
     const api = swatApi();
     if (!p || !api || !isSwatProject(p)) return;
     currentWbs = wbs;
-    try { api.setInputs(toToolItem(p)); pushPeople(wbs); renderResult(api.getResult()); } catch (e) { /* ignore */ }
+    try {
+      // đảm bảo danh sách (kèm saved-state) đã có trong công cụ rồi chọn đúng dự án
+      pushList();
+      if (typeof api.selectProject === 'function') api.selectProject(wbs);
+      else api.setInputs(toToolItem(p));
+      pushPeople(wbs);
+      renderResult(api.getResult());
+    } catch (e) { /* ignore */ }
   }
 
   // nhận kết quả từ công cụ -> cập nhật nút Ghi Target + đẩy danh sách người
@@ -128,7 +137,7 @@ const SwatPage = (() => {
     if (!r || !r.hours) { btn.style.display = 'none'; return; }
     const known = currentWbs && projects.some(p => p.wbs === currentWbs);
     btn.style.display = (known && Auth.isAdmin()) ? '' : 'none';
-    btn.textContent = `⤓ Ghi ${fmtVN(r.hours.standard_whole_project)} thành Target giờ dự án`;
+    btn.textContent = `⤓ Ghi Swat Hour Target = ${fmtVN(r.hours.standard_whole_project)} giờ`;
   }
 
   async function writeTarget() {
@@ -136,14 +145,16 @@ const SwatPage = (() => {
     const target = Math.round((+lastResult.hours.standard_whole_project || 0) * 10) / 10;
     const p = projects.find(x => x.wbs === currentWbs);
     if (!p) { alert('Không tìm thấy dự án tương ứng WBS ' + currentWbs + ' trong tab Dự án.'); return; }
-    if (!confirm(`Ghi Target giờ của dự án "${p.projectName}" (WBS ${p.wbs}) = ${fmtVN(target)} giờ?`)) return;
-    p.targetHour = target;
-    p.targetHourManual = true;
+    if (!confirm(`Ghi Swat Hour Target cho "${p.projectName}" (WBS ${p.wbs}) = ${fmtVN(target)} giờ?\nToàn bộ thông số mục 1 & 2 hiện tại sẽ được lưu cho dự án này.`)) return;
+    // lưu Swat Hour Target riêng (KHÔNG ghi đè INS Time Total / targetHour) + thông số mục 1&2
+    p.swatTargetHour = target;
     p.targetSwat = true;
+    try { const api = swatApi(); if (api && api.getState) p.swatState = api.getState(); } catch (e) { /* ignore */ }
     await DB.put('projects', p);
+    try { const api = swatApi(); if (api && api.setConfirmed) api.setConfirmed(true); } catch (e) { /* ignore */ }
     await load();
     await Dashboard.reloadAndRefresh();
-    alert('Đã cập nhật Target giờ (đã đánh dấu "đã cập nhật Swat"). Kiểm tra lại trên Dashboard' +
+    alert('Đã lưu Swat Hour Target và thông số mục 1 & 2 (đã xác nhận Swat Hour). Kiểm tra lại trên Dashboard' +
       (typeof Cloud !== 'undefined' && Cloud.canWrite && Cloud.canWrite() ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
   }
 

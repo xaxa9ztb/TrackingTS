@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thống Kê Giờ Công Dự Án</title>
-<link rel="stylesheet" href="css/style.css?v=13">
-<script src="js/xlsx.full.min.js?v=13"></script>
+<link rel="stylesheet" href="css/style.css?v=14">
+<script src="js/xlsx.full.min.js?v=14"></script>
 </head>
 <body>
 <div id="app">
@@ -93,14 +93,23 @@
         </div>
 
         <div class="card gauge-card">
-          <svg id="gaugeSvg" viewBox="0 0 240 140"></svg>
-          <div class="gauge-value" id="gaugeValue">0</div>
-          <div class="gauge-scale">
-            <span id="gaugeMin">0</span><span id="gaugeMax">0</span>
+          <div class="gauge-dual">
+            <div class="gauge-one">
+              <div class="gauge-cap">Giờ chấm / INS Time Total</div>
+              <svg id="gaugeSvg" viewBox="0 0 240 140"></svg>
+              <div class="gauge-value" id="gaugeValue">0</div>
+              <div class="gauge-scale"><span id="gaugeMin">0</span><span id="gaugeMax">0</span></div>
+            </div>
+            <div class="gauge-one" id="gaugeSwatWrap" style="display:none">
+              <div class="gauge-cap">Giờ chấm / Swat Hour Target</div>
+              <svg id="gaugeSwatSvg" viewBox="0 0 240 140"></svg>
+              <div class="gauge-value" id="gaugeSwatValue">0</div>
+              <div class="gauge-scale"><span>0</span><span id="gaugeSwatMax">0</span></div>
+              <div id="targetSwatBadge" class="target-swat-badge" style="display:none">✓ đã xác nhận Swat Hour</div>
+            </div>
           </div>
-          <div id="targetSwatBadge" class="target-swat-badge" style="display:none">✓ đã cập nhật Swat</div>
           <div class="gauge-target-edit admin-only">
-            Target giờ: <input type="number" id="targetHourInput" min="0" step="1">
+            INS Time Total (Target giờ): <input type="number" id="targetHourInput" min="0" step="1">
           </div>
         </div>
 
@@ -209,7 +218,7 @@
         <button class="btn btn-primary admin-only" id="swatWriteTarget" style="display:none">⤓ Ghi thành Target giờ dự án</button>
       </div>
       <div class="swat-frame-wrap">
-        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=13" title="SWAT Hour Calculator"></iframe>
+        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=14" title="SWAT Hour Calculator"></iframe>
       </div>
     </section>
 
@@ -218,19 +227,19 @@
 
 <div id="modalRoot"></div>
 
-<script src="js/config.js?v=13"></script>
-<script src="js/db.js?v=13"></script>
-<script src="js/backup.js?v=13"></script>
-<script src="js/cloud.js?v=13"></script>
-<script src="js/importer.js?v=13"></script>
-<script src="js/charts.js?v=13"></script>
-<script src="js/combo.js?v=13"></script>
-<script src="js/tablefilter.js?v=13"></script>
-<script src="js/dashboard.js?v=13"></script>
-<script src="js/projects.js?v=13"></script>
-<script src="js/timesheet.js?v=13"></script>
-<script src="js/employees.js?v=13"></script>
-<script src="js/swat.js?v=13"></script>
-<script src="js/main.js?v=13"></script>
+<script src="js/config.js?v=14"></script>
+<script src="js/db.js?v=14"></script>
+<script src="js/backup.js?v=14"></script>
+<script src="js/cloud.js?v=14"></script>
+<script src="js/importer.js?v=14"></script>
+<script src="js/charts.js?v=14"></script>
+<script src="js/combo.js?v=14"></script>
+<script src="js/tablefilter.js?v=14"></script>
+<script src="js/dashboard.js?v=14"></script>
+<script src="js/projects.js?v=14"></script>
+<script src="js/timesheet.js?v=14"></script>
+<script src="js/employees.js?v=14"></script>
+<script src="js/swat.js?v=14"></script>
+<script src="js/main.js?v=14"></script>
 </body>
 </html>

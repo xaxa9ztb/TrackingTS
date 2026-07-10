@@ -101,6 +101,10 @@ main { padding: 20px; }
 .gauge-card svg { width: 100%; max-width: 260px; height: 150px; }
 .gauge-value { font-size: 36px; font-weight: 700; margin-top: -30px; }
 .gauge-scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); padding: 0 20px; }
+.gauge-dual { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.gauge-one { flex: 1 1 220px; min-width: 200px; }
+.gauge-cap { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
+.gauge-one .gauge-value { font-size: 28px; }
 .gauge-target-edit { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
 .gauge-target-edit input { width: 60px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; }
 

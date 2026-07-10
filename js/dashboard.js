@@ -192,11 +192,24 @@ const Dashboard = (() => {
     siteSupEl.textContent = (project && project.supervisor) ? project.supervisor : '-';
     siteSupEl.title = (project && project.supervisor) || '';
 
+    // Gauge 1: giờ đã chấm / INS Time Total (targetHour nhập/ import)
     const target = project ? (project.targetHour || 0) : 0;
     Charts.renderGauge(document.getElementById('gaugeSvg'), grand, target);
     document.getElementById('gaugeValue').textContent = fmtVN(grand);
     document.getElementById('gaugeMin').textContent = '0';
     document.getElementById('gaugeMax').textContent = fmtVN(target);
+
+    // Gauge 2: giờ đã chấm / Swat Hour Target — chỉ hiện khi đã set bên tab SWAT
+    const swatTarget = project ? (project.swatTargetHour || 0) : 0;
+    const swatWrap = document.getElementById('gaugeSwatWrap');
+    if (swatTarget > 0) {
+      swatWrap.style.display = '';
+      Charts.renderGauge(document.getElementById('gaugeSwatSvg'), grand, swatTarget);
+      document.getElementById('gaugeSwatValue').textContent = fmtVN(grand);
+      document.getElementById('gaugeSwatMax').textContent = fmtVN(swatTarget);
+    } else {
+      swatWrap.style.display = 'none';
+    }
   }
 
   function renderEmpty() {
@@ -210,6 +223,10 @@ const Dashboard = (() => {
     document.getElementById('statSiteSupName').textContent = '-';
     Charts.renderGauge(document.getElementById('gaugeSvg'), 0, 0);
     document.getElementById('gaugeValue').textContent = '0,0';
+    const swatWrap = document.getElementById('gaugeSwatWrap');
+    if (swatWrap) swatWrap.style.display = 'none';
+    const swatBadge = document.getElementById('targetSwatBadge');
+    if (swatBadge) swatBadge.style.display = 'none';
   }
 
   function renderPie(empRows) {
@@ -286,7 +303,6 @@ const Dashboard = (() => {
       if (!project) return;
       project.targetHour = parseFloat(targetHourInput.value) || 0;
       project.targetHourManual = true;
-      project.targetSwat = false; // sửa tay -> không còn là số từ SWAT
       await DB.put('projects', project);
       refresh();
     });
