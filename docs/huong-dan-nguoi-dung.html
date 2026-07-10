@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Hướng dẫn sử dụng — Người dùng</title>
+<style>
+  @page { size: A4; margin: 14mm 14mm 16mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #1f2733;
+    font-size: 12.5px; line-height: 1.55; margin: 0;
+  }
+  h1, h2, h3 { color: #b00016; margin: 0 0 6px; }
+  p { margin: 0 0 8px; }
+  .muted { color: #6b7280; }
+  .accent { color: #e2001a; font-weight: 700; }
+
+  /* ---- COVER ---- */
+  .cover {
+    height: 258mm; display: flex; flex-direction: column; justify-content: center;
+    text-align: center; page-break-after: always; position: relative;
+    background: linear-gradient(150deg, #e2001a 0%, #8f0012 100%); color: #fff;
+    border-radius: 14px; padding: 40px; margin: -2mm 0;
+  }
+  .cover .kicker { font-size: 15px; letter-spacing: 3px; text-transform: uppercase; opacity: .9; }
+  .cover h1 { color: #fff; font-size: 48px; line-height: 1.1; margin: 14px 0 10px; letter-spacing: .5px; }
+  .cover .app { font-size: 20px; font-weight: 600; opacity: .96; }
+  .cover .badge {
+    display: inline-block; margin-top: 26px; background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.5); border-radius: 999px; padding: 8px 20px;
+    font-size: 15px; font-weight: 600;
+  }
+  .cover .foot { position: absolute; left: 0; right: 0; bottom: 30px; font-size: 12px; opacity: .85; }
+  .cover .icon { font-size: 60px; margin-bottom: 6px; }
+
+  /* ---- SECTIONS ---- */
+  .section { page-break-inside: avoid; margin-bottom: 20px; }
+  .section.newpage { page-break-before: always; }
+  .sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .sec-num {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+    background: #e2001a; color: #fff; font-weight: 800; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sec-head h2 { font-size: 19px; margin: 0; }
+  .lead { font-size: 13px; color: #374151; margin-bottom: 10px; }
+
+  figure { margin: 10px 0 4px; page-break-inside: avoid; }
+  figure img {
+    width: 100%; max-width: 100%; border: 1px solid #e5e7eb; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  figcaption { font-size: 11px; color: #6b7280; margin-top: 4px; text-align: center; }
+
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 8px 0; }
+  ol.steps > li {
+    position: relative; padding: 4px 0 8px 34px; margin: 0; page-break-inside: avoid;
+  }
+  ol.steps > li::before {
+    counter-increment: s; content: counter(s);
+    position: absolute; left: 0; top: 2px; width: 22px; height: 22px;
+    background: #fde7e9; color: #b00016; border-radius: 50%; font-weight: 800; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  ul.ticks { list-style: none; padding: 0; margin: 6px 0; }
+  ul.ticks > li { padding: 3px 0 3px 22px; position: relative; }
+  ul.ticks > li::before { content: '✓'; position: absolute; left: 0; color: #0a7a3a; font-weight: 800; }
+
+  .callout {
+    border-left: 4px solid #e2001a; background: #fff5f5; border-radius: 6px;
+    padding: 10px 14px; margin: 10px 0; font-size: 12px;
+  }
+  .callout.tip { border-left-color: #0a7a3a; background: #f0fbf4; }
+  .callout b { color: #b00016; }
+  .callout.tip b { color: #0a7a3a; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+  .chip {
+    display: inline-block; background: #f3f4f6; border: 1px solid #e5e7eb;
+    border-radius: 6px; padding: 2px 8px; font-size: 11.5px; font-weight: 600; color: #374151;
+    margin: 2px 3px 2px 0;
+  }
+  .faq q { display: block; font-weight: 700; color: #1f2733; margin-top: 8px; }
+  .faq q::before { content: '❓ '; }
+  .faq p { margin: 2px 0 0; }
+  hr { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="icon">🛗📊</div>
+  <div class="kicker">Hướng dẫn sử dụng</div>
+  <h1>Thống Kê<br>Giờ Công Dự Án</h1>
+  <div class="app">Phần mềm theo dõi giờ công lắp đặt &amp; công cụ SWAT Hour</div>
+  <div class="badge">Dành cho người dùng · Phiên bản Phase 1</div>
+  <div class="foot">Tài liệu tra cứu &amp; xem báo cáo — không bao gồm thao tác quản trị.</div>
+</div>
+
+<!-- ============ GIỚI THIỆU ============ -->
+<div class="section">
+  <div class="sec-head"><div class="sec-num">1</div><h2>Giới thiệu</h2></div>
+  <p class="lead"><b>Thống Kê Giờ Công Dự Án</b> giúp bạn <span class="accent">xem nhanh</span> tình hình giờ công của từng dự án lắp đặt thang máy: ai làm bao nhiêu giờ, so với định mức còn lại bao nhiêu, và tra cứu giờ công &amp; tiền thưởng theo công cụ SWAT.</p>
+  <ul class="ticks">
+    <li>Chạy trực tiếp trên trình duyệt (Chrome, Edge, Safari) — không cần cài đặt.</li>
+    <li>Mở bằng đường link phần mềm được cấp; dùng được trên máy tính và điện thoại.</li>
+    <li>Bạn <b>xem &amp; xuất báo cáo</b>; việc nhập/sửa dữ liệu do người quản trị thực hiện.</li>
+  </ul>
+  <div class="callout tip"><b>Mẹo:</b> Nếu giao diện có vẻ cũ sau khi phần mềm được cập nhật, hãy nhấn <b>Ctrl + F5</b> (máy Mac: Cmd + Shift + R) một lần để tải lại bản mới.</div>
+</div>
+
+<!-- ============ MÀN HÌNH CHÍNH ============ -->
+<div class="section">
+  <div class="sec-head"><div class="sec-num">2</div><h2>Màn hình chính &amp; các tab</h2></div>
+  <p class="lead">Thanh trên cùng có 5 tab. Bấm để chuyển qua lại:</p>
+  <div>
+    <span class="chip">Dashboard — tổng quan giờ công</span>
+    <span class="chip">Dự án — danh sách dự án</span>
+    <span class="chip">Bảng công — chi tiết chấm công</span>
+    <span class="chip">Nhân viên — danh bạ</span>
+    <span class="chip">SWAT — bộ tính giờ &amp; thưởng</span>
+  </div>
+  <p class="muted" style="margin-top:8px">Bên phải là trạng thái dữ liệu và nút <b>🔒 Admin</b> (chỉ dùng cho người quản trị). Người dùng thường không cần đăng nhập.</p>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div class="section newpage">
+  <div class="sec-head"><div class="sec-num">3</div><h2>Xem Dashboard</h2></div>
+  <p class="lead">Đây là nơi xem tổng quan giờ công của <b>một dự án</b>.</p>
+  <figure><img src="images/nu-01-dashboard.png" alt="Dashboard"><figcaption>Màn hình Dashboard sau khi chọn dự án</figcaption></figure>
+  <ol class="steps">
+    <li>Tại ô <b>Dự án</b>, gõ tên hoặc mã WBS rồi chọn dự án cần xem.</li>
+    <li>Dùng <b>Select</b> (Site Sup / Fitter) để lọc theo vai trò, hoặc chọn <b>khoảng ngày</b> để xem theo thời gian.</li>
+    <li>Xem <b>biểu đồ tròn</b> tỉ lệ giờ công theo người, <b>bảng nhân viên</b> (Normal/OT1/OT2/OT3/Tổng) và <b>thống kê theo hoạt động (Activities)</b>.</li>
+  </ol>
+</div>
+
+<div class="section">
+  <div class="sec-head"><div class="sec-num">4</div><h2>Đọc đồng hồ "còn lại / overrun"</h2></div>
+  <p class="lead">Hai đồng hồ cho biết dự án đã dùng bao nhiêu giờ so với định mức.</p>
+  <figure><img src="images/nu-02-gauges.png" alt="Đồng hồ giờ công"><figcaption>Trái: so với INS Time Total · Phải: so với Swat Hour Target</figcaption></figure>
+  <div class="grid2">
+    <div><b>Giờ chấm / INS Time Total</b><br><span class="muted">So với chỉ tiêu giờ của dự án.</span></div>
+    <div><b>Giờ chấm / Swat Hour Target</b><br><span class="muted">Chỉ hiện khi dự án đã được xác nhận SWAT.</span></div>
+  </div>
+  <ul class="ticks" style="margin-top:8px">
+    <li><b style="color:#0a7a3a">còn lại Xh</b> (chữ xanh): dự án vẫn còn quỹ giờ.</li>
+    <li><b style="color:#c0261a">overrun Xh</b> (chữ đỏ): dự án đã vượt định mức.</li>
+  </ul>
+  <div class="callout"><b>Nút "↗ Chuyển tới bảng SWAT":</b> bấm để nhảy sang tab SWAT và tự chọn sẵn dự án đang xem.</div>
+</div>
+
+<!-- ============ TRA CỨU ============ -->
+<div class="section newpage">
+  <div class="sec-head"><div class="sec-num">5</div><h2>Tra cứu Dự án · Bảng công · Nhân viên</h2></div>
+  <p class="lead">Ba tab dạng bảng để tra cứu nhanh. Mỗi cột đều có ô lọc riêng.</p>
+  <figure><img src="images/nu-03-projects.png" alt="Tab Dự án"><figcaption>Tab <b>Dự án</b> — WBS, tên, sản phẩm, giám sát, thông số và <b>SWAT Target Hour</b></figcaption></figure>
+  <figure><img src="images/nu-04-timesheet.png" alt="Tab Bảng công"><figcaption>Tab <b>Bảng công</b> — chọn tháng (chu kỳ 16 tháng trước → 15 tháng này), lọc theo nhân viên/dự án</figcaption></figure>
+  <ul class="ticks">
+    <li><b>Dự án:</b> ô tìm theo tên hoặc WBS; xem cột <b>SWAT Target Hour</b> ở cuối bảng.</li>
+    <li><b>Bảng công:</b> chọn tháng để xem đúng chu kỳ; bấm <b>🔍 Tìm trùng lặp</b> để soát các dòng nghi trùng.</li>
+    <li><b>Nhân viên:</b> tra mã NV, họ tên, chức danh, quản lý trực tiếp.</li>
+  </ul>
+</div>
+
+<!-- ============ SWAT ============ -->
+<div class="section newpage">
+  <div class="sec-head"><div class="sec-num">6</div><h2>Công cụ SWAT — tra cứu giờ &amp; thưởng</h2></div>
+  <p class="lead">Tab <b>SWAT</b> cho biết giờ công định mức và dự kiến tiền thưởng của một dự án.</p>
+  <figure><img src="images/nu-05-swat.png" alt="Bộ tính SWAT"><figcaption>Chọn dự án → xem ngay Kết quả tính giờ (mục 3)</figcaption></figure>
+  <ol class="steps">
+    <li>Chọn <b>Tên công trình</b> ở mục 1 (gõ để tìm, không cần gõ dấu).</li>
+    <li>Mục <b>3 – Kết quả tính giờ</b> hiện tổng giờ định mức / thang; mục <b>4</b> là chi tiết 14 bước.</li>
+    <li>Kéo xuống <b>mục 5 – Scorecard</b> để xem tiêu chí chất lượng và <b>tiền thưởng Fitter / Site-sup</b>; <b>mục 6</b> chia thưởng theo từng người.</li>
+  </ol>
+  <div class="callout"><b>Huy hiệu "✓ đã xác nhận Swat"</b> cạnh ô Sản phẩm cho biết dự án đã được quản trị chốt số liệu SWAT. Việc <i>Ghi Swat Target</i> là thao tác của quản trị.</div>
+</div>
+
+<!-- ============ XUẤT BÁO CÁO ============ -->
+<div class="section newpage">
+  <div class="sec-head"><div class="sec-num">7</div><h2>Xuất báo cáo</h2></div>
+  <p class="lead">Trong công cụ SWAT có sẵn các nút xuất — người dùng thường đều dùng được:</p>
+  <div class="grid2">
+    <div><b>⬇ Xuất Excel</b><br><span class="muted">File .xlsx gồm 2 sheet: giờ lắp đặt &amp; scorecard.</span></div>
+    <div><b>📄 Xem form / Xuất PDF</b><br><span class="muted">Xem form giống Excel gốc rồi In / Lưu PDF.</span></div>
+  </div>
+  <p style="margin-top:12px"><b>📊 Báo cáo tổng quan (PDF)</b> — báo cáo đẹp, dễ đọc trên laptop &amp; điện thoại (chỉ hiện với dự án đã xác nhận SWAT):</p>
+  <figure><img src="images/nu-06-overview.png" alt="Báo cáo tổng quan"><figcaption>Thông tin dự án · thông số thang · giờ định mức · giờ đã chấm theo người (còn lại/overrun) · dự kiến chi thưởng</figcaption></figure>
+  <ol class="steps">
+    <li>Chọn dự án trong tab SWAT.</li>
+    <li>Bấm <b>📊 Báo cáo tổng quan</b>.</li>
+    <li>Xem trên màn hình, rồi bấm <b>🖨 In / Lưu PDF</b> để lưu file.</li>
+  </ol>
+</div>
+
+<!-- ============ FAQ ============ -->
+<div class="section newpage">
+  <div class="sec-head"><div class="sec-num">8</div><h2>Câu hỏi thường gặp</h2></div>
+  <div class="faq">
+    <q>Tôi không thấy nút Thêm / Sửa / Xoá?</q>
+    <p>Đó là chức năng của người quản trị. Người dùng thường chỉ xem và xuất báo cáo.</p>
+    <q>Đồng hồ "Swat Hour Target" không hiện?</q>
+    <p>Dự án đó chưa được quản trị <i>Ghi Swat Target</i>. Đồng hồ INS Time Total vẫn hiển thị bình thường.</p>
+    <q>Nút "Báo cáo tổng quan" không xuất hiện?</q>
+    <p>Chỉ áp dụng cho dự án đã được xác nhận SWAT. Hãy báo quản trị nếu cần.</p>
+    <q>Giao diện chưa cập nhật sau khi phần mềm đổi mới?</q>
+    <p>Nhấn <b>Ctrl + F5</b> (Cmd + Shift + R) một lần để tải lại.</p>
+    <q>Số liệu tôi thấy có được lưu lên mạng không?</q>
+    <p>Dữ liệu nằm trong trình duyệt của bạn; bản chung được quản trị đồng bộ qua Google Drive.</p>
+  </div>
+  <hr>
+  <p class="muted" style="text-align:center">Thống Kê Giờ Công Dự Án · Phase 1 · Tài liệu dành cho người dùng.<br>Chi tiết đầy đủ (bao gồm thao tác quản trị) xem tại <b>docs/HUONG-DAN-SU-DUNG.md</b>.</p>
+</div>
+
+</body>
+</html>
