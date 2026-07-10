@@ -66,8 +66,27 @@ const Dashboard = (() => {
       dateTo: document.getElementById('dateTo'),
       sliderFrom: document.getElementById('sliderFrom'),
       sliderTo: document.getElementById('sliderTo'),
-      targetHourInput: document.getElementById('targetHourInput'),
     };
+  }
+
+  // INS Time Total của dự án = cột INS Time Total (spec INST_TIME_TOTAL từ YAN_COM)
+  function insTimeTotal(project) {
+    if (!project) return 0;
+    const s = project.specs || {};
+    const raw = s.INST_TIME_TOTAL != null ? s.INST_TIME_TOTAL
+      : (s['INS Time Total'] != null ? s['INS Time Total'] : '');
+    const n = parseFloat(String(raw).replace(/,/g, '').trim());
+    if (!isNaN(n) && n > 0) return n;
+    return project.targetHour || 0; // fallback nếu specs không có
+  }
+
+  // nhãn nhỏ "còn lại Xh" / "overrun Xh" dưới số giờ đã chấm
+  function remainLabel(el, used, target) {
+    if (!el) return;
+    if (!(target > 0)) { el.textContent = ''; return; }
+    const diff = Math.round((target - used) * 10) / 10;
+    if (diff >= 0) { el.textContent = 'còn lại ' + fmtVN(diff) + 'h'; el.className = 'gauge-remain pos'; }
+    else { el.textContent = 'overrun ' + fmtVN(-diff) + 'h'; el.className = 'gauge-remain neg'; }
   }
 
   async function loadData() {
@@ -137,12 +156,11 @@ const Dashboard = (() => {
   }
 
   function refresh() {
-    const { chkSiteSup, chkFitter, dateFrom, dateTo, targetHourInput } = els();
+    const { chkSiteSup, chkFitter, dateFrom, dateTo } = els();
     const wbs = projCombo ? projCombo.getValue() : '';
     const project = projects.find(p => p.wbs === wbs);
 
     document.getElementById('statWbs').textContent = wbs || '-';
-    targetHourInput.value = project ? (project.targetHour || 0) : 0;
     const swatBadge = document.getElementById('targetSwatBadge');
     if (swatBadge) swatBadge.style.display = (project && project.targetSwat) ? '' : 'none';
 
@@ -192,12 +210,13 @@ const Dashboard = (() => {
     siteSupEl.textContent = (project && project.supervisor) ? project.supervisor : '-';
     siteSupEl.title = (project && project.supervisor) || '';
 
-    // Gauge 1: giờ đã chấm / INS Time Total (targetHour nhập/ import)
-    const target = project ? (project.targetHour || 0) : 0;
+    // Gauge 1: giờ đã chấm / INS Time Total (lấy từ cột INS Time Total của dự án)
+    const target = insTimeTotal(project);
     Charts.renderGauge(document.getElementById('gaugeSvg'), grand, target);
     document.getElementById('gaugeValue').textContent = fmtVN(grand);
     document.getElementById('gaugeMin').textContent = '0';
     document.getElementById('gaugeMax').textContent = fmtVN(target);
+    remainLabel(document.getElementById('gaugeRemain'), grand, target);
 
     // Gauge 2: giờ đã chấm / Swat Hour Target — chỉ hiện khi đã set bên tab SWAT
     const swatTarget = project ? (project.swatTargetHour || 0) : 0;
@@ -207,6 +226,7 @@ const Dashboard = (() => {
       Charts.renderGauge(document.getElementById('gaugeSwatSvg'), grand, swatTarget);
       document.getElementById('gaugeSwatValue').textContent = fmtVN(grand);
       document.getElementById('gaugeSwatMax').textContent = fmtVN(swatTarget);
+      remainLabel(document.getElementById('gaugeSwatRemain'), grand, swatTarget);
     } else {
       swatWrap.style.display = 'none';
     }
@@ -270,7 +290,7 @@ const Dashboard = (() => {
   }
 
   function wire() {
-    const { chkSiteSup, chkFitter, dateFrom, dateTo, sliderFrom, sliderTo, targetHourInput } = els();
+    const { chkSiteSup, chkFitter, dateFrom, dateTo, sliderFrom, sliderTo } = els();
 
     projCombo = Combo.create(document.getElementById('projectCombo'), {
       placeholder: 'Chọn / gõ tên dự án hoặc WBS...',
@@ -297,14 +317,11 @@ const Dashboard = (() => {
       dateTo.value = pctToDate(+sliderTo.value);
       refresh();
     });
-    targetHourInput.addEventListener('change', async () => {
+    const goSwat = document.getElementById('btnGoSwat');
+    if (goSwat) goSwat.addEventListener('click', () => {
       const wbs = projCombo.getValue();
-      const project = projects.find(p => p.wbs === wbs);
-      if (!project) return;
-      project.targetHour = parseFloat(targetHourInput.value) || 0;
-      project.targetHourManual = true;
-      await DB.put('projects', project);
-      refresh();
+      if (typeof switchTab === 'function') switchTab('swat');
+      if (typeof SwatPage !== 'undefined' && wbs) SwatPage.syncFromDashboard(wbs);
     });
     window.addEventListener('resize', refresh);
   }

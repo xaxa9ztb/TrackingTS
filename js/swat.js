@@ -125,22 +125,20 @@ const SwatPage = (() => {
     } catch (e) { /* ignore */ }
   }
 
-  // nhận kết quả từ công cụ -> cập nhật nút Ghi Target + đẩy danh sách người
+  // nhận kết quả từ công cụ -> bật/tắt nút Ghi Swat Target (trong công cụ) + đẩy người
   function renderResult(r) {
     lastResult = r || null;
-    const btn = document.getElementById('swatWriteTarget');
     if (r && r.project && r.project.ref) {
       const w = String(r.project.ref).trim();
       if (w && w !== currentWbs) { currentWbs = w; pushPeople(w); }
     }
-    if (!btn) return;
-    if (!r || !r.hours) { btn.style.display = 'none'; return; }
+    const api = swatApi();
     const known = currentWbs && projects.some(p => p.wbs === currentWbs);
-    btn.style.display = (known && Auth.isAdmin()) ? '' : 'none';
-    btn.textContent = `⤓ Ghi Swat Hour Target = ${fmtVN(r.hours.standard_whole_project)} giờ`;
+    if (api && api.setCanWrite) { try { api.setCanWrite(!!(r && r.hours && known && Auth.isAdmin())); } catch (e) { /* ignore */ } }
   }
 
   async function writeTarget() {
+    if (!Auth.isAdmin()) return;
     if (!lastResult || !currentWbs) return;
     const target = Math.round((+lastResult.hours.standard_whole_project || 0) * 10) / 10;
     const p = projects.find(x => x.wbs === currentWbs);
@@ -161,10 +159,11 @@ const SwatPage = (() => {
   function syncFromDashboard(wbs) { if (wbs) pushProject(wbs); }
 
   function wire() {
-    document.getElementById('swatWriteTarget').addEventListener('click', writeTarget);
     window.addEventListener('message', (ev) => {
       const d = ev.data;
-      if (d && d.type === 'SWAT_RESULT') renderResult(d.data);
+      if (!d) return;
+      if (d.type === 'SWAT_RESULT') renderResult(d.data);
+      else if (d.type === 'SWAT_WRITE_TARGET') writeTarget();
     });
     const f = frame();
     if (f) f.addEventListener('load', () => { pushList(); if (currentWbs) pushProject(currentWbs); });
