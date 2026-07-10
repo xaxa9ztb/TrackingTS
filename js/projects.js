@@ -42,10 +42,10 @@ const ProjectsPage = (() => {
     builtHeaderKey = key;
     thead.innerHTML =
       '<tr><th class="chk-col"><input type="checkbox" id="projChkAll" title="Chọn tất cả"></th>' +
-      '<th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Customer</th><th>Product Line</th><th>Giám sát</th>' +
+      '<th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Product Line</th><th>Giám sát</th>' +
       headers.map(h => `<th>${SPEC_DISPLAY[h] || h}</th>`).join('') +
       '<th>SWAT Target Hour</th><th></th></tr>';
-    const cols = ['chk'].concat(new Array(7 + headers.length).fill(true)).concat([false]);
+    const cols = ['chk'].concat(new Array(6 + headers.length).fill(true)).concat([false]);
     colFilters = TableFilter.build(thead, cols, render);
     thead.querySelector('#projChkAll').addEventListener('change', (e) => {
       if (e.target.checked) lastFilteredIds.forEach(id => selected.add(id));
@@ -64,7 +64,7 @@ const ProjectsPage = (() => {
       .map(p => ({
         p,
         cells: [
-          p.wbs, p.projectNumber || '', p.projectName || '', p.customer || '', p.productLine || '',
+          p.wbs, p.projectNumber || '', p.projectName || '', p.productLine || '',
           p.supervisor || '',
           ...headers.map(h => (p.specs && p.specs[h]) || ''),
           p.swatTargetHour != null ? fmt(p.swatTargetHour) : '',
@@ -78,7 +78,7 @@ const ProjectsPage = (() => {
       <tr>
         <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.p.wbs}" ${selected.has(d.p.wbs) ? 'checked' : ''}></td>
         ${d.cells.map((c, i) => {
-          const cls = (i === 2 || i === 3) ? ' class="col-name"' : '';
+          const cls = (i === 2) ? ' class="col-name"' : '';
           return `<td${cls}>${c}</td>`;
         }).join('')}
         <td class="col-actions">
