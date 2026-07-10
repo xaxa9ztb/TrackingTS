@@ -45,6 +45,16 @@
   .row .v{font-variant-numeric:tabular-nums;font-weight:600}
   .inputrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:4px 0}
   .inputrow input,.inputrow select{max-width:150px}
+  /* searchable combo cho Tên công trình (kiểu như Dashboard) */
+  .pcombo{position:relative;width:210px;max-width:210px;justify-self:end}
+  .pcombo input{max-width:none;width:100%;padding-right:26px}
+  .pcombo-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
+  .pcombo-list{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  .pcombo-item{padding:7px 10px;cursor:pointer;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pcombo-item:hover,.pcombo-item.on{background:var(--panel2)}
+  .pcombo-empty{padding:8px 10px;color:var(--muted);font-size:13px}
+  #bonusTable td.num,#bonusTable th.num{text-align:right}
+  #bonusTable tfoot td{font-weight:700;border-top:2px solid var(--line)}
   .addons{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
   @media(max-width:620px){.addons{grid-template-columns:1fr}}
   .chk{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
@@ -169,7 +179,7 @@
     <div>
       <div class="card">
         <h2><span class="num">1</span><span data-i18n="specs">Thông số kỹ thuật</span></h2>
-        <div class="inputrow"><span data-i18n="pname">Tên công trình</span><input type="text" id="pname" list="projectDL" value="Nhà Ở & VP Z Building" style="max-width:200px" placeholder="Chọn/nhập tên công trình…"><datalist id="projectDL"></datalist></div>
+        <div class="inputrow"><span data-i18n="pname">Tên công trình</span><div class="pcombo"><input type="text" id="pname" autocomplete="off" value="Nhà Ở & VP Z Building" placeholder="Chọn/gõ tên công trình…"><button type="button" id="pnameClear" class="pcombo-clear" tabindex="-1">×</button><div id="pnameList" class="pcombo-list" hidden></div></div></div>
         <div class="inputrow"><span data-i18n="pref">Mã số công trình / WBS</span><input type="text" id="pref" value="812503229"></div>
         <div class="inputrow"><span data-i18n="version">Xuất xứ (AP / EU)</span>
           <select id="version"><option>AP</option><option>EU</option></select></div>
@@ -288,6 +298,23 @@
     <div class="note" data-i18n="scnote">Bảng tiền thưởng và ngưỡng điều chỉnh lấy nguyên theo file Scorecard 2025. Đơn vị: VND.</div>
   </div>
 
+  <!-- SECTION 6: dự kiến tiền thưởng theo người (dữ liệu từ TrackingTS) -->
+  <div class="card">
+    <h2><span class="num">6</span><span data-i18n="bonusTitle">Dự kiến tiền thưởng theo người</span></h2>
+    <div id="bonusNote" class="note" style="border-left-color:var(--accent2)"></div>
+    <div style="overflow:auto;margin-top:8px">
+      <table class="rt" id="bonusTable">
+        <thead><tr>
+          <th data-i18n="bName">Tên NV</th><th>Mã NV</th><th data-i18n="bRole">Vai trò</th>
+          <th style="text-align:right" data-i18n="bHours">Giờ công</th><th style="text-align:right">%</th>
+          <th style="text-align:right" data-i18n="bBonus">Tiền thưởng (VND)</th>
+        </tr></thead>
+        <tbody id="bonusBody"></tbody>
+        <tfoot id="bonusFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
   <div class="note" id="globalNote"></div>
   <footer style="text-align:center;color:var(--muted);font-size:11px;padding:14px 0 24px;line-height:1.6">
     <div data-i18n="disclaimer">⚠ Công cụ nội bộ để tham khảo — không phải tài liệu chính thức của Schindler. Vui lòng đối chiếu file gốc khi dùng cho mục đích thanh toán.</div>
@@ -398,6 +425,7 @@ const I18N={
   addonsum:"Hạng mục phi tiêu chuẩn (Σ)",coord:"Điều phối đa unit / unit",perunit:"TOTAL FITTER HOUR / unit",breakdown:"Chi tiết 14 bước",
   step:"Bước",stepname:"Công đoạn",hrs:"Giờ",scorecard:"SWAT Scorecard — Tiền thưởng",stdh:"Giờ tiêu chuẩn / unit (từ mục 3)",
   acth:"Giờ thực tế = đã dùng + dự phòng",scUsed:"Giờ đã dùng (từ bảng công)",reserve:"Giờ dự phòng (nhập tay)",saving:"Giờ tiết kiệm (Thực tế − Chuẩn)",noyellow:"Không Yellow Card",oil:"Quality Boost: Zero Square Item on OIL (+15%)",
+  bonusTitle:"Dự kiến tiền thưởng theo người",bName:"Tên NV",bRole:"Vai trò",bHours:"Giờ công",bBonus:"Tiền thưởng (VND)",
   fscore:"Fitter score (cần ≥ 3)",sscore:"Site-sup score (cần ≥ 6)",baseInc:"Thưởng nền / unit (Fitter)",baseIncS:"Thưởng nền (Site-sup)",
   fitterpay:"Thưởng Fitter / unit",sitepay:"Thưởng Site-sup / unit",totalpay:"TỔNG thưởng / unit",
   scnote:"Thưởng nền theo scheme từng năm (2026 site-sup cao hơn 2024/2025). (*) Folder 2024 dùng bản scorecard 2025. Đơn vị: VND.",
@@ -413,6 +441,7 @@ const I18N={
   steps14:"14 installation steps (Σ)",safety:"Safety Tasks (by stops)",noninstall:"Non-installation Tasks (by stops)",es50extra:"ES5.0 additional hours",
   addonsum:"Non-standard scope (Σ)",coord:"Multi-unit coordination / unit",perunit:"TOTAL FITTER HOUR / unit",breakdown:"14-step breakdown",step:"Step",
   stepname:"Activity",hrs:"Hrs",scorecard:"SWAT Scorecard — Incentive",stdh:"Standard hours / unit (from #3)",acth:"Actual = used + reserve",scUsed:"Used hours (from timesheet)",reserve:"Reserve hours (manual)",
+  bonusTitle:"Estimated incentive per person",bName:"Name",bRole:"Role",bHours:"Hours",bBonus:"Incentive (VND)",
   saving:"Saving hours (Actual − Standard)",noyellow:"No Yellow Card",oil:"Quality Boost: Zero Square Item on OIL (+15%)",fscore:"Fitter score (need ≥ 3)",
   sscore:"Site-sup score (need ≥ 6)",baseInc:"Base incentive / unit (Fitter)",baseIncS:"Base incentive (Site-sup)",fitterpay:"Fitter incentive / unit",
   sitepay:"Site-sup incentive / unit",totalpay:"TOTAL incentive / unit",scnote:"Base incentive per year's scheme (2026 site-sup is higher than 2024/2025). (*) 2024 folder uses the 2025 scorecard. Currency: VND.",
@@ -546,6 +575,7 @@ function scorecard(){
  const pf=fs>=3?fitterPay(stops,bf,block,boost):0,ps=ss>=6?sitePay(stops,bs,block,boost):0;
  $('scPayF').textContent=money(pf);$('scPayS').textContent=money(ps);$('scPayT').textContent=money(pf+ps);
  ST.scdata={scy,std,used,reserve,act,save,block,fs,ss,crit:{sais,pqc,yellow,tbt,safe,ff,boost:boost?1:0},bf,bs,pf,ps,tot:pf+ps};
+ try{renderBonus6();}catch(e){}
  if(ST.product){saveLocal();postResult();}
 }
 
@@ -879,19 +909,28 @@ function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
 /* API cho nhúng iframe trong TrackingTS */
 function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
 window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}});
-window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l)};
+window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l)};
 
-/* ================= DANH SÁCH DỰ ÁN (nạp từ TrackingTS – tab Dự án) ================= */
-/* TrackingTS gọi SWAT.loadProjects([...]) để đổ danh sách công trình vào ô
-   "Tên công trình" (droplist). Mỗi phần tử: {label,pname,pref(WBS),product,
-   load,speed,stops,travel,pit,over,shaft,bef,shape,tsd,usedHours}. Không còn
-   nạp YAN_COM bằng tay — mọi dữ liệu đến từ tab Dự án của TrackingTS. */
-let PROJECTS=[];
+/* ============ DANH SÁCH DỰ ÁN + COMBO "TÊN CÔNG TRÌNH" (kiểu Dashboard) ============ */
+/* TrackingTS gọi SWAT.loadProjects([...]) đổ danh sách công trình (tab Dự án)
+   vào combo tìm kiếm; SWAT.setPeople([...]) đổ danh sách người (empId,name,
+   role,hours) để dựng mục 6 - dự kiến tiền thưởng. */
+let PROJECTS=[],PEOPLE=[];
+function pnorm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d');}
+let pcActive=-1,pcMatches=[];
+function renderPList(){
+ const inp=$('pname'),list=$('pnameList');if(!list)return;
+ const q=pnorm(inp.value);
+ pcMatches=(q?PROJECTS.filter(p=>pnorm(p.label).includes(q)):PROJECTS).slice(0,100);
+ list.innerHTML=pcMatches.length?pcMatches.map((p,i)=>`<div class="pcombo-item${i===pcActive?' on':''}" data-i="${i}">${String(p.label).replace(/</g,'&lt;')}</div>`).join(''):'<div class="pcombo-empty">Không tìm thấy</div>';
+ list.hidden=false;
+ list.querySelectorAll('.pcombo-item').forEach(el=>el.addEventListener('mousedown',e=>{e.preventDefault();const p=pcMatches[+el.dataset.i];list.hidden=true;if(p)applyProject(p);}));
+ const on=list.querySelector('.pcombo-item.on');if(on)on.scrollIntoView({block:'nearest'});
+}
 function loadProjects(list){
  PROJECTS=Array.isArray(list)?list:[];
- $('projectDL').innerHTML=PROJECTS.map(p=>`<option value="${String(p.label).replace(/"/g,'&quot;')}"></option>`).join('');
- const st=$('yanStatus');if(st)st.textContent=PROJECTS.length?('✓ '+PROJECTS.length+' công trình'):'Chưa có danh sách — mở từ TrackingTS';
  try{localStorage.setItem('swat_projects',JSON.stringify(PROJECTS));}catch(e){}
+ if($('pnameList')&&!$('pnameList').hidden)renderPList();
 }
 function applyProject(p){
  if(!p)return;const set=(id,v)=>{const e=$(id);if(e&&v!==''&&v!=null&&!(typeof v==='number'&&isNaN(v)))e.value=v;};
@@ -900,33 +939,59 @@ function applyProject(p){
  set('load',p.load||'');set('speed',p.speed||'');set('stops',p.stops||'');set('travel',r2(p.travel));
  set('pit',r2(p.pit));set('over',r2(p.over));set('shaft',r2(p.shaft));
  if(p.bef)set('befshape',p.bef);if(p.shape)set('shape',round1(p.shape));
- if(p.usedHours!=null)set('usedHours',p.usedHours); // giờ đã dùng từ bảng công TrackingTS
+ if(p.usedHours!=null)set('usedHours',p.usedHours);
  buildAddons();
  const tsd=document.querySelector('#addons input[data-key=tsd]');if(tsd)tsd.checked=!!p.tsd;
- delete $('stdHour').dataset.touched; // cho phép giờ chuẩn cập nhật lại theo dự án mới
+ delete $('stdHour').dataset.touched;
  calc();toast('Đã nạp thông số: '+p.pname);
 }
-function onPnameChange(){const v=$('pname').value.trim();const p=PROJECTS.find(x=>x.label===v)||PROJECTS.find(x=>x.pname===v);if(p)applyProject(p);}
+
+/* ---- Mục 6: dự kiến tiền thưởng theo người ---- */
+function setPeople(list){PEOPLE=Array.isArray(list)?list:[];renderBonus6();}
+function renderBonus6(){
+ const body=$('bonusBody'),foot=$('bonusFoot'),note=$('bonusNote');if(!body)return;
+ const vi=LANG==='vi';
+ const fitterPool=ST.scdata?ST.scdata.pf:0,supPool=ST.scdata?ST.scdata.ps:0;
+ if(!PEOPLE.length){body.innerHTML=`<tr><td colspan="6" style="color:var(--muted)">${vi?'Chọn công trình để xem dự kiến tiền thưởng theo người.':'Select a project to see per-person incentive.'}</td></tr>`;foot.innerHTML='';note.textContent='';return;}
+ const sups=PEOPLE.filter(p=>p.role==='sup'),fitters=PEOPLE.filter(p=>p.role!=='sup');
+ const totFit=fitters.reduce((s,p)=>s+(+p.hours||0),0);
+ const rows=[];
+ fitters.forEach(p=>rows.push({name:p.name,empId:p.empId,role:'Fitter',hours:+p.hours||0,pct:totFit>0?(+p.hours||0)/totFit*100:0,bonus:totFit>0?fitterPool*(+p.hours||0)/totFit:0}));
+ sups.forEach(p=>rows.push({name:p.name,empId:p.empId,role:'Supervisor',hours:+p.hours||0,pct:null,bonus:sups.length>0?supPool/sups.length:0}));
+ rows.sort((a,b)=>b.bonus-a.bonus);
+ const eh=t=>String(t==null?'':t).replace(/</g,'&lt;');
+ body.innerHTML=rows.map(r=>`<tr><td>${eh(r.name)}</td><td>${eh(r.empId)}</td><td>${r.role}</td><td class="num">${fmt(r.hours)}</td><td class="num">${r.pct==null?'-':fmt(r.pct)+'%'}</td><td class="num">${money(r.bonus)}</td></tr>`).join('');
+ const tot=rows.reduce((s,r)=>s+r.bonus,0);
+ foot.innerHTML=`<tr><td colspan="5">${vi?'Tổng cộng':'Total'} (${rows.length})</td><td class="num">${money(tot)}</td></tr>`;
+ note.textContent=vi?`Fitter: chia theo tỉ lệ giờ công / tổng giờ fitter (tổng ${money(fitterPool)}). Site-sup: ${money(supPool)}${sups.length>1?' (chia đều '+sups.length+' người)':''}. Số liệu tham khảo.`:`Fitters split by hours share (pool ${money(fitterPool)}). Site-sup: ${money(supPool)}. Reference only.`;
+}
 
 /* ================= EVENTS ================= */
-$('pname').addEventListener('change',onPnameChange);
-['year','product','stops','units','version','etype','load','speed','cardoors','travel','pit','over','shaft','bt','ld2','doortype','shape','befshape','pname','pref','usedHours'].forEach(id=>{
+$('pname').addEventListener('focus',()=>{pcActive=-1;renderPList();});
+$('pname').addEventListener('input',()=>{pcActive=-1;renderPList();});
+$('pname').addEventListener('keydown',e=>{const list=$('pnameList');if(list.hidden)return;
+ if(e.key==='ArrowDown'){e.preventDefault();pcActive=Math.min(pcActive+1,pcMatches.length-1);renderPList();}
+ else if(e.key==='ArrowUp'){e.preventDefault();pcActive=Math.max(pcActive-1,0);renderPList();}
+ else if(e.key==='Enter'){e.preventDefault();const p=pcActive>=0?pcMatches[pcActive]:(pcMatches.length===1?pcMatches[0]:null);if(p){list.hidden=true;applyProject(p);}}
+ else if(e.key==='Escape'){list.hidden=true;}});
+$('pname').addEventListener('blur',()=>setTimeout(()=>{if($('pnameList'))$('pnameList').hidden=true;},150));
+$('pnameClear').addEventListener('click',()=>{$('pname').value='';$('pname').focus();renderPList();});
+['year','product','stops','units','version','etype','load','speed','cardoors','travel','pit','over','shaft','bt','ld2','doortype','shape','befshape','pref','usedHours'].forEach(id=>{
  $(id).addEventListener('input',()=>{if(id==='product'||id==='stops')buildAddons();calc();});
 });
 $('stdHour').addEventListener('input',e=>{e.target.dataset.touched=1;scorecard();});
 $('reserveHour').addEventListener('input',scorecard);
 ['c_sais','c_pqc','c_yellow','c_tbt','c_safe','c_ff','c_oil'].forEach(id=>$(id).addEventListener('change',scorecard));
 document.querySelectorAll('#lang button').forEach(b=>b.addEventListener('click',()=>{
- document.querySelectorAll('#lang button').forEach(x=>x.classList.remove('on'));b.classList.add('on');LANG=b.dataset.lang;applyLang();}));
+ document.querySelectorAll('#lang button').forEach(x=>x.classList.remove('on'));b.classList.add('on');LANG=b.dataset.lang;applyLang();renderBonus6();}));
 
-$('globalNote').textContent="Nguồn: các file 'STD installation hours' (2024/2025/2026) + 'SWAT Scorecard 2025'. Form in ra tái hiện đúng bố cục & nội dung form Excel gốc (SPECIFICATION SUMMARY + installation hour + TOTAL FITTER HOUR).";
+$('globalNote').textContent="Nguồn: các file 'STD installation hours' (2024/2025/2026) + 'SWAT Scorecard 2025'. Form in ra tái hiện đúng bố cục & nội dung form Excel gốc.";
 $('appVersion').textContent=APP_VERSION;
 
-/* Nạp lại danh sách công trình đã lưu (nếu admin từng nạp YAN_COM trên trình duyệt này) */
 try{const sp=localStorage.getItem('swat_projects');if(sp)loadProjects(JSON.parse(sp));}catch(e){}
 
-/* Khởi tạo: ưu tiên dữ liệu từ URL (#d=...) > localStorage > mặc định */
 if(!loadFromHash() && !loadLocal()){ buildAddons(); applyLang(); }
+renderBonus6();
 </script>
 </body>
 </html>

@@ -125,32 +125,14 @@ main { padding: 20px; }
 #timesheetTable tr.dup-a td { background: #fff7e0; }
 #timesheetTable tr.dup-b td { background: #fdeaea; }
 
-/* SWAT Hour tab */
-.swat-toolbar { align-items: center; flex-wrap: wrap; }
-.swat-toolbar #swatProjectCombo { min-width: 320px; }
-.swat-readout {
-  display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;
-}
-.swat-readout .swat-muted { color: var(--text-muted); font-size: 13px; align-self: center; }
-.swat-stat {
-  display: flex; flex-direction: column; gap: 2px; padding: 8px 14px;
-  background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; min-width: 130px;
-}
-.swat-stat span { font-size: 12px; color: var(--text-muted); }
-.swat-stat b { font-size: 18px; color: var(--blue-dark); }
-.swat-stat b.swat-small { font-size: 13px; }
-.swat-stat b.swat-pos { color: #1e7e34; }
-.swat-stat b.swat-neg { color: #c0392b; }
+/* SWAT Hour tab — toàn màn hình */
+.swat-topbar { display: flex; justify-content: flex-end; margin-bottom: 8px; min-height: 0; }
+.swat-topbar:empty { display: none; }
 .swat-frame-wrap {
   background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
 }
-#swatFrame { width: 100%; height: 78vh; border: 0; display: block; }
-
-/* per-person incentive table */
-.swat-bonus { margin-top: 16px; }
-.swat-bonus-title { margin: 0 0 4px; font-size: 16px; color: var(--blue-dark); }
-.swat-bonus-note { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
-.swat-bonus .data-table th, .swat-bonus .data-table td { white-space: nowrap; }
+#swatFrame { width: 100%; height: calc(100vh - 132px); min-height: 520px; border: 0; display: block; }
+body:not(.admin-mode) .swat-topbar { display: none; }
 
 /* "đã cập nhật Swat" badge next to gauge target */
 .target-swat-badge {
@@ -280,13 +262,7 @@ body:not(.admin-mode) .chk-col { display: none; }
   .update-option { flex-direction: column; align-items: stretch; }
 
   /* SWAT Hour tab on mobile */
-  .swat-toolbar { flex-direction: column; align-items: stretch; }
-  .swat-toolbar .cycle-label { white-space: normal; }
-  .swat-toolbar .btn { width: 100%; text-align: center; }
-  .swat-readout { gap: 8px; }
-  .swat-stat { flex: 1 1 45%; min-width: 0; padding: 8px 10px; }
-  .swat-stat b { font-size: 16px; }
+  .swat-topbar .btn { width: 100%; text-align: center; }
   /* công cụ nhúng cần cao hơn vì bố cục dồn 1 cột trên mobile */
-  #swatFrame { height: 150vh; min-height: 640px; }
-  .swat-bonus-title { font-size: 14px; }
+  #swatFrame { height: calc(100vh - 150px); min-height: 560px; }
 }
