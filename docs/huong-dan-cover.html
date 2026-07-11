@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Trang bìa</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: Arial, Helvetica, 'Segoe UI', sans-serif; }
+  .page { width: 210mm; height: 297mm; position: relative; background: #fff; overflow: hidden; }
+
+  .topband {
+    height: 40mm; background: #e2001a; color: #fff;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 20mm;
+  }
+  .wordmark { font-size: 34px; font-weight: 800; letter-spacing: .5px; }
+  .tagline { font-size: 13px; font-weight: 600; opacity: .92; }
+
+  .hero { position: absolute; top: 40mm; bottom: 24mm; left: 0; right: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 24mm; }
+  .kicker { color: #e2001a; letter-spacing: 5px; font-size: 14px; font-weight: 700; text-transform: uppercase; }
+  .title { font-size: 48px; font-weight: 800; color: #1f2733; line-height: 1.08; margin: 16px 0 10px; }
+  .sub { font-size: 18px; color: #4b5563; font-weight: 600; max-width: 150mm; }
+  .rule { width: 62mm; height: 4px; background: #e2001a; margin: 26px auto; border-radius: 2px; }
+  .badge { display: inline-block; border: 1.5px solid #e2001a; color: #e2001a;
+    border-radius: 999px; padding: 9px 24px; font-weight: 700; font-size: 14px; }
+  .note { margin-top: 18px; font-size: 12.5px; color: #6b7280; }
+
+  .bottomband {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 24mm; background: #111827; color: #e5e7eb;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 20mm; font-size: 12px;
+  }
+  .bottomband .b-strong { color: #fff; font-weight: 700; }
+  .bottomband .b-red { color: #ff5a67; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topband">
+    <div class="wordmark">Schindler</div>
+    <div class="tagline">We Elevate</div>
+  </div>
+
+  <div class="hero">
+    <div class="kicker">Hướng dẫn sử dụng</div>
+    <div class="title">Thống Kê<br>Giờ Công Dự Án</div>
+    <div class="sub">Phần mềm theo dõi giờ công lắp đặt thang máy &amp; công cụ SWAT Hour</div>
+    <div class="rule"></div>
+    <div class="badge">Dành cho người dùng · Phiên bản Phase 1</div>
+    <div class="note">Tài liệu tra cứu &amp; xem báo cáo — không bao gồm thao tác quản trị.</div>
+  </div>
+
+  <div class="bottomband">
+    <div><span class="b-strong">Schindler Vietnam</span> · NI — Volume Business Fulfillment Team</div>
+    <div class="b-red">Tài liệu nội bộ</div>
+  </div>
+</div>
+</body>
+</html>
