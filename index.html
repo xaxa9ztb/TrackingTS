@@ -4,10 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thống Kê Giờ Công Dự Án</title>
-<link rel="stylesheet" href="css/style.css?v=20">
-<script src="js/xlsx.full.min.js?v=20"></script>
+<link rel="stylesheet" href="css/style.css?v=21">
+<script src="js/xlsx.full.min.js?v=21"></script>
 </head>
 <body>
+
+<!-- ===== Tường xác thực người xem (họ tên + mã số nhân viên) ===== -->
+<div id="viewGate" class="gate-overlay" style="display:none">
+  <div class="gate-box">
+    <div class="gate-brand">Schindler</div>
+    <h2>Xác thực người xem</h2>
+    <p class="gate-sub">Nhập <b>họ tên đầy đủ</b> và <b>mã số nhân viên</b> của bạn để xem ứng dụng.</p>
+    <label class="gate-field">Họ và tên đầy đủ
+      <input id="gateName" type="text" autocomplete="off" placeholder="VD: Lê Thanh Tùng">
+    </label>
+    <label class="gate-field">Mã số nhân viên
+      <input id="gateId" type="text" autocomplete="off" inputmode="numeric" placeholder="VD: 540503">
+    </label>
+    <div id="gateErr" class="gate-err"></div>
+    <button class="btn btn-primary gate-submit" id="gateSubmit">Vào xem →</button>
+    <button type="button" class="gate-admin-link" id="gateAdmin">Đăng nhập quản trị</button>
+  </div>
+</div>
+
 <div id="app">
 
   <header class="topbar">
@@ -16,7 +35,7 @@
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="projects">Dự án</button>
       <button class="tab-btn" data-tab="timesheet">Bảng công</button>
-      <button class="tab-btn" data-tab="employees">Nhân viên</button>
+      <button class="tab-btn admin-only" data-tab="employees">Nhân viên</button>
       <button class="tab-btn" data-tab="swat">SWAT</button>
     </nav>
     <div class="header-actions">
@@ -220,7 +239,7 @@
         <span class="batch-hint">Xuất báo cáo hàng loạt — chỉ các dự án đã ghi Swat Target Hour</span>
       </div>
       <div class="swat-frame-wrap">
-        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=20" title="SWAT Calculator"></iframe>
+        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=21" title="SWAT Calculator"></iframe>
       </div>
     </section>
 
@@ -229,19 +248,19 @@
 
 <div id="modalRoot"></div>
 
-<script src="js/config.js?v=20"></script>
-<script src="js/db.js?v=20"></script>
-<script src="js/backup.js?v=20"></script>
-<script src="js/cloud.js?v=20"></script>
-<script src="js/importer.js?v=20"></script>
-<script src="js/charts.js?v=20"></script>
-<script src="js/combo.js?v=20"></script>
-<script src="js/tablefilter.js?v=20"></script>
-<script src="js/dashboard.js?v=20"></script>
-<script src="js/projects.js?v=20"></script>
-<script src="js/timesheet.js?v=20"></script>
-<script src="js/employees.js?v=20"></script>
-<script src="js/swat.js?v=20"></script>
-<script src="js/main.js?v=20"></script>
+<script src="js/config.js?v=21"></script>
+<script src="js/db.js?v=21"></script>
+<script src="js/backup.js?v=21"></script>
+<script src="js/cloud.js?v=21"></script>
+<script src="js/importer.js?v=21"></script>
+<script src="js/charts.js?v=21"></script>
+<script src="js/combo.js?v=21"></script>
+<script src="js/tablefilter.js?v=21"></script>
+<script src="js/dashboard.js?v=21"></script>
+<script src="js/projects.js?v=21"></script>
+<script src="js/timesheet.js?v=21"></script>
+<script src="js/employees.js?v=21"></script>
+<script src="js/swat.js?v=21"></script>
+<script src="js/main.js?v=21"></script>
 </body>
 </html>

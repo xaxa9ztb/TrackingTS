@@ -314,11 +314,61 @@ async function refreshAllPages() {
   await updateDataStatus();
 }
 
+// Tường xác thực người xem: người xem nhập họ tên đầy đủ + mã số nhân viên;
+// hệ thống đối chiếu với danh sách nhân viên (không phân biệt hoa/thường & dấu).
+// Ví dụ "Lê Thanh Tùng" + "540503" khớp nhân viên có fullName/empId tương ứng.
+// Admin luôn được xem (bỏ qua tường). Đây là lớp chặn đơn giản phía client.
+const ViewerGate = (() => {
+  function norm(s) {
+    return String(s || '').toLowerCase().normalize('NFD')
+      .replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '');
+  }
+  const el = () => document.getElementById('viewGate');
+  const passed = () => sessionStorage.getItem('viewerOk') === '1';
+  function hide() { const g = el(); if (g) g.style.display = 'none'; }
+  function open() {
+    const g = el(); if (!g) return;
+    g.style.display = 'flex';
+    const n = document.getElementById('gateName'); if (n) setTimeout(() => n.focus(), 60);
+  }
+  function ensure() { if (Auth.isAdmin() || passed()) hide(); else open(); }
+  async function verify(name, id) {
+    const key = norm(name) + norm(id);
+    if (!norm(name) || !norm(id)) return false;
+    let emps = [];
+    try { emps = await DB.getAll('employees'); } catch (e) { /* ignore */ }
+    return emps.some(e => (norm(e.fullName) + norm(e.empId)) === key);
+  }
+  async function submit() {
+    const name = document.getElementById('gateName').value;
+    const id = document.getElementById('gateId').value;
+    const err = document.getElementById('gateErr');
+    const btn = document.getElementById('gateSubmit');
+    err.textContent = ''; btn.disabled = true;
+    const ok = await verify(name, id);
+    btn.disabled = false;
+    if (ok) { sessionStorage.setItem('viewerOk', '1'); hide(); }
+    else { err.textContent = 'Họ tên hoặc mã số nhân viên không đúng. Vui lòng kiểm tra lại.'; }
+  }
+  function wire() {
+    const btn = document.getElementById('gateSubmit'); if (btn) btn.addEventListener('click', submit);
+    ['gateName', 'gateId'].forEach(id => {
+      const f = document.getElementById(id);
+      if (f) f.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    });
+    const adm = document.getElementById('gateAdmin');
+    if (adm) adm.addEventListener('click', async () => { await Auth.toggle(); ensure(); });
+  }
+  return { ensure, wire };
+})();
+
 document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
   Auth.init();
-  document.getElementById('btnAdmin').addEventListener('click', () => Auth.toggle());
+  ViewerGate.wire();
+  ViewerGate.ensure();
+  document.getElementById('btnAdmin').addEventListener('click', async () => { await Auth.toggle(); ViewerGate.ensure(); });
 
   document.getElementById('btnImport').addEventListener('click', openUpdateModal);
 
