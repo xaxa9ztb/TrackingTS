@@ -48,6 +48,23 @@ main { padding: 20px; }
   border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; margin-bottom: 16px; flex-wrap: wrap;
 }
 .btn-guide { margin-left: auto; align-self: flex-end; white-space: nowrap; text-decoration: none; }
+
+/* Tường xác thực người xem */
+.gate-overlay { position: fixed; inset: 0; z-index: 9999; background: linear-gradient(150deg, #e2001a, #8f0012);
+  display: flex; align-items: center; justify-content: center; padding: 20px; }
+.gate-box { background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  padding: 28px 28px 22px; width: 100%; max-width: 400px; }
+.gate-brand { font-weight: 800; color: #e2001a; font-size: 24px; letter-spacing: .5px; margin-bottom: 10px; }
+.gate-box h2 { margin: 0 0 4px; color: #1f2733; font-size: 20px; }
+.gate-sub { color: #6b7280; font-size: 13px; margin: 0 0 16px; line-height: 1.5; }
+.gate-field { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 12px; }
+.gate-field input { display: block; width: 100%; margin-top: 5px; padding: 10px 12px;
+  border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+.gate-field input:focus { outline: none; border-color: #e2001a; box-shadow: 0 0 0 3px rgba(226,0,26,.12); }
+.gate-err { color: #c0261a; font-size: 12.5px; min-height: 18px; margin-bottom: 6px; }
+.gate-submit { width: 100%; justify-content: center; padding: 11px; font-size: 15px; }
+.gate-admin-link { display: block; width: 100%; margin-top: 12px; background: none; border: none;
+  color: #6b7280; font-size: 12px; cursor: pointer; text-decoration: underline; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 .field select, .field input[type=date] {
