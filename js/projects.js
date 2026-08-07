@@ -15,13 +15,29 @@ const ProjectsPage = (() => {
   function fmt(n) { return (Math.round((n || 0) * 100) / 100).toLocaleString('vi-VN'); }
 
   function specHeaders() {
+    let list = [];
     try {
       const stored = JSON.parse(localStorage.getItem('specHeaders') || 'null');
-      if (stored && stored.length) return stored;
+      if (stored && stored.length) list = stored;
     } catch (e) { /* ignore */ }
-    // fall back to keys of the first project that has specs
-    const withSpecs = projects.find(p => p.specs && Object.keys(p.specs).length);
-    return withSpecs ? Object.keys(withSpecs.specs) : [];
+    if (!list.length) {
+      // fall back to keys of the first project that has specs
+      const withSpecs = projects.find(p => p.specs && Object.keys(p.specs).length);
+      list = withSpecs ? Object.keys(withSpecs.specs) : [];
+    }
+    // Bỏ cột "Inst_time_kg"; ẩn INST_TIME_STANDARD vì đã có cột "X hour" riêng.
+    const norm = h => String(h).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return list.filter(h => norm(h) !== 'INSTTIMEKG' && norm(h) !== 'INSTTIMESTANDARD');
+  }
+
+  // X hour = giờ SHAPE chuẩn (cột AP = INST_TIME_STANDARD của file Yan_COM)
+  function xHourOf(p) {
+    if (p.xHour != null && p.xHour !== '') return p.xHour;
+    const s = p.specs || {};
+    const raw = s.INST_TIME_STANDARD != null ? s.INST_TIME_STANDARD
+      : (s['INS Time Standard'] != null ? s['INS Time Standard'] : '');
+    const n = parseFloat(String(raw).split('|')[0].replace(/,/g, '').trim());
+    return isNaN(n) ? null : n;
   }
 
   // tên hiển thị cho một số cột thông số kỹ thuật (dữ liệu bên dưới giữ nguyên key gốc)
@@ -44,8 +60,8 @@ const ProjectsPage = (() => {
       '<tr><th class="chk-col"><input type="checkbox" id="projChkAll" title="Chọn tất cả"></th>' +
       '<th>WBS Element</th><th>Project Number</th><th>Project Name</th><th>Product Line</th><th>Giám sát</th>' +
       headers.map(h => `<th>${SPEC_DISPLAY[h] || h}</th>`).join('') +
-      '<th>SWAT Target Hour</th><th></th></tr>';
-    const cols = ['chk'].concat(new Array(6 + headers.length).fill(true)).concat([false]);
+      '<th>X hour</th><th>SWAT Target Hour</th><th></th></tr>';
+    const cols = ['chk'].concat(new Array(7 + headers.length).fill(true)).concat([false]);
     colFilters = TableFilter.build(thead, cols, render);
     thead.querySelector('#projChkAll').addEventListener('change', (e) => {
       if (e.target.checked) lastFilteredIds.forEach(id => selected.add(id));
@@ -67,6 +83,7 @@ const ProjectsPage = (() => {
           p.wbs, p.projectNumber || '', p.projectName || '', p.productLine || '',
           p.supervisor || '',
           ...headers.map(h => (p.specs && p.specs[h]) || ''),
+          xHourOf(p) != null ? fmt(xHourOf(p)) : '',
           p.swatTargetHour != null ? fmt(p.swatTargetHour) : '',
         ],
       }))
