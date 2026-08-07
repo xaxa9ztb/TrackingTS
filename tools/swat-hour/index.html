@@ -1239,6 +1239,9 @@ function applyProject(p){
    delete $('stdHour').dataset.touched;
  }
  setConfirmed(!!p.confirmed);
+ // Giờ SHAPE (X extract) LUÔN lấy từ X hour của bảng Dự án — kể cả khi khôi
+ // phục trạng thái đã xác nhận — để bám sát dữ liệu Yan_COM mới nhất.
+ if(p.shape!=null&&p.shape!=='')set('shape',round1(p.shape));
  $('pname').title=$('pname').value;
  calc();toast('Đã nạp thông số: '+p.pname);
 }
