@@ -115,6 +115,11 @@ function openUpdateModal() {
           <button class="btn btn-primary" data-mode="full">Chọn file</button>
         </div>
 
+        <label class="update-overwrite" style="display:flex;gap:8px;align-items:flex-start;padding:10px 12px;margin:4px 0;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="updOverwrite" style="margin-top:2px">
+          <span><b>Ghi đè dữ liệu của dòng trùng lặp</b> — áp dụng cho 3 mục <b>Dự án / Nhân viên / Bảng công</b> bên dưới. Khi bật, dòng trùng sẽ được <b>thay thế toàn bộ bằng dữ liệu mới</b> thay vì bỏ qua/chỉ điền ô trống. (Riêng trạng thái SWAT đã xác nhận của dự án vẫn được giữ.)</span>
+        </label>
+
         <div class="update-option">
           <div class="update-info">
             <b>2. Bổ sung Dự án (Yan_COM)</b>
@@ -272,6 +277,8 @@ function openUpdateModal() {
         if (!files.length) return;
         statusEl.textContent = 'Đang xử lý...';
         statusEl.className = 'update-status';
+        const ovEl = document.getElementById('updOverwrite');
+        const overwrite = !!(ovEl && ovEl.checked);
         try {
           let msg;
           if (mode === 'full') {
@@ -279,14 +286,20 @@ function openUpdateModal() {
             msg = `Đã thay thế toàn bộ: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.` +
               (r.duplicates ? ` Đã loại ${r.duplicates} dòng trùng lặp.` : '');
           } else if (mode === 'projects') {
-            const r = await Importer.importProjectsFile(files[0]);
-            msg = `Đã thêm ${r.added} dự án mới, bổ sung thông tin cho ${r.updated} dự án đã có, bỏ qua ${r.skipped} dòng không có gì mới.`;
+            const r = await Importer.importProjectsFile(files[0], overwrite);
+            msg = overwrite
+              ? `Đã thêm ${r.added} dự án mới, GHI ĐÈ ${r.updated} dự án trùng WBS.`
+              : `Đã thêm ${r.added} dự án mới, bổ sung thông tin cho ${r.updated} dự án đã có, bỏ qua ${r.skipped} dòng không có gì mới.`;
           } else if (mode === 'employees') {
-            const r = await Importer.importEmployeesFile(files[0]);
-            msg = `Đã thêm ${r.added} nhân viên mới, bỏ qua ${r.skipped} dòng trùng mã NV.`;
+            const r = await Importer.importEmployeesFile(files[0], overwrite);
+            msg = overwrite
+              ? `Đã thêm ${r.added} nhân viên mới, GHI ĐÈ ${r.overwritten} nhân viên trùng mã NV.`
+              : `Đã thêm ${r.added} nhân viên mới, bỏ qua ${r.skipped} dòng trùng mã NV.`;
           } else {
-            const r = await Importer.importTimesheetFiles(files);
-            msg = `Đã import ${r.files} file: thêm ${r.added} dòng mới, bỏ qua ${r.skipped} dòng trùng.`;
+            const r = await Importer.importTimesheetFiles(files, overwrite);
+            msg = overwrite
+              ? `Đã import ${r.files} file: thêm ${r.added} dòng mới, GHI ĐÈ ${r.overwritten} dòng trùng.`
+              : `Đã import ${r.files} file: thêm ${r.added} dòng mới, bỏ qua ${r.skipped} dòng trùng.`;
           }
           await refreshAllPages();
           statusEl.textContent = '✓ ' + msg;

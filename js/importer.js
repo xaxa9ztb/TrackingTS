@@ -282,7 +282,7 @@ const Importer = (() => {
   // - WBS mới -> thêm dự án mới.
   // - WBS đã có -> KHÔNG ghi đè dữ liệu cũ, nhưng điền bổ sung vào các ô
   //   còn trống (kỹ thuật, giám sát, project number...) nếu file mới có giá trị.
-  async function importProjectsFile(file) {
+  async function importProjectsFile(file, overwrite = false) {
     const wb = await readWorkbook(file);
     const sheet = findSheet(wb, ['Yan_COM']) || wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
@@ -307,6 +307,18 @@ const Importer = (() => {
         added++;
         continue;
       }
+      if (overwrite) {
+        // GHI ĐÈ: thay toàn bộ dữ liệu từ file cho dòng trùng WBS, nhưng GIỮ
+        // trạng thái SWAT do app tạo (không có trong Yan_COM) và Target nhập tay.
+        const merged = { ...old, ...np };
+        merged.swatTargetHour = old.swatTargetHour;
+        merged.targetSwat = old.targetSwat;
+        merged.swatState = old.swatState;
+        if (old.targetHourManual) { merged.targetHour = old.targetHour; merged.targetHourManual = true; }
+        toPut.push(merged);
+        updated++;
+        continue;
+      }
       let changed = false;
       for (const f of ['projectNumber', 'projectName', 'customer', 'productLine', 'supervisor', 'salesRep']) {
         if (isEmpty(old[f]) && !isEmpty(np[f])) { old[f] = np[f]; changed = true; }
@@ -329,7 +341,7 @@ const Importer = (() => {
 
   // Mode 2b: standalone EE Data file -> only ADD new employees; duplicate
   // employee IDs are skipped
-  async function importEmployeesFile(file) {
+  async function importEmployeesFile(file, overwrite = false) {
     const wb = await readWorkbook(file);
     const sheet = findSheet(wb, ['EE DATA', 'EE Data']) || wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
@@ -339,15 +351,21 @@ const Importer = (() => {
     }
     const existing = await DB.getAll('employees');
     const existingIds = new Set(existing.map(e => e.empId));
+    const dup = mapped.filter(e => existingIds.has(e.empId)).length;
+    if (overwrite) {
+      // GHI ĐÈ: ghi cả dòng trùng mã NV (thay thế toàn bộ dữ liệu nhân viên đó)
+      await DB.bulkPut('employees', mapped);
+      return { added: mapped.length - dup, overwritten: dup, skipped: 0 };
+    }
     const fresh = mapped.filter(e => !existingIds.has(e.empId));
     await DB.bulkPut('employees', fresh);
-    return { added: fresh.length, skipped: mapped.length - fresh.length };
+    return { added: fresh.length, overwritten: 0, skipped: dup };
   }
 
   // Mode 2c: one or more monthly timesheet files (one per employee per month).
   // A row is a duplicate when the same employee + date + project + activity
   // already exists; duplicates are skipped, nothing is overwritten.
-  async function importTimesheetFiles(files) {
+  async function importTimesheetFiles(files, overwrite = false) {
     let allRows = [];
     for (const f of files) {
       const wb = await readWorkbook(f);
@@ -361,8 +379,28 @@ const Importer = (() => {
     }
 
     const existing = await DB.getAll('timesheets');
-    const seenKeys = new Set(existing.map(tsKey));
 
+    if (overwrite) {
+      // GHI ĐÈ: dòng trùng (cùng NV + ngày + giờ + dự án + hoạt động) được
+      // thay thế bằng dữ liệu mới (giữ id để cập nhật đúng dòng cũ).
+      const byKey = {};
+      existing.forEach(t => { byKey[tsKey(t)] = t; });
+      const toPut = [];
+      const seen = new Set();
+      let added = 0, overwritten = 0;
+      for (const r of allRows) {
+        const k = tsKey(r);
+        if (seen.has(k)) continue; // dedupe trong chính lô import
+        seen.add(k);
+        const old = byKey[k];
+        if (old) { r.id = old.id; toPut.push(r); overwritten++; }
+        else { toPut.push(r); added++; }
+      }
+      await DB.bulkPut('timesheets', toPut);
+      return { files: files.length, added, overwritten, skipped: allRows.length - toPut.length };
+    }
+
+    const seenKeys = new Set(existing.map(tsKey));
     const fresh = [];
     for (const r of allRows) {
       const k = tsKey(r);
@@ -372,7 +410,7 @@ const Importer = (() => {
       }
     }
     await DB.bulkPut('timesheets', fresh);
-    return { files: files.length, added: fresh.length, skipped: allRows.length - fresh.length };
+    return { files: files.length, added: fresh.length, overwritten: 0, skipped: allRows.length - fresh.length };
   }
 
   async function exportWorkbook() {
