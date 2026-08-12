@@ -30,14 +30,14 @@ const ProjectsPage = (() => {
     return list.filter(h => norm(h) !== 'INSTTIMEKG' && norm(h) !== 'INSTTIMESTANDARD');
   }
 
-  // X hour = giờ SHAPE chuẩn (cột AP = INST_TIME_STANDARD của file Yan_COM)
+  // X hour = giờ lấy theo TÊN cột GRP_INST_TIME_STANDARD của file Yan_COM
   function xHourOf(p) {
-    if (p.xHour != null && p.xHour !== '') return p.xHour;
     const s = p.specs || {};
     const raw = s.INST_TIME_STANDARD != null ? s.INST_TIME_STANDARD
       : (s['INS Time Standard'] != null ? s['INS Time Standard'] : '');
     const n = parseFloat(String(raw).split('|')[0].replace(/,/g, '').trim());
-    return isNaN(n) ? null : n;
+    if (!isNaN(n)) return n;
+    return (p.xHour != null && p.xHour !== '') ? p.xHour : null;
   }
 
   // tên hiển thị cho một số cột thông số kỹ thuật (dữ liệu bên dưới giữ nguyên key gốc)
