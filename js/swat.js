@@ -78,8 +78,8 @@ const SwatPage = (() => {
       over: div(spec(s, 'HSK'), 1000),
       shaft: div(spec(s, 'TS_MIN'), 1000),
       bef: numTok(spec(s, 'BRANCH_EFFICIENCY_FACTOR', 'BEF')) || '',
-      // Giờ SHAPE (X extract) = X hour của bảng Dự án (cột AP = INST_TIME_STANDARD)
-      shape: (p.xHour != null && p.xHour !== '' ? p.xHour : numTok(spec(s, 'INST_TIME_STANDARD'))) || '',
+      // Giờ SHAPE (X extract) = X hour (cột GRP_INST_TIME_STANDARD, lấy theo tên)
+      shape: numTok(spec(s, 'INST_TIME_STANDARD')) || (p.xHour != null && p.xHour !== '' ? p.xHour : '') || '',
       tsd: /low\s*pit/i.test(spec(s, 'HSG_TYPE')) || /reduced\s*head/i.test(spec(s, 'HSK_TYPE')),
       usedHours: usedHoursFor(p.wbs),
       saved: p.swatState || null,   // trạng thái mục 1&2 đã "xác nhận Swat" (nếu có)

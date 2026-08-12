@@ -93,8 +93,8 @@ const Importer = (() => {
         supervisor: r[8] || '',
         salesRep: r[12] || '',
         netValue: toNum(r[13]),
-        // X hour = giờ SHAPE chuẩn, lấy từ cột AP (index 41 = GRP_INST_TIME_STANDARD)
-        xHour: toNum(r[41]),
+        // X hour = lấy theo TÊN cột GRP_INST_TIME_STANDARD (không phụ thuộc vị trí cột)
+        xHour: toNum(specs['INST_TIME_STANDARD']),
         specs,
         targetHour: (existing && existing.targetHourManual) ? existing.targetHour : defaultTarget,
         targetHourManual: existing ? !!existing.targetHourManual : false,
