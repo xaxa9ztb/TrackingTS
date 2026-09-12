@@ -40,12 +40,45 @@ const Cloud = (() => {
     lastUpdatedAt = data.updatedAt || null;
   }
 
+  // ---- nén/giải nén gzip (giảm dung lượng file Drive ~5-10 lần để lâu chạm
+  // hạn mức lượt tải công khai của Google Drive). Không cần thư viện ngoài. ----
+  async function gzipBytes(str) {
+    if (typeof CompressionStream === 'undefined') return null;
+    const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  // Nhận ArrayBuffer từ Drive; tự nhận biết gzip (magic 1F 8B) hoặc JSON thường.
+  async function decodeToText(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b && typeof DecompressionStream !== 'undefined') {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return await new Response(stream).text();
+    }
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
   // ---- read path (everyone) ----
   async function loadFromDrive() {
     const url = `https://www.googleapis.com/drive/v3/files/${CONFIG.DRIVE_FILE_ID}?alt=media&key=${CONFIG.GOOGLE_API_KEY}`;
-    const resp = await fetch(url);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    let resp;
+    try {
+      resp = await fetch(url, { signal: ctrl.signal });
+    } catch (e) {
+      throw new Error(e.name === 'AbortError'
+        ? 'Quá thời gian tải dữ liệu từ Drive (25s) — kiểm tra kết nối mạng.'
+        : ('Lỗi mạng khi tải dữ liệu từ Drive: ' + e.message));
+    } finally { clearTimeout(timer); }
+    if (resp.status === 403 || resp.status === 429) {
+      // Google Drive chặn tải file công khai do vượt hạn mức lượt tải trong ngày.
+      throw new Error('QUOTA: Google Drive đang giới hạn lượt tải file công khai trong hôm nay (hạn mức reset sau ~24 giờ).');
+    }
     if (!resp.ok) throw new Error('Không tải được dữ liệu từ Drive (HTTP ' + resp.status + ')');
-    const data = await resp.json();
+    const text = await decodeToText(await resp.arrayBuffer());
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e) { throw new Error('Dữ liệu trên Drive không đọc được (Drive có thể trả về trang lỗi thay vì file).'); }
     await applyData(data);
     return data;
   }
@@ -91,12 +124,14 @@ const Cloud = (() => {
     if (!canWrite()) throw new Error('Chưa cấu hình DRIVE_FILE_ID / GOOGLE_CLIENT_ID trong config.js');
     const token = await getToken();
     const data = await gatherAll();
+    const json = JSON.stringify(data);
+    const gz = await gzipBytes(json);            // nén nếu trình duyệt hỗ trợ
     const resp = await fetch(
       `https://www.googleapis.com/upload/drive/v3/files/${CONFIG.DRIVE_FILE_ID}?uploadType=media`,
       {
         method: 'PATCH',
-        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': gz ? 'application/gzip' : 'application/json' },
+        body: gz || json,
       }
     );
     if (!resp.ok) throw new Error('Lưu lên Drive thất bại (HTTP ' + resp.status + '): ' + (await resp.text()).slice(0, 200));
@@ -159,7 +194,7 @@ const Cloud = (() => {
       { headers: { Authorization: 'Bearer ' + token } }
     );
     if (!resp.ok) throw new Error('Không tải được phiên bản cũ (HTTP ' + resp.status + ')');
-    const data = await resp.json();
+    const data = JSON.parse(await decodeToText(await resp.arrayBuffer()));
     await applyData(data);
     return {
       updatedAt: data.updatedAt || '',

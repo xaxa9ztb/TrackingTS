@@ -94,6 +94,7 @@ async function updateDataStatus() {
     let txt = `${emp} nhân viên · ${proj} dự án · ${ts} dòng bảng công`;
     const upd = Cloud.getLastUpdatedAt();
     if (upd) txt += ` · Drive: ${upd.slice(0, 16).replace('T', ' ')}`;
+    if (window.__driveWarn) txt += ` · ${window.__driveWarn}`;
     el.textContent = txt;
   }
 }
@@ -404,9 +405,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('dataStatus').textContent = 'Đang tải dữ liệu từ Google Drive...';
     try {
       await Cloud.loadFromDrive();
+      window.__driveWarn = '';
     } catch (err) {
       console.error('Drive load failed:', err);
-      document.getElementById('dataStatus').textContent = 'Không tải được từ Drive — đang dùng dữ liệu cục bộ';
+      window.__driveWarn = /QUOTA/.test(err.message)
+        ? '⚠ Google Drive đang giới hạn lượt tải hôm nay — đang dùng dữ liệu đã lưu trên máy (thử lại sau).'
+        : '⚠ Không tải được từ Drive — đang dùng dữ liệu cục bộ.';
     }
   }
 
