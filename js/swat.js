@@ -23,7 +23,7 @@ const SwatPage = (() => {
     const emps = await DB.getAll('employees');
     employeesById = {};
     emps.forEach(e => employeesById[e.empId] = e);
-    projects.sort((a, b) => (a.projectName || '').localeCompare(b.projectName || ''));
+    projects.sort((a, b) => String(a.projectName || '').localeCompare(String(b.projectName || '')));
     pushList();
   }
 
@@ -198,7 +198,7 @@ const SwatPage = (() => {
   function confirmedProjects() {
     // chỉ dự án ĐÃ GHI Swat Target (có cờ + thông số đã lưu để dựng lại)
     return projects.filter(p => p.targetSwat && p.swatState)
-      .sort((a, b) => (a.projectName || '').localeCompare(b.projectName || ''));
+      .sort((a, b) => String(a.projectName || '').localeCompare(String(b.projectName || '')));
   }
   function batchProjectData(wbs) {
     const p = projects.find(x => x.wbs === wbs);

@@ -33,8 +33,8 @@ const TimesheetPage = (() => {
     timesheets = await DB.getAll('timesheets');
     employees = await DB.getAll('employees');
     projects = await DB.getAll('projects');
-    employees.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
-    projects.sort((a, b) => (a.projectName || '').localeCompare(b.projectName || ''));
+    employees.sort((a, b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
+    projects.sort((a, b) => String(a.projectName || '').localeCompare(String(b.projectName || '')));
     populateFilterOptions();
     render();
   }
@@ -77,7 +77,7 @@ const TimesheetPage = (() => {
       });
       options = Object.entries(seen)
         .map(([empId, name]) => ({ empId, name }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     } else {
       options = employees.map(e => ({ empId: e.empId, name: e.fullName }));
     }
@@ -132,7 +132,7 @@ const TimesheetPage = (() => {
       });
       const dupGroups = [...groups.values()]
         .filter(g => g.length > 1)
-        .sort((a, b) => (b[0].date || '').localeCompare(a[0].date || '') || a[0].empId.localeCompare(b[0].empId));
+        .sort((a, b) => String(b[0].date || '').localeCompare(String(a[0].date || '')) || String(a[0].empId || '').localeCompare(String(b[0].empId || '')));
       rows = [];
       dupGroups.forEach((g, i) => g.forEach(r => { dupGroupOf.set(r.id, i); rows.push(r); }));
       if (dupInfo) {
@@ -142,7 +142,7 @@ const TimesheetPage = (() => {
       }
     } else {
       if (dupInfo) dupInfo.textContent = '';
-      rows = rows.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      rows = rows.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     }
 
     // display cells per row; per-column filters run on these strings
