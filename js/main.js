@@ -452,32 +452,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     await updateDataStatus();
   });
 
-  // shared-data mode: pull the latest data.json from Google Drive on startup
-  if (Cloud.configured()) {
-    document.getElementById('dataStatus').textContent = 'Đang tải dữ liệu từ Google Drive...';
-    try {
-      await Cloud.loadFromDrive();
-      window.__driveWarn = '';
-    } catch (err) {
-      console.error('Drive load failed:', err);
-      window.__driveWarn = /QUOTA/.test(err.message)
-        ? '⚠ Google Drive đang giới hạn lượt tải hôm nay — đang dùng dữ liệu đã lưu trên máy (thử lại sau).'
-        : '⚠ Không tải được từ Drive — đang dùng dữ liệu cục bộ.';
-    }
-  }
-
   document.getElementById('btnExport').addEventListener('click', () => {
     if (!Auth.isAdmin()) { alert('Chỉ admin mới được xuất dữ liệu.'); return; }
     Importer.exportWorkbook();
   });
 
-  // dữ liệu cũ (trên máy hoặc từ Drive) có thể còn dòng bảng công trùng lặp
+  // ===== OFFLINE-FIRST: dựng giao diện từ dữ liệu đã lưu trên máy TRƯỚC =====
+  // Nhờ vậy app luôn hiển thị được ngay, kể cả khi mất mạng hoặc Google Drive
+  // không tải được. Sau đó mới thử đồng bộ từ Drive ở chế độ nền.
   try {
     const removed = await Importer.removeDuplicateTimesheets();
     if (removed) console.info(`Đã loại bỏ ${removed} dòng bảng công trùng lặp.`);
-  } catch (err) {
-    console.error('Lỗi dọn dòng bảng công trùng lặp:', err);
-  }
+  } catch (err) { console.error('Lỗi dọn dòng bảng công trùng lặp:', err); }
 
   await Dashboard.init();
   await ProjectsPage.load();
@@ -488,5 +474,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   EmployeesPage.wire();
   await SwatPage.load();
   SwatPage.wire();
+  ViewerGate.ensure();
   await updateDataStatus();
+
+  // ===== Đồng bộ từ Google Drive ở chế độ nền (KHÔNG chặn giao diện) =====
+  if (Cloud.configured()) {
+    if (navigator.onLine === false) {
+      window.__driveWarn = '📴 Chế độ ngoại tuyến — đang dùng dữ liệu trên máy.';
+      await updateDataStatus();
+    } else {
+      window.__driveWarn = '⏳ Đang đồng bộ từ Google Drive…';
+      await updateDataStatus();
+      Cloud.loadFromDrive()
+        .then(async () => { window.__driveWarn = ''; await refreshAllPages(); })
+        .catch(async (err) => {
+          console.error('Drive load failed:', err);
+          window.__driveWarn = /QUOTA/.test(err.message)
+            ? '📴 Ngoại tuyến — Google Drive giới hạn lượt tải hôm nay; đang dùng dữ liệu trên máy.'
+            : '📴 Ngoại tuyến — không tải được từ Drive; đang dùng dữ liệu trên máy.';
+          await updateDataStatus();
+        });
+    }
+  }
 });
