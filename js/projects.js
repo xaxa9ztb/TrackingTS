@@ -8,7 +8,7 @@ const ProjectsPage = (() => {
   async function load() {
     selected.clear();
     projects = await DB.getAll('projects');
-    projects.sort((a, b) => (a.projectName || '').localeCompare(b.projectName || ''));
+    projects.sort((a, b) => String(a.projectName || '').localeCompare(String(b.projectName || '')));
     render();
   }
 

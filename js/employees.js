@@ -23,7 +23,7 @@ const EmployeesPage = (() => {
   async function load() {
     selected.clear();
     employees = await DB.getAll('employees');
-    employees.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
+    employees.sort((a, b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
     render();
   }
 
