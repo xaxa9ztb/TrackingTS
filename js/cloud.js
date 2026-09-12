@@ -202,9 +202,35 @@ const Cloud = (() => {
     };
   }
 
+  // ---- sao lưu / phục hồi bằng file JSON trên máy (phương án dự phòng) ----
+  // Dùng CHUNG định dạng với file Drive (gatherAll/applyData).
+  async function exportLocalBackup() {
+    const data = await gatherAll();
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `TrackingTS-backup-${stamp}.json`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); document.body.removeChild(a); }, 100);
+    return { employees: data.employees.length, projects: data.projects.length, timesheets: data.timesheets.length };
+  }
+
+  async function importLocalBackup(file) {
+    const text = await file.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e) { throw new Error('File không phải JSON hợp lệ.'); }
+    await applyData(data); // tự kiểm tra định dạng + thay thế toàn bộ dữ liệu
+    return {
+      updatedAt: data.updatedAt || '',
+      employees: data.employees.length, projects: data.projects.length, timesheets: data.timesheets.length,
+    };
+  }
+
   return {
     configured, canWrite, loadFromDrive, saveToDrive, createDriveFile,
-    listDriveRevisions, restoreDriveRevision,
+    listDriveRevisions, restoreDriveRevision, exportLocalBackup, importLocalBackup,
     getLastUpdatedAt: () => lastUpdatedAt,
   };
 })();

@@ -159,6 +159,19 @@ function openUpdateModal() {
           <button class="btn btn-secondary" id="updShowRestore">Xem bản sao lưu</button>
         </div>
 
+        <div class="update-option">
+          <div class="update-info">
+            <b>6. Sao lưu / phục hồi bằng file JSON (trên máy bạn)</b>
+            <p>Tải <b>toàn bộ dữ liệu hiện tại</b> thành 1 file <b>.json</b> để lưu trên máy làm bản dự phòng;
+            hoặc <b>nạp lại</b> từ file .json đã lưu (thay thế toàn bộ dữ liệu trong app). Dùng khi Google Drive
+            tạm thời không tải được.</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button class="btn btn-primary" id="updBackupDownload">⬇ Tải bản sao lưu (.json)</button>
+            <button class="btn btn-secondary" id="updBackupLoad">⬆ Nạp bản sao lưu (.json)</button>
+          </div>
+        </div>
+
         <div id="restorePanel" style="display:none">
           <h4>Bản sao lưu trên máy này</h4>
           <div id="localBackupList" class="backup-list">Đang tải...</div>
@@ -181,6 +194,45 @@ function openUpdateModal() {
   });
 
   const statusEl = root.querySelector('#updStatus');
+
+  // ---- sao lưu / phục hồi bằng file JSON trên máy ----
+  root.querySelector('#updBackupDownload').addEventListener('click', async () => {
+    statusEl.textContent = 'Đang tạo file sao lưu...';
+    statusEl.className = 'update-status';
+    try {
+      const r = await Cloud.exportLocalBackup();
+      statusEl.textContent = `✓ Đã tải file sao lưu: ${r.employees} nhân viên · ${r.projects} dự án · ${r.timesheets} dòng bảng công.`;
+      statusEl.className = 'update-status ok';
+    } catch (err) {
+      statusEl.textContent = '✗ Lỗi tạo file sao lưu: ' + err.message;
+      statusEl.className = 'update-status err';
+    }
+  });
+
+  root.querySelector('#updBackupLoad').addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.addEventListener('change', async () => {
+      const f = input.files[0];
+      if (!f) return;
+      if (!confirm('Nạp bản sao lưu này sẽ THAY THẾ TOÀN BỘ dữ liệu hiện tại trong app. Tiếp tục?')) return;
+      statusEl.textContent = 'Đang nạp bản sao lưu...';
+      statusEl.className = 'update-status';
+      try {
+        try { if (typeof Backup !== 'undefined' && Backup.snapshot) await Backup.snapshot('Trước khi nạp bản sao lưu JSON (tự động)'); } catch (e) { /* ignore */ }
+        const r = await Cloud.importLocalBackup(f);
+        await refreshAllPages();
+        statusEl.textContent = `✓ Đã nạp bản sao lưu: ${r.employees} nhân viên · ${r.projects} dự án · ${r.timesheets} dòng bảng công.` +
+          (r.updatedAt ? ` (bản lưu ${r.updatedAt.slice(0, 16).replace('T', ' ')})` : '');
+        statusEl.className = 'update-status ok';
+      } catch (err) {
+        statusEl.textContent = '✗ Lỗi nạp bản sao lưu: ' + err.message;
+        statusEl.className = 'update-status err';
+      }
+    });
+    input.click();
+  });
 
   // ---- restore section ----
   const fmtTs = ts => (ts || '').slice(0, 16).replace('T', ' ');
