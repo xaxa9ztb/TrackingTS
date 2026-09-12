@@ -24,10 +24,36 @@ const Cloud = (() => {
     };
   }
 
+  // Ép các trường ĐỊNH DANH / VĂN BẢN về chuỗi. Dữ liệu nhập từ Excel (hoặc
+  // file sao lưu cũ) có thể lưu tên dự án, mã NV… ở KIỂU SỐ; khi đó các thao
+  // tác chuỗi (.toLowerCase / .localeCompare / .trim…) sẽ văng lỗi và chặn
+  // toàn bộ giao diện. Chỉ ép trường văn bản — KHÔNG đụng các trường số
+  // (normal/ot1/xHour…) để không phá phép tính.
+  function normalizeLoaded(data) {
+    const toStr = (v) => (v === undefined || v === null) ? '' : String(v);
+    const stringFields = {
+      employees: ['empId', 'fullName', 'personId', 'username', 'position', 'supervisor', 'gender', 'dob', 'hireDate', 'startDate'],
+      projects: ['wbs', 'projectName', 'projectNumber', 'productLine', 'customer', 'supervisor', 'salesRep'],
+      timesheets: ['empId', 'empName', 'wbs', 'projectName', 'activities', 'category', 'date', 'timeFrom', 'timeTo', 'role'],
+    };
+    for (const store of Object.keys(stringFields)) {
+      const rows = data[store];
+      if (!Array.isArray(rows)) continue;
+      for (const row of rows) {
+        if (!row || typeof row !== 'object') continue;
+        for (const f of stringFields[store]) {
+          if (f in row && typeof row[f] !== 'string') row[f] = toStr(row[f]);
+        }
+      }
+    }
+    return data;
+  }
+
   async function applyData(data) {
     if (!data || !Array.isArray(data.employees) || !Array.isArray(data.projects) || !Array.isArray(data.timesheets)) {
       throw new Error('File dữ liệu trên Drive không đúng định dạng');
     }
+    normalizeLoaded(data);
     await DB.clear('employees');
     await DB.clear('projects');
     await DB.clear('timesheets');

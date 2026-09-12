@@ -30,7 +30,7 @@ const EmployeesPage = (() => {
   function render() {
     const q = (document.getElementById('employeeSearch').value || '').toLowerCase();
     const disp = employees
-      .filter(e => (e.fullName || '').toLowerCase().includes(q) || (e.empId || '').toLowerCase().includes(q))
+      .filter(e => String(e.fullName || '').toLowerCase().includes(q) || String(e.empId || '').toLowerCase().includes(q))
       .map(e => ({
         e,
         cells: [e.empId, e.fullName || '', e.position || '', e.supervisor || '', fmtShortDate(e.hireDate), fmtShortDate(e.startDate)],

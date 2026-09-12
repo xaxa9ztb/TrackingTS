@@ -76,7 +76,7 @@ const ProjectsPage = (() => {
     buildHead(headers);
 
     const disp = projects
-      .filter(p => (p.projectName || '').toLowerCase().includes(q) || (p.wbs || '').toLowerCase().includes(q))
+      .filter(p => String(p.projectName || '').toLowerCase().includes(q) || String(p.wbs || '').toLowerCase().includes(q))
       .map(p => ({
         p,
         cells: [

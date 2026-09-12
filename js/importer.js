@@ -40,7 +40,7 @@ const Importer = (() => {
     return rows.slice(1).filter(r => r[0] !== undefined && r[0] !== '').map(r => ({
       empId: String(r[0]).trim(),
       personId: r[1] !== undefined ? String(r[1]) : '',
-      fullName: (r[4] || `${r[2] || ''} ${r[3] || ''}`.trim()),
+      fullName: String(r[4] || `${r[2] || ''} ${r[3] || ''}`.trim()),
       username: r[5] || '',
       dob: r[6] !== undefined ? String(r[6]) : '',
       gender: r[7] || '',
@@ -87,7 +87,7 @@ const Importer = (() => {
         wbs,
         source: 'import',
         projectNumber: r[2] !== undefined ? String(r[2]) : '',
-        projectName: r[4] || r[1] || '',
+        projectName: String(r[4] || r[1] || ''),
         customer: r[9] || '',
         productLine: r[5] || '',
         supervisor: r[8] || '',
