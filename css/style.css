@@ -255,8 +255,11 @@ body:not(.admin-mode) .chk-col { display: none; }
     overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
   .tab-btn { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
-  .header-actions { flex: 1; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-  .data-status { flex-basis: 100%; text-align: right; font-size: 11px; }
+  /* hàng 1: tiêu đề · hàng 2: trạng thái dữ liệu · hàng 3: nút (Admin… | tên + Đăng xuất) · hàng 4: tab */
+  .brand { flex: 1 1 100%; }
+  .header-actions { order: 2; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+  .data-status { flex-basis: 100%; text-align: left; font-size: 11px; }
+  .who-am-i { margin-left: auto; max-width: 45vw; }
   .btn { padding: 8px 10px; font-size: 12px; }
 
   main { padding: 10px; }

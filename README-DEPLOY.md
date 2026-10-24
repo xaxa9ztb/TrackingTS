@@ -34,6 +34,10 @@ Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức n�
   - Đổi quy tắc: sửa `ROLE_RULES` và `roles` của từng chức năng trong `TOOLS` ở `js/session.js`.
 - Mở thẳng link một chức năng khi chưa đăng nhập → về trang đăng nhập, xong **tự quay lại đúng
   chức năng đó**. Không đủ quyền → về trang chủ kèm thông báo lý do.
+- Mỗi lần mở trang chủ / chức năng, phiên được **so lại với EE Data trên máy**: đổi chức danh thì
+  quyền đổi theo (kể cả phiên "ghi nhớ"); mã NV bị xoá khỏi EE Data (nghỉ việc) thì **phiên kết thúc**.
+- **Đăng xuất** xong bấm *Back* không xem lại được chức năng (trình duyệt hay khôi phục trang cũ từ
+  bộ nhớ đệm); các tab khác đang mở chức năng cũng tự thoát.
 - Timesheet tự điền họ tên / mã NV / chức vụ từ phiên đăng nhập (chỉ điền ô còn trống).
 
 ### Dữ liệu Dự án dùng chung

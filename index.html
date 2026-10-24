@@ -192,6 +192,7 @@
     </section>
 
     <section class="login-card" aria-labelledby="loginTitle">
+      <div class="note note-warn" id="endedNote" role="status" hidden>Phiên đăng nhập đã kết thúc vì mã nhân viên không còn trong danh sách nhân sự. Nếu có nhầm lẫn, vui lòng liên hệ quản trị viên.</div>
       <div class="note note-info" id="nextNote" hidden></div>
 
       <form id="formUser" novalidate>
@@ -241,10 +242,10 @@
   </div>
 </footer>
 
-<script src="js/config.js?v=33"></script>
-<script src="js/db.js?v=33"></script>
-<script src="js/cloud.js?v=33"></script>
-<script src="js/session.js?v=33"></script>
+<script src="js/config.js?v=35"></script>
+<script src="js/db.js?v=35"></script>
+<script src="js/cloud.js?v=35"></script>
+<script src="js/session.js?v=35"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -297,6 +298,7 @@
       $('nextNote').textContent = `Vui lòng đăng nhập để mở “${Session.TOOLS[next].name}”.`;
       $('nextNote').hidden = false;
     }
+    $('endedNote').hidden = params.get('ended') !== '1';
     // Đặt sẵn con trỏ vào ô Họ tên — nhưng KHÔNG giành con trỏ nếu người dùng / trình tự điền
     // đã chọn ô khác, và không tự bật bàn phím trên điện thoại (chỉ làm trên máy có chuột).
     const fine = window.matchMedia && matchMedia('(pointer: fine)').matches;
@@ -430,7 +432,15 @@
 
   $('btnLogout').addEventListener('click', () => Session.logout());
 
+  // Back/Forward khôi phục trang từ bộ nhớ đệm, hoặc đăng nhập/đăng xuất ở tab khác → vẽ lại
+  Session.watch(render);
+
   render();
+  // so phiên với EE Data trên máy: đổi chức danh → cập nhật thẻ; đã nghỉ việc → về màn đăng nhập
+  Session.revalidate().then((r) => {
+    if (r === 'removed') params.set('ended', '1');
+    if (r) render();
+  });
 })();
 </script>
 </body>
