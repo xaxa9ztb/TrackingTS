@@ -7,18 +7,29 @@ Kiến trúc: app chạy trên **GitHub Pages** (miễn phí), dữ liệu dùng
 > **Lưu ý bảo mật:** mật khẩu admin chỉ khoá giao diện. Lớp bảo vệ thật sự là tài khoản
 > Google — chỉ tài khoản đã tạo file Drive mới ghi đè được dữ liệu chung.
 
-## Bộ công cụ (nhiều công cụ trong 1 repo)
+## Bộ công cụ (tất cả trong 1 repo)
 
-Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức năng lớn**; người dùng
-**đăng nhập một lần ở trang chủ rồi chọn chức năng**.
+Repo **TrackingTS** là nơi **duy nhất** chứa và phát triển **Bộ công cụ dự án**: mọi chức năng
+(kể cả Timesheet, Hồ sơ chất lượng thang máy, SWAT Hour trước đây nằm ở repo riêng) đều sửa ngay
+trong repo này. Người dùng **đăng nhập một lần ở trang chủ rồi chọn chức năng**.
 
-| Đường dẫn | Chức năng | Ai được dùng | Nguồn |
+| Đường dẫn | Chức năng | Ai được dùng | Nguồn gốc |
 |---|---|---|---|
 | `index.html` | Trang chủ: Đăng nhập → Chọn chức năng | — | — |
 | `tracking.html` | Thống kê giờ công dự án (các bước bên dưới) | Mọi nhân viên | — |
-| `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | `xaxa9ztb/swat-hour` |
-| `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) |
-| `tools/tiendotm/` | Hồ sơ chất lượng thang máy (hồ sơ quản lý chất lượng + bảng tiến độ thi công) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) |
+| `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | chép từ `xaxa9ztb/swat-hour` |
+| `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
+| `tools/tiendotm/` | Hồ sơ chất lượng thang máy (hồ sơ quản lý chất lượng + bảng tiến độ thi công) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
+
+**Đang phát triển** — đã có chỗ ở trang chủ (nhóm *Quản lý dự án & Giám sát dự án*, dành cho
+Quản lý dự án và Site Sup); bấm vào chỉ hiện thông báo "đang phát triển" và phạm vi dự kiến:
+
+| Mã (`TOOLS`) | Chức năng | Phạm vi dự kiến |
+|---|---|---|
+| `handover` | Hồ sơ bàn giao NI – EI | Tổng hợp tài liệu, kiểm tra đảm bảo quy trình bàn giao |
+| `ffplus` | Hồ sơ FF+ | Tổng hợp tài liệu + công cụ kiểm tra hồ sơ đầy đủ cho quy trình FF+ |
+| `projectplan` | Quản lý dự án | Kế hoạch điều phối nhân sự, lắp đặt, hàng về, bàn giao các dự án |
+| `materials` | Điều phối công cụ dụng cụ, vật tư | Quản lý, điều phối công cụ dụng cụ và vật tư |
 
 ### Đăng nhập & phân quyền (`js/session.js`)
 - Nhân viên đăng nhập bằng **họ tên đầy đủ + mã số nhân viên**, đối chiếu với EE Data (không phân
@@ -73,9 +84,11 @@ các trường cá nhân mà người xem không cần: *ngày sinh, giới tín
 Timesheet được **build sẵn** (mở nhanh hơn ~5 lần trên điện thoại): sửa `tools/timesheet/src/app.jsx`
 rồi chạy `npm install && npm run build` trong `tools/timesheet/` — xem `tools/timesheet/README.md`.
 
-### Repo cũ
-`xaxa9ztb/Timesheet` và `xaxa9ztb/TiendoTM` chỉ còn **trang tự chuyển hướng** sang Bộ công cụ
-(merge các PR đó **sau** khi bản Bộ công cụ đã lên GitHub Pages), rồi có thể *Archive* hai repo đó.
+### Repo cũ (ngừng phát triển)
+`xaxa9ztb/Timesheet` và `xaxa9ztb/TiendoTM` **không phát triển nữa**: chỉ còn **trang tự chuyển
+hướng** sang Bộ công cụ (link cũ vẫn dùng được). Nên *Archive* hai repo này (Settings → General →
+Danger Zone → *Archive this repository*) để không ai sửa nhầm ở đó. Mọi thay đổi làm trong
+`tools/timesheet/`, `tools/tiendotm/` của repo này.
 
 > **Giới hạn:** đây là kiểm soát **phía trình duyệt** (web tĩnh GitHub Pages): đủ để điều hướng
 > đúng người, nhưng người rành kỹ thuật vẫn có thể vượt qua. Cần bảo mật thật sự (dữ liệu nhạy
@@ -86,11 +99,15 @@ rồi chạy `npm install && npm run build` trong `tools/timesheet/` — xem `to
 2. Trong `<head>`: `<script src="../../js/session.js"></script><script>Session.guard('<id>');</script>`
 3. Ngay sau `<body>`: `<script src="../toolset-nav.js" data-tool="Tên chức năng"></script>`
 4. Khai báo `<id>` trong `TOOLS` (`js/session.js`, thêm `roles` nếu giới hạn quyền) và nội dung thẻ
-   trong `CARDS` / `ICONS` / `ORDER` ở `index.html`.
+   trong `CARDS` / `ICONS` / `GROUPS` ở `index.html`.
+
+**Đưa một chức năng "đang phát triển" vào dùng** (ví dụ `ffplus`): làm bước 1–3 ở trên, rồi trong
+`TOOLS` thay `soon: true` bằng `path: 'tools/<tên>/'`; trong `CARDS` bỏ `scope`, thêm `meta` nếu cần.
+Tăng `?v=` của `js/session.js` và `VERSION` trong `sw.js` (thêm trang mới vào `SHELL_FILES`).
 
 - Các chức năng cùng chạy trên `https://xaxa9ztb.github.io`, nên dữ liệu đã lưu trên trình duyệt
   (ví dụ chấm công của Timesheet) vẫn còn khi mở ở đường dẫn mới.
-- Từ nay sửa Timesheet / TiendoTM **ngay trong repo này** (thư mục `tools/...`).
+- Sửa Timesheet / Hồ sơ chất lượng thang máy / SWAT Hour **ngay trong repo này** (thư mục `tools/...`).
 
 ---
 

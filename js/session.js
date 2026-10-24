@@ -20,14 +20,20 @@ const Session = (() => {
   })();
 
   // Danh mục chức năng. `roles` = vai trò được vào; không khai báo = mọi người đã đăng nhập.
+  // `soon: true` = đã có chỗ trên trang chủ nhưng chưa có trang (bấm vào chỉ báo "đang phát triển").
+  // Khi làm xong: thêm `path`, bỏ `soon`.
+  const PM_TEAM = { roles: ['pm', 'sitesup'], rolesLabel: 'Quản lý dự án và Site Sup' };
   const TOOLS = {
     tracking: { name: 'Thống kê giờ công dự án', path: 'tracking.html' },
     timesheet: { name: 'Timesheet cá nhân', path: 'tools/timesheet/' },
-    tiendotm: {
-      name: 'Hồ sơ chất lượng thang máy', path: 'tools/tiendotm/',
-      roles: ['pm', 'sitesup'], rolesLabel: 'Quản lý dự án và Site Sup',
-    },
+    tiendotm: { name: 'Hồ sơ chất lượng thang máy', path: 'tools/tiendotm/', ...PM_TEAM },
+    handover: { name: 'Hồ sơ bàn giao NI – EI', soon: true, ...PM_TEAM },
+    ffplus: { name: 'Hồ sơ FF+', soon: true, ...PM_TEAM },
+    projectplan: { name: 'Quản lý dự án', soon: true, ...PM_TEAM },
+    materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
   };
+  // chức năng đã có trang để mở
+  function ready(toolId) { const t = TOOLS[toolId]; return !!(t && t.path && !t.soon); }
 
   // Vai trò xác định theo CHỨC DANH (cột Position trong EE Data), so khớp không dấu.
   // Site Sup giữ đúng định nghĩa đang dùng ở Dashboard: supervisor / project engineer.
@@ -142,7 +148,7 @@ const Session = (() => {
   }
 
   // ---- điều hướng ----
-  function url(toolId) { return ROOT + TOOLS[toolId].path; }
+  function url(toolId) { return ready(toolId) ? ROOT + TOOLS[toolId].path : null; }
   function homeUrl(params) {
     const q = new URLSearchParams(params || {}).toString();
     return ROOT + 'index.html' + (q ? '?' + q : '');
@@ -172,5 +178,5 @@ const Session = (() => {
     return true;
   }
 
-  return { TOOLS, current, save, clear, logout, roles, roleLabel, canAccess, guard, revalidate, watch, url, homeUrl, norm };
+  return { TOOLS, ready, current, save, clear, logout, roles, roleLabel, canAccess, guard, revalidate, watch, url, homeUrl, norm };
 })();
