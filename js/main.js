@@ -164,7 +164,8 @@ function openUpdateModal() {
             <b>6. Sao lưu / phục hồi bằng file JSON (trên máy bạn)</b>
             <p>Tải <b>toàn bộ dữ liệu hiện tại</b> thành 1 file <b>.json</b> để lưu trên máy làm bản dự phòng;
             hoặc <b>nạp lại</b> từ file .json đã lưu (thay thế toàn bộ dữ liệu trong app). Dùng khi Google Drive
-            tạm thời không tải được.</p>
+            tạm thời không tải được. <i>File sao lưu có cả thông tin cá nhân nhân viên (ngày sinh…) — chỉ lưu ở nơi an toàn,
+            không chia sẻ.</i> (File trên Google Drive thì <b>không</b> chứa các thông tin này.)</p>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px">
             <button class="btn btn-primary" id="updBackupDownload">⬇ Tải bản sao lưu (.json)</button>
@@ -380,50 +381,20 @@ async function refreshAllPages() {
   await updateDataStatus();
 }
 
-// Tường xác thực người xem: người xem nhập họ tên đầy đủ + mã số nhân viên;
-// hệ thống đối chiếu với danh sách nhân viên (không phân biệt hoa/thường & dấu).
-// Ví dụ "Lê Thanh Tùng" + "540503" khớp nhân viên có fullName/empId tương ứng.
-// Admin luôn được xem (bỏ qua tường). Đây là lớp chặn đơn giản phía client.
+// Người xem đăng nhập MỘT LẦN ở trang chủ Bộ công cụ (index.html, xem js/session.js).
+// Trang này chỉ kiểm tra phiên: admin luôn được xem; chưa có phiên thì chuyển về
+// trang chủ để đăng nhập rồi quay lại. Đây là lớp chặn đơn giản phía client.
 const ViewerGate = (() => {
-  function norm(s) {
-    return String(s || '').toLowerCase().normalize('NFD')
-      .replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '');
-  }
-  const el = () => document.getElementById('viewGate');
-  const passed = () => sessionStorage.getItem('viewerOk') === '1';
-  function hide() { const g = el(); if (g) g.style.display = 'none'; }
-  function open() {
-    const g = el(); if (!g) return;
-    g.style.display = 'flex';
-    const n = document.getElementById('gateName'); if (n) setTimeout(() => n.focus(), 60);
-  }
-  function ensure() { if (Auth.isAdmin() || passed()) hide(); else open(); }
-  async function verify(name, id) {
-    const key = norm(name) + norm(id);
-    if (!norm(name) || !norm(id)) return false;
-    let emps = [];
-    try { emps = await DB.getAll('employees'); } catch (e) { /* ignore */ }
-    return emps.some(e => (norm(e.fullName) + norm(e.empId)) === key);
-  }
-  async function submit() {
-    const name = document.getElementById('gateName').value;
-    const id = document.getElementById('gateId').value;
-    const err = document.getElementById('gateErr');
-    const btn = document.getElementById('gateSubmit');
-    err.textContent = ''; btn.disabled = true;
-    const ok = await verify(name, id);
-    btn.disabled = false;
-    if (ok) { sessionStorage.setItem('viewerOk', '1'); hide(); }
-    else { err.textContent = 'Họ tên hoặc mã số nhân viên không đúng. Vui lòng kiểm tra lại.'; }
-  }
+  function ensure() { if (!Auth.isAdmin()) Session.guard('tracking'); }
   function wire() {
-    const btn = document.getElementById('gateSubmit'); if (btn) btn.addEventListener('click', submit);
-    ['gateName', 'gateId'].forEach(id => {
-      const f = document.getElementById(id);
-      if (f) f.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
-    });
-    const adm = document.getElementById('gateAdmin');
-    if (adm) adm.addEventListener('click', async () => { await Auth.toggle(); ensure(); });
+    const s = Session.current();
+    const who = document.getElementById('whoAmI');
+    if (who && s) {
+      who.textContent = s.name;
+      who.title = `${s.name}${s.empId ? ' · ' + s.empId : ''} — ${Session.roleLabel(s)}`;
+    }
+    const out = document.getElementById('btnLogout');
+    if (out) out.addEventListener('click', () => Session.logout());
   }
   return { ensure, wire };
 })();

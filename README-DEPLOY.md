@@ -7,6 +7,91 @@ Kiến trúc: app chạy trên **GitHub Pages** (miễn phí), dữ liệu dùng
 > **Lưu ý bảo mật:** mật khẩu admin chỉ khoá giao diện. Lớp bảo vệ thật sự là tài khoản
 > Google — chỉ tài khoản đã tạo file Drive mới ghi đè được dữ liệu chung.
 
+## Bộ công cụ (nhiều công cụ trong 1 repo)
+
+Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức năng lớn**; người dùng
+**đăng nhập một lần ở trang chủ rồi chọn chức năng**.
+
+| Đường dẫn | Chức năng | Ai được dùng | Nguồn |
+|---|---|---|---|
+| `index.html` | Trang chủ: Đăng nhập → Chọn chức năng | — | — |
+| `tracking.html` | Thống kê giờ công dự án (các bước bên dưới) | Mọi nhân viên | — |
+| `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | `xaxa9ztb/swat-hour` |
+| `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) |
+| `tools/tiendotm/` | Tiến độ thi công thang máy | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) |
+
+### Đăng nhập & phân quyền (`js/session.js`)
+- Nhân viên đăng nhập bằng **họ tên đầy đủ + mã số nhân viên**, đối chiếu với EE Data (không phân
+  biệt hoa/thường, có dấu/không dấu). Danh sách nhân viên lấy từ dữ liệu đã lưu trên máy; nếu
+  không khớp thì tự cập nhật từ Google Drive **một lần** rồi thử lại.
+- **Ghi nhớ trên thiết bị này**: giữ đăng nhập 30 ngày (hợp cho điện thoại dùng Timesheet hằng ngày).
+  Không chọn thì phiên hết khi đóng tab. Phiên **quản trị không bao giờ được ghi nhớ**.
+- **Vai trò lấy theo chức danh (cột Position trong EE Data)**:
+  - *Quản lý dự án*: chứa `project manager` / `quản lý dự án`
+  - *Site Sup*: chứa `supervisor` / `site sup` / `project engineer` / `giám sát`
+    (cùng định nghĩa Site Sup đang dùng ở Dashboard)
+  - còn lại: *Nhân viên*. Quản trị viên được dùng mọi chức năng.
+  - Đổi quy tắc: sửa `ROLE_RULES` và `roles` của từng chức năng trong `TOOLS` ở `js/session.js`.
+- Mở thẳng link một chức năng khi chưa đăng nhập → về trang đăng nhập, xong **tự quay lại đúng
+  chức năng đó**. Không đủ quyền → về trang chủ kèm thông báo lý do.
+- Mỗi lần mở trang chủ / chức năng, phiên được **so lại với EE Data trên máy**: đổi chức danh thì
+  quyền đổi theo (kể cả phiên "ghi nhớ"); mã NV bị xoá khỏi EE Data (nghỉ việc) thì **phiên kết thúc**.
+- **Đăng xuất** xong bấm *Back* không xem lại được chức năng (trình duyệt hay khôi phục trang cũ từ
+  bộ nhớ đệm); các tab khác đang mở chức năng cũng tự thoát.
+- Timesheet tự điền họ tên / mã NV / chức vụ từ phiên đăng nhập (chỉ điền ô còn trống).
+
+### Dữ liệu Dự án dùng chung
+- Danh sách dự án của **Timesheet** lấy **chung với tab Dự án** của Thống kê giờ công (cùng kho
+  dữ liệu trên máy, nguồn là file Google Drive). WBS của dự án = *Work Number* trong Timesheet.
+- Admin import Yan_COM rồi **Lưu lên Drive** như bình thường → người dùng Timesheet bấm
+  **Cài đặt → Đồng bộ ngay** (hoặc mở lại Timesheet) là có danh sách mới. Không còn Google Sheet
+  dự án riêng cho Timesheet.
+- **Timesheet và Thống kê giờ công hoạt động độc lập**: chỉ dùng chung *EE Data* và *Dự án*
+  (Timesheet chỉ đọc). Hai bên **không import dữ liệu chấm công cho nhau** — bảng công vào
+  Thống kê giờ công vẫn do admin nhập tay qua **Cập nhật Data** như trước.
+- **TiendoTM** cũng đọc danh sách này: ô *Chọn dự án từ danh sách chung* ở bước 1 điền sẵn Tên dự án,
+  Bên Mua / Chủ đầu tư (customer) và Thiết bị (product line). Địa chỉ, số hợp đồng vẫn lấy từ OCR / nhập tay.
+
+### Thông tin cá nhân không đưa lên Drive
+File dữ liệu trên Google Drive **ai có link cũng tải được**, nên khi **Lưu lên Drive** app **bỏ**
+các trường cá nhân mà người xem không cần: *ngày sinh, giới tính, username, mã cá nhân (personId)*.
+- Máy admin đã import EE Data **vẫn giữ** các trường này (Export Excel, sửa nhân viên vẫn đủ).
+- File **sao lưu JSON** trên máy admin vẫn đầy đủ → giữ ở nơi an toàn, không chia sẻ.
+- File trên Drive chỉ gọn lại sau lần **Lưu lên Drive** kế tiếp. Google Drive còn giữ các phiên bản
+  cũ của file (~30 ngày, chỉ chủ sở hữu xem được qua API có đăng nhập).
+
+### Cài lên máy & dùng khi mất mạng (PWA — `sw.js`, `manifest.webmanifest`, `js/pwa.js`)
+- Trang chủ có thẻ **Cài Bộ công cụ lên máy** (Chrome / Edge / Android); trên iPhone: Safari →
+  **Chia sẻ → Thêm vào MH chính**. Sau đó mở từ màn hình chính như một ứng dụng.
+- Mỗi chức năng đã mở **một lần khi có mạng** sẽ mở được khi **mất mạng**: Timesheet (cả Xuất Excel),
+  Thống kê giờ công (dữ liệu trên máy), TiendoTM (trừ OCR lần đầu — cần tải mô hình nhận dạng),
+  và đăng nhập lại bằng danh sách nhân viên trên máy. Có nhãn **📴 Ngoại tuyến** khi mất mạng.
+- Khi cập nhật code: vẫn **tăng `?v=`** như cũ. Nếu **thêm file mới** cần dùng ngoại tuyến hoặc đổi
+  cách lưu đệm: thêm vào `SHELL_FILES` / `CDN_FILES` trong `sw.js` và **tăng `VERSION`**.
+
+### Timesheet: mã nguồn & build
+Timesheet được **build sẵn** (mở nhanh hơn ~5 lần trên điện thoại): sửa `tools/timesheet/src/app.jsx`
+rồi chạy `npm install && npm run build` trong `tools/timesheet/` — xem `tools/timesheet/README.md`.
+
+### Repo cũ
+`xaxa9ztb/Timesheet` và `xaxa9ztb/TiendoTM` chỉ còn **trang tự chuyển hướng** sang Bộ công cụ
+(merge các PR đó **sau** khi bản Bộ công cụ đã lên GitHub Pages), rồi có thể *Archive* hai repo đó.
+
+> **Giới hạn:** đây là kiểm soát **phía trình duyệt** (web tĩnh GitHub Pages): đủ để điều hướng
+> đúng người, nhưng người rành kỹ thuật vẫn có thể vượt qua. Cần bảo mật thật sự (dữ liệu nhạy
+> cảm, quyền ghi) thì phải có xác thực phía máy chủ — ví dụ Azure Static Web Apps + Entra ID.
+
+### Thêm một chức năng mới
+1. Chép công cụ vào `tools/<tên>/`.
+2. Trong `<head>`: `<script src="../../js/session.js"></script><script>Session.guard('<id>');</script>`
+3. Ngay sau `<body>`: `<script src="../toolset-nav.js" data-tool="Tên chức năng"></script>`
+4. Khai báo `<id>` trong `TOOLS` (`js/session.js`, thêm `roles` nếu giới hạn quyền) và nội dung thẻ
+   trong `CARDS` / `ICONS` / `ORDER` ở `index.html`.
+
+- Các chức năng cùng chạy trên `https://xaxa9ztb.github.io`, nên dữ liệu đã lưu trên trình duyệt
+  (ví dụ chấm công của Timesheet) vẫn còn khi mở ở đường dẫn mới.
+- Từ nay sửa Timesheet / TiendoTM **ngay trong repo này** (thư mục `tools/...`).
+
 ---
 
 ## Bước 1 — Đặt mật khẩu admin
@@ -96,11 +181,12 @@ Chờ 1-2 phút để Pages cập nhật.
 
 ## Sử dụng hằng ngày
 
-**Người xem:** mở link github.io → app tự tải dữ liệu mới nhất từ Drive. Chỉ xem,
-lọc, export Excel — không thấy các nút thêm/sửa/xoá.
+**Người xem:** mở link github.io → đăng nhập (họ tên + mã NV) → chọn **Thống kê giờ công dự án**
+→ app tự tải dữ liệu mới nhất từ Drive. Chỉ xem, lọc — không thấy các nút thêm/sửa/xoá.
 
 **Admin cập nhật dữ liệu:**
-1. Mở link github.io → bấm **🔒 Admin** → nhập mật khẩu.
+1. Mở link github.io → **Đăng nhập quản trị** → nhập mật khẩu → chọn **Thống kê giờ công dự án**
+   (hoặc đang ở trong app thì bấm **🔒 Admin**).
 2. Bấm **Cập nhật Data** → import file tổng hoặc file lẻ như bình thường.
 3. Bấm **Lưu lên Drive** → đăng nhập Google (lần đầu mỗi phiên) → xong.
    Mọi người tải lại trang là thấy dữ liệu mới.
@@ -114,4 +200,4 @@ lọc, export Excel — không thấy các nút thêm/sửa/xoá.
 | Đăng nhập báo app chưa xác minh / access denied | Thêm email của bạn vào **Test users** (bước 3.4) |
 | Quên mật khẩu admin | Tạo hash mới (bước 1) và sửa `config.js` trên GitHub |
 | Muốn đổi dữ liệu về bản cũ | Google Drive giữ lịch sử phiên bản: mở drive.google.com → chuột phải file `timesheet-data.json` → Manage versions |
-| Sửa code xong nhưng trang vẫn chạy bản cũ | Trình duyệt/GitHub Pages cache file css/js. Khi cập nhật code, tăng số version `?v=...` ở các dòng `<link>`/`<script>` trong `index.html` (ví dụ `?v=2` → `?v=3`); người xem chỉ cần tải lại trang. Chữa cháy nhanh: Ctrl+F5 |
+| Sửa code xong nhưng trang vẫn chạy bản cũ | Trình duyệt/GitHub Pages cache file css/js. Khi cập nhật code, tăng số version `?v=...` ở các dòng `<link>`/`<script>` trong `tracking.html` (ví dụ `?v=2` → `?v=3`); người xem chỉ cần tải lại trang. Chữa cháy nhanh: Ctrl+F5 |

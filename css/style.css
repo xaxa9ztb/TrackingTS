@@ -19,7 +19,14 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe
   background: var(--card-bg); border-bottom: 1px solid var(--border);
   padding: 10px 20px; flex-wrap: wrap;
 }
-.brand { font-weight: 700; font-size: 18px; color: var(--blue-dark); white-space: nowrap; }
+.brand { font-weight: 700; font-size: 18px; color: var(--blue-dark); white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+/* lối về trang chủ Bộ công cụ (index.html) */
+.brand-home {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 6px; flex: none;
+  background: #eef2f7; color: var(--text); text-decoration: none; font-size: 20px; line-height: 1;
+}
+.brand-home:hover, .brand-home:focus-visible { background: #dde3ea; outline: none; }
 .tabs { display: flex; gap: 4px; flex: 1; }
 .tab-btn {
   background: none; border: none; padding: 10px 16px; font-size: 14px; cursor: pointer;
@@ -49,22 +56,10 @@ main { padding: 20px; }
 }
 .btn-guide { margin-left: auto; align-self: flex-end; white-space: nowrap; text-decoration: none; }
 
-/* Tường xác thực người xem */
-.gate-overlay { position: fixed; inset: 0; z-index: 9999; background: linear-gradient(150deg, #e2001a, #8f0012);
-  display: flex; align-items: center; justify-content: center; padding: 20px; }
-.gate-box { background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
-  padding: 28px 28px 22px; width: 100%; max-width: 400px; }
-.gate-brand { font-weight: 800; color: #e2001a; font-size: 24px; letter-spacing: .5px; margin-bottom: 10px; }
-.gate-box h2 { margin: 0 0 4px; color: #1f2733; font-size: 20px; }
-.gate-sub { color: #6b7280; font-size: 13px; margin: 0 0 16px; line-height: 1.5; }
-.gate-field { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 12px; }
-.gate-field input { display: block; width: 100%; margin-top: 5px; padding: 10px 12px;
-  border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
-.gate-field input:focus { outline: none; border-color: #e2001a; box-shadow: 0 0 0 3px rgba(226,0,26,.12); }
-.gate-err { color: #c0261a; font-size: 12.5px; min-height: 18px; margin-bottom: 6px; }
-.gate-submit { width: 100%; justify-content: center; padding: 11px; font-size: 15px; }
-.gate-admin-link { display: block; width: 100%; margin-top: 12px; background: none; border: none;
-  color: #6b7280; font-size: 12px; cursor: pointer; text-decoration: underline; }
+/* người đang đăng nhập (phiên dùng chung của Bộ công cụ) */
+.who-am-i { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap;
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.who-am-i:empty { display: none; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 .field select, .field input[type=date] {
@@ -260,8 +255,11 @@ body:not(.admin-mode) .chk-col { display: none; }
     overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
   .tab-btn { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
-  .header-actions { flex: 1; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-  .data-status { flex-basis: 100%; text-align: right; font-size: 11px; }
+  /* hàng 1: tiêu đề · hàng 2: trạng thái dữ liệu · hàng 3: nút (Admin… | tên + Đăng xuất) · hàng 4: tab */
+  .brand { flex: 1 1 100%; }
+  .header-actions { order: 2; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+  .data-status { flex-basis: 100%; text-align: left; font-size: 11px; }
+  .who-am-i { margin-left: auto; max-width: 45vw; }
   .btn { padding: 8px 10px; font-size: 12px; }
 
   main { padding: 10px; }

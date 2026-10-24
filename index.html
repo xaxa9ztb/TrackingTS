@@ -3,264 +3,489 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Thống Kê Giờ Công Dự Án</title>
-<link rel="stylesheet" href="css/style.css?v=31">
-<script src="js/xlsx.full.min.js?v=31"></script>
+<title>Bộ công cụ dự án</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="js/pwa.js?v=36" defer></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --ink: #111827;
+    --ink-2: #374151;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --line-strong: #c7ccd4;
+    --brand: #dc0000;
+    --tile: #f3f4f6;
+    --ok-bg: #eff6ff; --ok-line: #bfdbfe; --ok-ink: #1e3a8a;
+    --warn-bg: #fff7ed; --warn-line: #fed7aa; --warn-ink: #9a3412;
+    --err: #b91c1c;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); min-height: 100vh;
+    display: flex; flex-direction: column;
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { flex: 1; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; width: 100%; }
+  button { font: inherit; }
+
+  /* ---- thanh trên ---- */
+  .hub-top { background: var(--ink); color: #f9fafb; }
+  .hub-top .wrap { display: flex; align-items: center; gap: 14px; min-height: 56px; flex-wrap: wrap; padding-block: 8px; }
+  .mark { font-weight: 800; font-size: 19px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+  .mark::before { content: ""; width: 12px; height: 12px; border-radius: 3px; background: var(--brand); }
+  .divider { width: 1px; height: 20px; background: #374151; }
+  .product { color: #d1d5db; font-size: 14px; }
+  .user { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #374151; color: #fff; font-weight: 700; font-size: 14px;
+  }
+  .user-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+  .user-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .user-role { font-size: 12px; color: #9ca3af; }
+  .btn-logout {
+    margin-left: 4px; background: transparent; color: #f9fafb; border: 1px solid #4b5563;
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  .btn-logout:hover, .btn-logout:focus-visible { background: #1f2937; outline: none; }
+  .net-off { font-size: 12px; font-weight: 600; color: #fde68a; background: #3f2d0a; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+
+  /* ---- cài ứng dụng (PWA) ---- */
+  .install { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 40px; padding: 16px 18px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  .install .icon { background: var(--ink); }
+  .install-text { flex: 1 1 260px; font-size: 14px; color: var(--ink-2); }
+  .install-text b { color: var(--ink); }
+  .btn-install { border: none; border-radius: 8px; padding: 9px 16px; background: var(--ink); color: #fff; font-weight: 600; cursor: pointer; }
+  .btn-install:hover { background: #1f2937; }
+
+  /* ---- đăng nhập ---- */
+  .login-grid {
+    display: grid; grid-template-columns: 1fr minmax(320px, 400px); gap: 48px;
+    align-items: center; padding-block: 56px;
+  }
+  .login-intro h1 { margin: 0 0 10px; font-size: 32px; line-height: 1.15; letter-spacing: -.4px; }
+  .login-intro > p { margin: 0 0 24px; color: var(--muted); max-width: 460px; }
+  .intro-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 460px; }
+  .intro-list li { display: flex; align-items: center; gap: 12px; color: var(--ink-2); font-size: 14px; }
+  .intro-list .icon { width: 36px; height: 36px; border-radius: 9px; background: #fff; border: 1px solid var(--line); }
+  .intro-list .icon svg { width: 20px; height: 20px; }
+  .tag { font-size: 11.5px; color: var(--ink-2); background: #e5e7eb; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+
+  .login-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 28px; box-shadow: 0 10px 30px rgba(17,24,39,.06);
+  }
+  .login-card h2 { margin: 0 0 4px; font-size: 22px; }
+  .login-card .sub { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .field { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 14px; }
+  .field input {
+    display: block; width: 100%; margin-top: 6px; padding: 11px 12px; font: inherit; font-weight: 400;
+    color: var(--ink); background: #fff; border: 1px solid var(--line-strong); border-radius: 8px;
+  }
+  .field input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(17,24,39,.12); }
+  .check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+  .check input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--ink); }
+  .hint { margin: 2px 0 0 24px; font-size: 12.5px; color: var(--muted); }
+  .msg { min-height: 20px; margin: 14px 0 8px; font-size: 13.5px; color: var(--err); }
+  .msg.info { color: var(--muted); }
+  .btn-primary {
+    width: 100%; padding: 12px; border: none; border-radius: 8px; cursor: pointer;
+    background: var(--ink); color: #fff; font-weight: 600; font-size: 15px;
+  }
+  .btn-primary:hover { background: #1f2937; }
+  .btn-primary:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  .btn-primary:disabled { opacity: .6; cursor: progress; }
+  .link {
+    display: block; width: 100%; margin-top: 14px; padding: 6px; background: none; border: none;
+    color: var(--muted); font-size: 13px; cursor: pointer; text-decoration: underline;
+  }
+  .link:hover { color: var(--ink); }
+
+  .note { border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-bottom: 18px; border: 1px solid; }
+  .note-info { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-ink); }
+  .note-warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+
+  /* ---- chọn chức năng ---- */
+  .intro { padding-block: 40px 22px; }
+  .intro h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.2; letter-spacing: -.3px; }
+  .intro p { margin: 0; color: var(--muted); }
+  .tools {
+    list-style: none; margin: 0; padding: 0 0 40px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px;
+  }
+  .tool {
+    position: relative; height: 100%;
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 22px 22px 18px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px;
+    color: inherit; text-decoration: none;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+  }
+  a.tool:hover { border-color: var(--line-strong); box-shadow: 0 8px 24px rgba(17,24,39,.08); transform: translateY(-2px); }
+  a.tool:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  .tool-head { display: flex; align-items: center; justify-content: space-between; }
+  .icon {
+    width: 44px; height: 44px; border-radius: 10px; background: var(--tile); color: var(--ink);
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+  }
+  .icon svg { width: 24px; height: 24px; }
+  .num { font: 600 12px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
+  .tool h2 { margin: 4px 0 0; font-size: 18px; line-height: 1.3; }
+  .tool p { margin: 0; color: var(--ink-2); font-size: 14px; flex: 1; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; padding: 0; list-style: none; }
+  .meta li { font-size: 12px; color: var(--ink-2); background: var(--tile); border-radius: 999px; padding: 3px 10px; }
+  .open {
+    display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 14px;
+    border-top: 1px solid var(--line); font-weight: 600; font-size: 14px; color: var(--ink);
+  }
+  .open .arrow { transition: transform .15s ease; }
+  a.tool:hover .open .arrow { transform: translateX(3px); }
+  /* thẻ bị khoá (không đủ quyền) */
+  .tool.locked { background: #fafafa; border-style: dashed; }
+  .tool.locked h2, .tool.locked p { color: var(--muted); }
+  .tool.locked .icon { color: #9ca3af; }
+  .tool.locked .open { color: var(--muted); font-weight: 500; }
+  .tool.locked .open svg { width: 16px; height: 16px; flex: none; }
+
+  /* ---- chân trang ---- */
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer a { color: var(--ink-2); }
+
+  @media (max-width: 860px) {
+    .login-grid { grid-template-columns: 1fr; gap: 28px; padding-block: 24px 40px; }
+    .login-card { order: -1; padding: 22px; }
+    .login-intro h1 { font-size: 20px; }
+  }
+  @media (max-width: 560px) {
+    .intro { padding-block: 26px 16px; }
+    .intro h1 { font-size: 23px; }
+    .divider, .product { display: none; }
+    .user-text { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tool, .open .arrow { transition: none; }
+    a.tool:hover { transform: none; }
+  }
+</style>
 </head>
 <body>
 
-<!-- ===== Tường xác thực người xem (họ tên + mã số nhân viên) ===== -->
-<div id="viewGate" class="gate-overlay" style="display:none">
-  <div class="gate-box">
-    <div class="gate-brand">Schindler</div>
-    <h2>Xác thực người xem</h2>
-    <p class="gate-sub">Nhập <b>họ tên đầy đủ</b> và <b>mã số nhân viên</b> của bạn để xem ứng dụng.</p>
-    <label class="gate-field">Họ và tên đầy đủ
-      <input id="gateName" type="text" autocomplete="off" placeholder="Nhập họ và tên đầy đủ">
-    </label>
-    <label class="gate-field">Mã số nhân viên
-      <input id="gateId" type="text" autocomplete="off" inputmode="numeric" placeholder="Nhập mã số nhân viên">
-    </label>
-    <div id="gateErr" class="gate-err"></div>
-    <button class="btn btn-primary gate-submit" id="gateSubmit">Vào xem →</button>
-    <button type="button" class="gate-admin-link" id="gateAdmin">Đăng nhập quản trị</button>
-  </div>
-</div>
-
-<div id="app">
-
-  <header class="topbar">
-    <div class="brand">Thống Kê Giờ Công Dự Án</div>
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-      <button class="tab-btn admin-only" data-tab="projects">Dự án</button>
-      <button class="tab-btn" data-tab="timesheet">Bảng công</button>
-      <button class="tab-btn admin-only" data-tab="employees">Nhân viên</button>
-      <button class="tab-btn" data-tab="swat">SWAT</button>
-    </nav>
-    <div class="header-actions">
-      <span id="dataStatus" class="data-status">Chưa có dữ liệu</span>
-      <button id="btnImport" class="btn btn-primary admin-only">Cập nhật Data</button>
-      <button id="btnSaveDrive" class="btn btn-primary admin-only" style="display:none">Lưu lên Drive</button>
-      <button id="btnExport" class="btn btn-secondary admin-only">Export Excel</button>
-      <button id="btnAdmin" class="btn btn-secondary" style="display:none">🔒 Admin</button>
+<header class="hub-top">
+  <div class="wrap">
+    <div class="mark">Schindler</div>
+    <span class="divider" aria-hidden="true"></span>
+    <span class="product">Bộ công cụ dự án</span>
+    <span class="net-off" id="netOff" role="status" hidden>📴 Ngoại tuyến</span>
+    <div class="user" id="userBox" hidden>
+      <span class="avatar" id="userAvatar" aria-hidden="true"></span>
+      <span class="user-text">
+        <span class="user-name" id="userName"></span>
+        <span class="user-role" id="userRole"></span>
+      </span>
+      <button type="button" class="btn-logout" id="btnLogout">Đăng xuất</button>
     </div>
-  </header>
+  </div>
+</header>
 
-  <main>
-
-    <!-- ================= DASHBOARD ================= -->
-    <section id="tab-dashboard" class="tab-panel active">
-      <div class="dash-toolbar">
-        <div class="field">
-          <label>Dự án</label>
-          <div id="projectCombo"></div>
-        </div>
-        <div class="field roles-field">
-          <label>Select</label>
-          <div class="role-toggles">
-            <label class="role-chip chip-sitesup"><input type="checkbox" id="chkSiteSup"> Site Sup</label>
-            <label class="role-chip chip-fitter"><input type="checkbox" id="chkFitter"> Fitter</label>
-          </div>
-        </div>
-        <div class="field date-field">
-          <label>Date / Ngày</label>
-          <div class="date-range">
-            <input type="date" id="dateFrom">
-            <input type="date" id="dateTo">
-          </div>
-          <div class="dual-slider">
-            <input type="range" id="sliderFrom" min="0" max="100" value="0" step="1">
-            <input type="range" id="sliderTo" min="0" max="100" value="100" step="1">
-          </div>
-        </div>
-        <a class="btn btn-secondary btn-guide" id="btnGuide" href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener" title="Mở tài liệu hướng dẫn sử dụng (PDF)">📖 Hướng dẫn sử dụng</a>
-      </div>
-
-      <div class="dash-grid">
-        <div class="card pie-card">
-          <h3>Bảng Tỉ lệ Giờ Công</h3>
-          <div class="pie-wrap">
-            <canvas id="pieChart"></canvas>
-          </div>
-        </div>
-
-        <div class="card table-card">
-          <table id="empTable" class="data-table">
-            <thead>
-              <tr>
-                <th>Name(Tên NV)</th><th>Mã NV</th><th class="num">Normal</th><th class="num">OT1</th>
-                <th class="num">OT2</th><th class="num">OT3</th><th class="num">Total Hour</th><th class="num">Tỉ lệ %</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-            <tfoot></tfoot>
-          </table>
-        </div>
-
-        <div class="card act-card">
-          <h3>Thống kê Giờ Công theo Activities</h3>
-          <div class="act-flex">
-            <table id="actTable" class="data-table">
-              <thead>
-                <tr><th>Activities</th><th>Tên hoạt động</th><th class="num">Số giờ</th><th class="num">Tỉ lệ %</th></tr>
-              </thead>
-              <tbody></tbody>
-              <tfoot></tfoot>
-            </table>
-            <div class="act-pie"><canvas id="actPieChart"></canvas></div>
-          </div>
-        </div>
-
-        <div class="card gauge-card">
-          <div class="gauge-dual">
-            <div class="gauge-one">
-              <div class="gauge-cap">Giờ chấm / INS Time Total</div>
-              <svg id="gaugeSvg" viewBox="0 0 240 140"></svg>
-              <div class="gauge-value" id="gaugeValue">0</div>
-              <div class="gauge-remain" id="gaugeRemain"></div>
-              <div class="gauge-scale"><span id="gaugeMin">0</span><span id="gaugeMax">0</span></div>
-            </div>
-            <div class="gauge-one" id="gaugeSwatWrap" style="display:none">
-              <div class="gauge-cap">Giờ chấm / Swat Hour Target</div>
-              <svg id="gaugeSwatSvg" viewBox="0 0 240 140"></svg>
-              <div class="gauge-value" id="gaugeSwatValue">0</div>
-              <div class="gauge-remain" id="gaugeSwatRemain"></div>
-              <div class="gauge-scale"><span>0</span><span id="gaugeSwatMax">0</span></div>
-              <div id="targetSwatBadge" class="target-swat-badge" style="display:none">✓ đã xác nhận Swat Hour</div>
-              <button class="btn btn-secondary btn-sm" id="btnGoSwat">↗ Chuyển tới bảng SWAT</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card stats-card">
-          <div class="stat-block">
-            <div class="stat-value" id="statWbs">-</div>
-            <div class="stat-label">WBS Element</div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-block">
-              <div class="stat-value" id="statNormalTotal">0,0</div>
-              <div class="stat-label">Tổng Giờ công thường</div>
-            </div>
-            <div class="stat-block">
-              <div class="stat-value" id="statGrandTotal">0,0</div>
-              <div class="stat-label">Tổng Giờ Công</div>
-            </div>
-          </div>
-          <div class="stat-row">
-            <div class="stat-block stat-block-wide">
-              <div class="stat-value small" id="statSiteSupName" title="">-</div>
-              <div class="stat-label">Giám sát (Supervisor)</div>
-            </div>
-            <div class="stat-block">
-              <div class="stat-value" id="statOT1">0,0</div>
-              <div class="stat-label">Tổng OT1</div>
-            </div>
-            <div class="stat-block">
-              <div class="stat-value" id="statOT2">0,0</div>
-              <div class="stat-label">Tổng OT2</div>
-            </div>
-            <div class="stat-block">
-              <div class="stat-value" id="statOT3">0,0</div>
-              <div class="stat-label">Tổng OT3</div>
-            </div>
-          </div>
-        </div>
-      </div>
+<!-- ============ BƯỚC 1: ĐĂNG NHẬP ============ -->
+<main id="viewLogin" hidden>
+  <div class="wrap login-grid">
+    <section class="login-intro">
+      <h1>Bộ công cụ dự án</h1>
+      <p>Đăng nhập một lần, sau đó chọn chức năng phù hợp với công việc của bạn.</p>
+      <ul class="intro-list" id="introList"></ul>
     </section>
 
-    <!-- ================= PROJECTS ================= -->
-    <section id="tab-projects" class="tab-panel">
-      <div class="panel-toolbar">
-        <input type="text" id="projectSearch" placeholder="Tìm dự án theo tên hoặc WBS...">
-        <button class="btn btn-primary admin-only" id="btnAddProject">+ Thêm dự án</button>
-        <button class="btn btn-danger admin-only" id="btnDelSelProjects" style="display:none">Xoá đã chọn</button>
-      </div>
-      <div class="table-scroll">
-        <table id="projectsTable" class="data-table">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+    <section class="login-card" aria-labelledby="loginTitle">
+      <div class="note note-warn" id="endedNote" role="status" hidden>Phiên đăng nhập đã kết thúc vì mã nhân viên không còn trong danh sách nhân sự. Nếu có nhầm lẫn, vui lòng liên hệ quản trị viên.</div>
+      <div class="note note-info" id="nextNote" hidden></div>
+
+      <form id="formUser" novalidate>
+        <h2 id="loginTitle">Đăng nhập</h2>
+        <p class="sub">Dùng họ tên đầy đủ và mã số nhân viên theo dữ liệu nhân sự.</p>
+        <label class="field">Họ và tên đầy đủ
+          <input id="inName" type="text" autocomplete="name" placeholder="Ví dụ: Nguyễn Văn A" required>
+        </label>
+        <label class="field">Mã số nhân viên
+          <input id="inId" type="text" autocomplete="off" placeholder="Nhập mã số nhân viên" required>
+        </label>
+        <label class="check"><input type="checkbox" id="inRemember"> Ghi nhớ trên thiết bị này (30 ngày)</label>
+        <p class="hint">Không chọn nếu bạn dùng máy tính chung.</p>
+        <div class="msg" id="msgUser" role="alert" aria-live="polite"></div>
+        <button class="btn-primary" type="submit" id="btnLogin">Đăng nhập</button>
+        <button type="button" class="link" id="toAdmin">Đăng nhập quản trị</button>
+      </form>
+
+      <form id="formAdmin" novalidate hidden>
+        <h2>Đăng nhập quản trị</h2>
+        <p class="sub">Dành cho người quản lý dữ liệu. Phiên quản trị không được ghi nhớ.</p>
+        <label class="field">Mật khẩu quản trị
+          <input id="inPw" type="password" autocomplete="current-password">
+        </label>
+        <div class="msg" id="msgAdmin" role="alert" aria-live="polite"></div>
+        <button class="btn-primary" type="submit" id="btnAdminLogin">Vào quyền quản trị</button>
+        <button type="button" class="link" id="toUser">‹ Đăng nhập bằng mã nhân viên</button>
+      </form>
     </section>
+  </div>
+</main>
 
-    <!-- ================= TIMESHEET ================= -->
-    <section id="tab-timesheet" class="tab-panel">
-      <div class="panel-toolbar">
-        <input type="month" id="tsMonthFilter" title="Chu kỳ bảng công: từ ngày 16 tháng trước đến ngày 15 của tháng được chọn">
-        <span id="tsCycleLabel" class="cycle-label"></span>
-        <div id="tsEmployeeCombo"></div>
-        <div id="tsProjectCombo"></div>
-        <button class="btn btn-secondary" id="btnFindDupTs" title="Tìm các dòng nghi trùng lặp: cùng nhân viên, cùng ngày và cùng khoảng giờ (From/To) có từ 2 dòng trở lên">🔍 Tìm trùng lặp</button>
-        <span id="tsDupInfo" class="cycle-label"></span>
-        <button class="btn btn-primary admin-only" id="btnAddTimesheet">+ Thêm bảng công</button>
-        <button class="btn btn-danger admin-only" id="btnDelSelTs" style="display:none">Xoá đã chọn</button>
-      </div>
-      <div class="table-scroll">
-        <table id="timesheetTable" class="data-table">
-          <thead>
-            <tr>
-              <th class="chk-col"><input type="checkbox" id="tsChkAll" title="Chọn tất cả"></th>
-              <th>Ngày</th><th>Từ (From)</th><th>Đến (To)</th><th>Mã NV</th><th>Tên NV</th><th>Dự án</th><th>WBS</th><th>Activities</th>
-              <th class="num">Normal</th><th class="num">OT1</th><th class="num">OT2</th><th class="num">OT3</th><th>Chức vụ</th><th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-          <tfoot></tfoot>
-        </table>
-      </div>
-    </section>
+<!-- ============ BƯỚC 2: CHỌN CHỨC NĂNG ============ -->
+<main id="viewHome" class="wrap" hidden>
+  <section class="intro">
+    <h1 id="hello"></h1>
+    <p>Chọn chức năng để bắt đầu.</p>
+  </section>
+  <div class="note note-warn" id="deniedNote" role="status" hidden></div>
+  <ul class="tools" id="toolList"></ul>
 
-    <!-- ================= EMPLOYEES ================= -->
-    <section id="tab-employees" class="tab-panel">
-      <div class="panel-toolbar">
-        <input type="text" id="employeeSearch" placeholder="Tìm nhân viên theo tên hoặc mã NV...">
-        <button class="btn btn-primary admin-only" id="btnAddEmployee">+ Thêm nhân viên</button>
-        <button class="btn btn-danger admin-only" id="btnDelSelEmployees" style="display:none">Xoá đã chọn</button>
-      </div>
-      <div class="table-scroll">
-        <table id="employeesTable" class="data-table">
-          <thead>
-            <tr>
-              <th class="chk-col"><input type="checkbox" id="empChkAll" title="Chọn tất cả"></th>
-              <th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Quản lý trực tiếp</th><th>Ngày vào làm</th><th>Ngày bắt đầu</th><th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
+  <section class="install" id="installCard" data-pwa-install hidden>
+    <span class="icon" aria-hidden="true"><img src="icons/icon-192.png" alt="" width="44" height="44" style="border-radius:10px"></span>
+    <div class="install-text" id="installText"><b>Cài Bộ công cụ lên máy</b> — mở nhanh từ màn hình chính và dùng được cả khi mất mạng (công trường, hố thang…).</div>
+    <button type="button" class="btn-install" id="btnInstall">Cài đặt</button>
+  </section>
+</main>
 
-    <!-- ================= SWAT (toàn màn hình) ================= -->
-    <section id="tab-swat" class="tab-panel">
-      <div class="swat-batchbar admin-only">
-        <button class="btn btn-primary" id="btnBatchReport">📑 Batch report</button>
-        <span class="batch-hint">Xuất báo cáo hàng loạt — chỉ các dự án đã ghi Swat Target Hour</span>
-      </div>
-      <div class="swat-frame-wrap">
-        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=31" title="SWAT Calculator"></iframe>
-      </div>
-    </section>
+<footer>
+  <div class="wrap">
+    <span>Mỗi chức năng lưu dữ liệu riêng. Dữ liệu Timesheet cá nhân chỉ nằm trên trình duyệt của bạn.</span>
+    <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn: Thống kê giờ công (PDF)</a>
+  </div>
+</footer>
 
-  </main>
-</div>
+<script src="js/config.js?v=36"></script>
+<script src="js/db.js?v=36"></script>
+<script src="js/cloud.js?v=36"></script>
+<script src="js/session.js?v=36"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
 
-<div id="modalRoot"></div>
+  const ICONS = {
+    tracking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
+    timesheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8.5 15l2.3 2.3L15.5 13"/></svg>',
+    tiendotm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h16" opacity=".35"/><rect x="4" y="3.5" width="7" height="3" rx="1" fill="currentColor" stroke="none"/><rect x="9" y="10.5" width="8" height="3" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="17.5" width="6" height="3" rx="1" fill="currentColor" stroke="none"/></svg>',
+  };
+  const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
-<script src="js/config.js?v=31"></script>
-<script src="js/db.js?v=31"></script>
-<script src="js/backup.js?v=31"></script>
-<script src="js/cloud.js?v=31"></script>
-<script src="js/importer.js?v=31"></script>
-<script src="js/charts.js?v=31"></script>
-<script src="js/combo.js?v=31"></script>
-<script src="js/tablefilter.js?v=31"></script>
-<script src="js/dashboard.js?v=31"></script>
-<script src="js/projects.js?v=31"></script>
-<script src="js/timesheet.js?v=31"></script>
-<script src="js/employees.js?v=31"></script>
-<script src="js/swat.js?v=31"></script>
-<script src="js/main.js?v=31"></script>
+  // Nội dung hiển thị của từng chức năng (tên / đường dẫn / quyền nằm ở Session.TOOLS)
+  const CARDS = {
+    tracking: {
+      desc: 'Dashboard giờ công theo dự án, bảng công, so sánh với INS Time và SWAT Hour, xuất báo cáo PDF / Excel.',
+      meta: ['Dữ liệu chung · Google Drive'],
+    },
+    timesheet: {
+      desc: 'Chấm công hằng ngày, tự tính giờ thường và tăng ca theo kỳ lương, xuất bảng công Excel.',
+      meta: ['Lưu trên máy của bạn', 'Tối ưu cho điện thoại'],
+    },
+    tiendotm: {
+      desc: 'Quét hợp đồng (PDF / ảnh, OCR), lập bảng tiến độ thi công dạng Gantt khổ A3 và hồ sơ chất lượng, xuất Excel / PDF.',
+      meta: ['Xử lý 100% trong trình duyệt'],
+    },
+  };
+  const ORDER = ['tracking', 'timesheet', 'tiendotm'];
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const initial = (name) => { const w = String(name || '').trim().split(/\s+/).pop() || '?'; return w.charAt(0).toUpperCase(); };
+
+  // ---------- điều phối 2 bước ----------
+  function render() {
+    const s = Session.current();
+    $('viewLogin').hidden = !!s;
+    $('viewHome').hidden = !s;
+    $('userBox').hidden = !s;
+    if (s) renderHome(s); else renderLogin();
+  }
+
+  function renderLogin() {
+    $('introList').innerHTML = ORDER.map(id => {
+      const t = Session.TOOLS[id];
+      const tag = t.rolesLabel ? ` <span class="tag">${esc(t.rolesLabel.replace(' và ', ' · '))}</span>` : '';
+      return `<li><span class="icon" aria-hidden="true">${ICONS[id]}</span><span>${esc(t.name)}${tag}</span></li>`;
+    }).join('');
+    const next = params.get('next');
+    if (next && Session.TOOLS[next]) {
+      $('nextNote').textContent = `Vui lòng đăng nhập để mở “${Session.TOOLS[next].name}”.`;
+      $('nextNote').hidden = false;
+    }
+    $('endedNote').hidden = params.get('ended') !== '1';
+    // Đặt sẵn con trỏ vào ô Họ tên — nhưng KHÔNG giành con trỏ nếu người dùng / trình tự điền
+    // đã chọn ô khác, và không tự bật bàn phím trên điện thoại (chỉ làm trên máy có chuột).
+    const fine = window.matchMedia && matchMedia('(pointer: fine)').matches;
+    if (fine && (!document.activeElement || document.activeElement === document.body)) $('inName').focus();
+  }
+
+  function renderHome(s) {
+    $('userName').textContent = s.name;
+    $('userRole').textContent = Session.roleLabel(s);
+    $('userAvatar').textContent = initial(s.name);
+    $('hello').textContent = 'Xin chào, ' + s.name;
+
+    const denied = params.get('denied');
+    if (denied && Session.TOOLS[denied] && !Session.canAccess(denied, s)) {
+      const t = Session.TOOLS[denied];
+      $('deniedNote').textContent = `Bạn chưa có quyền dùng “${t.name}” — chức năng này chỉ dành cho ${t.rolesLabel}. Nếu chức danh của bạn chưa đúng, hãy liên hệ quản trị viên.`;
+      $('deniedNote').hidden = false;
+    } else {
+      $('deniedNote').hidden = true;
+    }
+
+    // chức năng dùng được xếp trước, chức năng bị khoá xếp sau
+    const ids = ORDER.filter(id => Session.canAccess(id, s)).concat(ORDER.filter(id => !Session.canAccess(id, s)));
+    $('toolList').innerHTML = ids.map((id, i) => {
+      const t = Session.TOOLS[id], c = CARDS[id], allowed = Session.canAccess(id, s);
+      // thẻ khoá đã nói rõ "Chỉ dành cho …" ở dòng cuối → không lặp lại ở chip
+      const meta = c.meta.concat(allowed && t.rolesLabel ? ['Dành cho ' + t.rolesLabel] : [])
+        .map(m => `<li>${esc(m)}</li>`).join('');
+      const body = `
+        <div class="tool-head"><span class="icon" aria-hidden="true">${ICONS[id]}</span><span class="num">0${i + 1}</span></div>
+        <h2>${esc(t.name)}</h2>
+        <p>${esc(c.desc)}</p>
+        <ul class="meta">${meta}</ul>`;
+      return allowed
+        ? `<li><a class="tool" href="${esc(Session.url(id))}" data-tool="${id}">${body}
+             <span class="open">Mở chức năng <span class="arrow" aria-hidden="true">→</span></span></a></li>`
+        : `<li><div class="tool locked" aria-disabled="true" data-tool="${id}">${body}
+             <span class="open">${LOCK} Chỉ dành cho ${esc(t.rolesLabel)}</span></div></li>`;
+    }).join('');
+  }
+
+  // Sau khi đăng nhập: mở thẳng chức năng người dùng định vào (nếu có quyền), nếu không thì hiện danh sách
+  function afterLogin() {
+    const s = Session.current();
+    const next = params.get('next');
+    if (next && Session.TOOLS[next] && Session.canAccess(next, s)) { location.href = Session.url(next); return; }
+    params.delete('next');
+    history.replaceState(null, '', location.pathname);
+    render();
+  }
+
+  // ---------- đăng nhập nhân viên ----------
+  let refreshedFromDrive = false; // chỉ tải lại từ Drive tối đa 1 lần / lượt mở trang (tiết kiệm hạn mức tải)
+
+  async function employees() { try { return await DB.getAll('employees'); } catch (e) { return []; } }
+  async function findEmployee(name, id) {
+    const n = Session.norm(name), k = Session.norm(id);
+    return (await employees()).find(e => Session.norm(e.fullName) === n && Session.norm(e.empId) === k) || null;
+  }
+  function busy(on, text) {
+    $('btnLogin').disabled = on;
+    $('btnLogin').textContent = on ? (text || 'Đang kiểm tra…') : 'Đăng nhập';
+  }
+
+  $('formUser').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const name = $('inName').value.trim(), id = $('inId').value.trim();
+    const msg = $('msgUser');
+    msg.className = 'msg'; msg.textContent = '';
+    if (!name || !id) { msg.textContent = 'Vui lòng nhập đủ họ tên và mã số nhân viên.'; return; }
+
+    busy(true);
+    let emp = null, driveErr = null;
+    try {
+      emp = await findEmployee(name, id);
+      // không thấy trên máy → có thể danh sách đã cũ (nhân viên mới) → cập nhật từ Drive rồi thử lại
+      if (!emp && !refreshedFromDrive && Cloud.configured()) {
+        refreshedFromDrive = true;
+        busy(true, 'Đang cập nhật danh sách nhân viên…');
+        try { await Cloud.loadFromDrive(); emp = await findEmployee(name, id); }
+        catch (e) { driveErr = e; console.error('Drive load failed:', e); }
+      }
+    } finally { busy(false); }
+
+    if (emp) {
+      Session.save({ name: emp.fullName, empId: emp.empId, position: emp.position }, $('inRemember').checked);
+      afterLogin();
+      return;
+    }
+    const total = (await employees()).length;
+    if (!total) {
+      msg.textContent = driveErr
+        ? (/QUOTA/.test(driveErr.message)
+            ? 'Chưa tải được danh sách nhân viên: Google Drive đang giới hạn lượt tải hôm nay. Vui lòng thử lại sau.'
+            : 'Chưa tải được danh sách nhân viên: ' + driveErr.message)
+        : 'Chưa có danh sách nhân viên trên máy này. Vui lòng liên hệ quản trị viên.';
+    } else {
+      msg.textContent = 'Họ tên hoặc mã số nhân viên không đúng. Vui lòng kiểm tra lại.';
+    }
+  });
+
+  // ---------- đăng nhập quản trị ----------
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  $('toAdmin').addEventListener('click', () => {
+    $('formUser').hidden = true; $('formAdmin').hidden = false; $('msgAdmin').textContent = '';
+    setTimeout(() => $('inPw').focus(), 30);
+  });
+  $('toUser').addEventListener('click', () => {
+    $('formAdmin').hidden = true; $('formUser').hidden = false; $('inPw').value = '';
+    setTimeout(() => $('inName').focus(), 30);
+  });
+  $('formAdmin').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const msg = $('msgAdmin'); msg.textContent = '';
+    const hash = window.CONFIG && CONFIG.ADMIN_PASSWORD_HASH;
+    if (hash) {
+      const pw = $('inPw').value;
+      if (!pw) { msg.textContent = 'Vui lòng nhập mật khẩu.'; return; }
+      if (!(window.crypto && crypto.subtle)) { msg.textContent = 'Trình duyệt không hỗ trợ mã hoá ở địa chỉ này — hãy mở qua https.'; return; }
+      const h = await sha256(pw);
+      if (h !== hash) { msg.textContent = 'Sai mật khẩu.'; return; }
+      try { sessionStorage.setItem('adminOk', h); } catch (e) { /* ignore */ } // app Thống kê nhận quyền admin
+    }
+    Session.save({ admin: true, name: 'Quản trị viên' }, false);
+    $('inPw').value = '';
+    afterLogin();
+  });
+
+  $('btnLogout').addEventListener('click', () => Session.logout());
+
+  // ---------- ngoại tuyến & cài ứng dụng (xem js/pwa.js, sw.js) ----------
+  const showNet = () => { $('netOff').hidden = navigator.onLine !== false; };
+  window.addEventListener('online', showNet); window.addEventListener('offline', showNet); showNet();
+  function showInstall() {
+    const pwa = window.ToolsetPWA;
+    if (!pwa || pwa.isStandalone()) { $('installCard').hidden = true; return; }
+    if (pwa.canInstall()) {
+      $('btnInstall').hidden = false;
+      $('installCard').hidden = false;
+    } else if (pwa.isIOS()) { // Safari trên iPhone không có nút cài tự động
+      $('installText').innerHTML = '<b>Cài lên iPhone / iPad</b> — trong Safari bấm <b>Chia sẻ</b> rồi chọn <b>Thêm vào MH chính</b>. Sau đó mở từ màn hình chính, dùng được cả khi mất mạng.';
+      $('btnInstall').hidden = true;
+      $('installCard').hidden = false;
+    }
+  }
+  document.addEventListener('toolset:installable', showInstall);
+  document.addEventListener('toolset:installed', () => { $('installCard').hidden = true; });
+  document.addEventListener('DOMContentLoaded', showInstall); // pwa.js (defer) đã chạy xong
+  $('btnInstall').addEventListener('click', async () => {
+    if (await window.ToolsetPWA.install()) $('installCard').hidden = true;
+  });
+
+  // Back/Forward khôi phục trang từ bộ nhớ đệm, hoặc đăng nhập/đăng xuất ở tab khác → vẽ lại
+  Session.watch(render);
+
+  render();
+  // so phiên với EE Data trên máy: đổi chức danh → cập nhật thẻ; đã nghỉ việc → về màn đăng nhập
+  Session.revalidate().then((r) => {
+    if (r === 'removed') params.set('ended', '1');
+    if (r) render();
+  });
+})();
+</script>
 </body>
 </html>

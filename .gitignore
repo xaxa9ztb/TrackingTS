@@ -10,3 +10,9 @@ timesheet-data.json
 
 # Thư viện đọc Excel bundled sẵn cho app thì vẫn giữ.
 !js/xlsx.full.min.js
+
+# Mẫu bảng chấm công TRẮNG của Timesheet (không chứa dữ liệu) — tải khi bấm Xuất Excel.
+!tools/timesheet/ts-template.xlsx
+
+# Công cụ build của Timesheet (cài bằng npm install, không commit)
+node_modules/
