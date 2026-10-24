@@ -7,6 +7,25 @@ Kiến trúc: app chạy trên **GitHub Pages** (miễn phí), dữ liệu dùng
 > **Lưu ý bảo mật:** mật khẩu admin chỉ khoá giao diện. Lớp bảo vệ thật sự là tài khoản
 > Google — chỉ tài khoản đã tạo file Drive mới ghi đè được dữ liệu chung.
 
+## Bộ công cụ (nhiều công cụ trong 1 repo)
+
+Repo này là **Bộ công cụ dự án**: link gốc mở trang chủ, chọn công cụ để vào.
+
+| Đường dẫn | Công cụ | Nguồn |
+|---|---|---|
+| `index.html` | Trang chủ Bộ công cụ | — |
+| `tracking.html` | Thống kê giờ công dự án (app chính, các bước bên dưới) | — |
+| `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | `xaxa9ztb/swat-hour` |
+| `tools/timesheet/` | Timesheet cá nhân | `xaxa9ztb/Timesheet` (gộp bằng `git subtree`, giữ lịch sử) |
+| `tools/tiendotm/` | Tiến độ thi công thang máy | `xaxa9ztb/TiendoTM` (gộp bằng `git subtree`, giữ lịch sử) |
+
+- Mỗi công cụ trong `tools/` gọi `tools/toolset-nav.js` ngay sau thẻ `<body>` để có thanh
+  "‹ Bộ công cụ" quay về trang chủ. Thêm công cụ mới: chép vào `tools/<tên>/`, chèn dòng
+  `<script src="../toolset-nav.js" data-tool="Tên công cụ"></script>` và thêm 1 thẻ trên `index.html`.
+- Các công cụ cùng chạy trên `https://xaxa9ztb.github.io`, nên dữ liệu đã lưu trên trình duyệt
+  (ví dụ chấm công của Timesheet) vẫn còn khi mở ở đường dẫn mới.
+- Từ nay sửa Timesheet / TiendoTM **ngay trong repo này** (thư mục `tools/...`).
+
 ---
 
 ## Bước 1 — Đặt mật khẩu admin
@@ -114,4 +133,4 @@ lọc, export Excel — không thấy các nút thêm/sửa/xoá.
 | Đăng nhập báo app chưa xác minh / access denied | Thêm email của bạn vào **Test users** (bước 3.4) |
 | Quên mật khẩu admin | Tạo hash mới (bước 1) và sửa `config.js` trên GitHub |
 | Muốn đổi dữ liệu về bản cũ | Google Drive giữ lịch sử phiên bản: mở drive.google.com → chuột phải file `timesheet-data.json` → Manage versions |
-| Sửa code xong nhưng trang vẫn chạy bản cũ | Trình duyệt/GitHub Pages cache file css/js. Khi cập nhật code, tăng số version `?v=...` ở các dòng `<link>`/`<script>` trong `index.html` (ví dụ `?v=2` → `?v=3`); người xem chỉ cần tải lại trang. Chữa cháy nhanh: Ctrl+F5 |
+| Sửa code xong nhưng trang vẫn chạy bản cũ | Trình duyệt/GitHub Pages cache file css/js. Khi cập nhật code, tăng số version `?v=...` ở các dòng `<link>`/`<script>` trong `tracking.html` (ví dụ `?v=2` → `?v=3`); người xem chỉ cần tải lại trang. Chữa cháy nhanh: Ctrl+F5 |

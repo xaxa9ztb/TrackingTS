@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bộ công cụ dự án</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --ink: #111827;
+    --ink-2: #374151;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --line-strong: #c7ccd4;
+    --brand: #dc0000;
+    --tile: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; }
+
+  /* ---- thanh trên ---- */
+  .hub-top { background: #111827; color: #f9fafb; }
+  .hub-top .wrap { display: flex; align-items: center; gap: 14px; min-height: 56px; flex-wrap: wrap; }
+  .mark { font-weight: 800; font-size: 19px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+  .mark::before { content: ""; width: 12px; height: 12px; border-radius: 3px; background: var(--brand); }
+  .divider { width: 1px; height: 20px; background: #374151; }
+  .product { color: #d1d5db; font-size: 14px; }
+
+  /* ---- giới thiệu ---- */
+  .intro { padding-block: 40px 24px; }
+  .intro h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.2; letter-spacing: -.3px; }
+  .intro p { margin: 0; color: var(--muted); max-width: 640px; }
+
+  /* ---- thẻ công cụ ---- */
+  .tools {
+    list-style: none; margin: 0; padding: 0 0 40px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px;
+  }
+  .tool {
+    position: relative; height: 100%;
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 22px 22px 18px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px;
+    color: inherit; text-decoration: none;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+  }
+  .tool:hover { border-color: var(--line-strong); box-shadow: 0 8px 24px rgba(17,24,39,.08); transform: translateY(-2px); }
+  .tool:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  .tool-head { display: flex; align-items: center; justify-content: space-between; }
+  .icon {
+    width: 44px; height: 44px; border-radius: 10px; background: var(--tile); color: var(--ink);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .icon svg { width: 24px; height: 24px; }
+  .num { font: 600 12px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
+  .tool h2 { margin: 4px 0 0; font-size: 18px; line-height: 1.3; }
+  .tool p { margin: 0; color: var(--ink-2); font-size: 14px; flex: 1; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; padding: 0; list-style: none; }
+  .meta li {
+    font-size: 12px; color: var(--ink-2); background: var(--tile);
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .open {
+    display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 14px;
+    border-top: 1px solid var(--line); font-weight: 600; font-size: 14px; color: var(--ink);
+  }
+  .open .arrow { transition: transform .15s ease; }
+  .tool:hover .open .arrow { transform: translateX(3px); }
+
+  /* ---- chân trang ---- */
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer a { color: var(--ink-2); }
+
+  @media (max-width: 520px) {
+    .intro { padding-block: 28px 18px; }
+    .intro h1 { font-size: 24px; }
+    .divider { display: none; }
+    .hub-top .wrap { gap: 4px 12px; padding-block: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tool, .open .arrow { transition: none; }
+    .tool:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hub-top">
+  <div class="wrap">
+    <div class="mark">Schindler</div>
+    <span class="divider" aria-hidden="true"></span>
+    <span class="product">Bộ công cụ dự án</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="intro">
+    <h1>Chọn công cụ</h1>
+    <p>Các công cụ quản lý dự án thang máy, gom về một nơi. Mỗi công cụ mở ở trang riêng — bấm <b>‹ Bộ công cụ</b> ở đầu trang để quay lại đây.</p>
+  </section>
+
+  <ul class="tools">
+    <li>
+      <a class="tool" href="tracking.html">
+        <div class="tool-head">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+          </span>
+          <span class="num">01</span>
+        </div>
+        <h2>Thống kê giờ công dự án</h2>
+        <p>Dashboard giờ công theo dự án, bảng công, so sánh với INS Time và SWAT Hour, xuất báo cáo PDF / Excel.</p>
+        <ul class="meta">
+          <li>Dữ liệu chung · Google Drive</li>
+          <li>Cần xác thực người xem</li>
+        </ul>
+        <span class="open">Mở công cụ <span class="arrow" aria-hidden="true">→</span></span>
+      </a>
+    </li>
+    <li>
+      <a class="tool" href="tools/timesheet/">
+        <div class="tool-head">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8.5 15l2.3 2.3L15.5 13"/></svg>
+          </span>
+          <span class="num">02</span>
+        </div>
+        <h2>Timesheet cá nhân</h2>
+        <p>Chấm công hằng ngày, tự tính giờ thường và tăng ca theo kỳ lương, xuất bảng công Excel.</p>
+        <ul class="meta">
+          <li>Lưu trên máy của bạn</li>
+          <li>Tối ưu cho điện thoại</li>
+        </ul>
+        <span class="open">Mở công cụ <span class="arrow" aria-hidden="true">→</span></span>
+      </a>
+    </li>
+    <li>
+      <a class="tool" href="tools/tiendotm/">
+        <div class="tool-head">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h16" opacity=".35"/><rect x="4" y="3.5" width="7" height="3" rx="1" fill="currentColor" stroke="none"/><rect x="9" y="10.5" width="8" height="3" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="17.5" width="6" height="3" rx="1" fill="currentColor" stroke="none"/></svg>
+          </span>
+          <span class="num">03</span>
+        </div>
+        <h2>Tiến độ thi công thang máy</h2>
+        <p>Quét hợp đồng (PDF / ảnh, OCR), lập bảng tiến độ thi công dạng Gantt khổ A3 và hồ sơ chất lượng, xuất Excel / PDF.</p>
+        <ul class="meta">
+          <li>Xử lý 100% trong trình duyệt</li>
+          <li>Không gửi dữ liệu đi đâu</li>
+        </ul>
+        <span class="open">Mở công cụ <span class="arrow" aria-hidden="true">→</span></span>
+      </a>
+    </li>
+  </ul>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Mỗi công cụ lưu dữ liệu riêng. Dữ liệu Timesheet cá nhân chỉ nằm trên trình duyệt của bạn.</span>
+    <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn: Thống kê giờ công (PDF)</a>
+  </div>
+</footer>
+
+</body>
+</html>
