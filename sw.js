@@ -7,7 +7,7 @@
 //  - Google Drive / đăng nhập Google: KHÔNG lưu đệm (dữ liệu đã có IndexedDB lo).
 //
 // Khi đổi danh sách file bên dưới hoặc cách lưu đệm: tăng VERSION.
-const VERSION = 'v40';
+const VERSION = 'v42';
 const SHELL = `toolset-shell-${VERSION}`;
 const CDN = 'toolset-cdn-v1';
 const HTML_TIMEOUT = 4000;
@@ -19,7 +19,7 @@ const SHELL_FILES = [
   './js/importer.js', './js/charts.js', './js/combo.js', './js/tablefilter.js', './js/dashboard.js',
   './js/projects.js', './js/timesheet.js', './js/employees.js', './js/swat.js', './js/main.js', './js/xlsx.full.min.js',
   './tools/toolset-nav.js', './tools/swat-hour/index.html',
-  './tools/timesheet/', './tools/timesheet/index.html', './tools/timesheet/app.js',
+  './tools/timesheet/', './tools/timesheet/index.html', './tools/timesheet/labor.js', './tools/timesheet/app.js',
   './tools/timesheet/tailwind.css', './tools/timesheet/ts-template.xlsx',
   './tools/tiendotm/', './tools/tiendotm/index.html',
   './tools/tiendotm/hoso_chatluong_template.docx', './tools/tiendotm/thu_hangve_template.docx',

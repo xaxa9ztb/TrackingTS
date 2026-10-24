@@ -24,6 +24,42 @@ GitHub Pages phục vụ thẳng các file **đã build** — người dùng kh�
   lần đồng bộ gần nhất (`Cloud.getLastSyncedAt()`, dùng chung cho cả Bộ công cụ) và nút **Đồng bộ ngay**.
   Nút bánh răng chỉ còn **Sao lưu / Khôi phục / Xóa dữ liệu**.
 - Xóa có **Hoàn tác** (thông báo dưới màn hình) thay cho hộp xác nhận.
+
+## Ngày lễ & giờ làm thêm (tự động — `labor.js`)
+Căn cứ: Bộ luật Lao động 2019 (Điều 98, 105, 106, 111, 112), Nghị định 145/2020 (Điều 57),
+Nghị quyết 28/2026/QH16 (24/11 — Ngày Văn hóa Việt Nam, nghỉ hưởng nguyên lương từ 2026).
+
+**Ngày nghỉ lễ, Tết** tự tính cho mọi năm (âm lịch theo múi giờ Việt Nam):
+Tết Dương lịch 1/1 · Tết Âm lịch 5 ngày (mặc định: ngày cuối năm âm + mùng 1–4) · Giỗ Tổ 10/3 âm lịch ·
+30/4 · 1/5 · Quốc khánh 2/9 + 1 ngày liền kề (các năm đã công bố ghi trong `NATIONAL_DAY_EXTRA`) · 24/11 (từ 2026).
+Ngày lễ trùng **ngày nghỉ hằng tuần** → **nghỉ bù** ngày làm việc kế tiếp (cũng tính như ngày lễ).
+Lịch hiện các ngày lễ của kỳ lương.
+
+**Chia giờ công** (dòng mới mặc định *Tự tính theo Luật Lao động*):
+
+| Thời điểm làm việc | Ngày thường | Ngày nghỉ hằng tuần | Ngày lễ / nghỉ bù |
+|---|---|---|---|
+| Giờ hành chính 08:00–12:00, 13:00–17:00 | Giờ thường (tối đa 8 giờ/ngày) | OT2 · 200% | OT3 · 300% |
+| Ban ngày ngoài giờ (06:00–08:00, 12:00–13:00 nếu không nghỉ, 17:00–22:00) | OT1 · 150% | OT2 · 200% | OT3 · 300% |
+| Ban đêm 22:00–06:00 hôm sau | OT4 · 200% — hoặc **OT7 · 210%** nếu hôm đó đã làm thêm ban ngày | OT5 · 270% | OT6 · 390% |
+
+- Ca đêm 22:00–06:00 thuộc về **ngày bắt đầu** ca (như mẫu: "22:00 – 6:00 hôm sau – ngày CN / lễ").
+- **Nghỉ (giờ)** tự gợi ý 1 khi ca đi qua 12:00–13:00; giờ nghỉ trừ vào giờ trưa trước.
+- **Lịch làm việc** (thẻ Thông tin nhân viên → Sửa): *T2–T6 + sáng T7* (mặc định, như trước) · *T2–T6* · *T2–T7*
+  — quyết định ngày nghỉ hằng tuần (OT2 / OT5) và ngày nghỉ bù.
+- Mã nghỉ phép / ốm / không lương (6010, 6020, 6090): không tính làm thêm giờ.
+- Một dòng có thể vừa giờ thường vừa nhiều loại OT → Excel ghi đúng từng cột G, I..O; cột *Check* vẫn = 0
+  (công thức dùng `MOD(F-E,1)` nên ca qua nửa đêm cũng đúng).
+- Dòng đã lưu trước bản này (không có `otMode`) **giữ nguyên** loại giờ đã chọn; mở ra tick *Tự tính* để tính lại.
+  Bỏ tick để tự chọn một loại giờ cho cả dòng như trước.
+- Doanh nghiệp chọn phương án nghỉ Tết khác (ví dụ 2 ngày trước + 3 ngày sau Tết): sửa `statutoryHolidays()` trong `labor.js`.
+- Kiểm thử quy tắc: `node` chạy trực tiếp được `labor.js` (`module.exports`).
+
+## Ngày trong file Excel
+Ngày ghi vào Excel phải tạo bằng `excelDate(y, m, d)` (= `Date.UTC`), **không** dùng `new Date(y, m-1, d)`:
+ExcelJS đổi Date sang số ngày Excel theo UTC, nên 0 giờ giờ Việt Nam (UTC+7) thành 17:00 hôm trước → Excel lùi 1 ngày
+(lỗi đã gặp trước 10/2026, kéo theo sai cột Thứ và giờ công thường ngày Chủ nhật). Khi admin nhập bảng công,
+`js/importer.js` tự sửa các ngày có dấu hiệu lỗi này (phần lẻ đúng 17:00) từ file xuất bằng bản cũ.
 - Dữ liệu (`ts_entries_v28`, `ts_profile_v28`, `ts_projects_v28`) và file Excel xuất ra **không đổi**.
 
 ## Sửa Timesheet

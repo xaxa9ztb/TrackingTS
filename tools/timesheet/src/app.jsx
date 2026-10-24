@@ -19,42 +19,22 @@
         };
 
         // --- DATA CONFIG ---
+        // Loại giờ = cột G, I..O của mẫu bảng chấm công; tỷ lệ theo Điều 98 BLLĐ 2019 + Điều 57 NĐ 145/2020 (xem labor.js)
         const OT_TYPES = [
-            { code: 'NORMAL', label: 'Giờ công thường' }, 
-            { code: 'OT1', label: 'OT1 (17:00-22:00 T2-T7)' },
-            { code: 'OT2', label: 'OT2 (08:00-22:00 CN/Chiều T7)' },
-            { code: 'OT3', label: 'OT3 (08:00-22:00 Lễ)' },
-            { code: 'OT4', label: 'OT4 (22:00-06:00 Đêm)' },
-            { code: 'OT5', label: 'OT5 (22:00-06:00 Đêm T7/CN)' },
-            { code: 'OT6', label: 'OT6 (22:00-06:00 Đêm Lễ)' },
-            { code: 'OT7', label: 'OT7 (Đêm có OT trước)' },
-        ];
-        
-        // COMMON VIETNAMESE HOLIDAYS
-        const VN_HOLIDAYS = [
-            '01-01', '04-30', '05-01', '09-02', '09-03', // Fixed
-            // 2024
-            '2024-02-08', '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12', '2024-02-13', '2024-02-14', // Tet 2024
-            '2024-04-18', // Hung Kings 2024
-            // 2025
-            '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31', '2025-02-01', // Tet 2025
-            '2025-04-07', // Hung Kings 2025
-            // 2026
-            '2026-02-16', '2026-02-17', '2026-02-18', '2026-02-19', '2026-02-20', // Tet 2026
-            '2026-04-26', '2026-04-27', // Hung Kings 2026
-            // 2027
-            '2027-02-05', '2027-02-06', '2027-02-07', '2027-02-08', '2027-02-09', // Tet 2027
-            '2027-04-16', // Hung Kings 2027
+            { code: 'NORMAL', label: 'Giờ công thường', short: 'Giờ thường' },
+            { code: 'OT1', label: 'OT1 — Ngày thường, ban ngày (150%)', short: 'OT1 · 150%' },
+            { code: 'OT2', label: 'OT2 — Ngày nghỉ hằng tuần, ban ngày (200%)', short: 'OT2 · 200%' },
+            { code: 'OT3', label: 'OT3 — Ngày lễ, Tết, ban ngày (300%)', short: 'OT3 · 300%' },
+            { code: 'OT4', label: 'OT4 — Đêm ngày thường (200%)', short: 'OT4 · 200%' },
+            { code: 'OT5', label: 'OT5 — Đêm ngày nghỉ hằng tuần (270%)', short: 'OT5 · 270%' },
+            { code: 'OT6', label: 'OT6 — Đêm ngày lễ, Tết (390%)', short: 'OT6 · 390%' },
+            { code: 'OT7', label: 'OT7 — Đêm ngày thường, đã làm thêm 17:00–22:00 (210%)', short: 'OT7 · 210%' },
         ];
 
-        const isVietnameseHoliday = (dateStr) => {
-            if (!dateStr) return false;
-            if (VN_HOLIDAYS.includes(dateStr)) return true;
-            const [y, m, d] = dateStr.split('-');
-            const md = `${m}-${d}`;
-            if (['01-01', '04-30', '05-01', '09-02', '09-03'].includes(md)) return true;
-            return false;
-        };
+        // Ngày nghỉ lễ, Tết tự tính theo Bộ luật Lao động (âm lịch, nghỉ bù, 24/11 từ 2026) — xem labor.js.
+        // `sch` = lịch làm việc của người dùng (quyết định ngày nghỉ hằng tuần → ngày nghỉ bù).
+        const holidayOf = (dateStr, sch) => (dateStr ? LaborVN.holidayInfo(dateStr, sch) : null);
+        const isVietnameseHoliday = (dateStr, sch) => !!holidayOf(dateStr, sch);
 
         const HR_WORK_NUMBERS = ['PAID LEAVE', 'UNPAID LEAVE', 'TRAINING-NI', 'TRAINING-EI', 'MEETINGS'];
 
@@ -155,6 +135,10 @@
             return res.arrayBuffer();
         };
         const cloneStyle = (s) => (s ? JSON.parse(JSON.stringify(s)) : {});
+        // Ngày ghi vào Excel PHẢI tạo theo UTC: ExcelJS đổi Date sang số ngày Excel theo giờ UTC.
+        // new Date(y, m-1, d) là 0 giờ GIỜ MÁY — ở Việt Nam (UTC+7) = 17 giờ hôm TRƯỚC theo UTC → Excel lùi 1 ngày
+        // (cả cột Thứ / giờ công thường theo ngày cũng sai theo).
+        const excelDate = (y, m, d) => new Date(Date.UTC(y, m - 1, d));
         // Column G "Normal Hour" formula from the template (references $E$9=08:00, $F$9=17:00)
         const normalHourFormula = (r) => `IF(D${r}=1,0,IF(AND(E${r}<$E$9,F${r}>$F$9),9-H${r},IF(OR(AND(E${r}<$E$9,F${r}<$E$9),AND(E${r}>$F$9,F${r}>$F$9)),0,IF(AND(E${r}>=$E$9,F${r}<=$F$9),(F${r}-E${r})*24-H${r},IF(AND(F${r}>$F$9,E${r}>=$E$9),($F$9-E${r})*24-H${r},IF(AND(E${r}<$E$9,F${r}<=$F$9),(F${r}-$E$9)*24-H${r}))))))`;
 
@@ -209,6 +193,11 @@
         const fmtH = (h) => (Math.round(h * 10) / 10).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
         const entryHours = (e) => calculateHours(e.startTime, e.endTime, e.breakTime);
         const otLabel = (code) => (OT_TYPES.find(t => t.code === code) || {}).label || code;
+        const otShort = (code) => (OT_TYPES.find(t => t.code === code) || {}).short || code;
+        const scheduleOf = (profile) => (profile && LaborVN.SCHEDULES[profile.schedule] ? profile.schedule : LaborVN.DEFAULT_SCHEDULE);
+        // Giờ công từng loại của mỗi dòng: dòng "tự động" chia theo luật, dòng cũ / chọn tay giữ loại đã chọn
+        const breakdownsOf = (entries, sch) => LaborVN.breakdownAll(entries, sch, entryHours);
+        const sumBd = (bd) => Object.values(bd || {}).reduce((a, b) => a + b, 0);
         // Kỳ lương tháng M = 16/(M-1) → 15/M, nên từ ngày 16 trở đi thuộc kỳ của tháng sau
         const periodMonthOf = (dateStr) => {
             const d = parseLocal(dateStr);
@@ -217,7 +206,8 @@
         };
         const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); return toLocalISOString(new Date(y, m - 1 + n, 1)).slice(0, 7); };
         const daysBetween = (start, end) => { const out = []; for (let d = start; d <= end; d = addDaysLocal(d, 1)) out.push(d); return out; };
-        const isWorkday = (s) => { const w = weekdayOf(s); return w >= 1 && w <= 5 && !isVietnameseHoliday(s); };
+        // ngày phải chấm công: T2–T6 (thêm T7 nếu làm cả T7), trừ ngày lễ / nghỉ bù
+        const isWorkday = (s, sch) => { const w = weekdayOf(s); return w >= 1 && (w <= 5 || (w === 6 && sch === 'mon-sat')) && !isVietnameseHoliday(s, sch); };
         const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
         const DEFAULT_PROFILE = { name: '', empId: '', position: '', dept: 'NI', sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I' };
 
@@ -282,27 +272,36 @@
                               .sort((a, b) => b.date.localeCompare(a.date) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
             }, [entries, period]);
 
+            const sch = scheduleOf(profile);
+            // giờ thường / OT từng loại của mọi dòng (tính trên toàn bộ dữ liệu: OT7 cần biết các dòng cùng ngày)
+            const bds = useMemo(() => breakdownsOf(entries, sch), [entries, sch]);
+            const bdOf = (e) => bds.get(e.id) || {};
+
             const dayTotals = useMemo(() => {
                 const t = {};
                 monthlyEntries.forEach(e => {
                     const d = t[e.date] || (t[e.date] = { hours: 0, ot: false, count: 0 });
-                    d.hours += entryHours(e); d.count++; if (e.otType !== 'NORMAL') d.ot = true;
+                    const bd = bdOf(e);
+                    d.hours += sumBd(bd); d.count++; if (Object.keys(bd).some(k => k !== 'NORMAL')) d.ot = true;
                 });
                 return t;
-            }, [monthlyEntries]);
+            }, [monthlyEntries, bds]);
 
             const stats = useMemo(() => {
                 let normal = 0, ot = 0; const byOt = {};
                 monthlyEntries.forEach(e => {
-                    const h = entryHours(e);
-                    if (e.otType === 'NORMAL') normal += h; else { ot += h; byOt[e.otType] = (byOt[e.otType] || 0) + h; }
+                    const bd = bdOf(e);
+                    Object.keys(bd).forEach(k => {
+                        if (k === 'NORMAL') normal += bd[k]; else { ot += bd[k]; byOt[k] = (byOt[k] || 0) + bd[k]; }
+                    });
                 });
-                // ngày làm việc (T2–T6, không phải ngày lễ) đã qua trong kỳ mà chưa chấm công
+                // ngày làm việc (không phải ngày lễ / nghỉ bù) đã qua trong kỳ mà chưa chấm công
                 const today = getTodayLocal();
                 const last = period.end < today ? period.end : today;
-                const missing = period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d) && !dayTotals[d]) : [];
+                const missing = period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d, sch) && !dayTotals[d]) : [];
                 return { normal, ot, total: normal + ot, byOt, days: Object.keys(dayTotals).length, missing };
-            }, [monthlyEntries, dayTotals, period]);
+            }, [monthlyEntries, dayTotals, period, bds, sch]);
+            const holidays = useMemo(() => LaborVN.holidaysBetween(period.start, period.end, sch), [period, sch]);
 
             const visible = dayFilter ? monthlyEntries.filter(e => e.date === dayFilter) : monthlyEntries;
 
@@ -415,7 +414,7 @@
                 sheet.getCell('AS4').value = profile.dept || '';
                 sheet.getCell('AR4').value = ':';
                 const [hy, hm] = currentMonth.split('-').map(Number);
-                sheet.getCell('AS3').value = new Date(hy, hm - 1, 1);
+                sheet.getCell('AS3').value = excelDate(hy, hm, 1);
 
                 // Clear the old body (sample rows 10..64 plus whatever our new layout will span): values + styles
                 const clearUntil = Math.max(70, 10 + sortedData.length + 6);
@@ -435,17 +434,24 @@
                     row.getCell(1).value = { formula: '$E$4' };
                     row.getCell(2).value = { formula: '$E$3' };
                     const [dy, dm, dd] = e.date.split('-').map(Number);
-                    row.getCell(3).value = new Date(dy, dm - 1, dd);
+                    row.getCell(3).value = excelDate(dy, dm, dd);
                     row.getCell(4).value = { formula: `WEEKDAY(C${r})` };
                     row.getCell(5).value = timeToExcel(e.startTime);
                     row.getCell(6).value = timeToExcel(e.endTime);
-                    row.getCell(7).value = e.otType === 'NORMAL' ? { formula: normalHourFormula(r) } : 0;
                     const brk = parseFloat(e.breakTime) || 0;
                     row.getCell(8).value = brk > 0 ? brk : null;
-                    if (e.otType !== 'NORMAL' && OT_COL[e.otType]) {
-                        row.getCell(OT_COL[e.otType]).value = calculateHours(e.startTime, e.endTime, e.breakTime);
+                    if (LaborVN.isAuto(e)) {
+                        // tự động theo luật: một dòng có thể vừa giờ thường vừa nhiều loại OT (cột "Check" vẫn = 0)
+                        const bd = bdOf(e);
+                        row.getCell(7).value = bd.NORMAL || 0;
+                        Object.keys(OT_COL).forEach(k => { if (bd[k]) row.getCell(OT_COL[k]).value = bd[k]; });
+                    } else {
+                        row.getCell(7).value = e.otType === 'NORMAL' ? { formula: normalHourFormula(r) } : 0;
+                        if (e.otType !== 'NORMAL' && OT_COL[e.otType]) {
+                            row.getCell(OT_COL[e.otType]).value = calculateHours(e.startTime, e.endTime, e.breakTime);
+                        }
                     }
-                    row.getCell(16).value = { formula: `(F${r}-E${r})*24-SUM(G${r}:O${r})` };
+                    row.getCell(16).value = { formula: `MOD(F${r}-E${r},1)*24-SUM(G${r}:O${r})` }; // MOD: ca qua nửa đêm vẫn = 0
                     row.getCell(17).value = { formula: `INDEX($U$9:$AX$9,1,MATCH("x",$U${r}:$AX${r}))` };
                     row.getCell(18).value = e.projectName || '';
                     row.getCell(19).value = e.workNumber || '';
@@ -549,7 +555,7 @@
                     <main className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 pb-28 md:pb-10 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] items-start">
                         <aside className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start lg:block lg:space-y-4 lg:sticky lg:top-24">
                             <StatsPanel stats={stats}/>
-                            <PeriodCalendar period={period} dayTotals={dayTotals} missing={stats.missing} selected={dayFilter}
+                            <PeriodCalendar period={period} dayTotals={dayTotals} missing={stats.missing} selected={dayFilter} sch={sch} holidays={holidays}
                                 onPick={(d) => (dayTotals[d] ? setDayFilter(dayFilter === d ? null : d) : openNewEntry(d))}/>
                         </aside>
 
@@ -577,8 +583,8 @@
                                 </div>
                             ) : (
                                 <React.Fragment>
-                                    <EntryTable rows={visible} onEdit={openEdit} onDelete={handleDelete}/>
-                                    <EntryCards rows={visible} onEdit={openEdit} onDelete={handleDelete}/>
+                                    <EntryTable rows={visible} bdOf={bdOf} sch={sch} onEdit={openEdit} onDelete={handleDelete}/>
+                                    <EntryCards rows={visible} bdOf={bdOf} sch={sch} onEdit={openEdit} onDelete={handleDelete}/>
                                 </React.Fragment>
                             )}
                         </section>
@@ -595,7 +601,7 @@
                             <EntryForm key={drawer.key} initialData={drawer.entry} defaultDate={drawer.date}
                                 onSave={handleSaveEntry} onCancel={closeDrawer}
                                 onDelete={drawer.entry ? () => handleDelete(drawer.entry) : null}
-                                entries={entries} projects={projects}/>
+                                entries={entries} projects={projects} sch={sch}/>
                         </Drawer>
                     )}
                     {drawer && drawer.type === 'settings' && (
@@ -657,7 +663,7 @@
         }
 
         // ---------- Lịch kỳ lương (16 → 15) ----------
-        function PeriodCalendar({ period, dayTotals, missing, selected, onPick }) {
+        function PeriodCalendar({ period, dayTotals, missing, selected, onPick, sch, holidays }) {
             const today = getTodayLocal();
             const days = daysBetween(period.start, period.end);
             const lead = (weekdayOf(period.start) + 6) % 7; // tuần bắt đầu từ Thứ 2
@@ -674,16 +680,16 @@
                     <div className="grid grid-cols-7 gap-1">
                         {Array.from({ length: lead }).map((_, i) => <div key={'blank' + i}/>)}
                         {days.map(d => {
-                            const t = dayTotals[d], w = weekdayOf(d), hol = isVietnameseHoliday(d), miss = missingSet.has(d);
+                            const t = dayTotals[d], w = weekdayOf(d), holi = holidayOf(d, sch), hol = !!holi, miss = missingSet.has(d);
                             const [, mm, dd] = d.split('-');
                             const showMonth = dd === '01' || d === period.start;
-                            const label = `${WEEKDAYS_LONG[w]} ${fmtDMY(d)}${hol ? ', ngày lễ' : ''}: ` +
+                            const label = `${WEEKDAYS_LONG[w]} ${fmtDMY(d)}${hol ? `, ${holi.name}` : ''}: ` +
                                 (t ? `${fmtH(t.hours)} giờ — bấm để xem` : miss ? 'chưa chấm công — bấm để thêm' : 'bấm để thêm chấm công');
                             return (
                                 <button key={d} type="button" onClick={() => onPick(d)} aria-pressed={selected === d} aria-label={label} title={label}
                                     className={`relative h-11 sm:h-12 rounded-lg flex flex-col items-center justify-center text-sm border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 ${
                                         selected === d ? 'border-blue-600 ring-2 ring-blue-600/30' : d === today ? 'border-slate-800' : 'border-transparent'
-                                    } ${t ? (t.ot ? 'bg-orange-50 hover:bg-orange-100' : 'bg-blue-50 hover:bg-blue-100') : miss ? 'bg-rose-50 hover:bg-rose-100' : 'hover:bg-slate-100'}`}>
+                                    } ${t ? (t.ot ? 'bg-orange-50 hover:bg-orange-100' : 'bg-blue-50 hover:bg-blue-100') : miss ? 'bg-rose-50 hover:bg-rose-100' : hol ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-100'}`}>
                                     <span className={`leading-none ${showMonth ? 'text-[11px] font-semibold' : ''} ${hol || w === 0 ? 'text-rose-600' : w === 6 ? 'text-slate-500' : 'text-slate-800'}`}>
                                         {showMonth ? `${parseInt(dd, 10)}/${parseInt(mm, 10)}` : parseInt(dd, 10)}
                                     </span>
@@ -698,22 +704,39 @@
                         <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded bg-orange-100 inline-block"/>Có OT</span>
                         <span className="inline-flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"/>Chưa chấm (T2–T6)</span>
                         <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded border border-slate-800 inline-block"/>Hôm nay</span>
+                        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded bg-amber-100 inline-block"/><b className="font-medium text-rose-600">Lễ</b></span>
                     </div>
+                    {holidays.length > 0 && (
+                        <div id="tsHolidays" className="mt-3 pt-3 border-t border-slate-100">
+                            <h3 className="text-xs font-semibold text-slate-600 mb-1">Ngày lễ trong kỳ — làm việc tính OT3 / OT6 (300% / 390%)</h3>
+                            <ul className="space-y-0.5 text-xs text-slate-600">
+                                {holidays.map(h => (
+                                    <li key={h.date} className="flex gap-2"><span className="tabular-nums font-medium text-rose-600 w-12 shrink-0">{fmtDM(h.date)}</span><span>{h.name}</span></li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        function OtPill({ code }) {
-            const normal = code === 'NORMAL';
+        // Giờ thường / OT của một dòng, mỗi loại một nhãn (vd. "Giờ thường 8" "OT1 · 150% 3")
+        function HourPills({ bd }) {
+            const keys = OT_TYPES.map(t => t.code).filter(k => bd[k] > 0);
+            if (!keys.length) return <span className="text-slate-400">—</span>;
             return (
-                <span title={otLabel(code)} className={`inline-flex items-center h-6 px-2 rounded-full text-xs font-semibold whitespace-nowrap ${normal ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>
-                    {normal ? 'Giờ thường' : code}
+                <span className="inline-flex flex-wrap gap-1">
+                    {keys.map(k => (
+                        <span key={k} title={otLabel(k)} className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-xs font-semibold whitespace-nowrap ${k === 'NORMAL' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>
+                            {otShort(k)}<span className="tabular-nums font-bold">{fmtH(bd[k])}</span>
+                        </span>
+                    ))}
                 </span>
             );
         }
 
         // ---------- Máy tính: bảng ----------
-        function EntryTable({ rows, onEdit, onDelete }) {
+        function EntryTable({ rows, bdOf, sch, onEdit, onDelete }) {
             return (
                 <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-sm">
@@ -731,7 +754,8 @@
                         <tbody className="divide-y divide-slate-100">
                             {rows.map((e, i) => {
                                 const firstOfDay = i === 0 || rows[i - 1].date !== e.date;
-                                const w = weekdayOf(e.date), hol = isVietnameseHoliday(e.date);
+                                const w = weekdayOf(e.date), hol = isVietnameseHoliday(e.date, sch);
+                                const bd = bdOf(e);
                                 const brk = parseFloat(e.breakTime) || 0, duty = parseFloat(e.dutyHour) || 0;
                                 return (
                                     <tr key={e.id} onClick={() => onEdit(e)} className={`cursor-pointer hover:bg-blue-50/50 ${firstOfDay && i > 0 ? 'border-t-2 border-slate-200' : ''}`}>
@@ -749,8 +773,8 @@
                                                 <div className="text-xs text-slate-400">{[brk > 0 ? `nghỉ ${fmtH(brk)}h` : '', duty > 0 ? `trực ${fmtH(duty)}h` : ''].filter(Boolean).join(' · ')}</div>
                                             )}
                                         </td>
-                                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums align-top">{fmtH(entryHours(e))}</td>
-                                        <td className="px-3 py-2.5 align-top"><OtPill code={e.otType}/></td>
+                                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums align-top">{fmtH(sumBd(bd))}</td>
+                                        <td className="px-3 py-2.5 align-top"><HourPills bd={bd}/></td>
                                         <td className="px-3 py-2.5 font-mono text-xs text-blue-700 align-top whitespace-nowrap">{e.activityCode}</td>
                                         <td className="px-3 py-2.5 align-top max-w-0">
                                             <div className="truncate" title={e.projectName}>{e.projectName || '—'}</div>
@@ -773,7 +797,7 @@
         }
 
         // ---------- Điện thoại / tablet: thẻ theo ngày ----------
-        function EntryCards({ rows, onEdit, onDelete }) {
+        function EntryCards({ rows, bdOf, sch, onEdit, onDelete }) {
             const groups = [];
             rows.forEach(e => {
                 const g = groups[groups.length - 1];
@@ -782,8 +806,8 @@
             return (
                 <div className="lg:hidden divide-y divide-slate-100">
                     {groups.map(g => {
-                        const total = g.items.reduce((s, e) => s + entryHours(e), 0);
-                        const w = weekdayOf(g.date), hol = isVietnameseHoliday(g.date);
+                        const total = g.items.reduce((s, e) => s + sumBd(bdOf(e)), 0);
+                        const w = weekdayOf(g.date), hol = isVietnameseHoliday(g.date, sch);
                         return (
                             <div key={g.date} className="px-4 py-3">
                                 <div className="flex items-baseline justify-between mb-2">
@@ -798,8 +822,9 @@
                                             <button type="button" onClick={() => onEdit(e)} className="flex-1 min-w-0 text-left p-3 rounded-l-xl hover:bg-slate-50">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-medium tabular-nums">{e.startTime && e.endTime ? `${e.startTime} – ${e.endTime}` : 'Không có giờ'}</span>
-                                                    <OtPill code={e.otType}/>
-                                                    <span className="text-sm text-slate-500 tabular-nums">{fmtH(entryHours(e))}h</span>
+                                                    <span className="text-sm text-slate-500 tabular-nums">{fmtH(sumBd(bdOf(e)))}h</span>
+                                                </div>
+                                                <div className="mt-1"><HourPills bd={bdOf(e)}/>
                                                 </div>
                                                 <div className="mt-1 text-sm truncate"><span className="font-mono text-blue-700">[{e.activityCode}]</span> {e.projectName}</div>
                                                 {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
@@ -880,6 +905,7 @@
             const initial = (String(profile.name || '').trim().split(/\s+/).pop() || '?').charAt(0).toUpperCase();
             const facts = [
                 ['Mã NV', profile.empId], ['Chức vụ', profile.position], ['Phòng ban', profile.dept],
+                ['Lịch', LaborVN.SCHEDULES[scheduleOf(profile)].short],
             ];
             return (
                 <section id="tsProfileCard" className="bg-white rounded-2xl border border-slate-200 p-4" aria-labelledby="tsProfileTitle">
@@ -910,7 +936,13 @@
                             <Field label="Mã nhân viên" htmlFor="tsEmpId"><input id="tsEmpId" className={inputCls} value={profile.empId} onChange={set('empId')} placeholder="Mã NV"/></Field>
                             <Field label="Chức vụ" htmlFor="tsPosition"><input id="tsPosition" className={inputCls} value={profile.position} onChange={set('position')} placeholder="Chức vụ"/></Field>
                             <Field label="Phòng ban" htmlFor="tsDept"><input id="tsDept" className={inputCls} value={profile.dept} onChange={set('dept')} placeholder="Phòng ban"/></Field>
-                            <p className="sm:col-span-2 text-xs text-slate-500">In ở đầu bảng chấm công Excel. Tự lưu khi bạn gõ.</p>
+                            <Field label="Lịch làm việc (ngày nghỉ hằng tuần)" htmlFor="tsSchedule" className="sm:col-span-2"
+                                hint="Dùng để tính OT ngày nghỉ hằng tuần (OT2 / OT5) và ngày nghỉ bù khi ngày lễ trùng ngày nghỉ.">
+                                <select id="tsSchedule" className={inputCls} value={scheduleOf(profile)} onChange={set('schedule')}>
+                                    {Object.keys(LaborVN.SCHEDULES).map(k => <option key={k} value={k}>{LaborVN.SCHEDULES[k].label}</option>)}
+                                </select>
+                            </Field>
+                            <p className="sm:col-span-2 text-xs text-slate-500">Họ tên, mã NV, chức vụ, phòng ban in ở đầu bảng chấm công Excel. Tự lưu khi bạn gõ.</p>
                         </div>
                     )}
                 </section>
@@ -983,11 +1015,13 @@
         }
 
         // ---------- Form thêm / sửa chấm công ----------
-        function EntryForm({ onSave, onCancel, onDelete, defaultDate, initialData, entries, projects }) {
+        function EntryForm({ onSave, onCancel, onDelete, defaultDate, initialData, entries, projects, sch }) {
             const [formData, setFormData] = useState({
-                date: defaultDate, startTime: '08:00', endTime: '17:00', breakTime: '1',
+                date: defaultDate, startTime: '08:00', endTime: '17:00', breakTime: '1', otMode: 'auto',
                 otType: 'NORMAL', projectName: '', workNumber: '', activityCode: '1110', dutyHour: '0', remarks: ''
             });
+            // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
+            const [breakTouched, setBreakTouched] = useState(!!initialData);
             const [customCode, setCustomCode] = useState('');
             const [suggestions, setSuggestions] = useState([]);
 
@@ -996,56 +1030,17 @@
                 return act && act.cat === 'HR';
             }, [formData.activityCode]);
 
-            // === AUTO-SELECT OT LOGIC ===
-            const determineOTType = useCallback((dateStr, startTime) => {
-                if (!dateStr || !startTime) return 'NORMAL';
-
-                const [dy, dm, dd] = dateStr.split('-').map(Number);
-                const day = new Date(dy, dm - 1, dd).getDay(); // 0 = Sun, 6 = Sat (local, TZ-safe)
-                const isHol = isVietnameseHoliday(dateStr);
-                const startHour = parseInt(startTime.split(':')[0]);
-
-                // NIGHT SHIFT (Starts >= 22:00)
-                if (startHour >= 22) {
-                    if (isHol) return 'OT6'; // Holiday Night
-                    if (day === 0 || day === 6) return 'OT5'; // Sat/Sun Night
-                    return 'OT4'; // Normal Night (Default)
-                }
-
-                // DAY SHIFT
-                if (isHol) return 'OT3'; // Holiday Day
-
-                if (day === 0) return 'OT2'; // Sunday Day
-
-                if (day === 6) {
-                    // Saturday: Afternoon (>= 13:00) is OT2
-                    if (startHour >= 13) return 'OT2';
-                    return 'NORMAL'; // Saturday Morning is usually Normal
-                }
-
-                // Mon-Fri
-                if (startHour >= 17) return 'OT1'; // Normal Day Evening
-
-                return 'NORMAL';
-            }, []);
-
-            // Auto-run logic when Date or StartTime changes
+            const auto = formData.otMode === 'auto';
+            // Tự động: ca đi qua trọn giờ nghỉ trưa 12:00–13:00 → gợi ý nghỉ 1 giờ, không thì 0
             useEffect(() => {
-                const suggested = determineOTType(formData.date, formData.startTime);
-
-                // SPECIAL CASE: Don't auto-switch if user selected OT7 and suggestion is OT4
-                if (formData.otType === 'OT7' && suggested === 'OT4') return;
-
-                if (formData.otType !== suggested) {
-                    // NEW LOGIC: Normal -> BreakTime = 1, OT -> BreakTime = 0
-                    const newBreakTime = (suggested !== 'NORMAL') ? '0' : '1';
-                    setFormData(prev => ({ ...prev, otType: suggested, breakTime: newBreakTime }));
-                }
-            }, [formData.date, formData.startTime, determineOTType]);
+                if (!auto || breakTouched) return;
+                const b = LaborVN.coversLunch(formData.startTime, formData.endTime) ? '1' : '0';
+                if (formData.breakTime !== b) setFormData(prev => ({ ...prev, breakTime: b }));
+            }, [auto, breakTouched, formData.startTime, formData.endTime]);
 
             useEffect(() => {
                 if (initialData) {
-                    setFormData(initialData);
+                    setFormData({ ...initialData, otMode: initialData.otMode || 'manual' }); // dòng cũ: giữ loại giờ đã chọn
                     const isStandard = ACTIVITY_META.some(opt => opt.id === initialData.activityCode);
                     if (!isStandard) { setCustomCode(initialData.activityCode); setFormData(prev => ({...prev, activityCode: 'OTHER'})); }
                 } else {
@@ -1097,17 +1092,16 @@
                 setFormData(newData);
             };
 
+            // Chọn tay một loại giờ cho cả dòng (như trước): giờ thường nghỉ 1 giờ, OT không nghỉ
             const handleOtChange = (e) => {
                 const type = e.target.value;
-                let newData = { ...formData, otType: type };
-
-                // NEW LOGIC: Manual OT Selection
-                if (type !== 'NORMAL') {
-                    newData.breakTime = '0';
-                } else {
-                    newData.breakTime = '1';
-                }
-                setFormData(newData);
+                setFormData({ ...formData, otType: type, breakTime: type !== 'NORMAL' ? '0' : '1' });
+            };
+            const toggleAuto = (e) => {
+                const on = e.target.checked;
+                setFormData(prev => ({ ...prev, otMode: on ? 'auto' : 'manual',
+                    otType: on ? prev.otType : LaborVN.dominant(preview) }));
+                if (on) setBreakTouched(false);
             };
 
             const handleProjectNameSearch = (val) => {
@@ -1138,13 +1132,24 @@
                     if(!customCode) return alert("Vui lòng nhập mã code!");
                     finalData.activityCode = customCode;
                 }
+                if (finalData.otMode === 'auto') finalData.otType = LaborVN.dominant(preview); // loại giờ chính (hiển thị gọn / dữ liệu cũ)
                 onSave(finalData);
             };
 
             const set = (k) => (e) => setFormData({ ...formData, [k]: e.target.value });
             const hours = calculateHours(formData.startTime, formData.endTime, formData.breakTime);
             const w = formData.date ? weekdayOf(formData.date) : null;
-            const hol = isVietnameseHoliday(formData.date);
+            const holi = holidayOf(formData.date, sch);
+            const leave = LaborVN.LEAVE_CODES.includes(formData.activityCode === 'OTHER' ? customCode : formData.activityCode);
+            // giờ thường / OT của dòng đang nhập, xét cả các dòng khác (OT7: đêm sau khi đã làm thêm buổi tối)
+            const preview = useMemo(() => LaborVN.breakdown(
+                { ...formData, id: initialData ? initialData.id : undefined, activityCode: formData.activityCode === 'OTHER' ? customCode : formData.activityCode },
+                sch, entries, entryHours), [formData, customCode, sch, entries]);
+            const dayNote = w === null ? null
+                : holi ? `${WEEKDAYS_LONG[w]} — ${holi.name}: làm việc tính OT3 (ngày) / OT6 (đêm)`
+                : LaborVN.isRestDay(formData.date, sch) ? `${WEEKDAYS_LONG[w]} — ngày nghỉ hằng tuần: làm việc tính OT2 (ngày) / OT5 (đêm)`
+                : w === 6 && sch === 'mon-sat-am' ? 'Thứ 7 — sáng giờ thường, từ 12:00 tính OT2 (ngày nghỉ hằng tuần)'
+                : WEEKDAYS_LONG[w];
 
             return (
                 <form onSubmit={handleSubmit} className="min-h-full flex flex-col" noValidate>
@@ -1152,25 +1157,41 @@
                         {/* Thời gian */}
                         <section className="space-y-3">
                             <h3 className="font-semibold text-slate-900">Thời gian</h3>
-                            <Field label="Ngày" htmlFor="tsDate"
-                                hint={w === null ? null : `${WEEKDAYS_LONG[w]}${hol ? ' — ngày lễ Việt Nam' : ''}`}>
+                            <Field label="Ngày" htmlFor="tsDate" hint={dayNote}>
                                 <input id="tsDate" data-autofocus type="date" value={formData.date} onChange={handleDateChange} className={inputCls} required/>
                             </Field>
                             <div className="grid grid-cols-3 gap-3">
                                 <Field label="Từ" htmlFor="tsFrom"><input id="tsFrom" type="time" value={formData.startTime} onChange={set('startTime')} className={`${inputCls} text-center px-1`}/></Field>
                                 <Field label="Đến" htmlFor="tsTo"><input id="tsTo" type="time" value={formData.endTime} onChange={set('endTime')} className={`${inputCls} text-center px-1`}/></Field>
-                                <Field label="Nghỉ (giờ)" htmlFor="tsBreak"><input id="tsBreak" type="number" min="0" step="0.5" inputMode="decimal" value={formData.breakTime} onChange={set('breakTime')} className={`${inputCls} text-center`}/></Field>
+                                <Field label="Nghỉ (giờ)" htmlFor="tsBreak"><input id="tsBreak" type="number" min="0" step="0.5" inputMode="decimal" value={formData.breakTime} onChange={(e) => { setBreakTouched(true); set('breakTime')(e); }} className={`${inputCls} text-center`}/></Field>
                             </div>
-                            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                                <span className="text-slate-600">Số giờ tính công</span>
-                                <span className="font-semibold tabular-nums">{fmtH(hours)} giờ</span>
+                            <div id="tsSplit" className="rounded-lg bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-slate-600">Số giờ tính công</span>
+                                    <span className="font-semibold tabular-nums">{fmtH(hours)} giờ</span>
+                                </div>
+                                {auto && (
+                                    <div className="mt-2 pt-2 border-t border-slate-200">
+                                        <HourPills bd={preview}/>
+                                        <p className="mt-1.5 text-xs text-slate-500">
+                                            {leave ? 'Nghỉ phép / ốm / không lương: không tính làm thêm giờ.'
+                                                : 'Tự tính theo Bộ luật Lao động 2019 (Điều 98, 106) và NĐ 145/2020: giờ thường 08:00–12:00, 13:00–17:00; ban đêm 22:00–06:00.'}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
+                            <label className="flex items-center gap-2 min-h-11 text-sm text-slate-700 cursor-pointer">
+                                <input id="tsAuto" type="checkbox" checked={auto} onChange={toggleAuto} className="w-4 h-4 shrink-0 accent-blue-700"/>
+                                <span>Tự tính giờ thường / OT theo Luật Lao động <span className="text-slate-500">(bỏ chọn để tự chọn một loại giờ cho cả dòng)</span></span>
+                            </label>
                             <div className="grid sm:grid-cols-2 gap-3">
-                                <Field label="Loại giờ" htmlFor="tsOt" hint="Tự động đề xuất theo ngày & giờ bắt đầu.">
-                                    <select id="tsOt" value={formData.otType} onChange={handleOtChange} className={inputCls}>
-                                        {OT_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
-                                    </select>
-                                </Field>
+                                {!auto && (
+                                    <Field label="Loại giờ" htmlFor="tsOt">
+                                        <select id="tsOt" value={formData.otType} onChange={handleOtChange} className={inputCls}>
+                                            {OT_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
+                                        </select>
+                                    </Field>
+                                )}
                                 <Field label="Giờ trực (standby)" htmlFor="tsDuty">
                                     <input id="tsDuty" type="number" min="0" step="0.5" inputMode="decimal" value={formData.dutyHour} onChange={set('dutyHour')} className={inputCls}/>
                                 </Field>
