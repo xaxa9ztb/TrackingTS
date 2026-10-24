@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bộ công cụ dự án</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="js/pwa.js?v=36" defer></script>
 <style>
   :root {
     --bg: #f4f5f7;
@@ -52,6 +57,16 @@
     border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
   }
   .btn-logout:hover, .btn-logout:focus-visible { background: #1f2937; outline: none; }
+  .net-off { font-size: 12px; font-weight: 600; color: #fde68a; background: #3f2d0a; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+
+  /* ---- cài ứng dụng (PWA) ---- */
+  .install { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 40px; padding: 16px 18px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  .install .icon { background: var(--ink); }
+  .install-text { flex: 1 1 260px; font-size: 14px; color: var(--ink-2); }
+  .install-text b { color: var(--ink); }
+  .btn-install { border: none; border-radius: 8px; padding: 9px 16px; background: var(--ink); color: #fff; font-weight: 600; cursor: pointer; }
+  .btn-install:hover { background: #1f2937; }
 
   /* ---- đăng nhập ---- */
   .login-grid {
@@ -171,6 +186,7 @@
     <div class="mark">Schindler</div>
     <span class="divider" aria-hidden="true"></span>
     <span class="product">Bộ công cụ dự án</span>
+    <span class="net-off" id="netOff" role="status" hidden>📴 Ngoại tuyến</span>
     <div class="user" id="userBox" hidden>
       <span class="avatar" id="userAvatar" aria-hidden="true"></span>
       <span class="user-text">
@@ -233,6 +249,12 @@
   </section>
   <div class="note note-warn" id="deniedNote" role="status" hidden></div>
   <ul class="tools" id="toolList"></ul>
+
+  <section class="install" id="installCard" data-pwa-install hidden>
+    <span class="icon" aria-hidden="true"><img src="icons/icon-192.png" alt="" width="44" height="44" style="border-radius:10px"></span>
+    <div class="install-text" id="installText"><b>Cài Bộ công cụ lên máy</b> — mở nhanh từ màn hình chính và dùng được cả khi mất mạng (công trường, hố thang…).</div>
+    <button type="button" class="btn-install" id="btnInstall">Cài đặt</button>
+  </section>
 </main>
 
 <footer>
@@ -242,10 +264,10 @@
   </div>
 </footer>
 
-<script src="js/config.js?v=35"></script>
-<script src="js/db.js?v=35"></script>
-<script src="js/cloud.js?v=35"></script>
-<script src="js/session.js?v=35"></script>
+<script src="js/config.js?v=36"></script>
+<script src="js/db.js?v=36"></script>
+<script src="js/cloud.js?v=36"></script>
+<script src="js/session.js?v=36"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -431,6 +453,28 @@
   });
 
   $('btnLogout').addEventListener('click', () => Session.logout());
+
+  // ---------- ngoại tuyến & cài ứng dụng (xem js/pwa.js, sw.js) ----------
+  const showNet = () => { $('netOff').hidden = navigator.onLine !== false; };
+  window.addEventListener('online', showNet); window.addEventListener('offline', showNet); showNet();
+  function showInstall() {
+    const pwa = window.ToolsetPWA;
+    if (!pwa || pwa.isStandalone()) { $('installCard').hidden = true; return; }
+    if (pwa.canInstall()) {
+      $('btnInstall').hidden = false;
+      $('installCard').hidden = false;
+    } else if (pwa.isIOS()) { // Safari trên iPhone không có nút cài tự động
+      $('installText').innerHTML = '<b>Cài lên iPhone / iPad</b> — trong Safari bấm <b>Chia sẻ</b> rồi chọn <b>Thêm vào MH chính</b>. Sau đó mở từ màn hình chính, dùng được cả khi mất mạng.';
+      $('btnInstall').hidden = true;
+      $('installCard').hidden = false;
+    }
+  }
+  document.addEventListener('toolset:installable', showInstall);
+  document.addEventListener('toolset:installed', () => { $('installCard').hidden = true; });
+  document.addEventListener('DOMContentLoaded', showInstall); // pwa.js (defer) đã chạy xong
+  $('btnInstall').addEventListener('click', async () => {
+    if (await window.ToolsetPWA.install()) $('installCard').hidden = true;
+  });
 
   // Back/Forward khôi phục trang từ bộ nhớ đệm, hoặc đăng nhập/đăng xuất ở tab khác → vẽ lại
   Session.watch(render);

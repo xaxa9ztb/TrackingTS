@@ -1,0 +1,21 @@
+{
+  "name": "Bộ công cụ dự án",
+  "short_name": "Bộ công cụ",
+  "description": "Thống kê giờ công dự án, Timesheet cá nhân, Tiến độ thi công thang máy",
+  "lang": "vi",
+  "id": "./index.html",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Timesheet cá nhân", "short_name": "Timesheet", "url": "./tools/timesheet/", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Thống kê giờ công dự án", "short_name": "Thống kê", "url": "./tracking.html", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

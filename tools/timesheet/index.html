@@ -4,13 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Timesheet V35 Fix Date</title>
+    <link rel="manifest" href="../../manifest.webmanifest">
+    <meta name="theme-color" content="#111827">
+    <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+    <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+    <script src="../../js/pwa.js?v=36" defer></script>
     <!-- Bộ công cụ: phải đăng nhập ở trang chủ trước khi vào -->
-    <script src="../../js/session.js?v=35"></script>
+    <script src="../../js/session.js?v=36"></script>
     <script>Session.guard('timesheet');</script>
     <!-- Dữ liệu Dự án dùng CHUNG với "Thống kê giờ công dự án" (cùng IndexedDB, nguồn Google Drive) -->
-    <script src="../../js/config.js?v=35"></script>
-    <script src="../../js/db.js?v=35"></script>
-    <script src="../../js/cloud.js?v=35"></script>
+    <script src="../../js/config.js?v=36"></script>
+    <script src="../../js/db.js?v=36"></script>
+    <script src="../../js/cloud.js?v=36"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- FileSaver (nhỏ) dùng cho Backup & Xuất Excel. ExcelJS và mẫu bảng chấm công (ts-template.xlsx)
@@ -44,7 +49,7 @@
     <link rel="stylesheet" href="tailwind.css?v=36">
 </head>
 <body class="bg-slate-100">
-    <script src="../toolset-nav.js?v=33" data-tool="Timesheet cá nhân"></script>
+    <script src="../toolset-nav.js?v=36" data-tool="Timesheet cá nhân"></script>
     <div id="root"></div>
 
     <!-- Mã ứng dụng đã biên dịch sẵn từ src/app.jsx (npm run build) — sửa src/app.jsx, không sửa app.js -->

@@ -29,6 +29,7 @@
     '.tsn-bar .tsn-name,.tsn-bar .tsn-user{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}' +
     '.tsn-bar .tsn-right{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}' +
     '.tsn-bar .tsn-user{color:#e5e7eb;max-width:220px}' +
+    '.tsn-bar .tsn-off{flex:none;font-size:12px;font-weight:600;color:#fde68a;background:#3f2d0a;border-radius:999px;padding:2px 9px}' +
     '.tsn-bar button.tsn-out{flex:none;background:transparent;color:#f9fafb;border:1px solid #4b5563;' +
     'border-radius:6px;padding:4px 10px;font:inherit;cursor:pointer}' +
     '.tsn-bar button.tsn-out:hover,.tsn-bar button.tsn-out:focus-visible{background:#1f2937;outline:none}' +
@@ -59,9 +60,20 @@
   bar.appendChild(sep);
   bar.appendChild(label);
 
+  var right = document.createElement('div');
+  right.className = 'tsn-right';
+  // trạng thái mạng: chức năng vẫn dùng được khi mất mạng (xem sw.js) — báo để người dùng biết
+  var off = document.createElement('span');
+  off.className = 'tsn-off';
+  off.setAttribute('role', 'status');
+  off.textContent = '📴 Ngoại tuyến';
+  var syncNet = function () { off.hidden = navigator.onLine !== false; };
+  window.addEventListener('online', syncNet);
+  window.addEventListener('offline', syncNet);
+  syncNet();
+  right.appendChild(off);
+
   if (session) {
-    var right = document.createElement('div');
-    right.className = 'tsn-right';
     var who = document.createElement('span');
     who.className = 'tsn-user';
     who.textContent = session.name;
@@ -73,8 +85,8 @@
     out.addEventListener('click', function () { Session.logout(); });
     right.appendChild(who);
     right.appendChild(out);
-    bar.appendChild(right);
   }
+  bar.appendChild(right);
 
   document.body.insertBefore(bar, document.body.firstChild);
 })();
