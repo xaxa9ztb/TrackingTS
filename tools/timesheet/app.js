@@ -3,7 +3,8 @@ const {
   useState,
   useEffect,
   useMemo,
-  useCallback
+  useCallback,
+  useRef
 } = React;
 
 // --- ICONS ---
@@ -156,6 +157,68 @@ const Icons = {
     d: "M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"
   }), /*#__PURE__*/React.createElement("path", {
     d: "M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"
+  })),
+  Calendar: () => /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "3",
+    y: "4.5",
+    width: "18",
+    height: "16.5",
+    rx: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M3 9.5h18M8 2.5v4M16 2.5v4"
+  })),
+  ChevronLeft: () => /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: "15 18 9 12 15 6"
+  })),
+  ChevronRight: () => /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: "9 18 15 12 9 6"
+  })),
+  X: () => /*#__PURE__*/React.createElement("svg", {
+    width: "18",
+    height: "18",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("line", {
+    x1: "18",
+    y1: "6",
+    x2: "6",
+    y2: "18"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "6",
+    y1: "6",
+    x2: "18",
+    y2: "18"
   })),
   Alert: () => /*#__PURE__*/React.createElement("svg", {
     width: "20",
@@ -544,22 +607,70 @@ const formatMonthVietnamese = yyyy_mm => {
 };
 const normalizeString = str => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 const removeAccents = str => normalizeString(str).replace(/\s+/g, '_');
+// ================================================================
+//   GIAO DIỆN (responsive: điện thoại · tablet · máy tính)
+// ================================================================
+const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+const WEEKDAYS_LONG = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+const parseLocal = s => {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+const weekdayOf = s => parseLocal(s).getDay();
+const fmtDM = s => {
+  const [, m, d] = s.split('-');
+  return `${d}/${m}`;
+};
+const fmtDMY = s => s.split('-').reverse().join('/');
+const fmtH = h => (Math.round(h * 10) / 10).toLocaleString('vi-VN', {
+  maximumFractionDigits: 1
+});
+const entryHours = e => calculateHours(e.startTime, e.endTime, e.breakTime);
+const otLabel = code => (OT_TYPES.find(t => t.code === code) || {}).label || code;
+// Kỳ lương tháng M = 16/(M-1) → 15/M, nên từ ngày 16 trở đi thuộc kỳ của tháng sau
+const periodMonthOf = dateStr => {
+  const d = parseLocal(dateStr);
+  if (d.getDate() >= 16) d.setMonth(d.getMonth() + 1, 1);
+  return toLocalISOString(d).slice(0, 7);
+};
+const shiftMonth = (ym, n) => {
+  const [y, m] = ym.split('-').map(Number);
+  return toLocalISOString(new Date(y, m - 1 + n, 1)).slice(0, 7);
+};
+const daysBetween = (start, end) => {
+  const out = [];
+  for (let d = start; d <= end; d = addDaysLocal(d, 1)) out.push(d);
+  return out;
+};
+const isWorkday = s => {
+  const w = weekdayOf(s);
+  return w >= 1 && w <= 5 && !isVietnameseHoliday(s);
+};
+const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
+const DEFAULT_PROFILE = {
+  name: '',
+  empId: '',
+  position: '',
+  dept: 'NI',
+  sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I'
+};
+const inputCls = 'w-full h-11 rounded-lg border border-slate-300 bg-white px-3 text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50';
+const btnGhost = 'inline-flex items-center justify-center gap-2 h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 disabled:opacity-60';
+const btnPrimary = 'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-blue-700 text-white font-semibold hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60';
 function App() {
-  const [view, setView] = useState('list');
   const [entries, setEntries] = useState([]);
-  const [profile, setProfile] = useState({
-    name: '',
-    empId: '',
-    position: '',
-    dept: 'NI',
-    sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I'
-  });
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [projects, setProjects] = useState([]);
-  const [currentMonth, setCurrentMonth] = useState(getTodayLocal().slice(0, 7));
-  const [editingEntry, setEditingEntry] = useState(null);
+  // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
+  const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
+  const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
+  const [dayFilter, setDayFilter] = useState(null);
+  const [toast, setToast] = useState(null);
   const [syncStatus, setSyncStatus] = useState('');
   const [projSyncing, setProjSyncing] = useState(false);
   const [projStatus, setProjStatus] = useState('');
+  const [needProjects, setNeedProjects] = useState(false); // máy chưa có danh sách dự án → nhắc (không chặn màn hình)
+
   useEffect(() => {
     const savedEntries = localStorage.getItem('ts_entries_v28');
     const savedProfile = localStorage.getItem('ts_profile_v28');
@@ -576,7 +687,7 @@ function App() {
     }));
     if (savedProjects) setProjects(JSON.parse(savedProjects));
     // Dự án dùng chung: lấy ngay bản trên máy (cùng dữ liệu với Thống kê giờ công);
-    // máy chưa có thì tải từ Google Drive; vẫn không có thì mở Cài đặt như trước.
+    // máy chưa có thì tải từ Google Drive; vẫn không có thì hiện lời nhắc trên trang (vẫn chấm công được).
     (async () => {
       const shared = await loadSharedProjects();
       if (shared.length) {
@@ -584,7 +695,7 @@ function App() {
         return;
       }
       const n = await syncSharedProjects();
-      if (!n && !savedProjects) setView('settings');
+      if (!n && !savedProjects) setNeedProjects(true);
     })();
   }, []);
   useEffect(() => {
@@ -596,23 +707,55 @@ function App() {
   useEffect(() => {
     localStorage.setItem('ts_projects_v28', JSON.stringify(projects));
   }, [projects]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
   const period = useMemo(() => getSalaryPeriod(currentMonth), [currentMonth]);
   const monthlyEntries = useMemo(() => {
     // IMPORTANT: String comparison works correctly for YYYY-MM-DD
-    return entries.filter(e => e.date >= period.start && e.date <= period.end).sort((a, b) => b.date.localeCompare(a.date));
+    return entries.filter(e => e.date >= period.start && e.date <= period.end).sort((a, b) => b.date.localeCompare(a.date) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
   }, [entries, period]);
+  const dayTotals = useMemo(() => {
+    const t = {};
+    monthlyEntries.forEach(e => {
+      const d = t[e.date] || (t[e.date] = {
+        hours: 0,
+        ot: false,
+        count: 0
+      });
+      d.hours += entryHours(e);
+      d.count++;
+      if (e.otType !== 'NORMAL') d.ot = true;
+    });
+    return t;
+  }, [monthlyEntries]);
   const stats = useMemo(() => {
     let normal = 0,
       ot = 0;
+    const byOt = {};
     monthlyEntries.forEach(e => {
-      const h = calculateHours(e.startTime, e.endTime, e.breakTime);
-      if (e.otType === 'NORMAL') normal += h;else ot += h;
+      const h = entryHours(e);
+      if (e.otType === 'NORMAL') normal += h;else {
+        ot += h;
+        byOt[e.otType] = (byOt[e.otType] || 0) + h;
+      }
     });
+    // ngày làm việc (T2–T6, không phải ngày lễ) đã qua trong kỳ mà chưa chấm công
+    const today = getTodayLocal();
+    const last = period.end < today ? period.end : today;
+    const missing = period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d) && !dayTotals[d]) : [];
     return {
-      normal: normal.toFixed(1),
-      ot: ot.toFixed(1)
+      normal,
+      ot,
+      total: normal + ot,
+      byOt,
+      days: Object.keys(dayTotals).length,
+      missing
     };
-  }, [monthlyEntries]);
+  }, [monthlyEntries, dayTotals, period]);
+  const visible = dayFilter ? monthlyEntries.filter(e => e.date === dayFilter) : monthlyEntries;
 
   // Đồng bộ Dự án: tải bản mới nhất từ Google Drive vào kho dùng chung rồi đọc lại.
   // Drive lỗi (mất mạng / hết hạn mức) thì giữ bản đang có trên máy. Trả về số dự án.
@@ -634,8 +777,57 @@ function App() {
   const handleSyncProjects = () => {
     syncSharedProjects();
   };
-  const handleDelete = id => {
-    if (confirm('Xóa dòng này?')) setEntries(entries.filter(e => e.id !== id));
+  const showToast = (message, action) => setToast({
+    message,
+    action,
+    id: Date.now()
+  });
+  const changeMonth = m => {
+    setCurrentMonth(m);
+    setDayFilter(null);
+  };
+  const closeDrawer = () => setDrawer(null);
+  const openNewEntry = date => {
+    let d = date;
+    if (!d) {
+      // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
+      d = getTodayLocal();
+      if (entries.length > 0) d = addDaysLocal(entries.reduce((a, b) => b.date > a.date ? b : a).date, 1);
+    }
+    setDrawer({
+      type: 'form',
+      entry: null,
+      date: d,
+      key: Date.now()
+    });
+  };
+  const openEdit = entry => setDrawer({
+    type: 'form',
+    entry,
+    date: entry.date,
+    key: Date.now()
+  });
+  const handleSaveEntry = data => {
+    const editing = drawer && drawer.entry;
+    if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? {
+      ...data,
+      id: editing.id
+    } : e));else setEntries(prev => [...prev, {
+      ...data,
+      id: Date.now()
+    }]);
+    setDrawer(null);
+    const pm = periodMonthOf(data.date); // ngày thuộc kỳ khác → chuyển sang kỳ đó để thấy ngay
+    if (pm !== currentMonth) changeMonth(pm);
+    showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.`);
+  };
+  const handleDelete = entry => {
+    setEntries(prev => prev.filter(e => e.id !== entry.id));
+    if (drawer && drawer.entry && drawer.entry.id === entry.id) setDrawer(null);
+    showToast(`Đã xóa chấm công ${fmtDMY(entry.date)}.`, {
+      label: 'Hoàn tác',
+      run: () => setEntries(prev => [...prev, entry])
+    });
   };
   const handleResetData = () => {
     if (confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
@@ -644,37 +836,12 @@ function App() {
         localStorage.removeItem('ts_profile_v28');
         localStorage.removeItem('ts_projects_v28');
         setEntries([]);
-        setProfile({
-          name: '',
-          empId: '',
-          position: '',
-          dept: 'NI',
-          sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I'
-        });
+        setProfile(DEFAULT_PROFILE);
         setProjects([]);
-        alert("Đã xóa dữ liệu thành công! Ứng dụng đã được reset.");
+        setDrawer(null);
+        showToast('Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
       }
     }
-  };
-  const handleNewEntry = () => {
-    let defaultD = getTodayLocal();
-    if (entries && entries.length > 0) {
-      const latest = entries.reduce((a, b) => b.date > a.date ? b : a);
-      defaultD = addDaysLocal(latest.date, 1);
-    }
-    setEditingEntry(null);
-    setView('form_new_' + defaultD);
-  };
-  const handleSaveEntry = data => {
-    if (editingEntry) setEntries(entries.map(e => e.id === editingEntry.id ? {
-      ...data,
-      id: editingEntry.id
-    } : e));else setEntries([...entries, {
-      ...data,
-      id: Date.now()
-    }]);
-    setEditingEntry(null);
-    setView('list');
   };
   const handleExportExcel = async () => {
     if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
@@ -828,189 +995,739 @@ function App() {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = ev => {
       try {
-        const data = JSON.parse(e.target.result);
+        const data = JSON.parse(ev.target.result);
         if (data.entries) setEntries(data.entries);
         if (data.profile) setProfile(data.profile);
         if (data.projects) setProjects(data.projects);
-        alert("Thành công!");
+        showToast(`Đã khôi phục ${data.entries ? data.entries.length : 0} dòng chấm công từ bản sao lưu.`);
       } catch (err) {
-        alert("Lỗi file");
+        alert('Lỗi file: không đọc được bản sao lưu.');
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
+  const exporting = syncStatus === 'Đang tạo file...';
+  const todayPeriod = periodMonthOf(getTodayLocal());
   return /*#__PURE__*/React.createElement("div", {
-    className: "max-w-md mx-auto bg-white min-h-screen shadow-2xl overflow-hidden relative flex flex-col"
+    className: "min-h-screen bg-slate-100 text-slate-800"
   }, /*#__PURE__*/React.createElement("header", {
-    className: "bg-blue-800 text-white p-4 sticky top-0 z-50 shadow-lg"
+    className: "sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between items-center mb-3"
+    className: "max-w-7xl mx-auto px-4 lg:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 min-w-0 mr-auto"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-10 h-10 rounded-xl bg-blue-700 text-white grid place-items-center shrink-0",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement(Icons.Calendar, null)), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
   }, /*#__PURE__*/React.createElement("h1", {
-    className: "font-bold text-lg flex items-center gap-2"
-  }, "Timesheet ", /*#__PURE__*/React.createElement("span", {
-    className: "bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded"
-  }, "V35")), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setView('settings')
-  }, /*#__PURE__*/React.createElement(Icons.Settings, null))), /*#__PURE__*/React.createElement("div", {
-    className: "bg-blue-900/50 p-2 rounded-lg flex items-center justify-between backdrop-blur-sm border border-blue-700"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-bold text-white"
-  }, "K\u1EF3 l\u01B0\u01A1ng"), /*#__PURE__*/React.createElement("input", {
-    type: "month",
-    value: currentMonth,
-    onChange: e => setCurrentMonth(e.target.value),
-    className: "bg-white text-blue-900 text-sm font-bold px-2 py-1 rounded w-32 text-center"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "mt-3 grid grid-cols-2 gap-2"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white/10 p-2 rounded flex flex-col items-center"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] text-blue-200"
-  }, "Gi\u1EDD c\xF4ng th\u01B0\u1EDDng"), /*#__PURE__*/React.createElement("span", {
-    className: "font-bold text-white text-lg"
-  }, stats.normal, "h")), /*#__PURE__*/React.createElement("div", {
-    className: "bg-white/10 p-2 rounded flex flex-col items-center"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] text-orange-200"
-  }, "T\u0103ng ca (OT)"), /*#__PURE__*/React.createElement("span", {
-    className: "font-bold text-orange-300 text-lg"
-  }, stats.ot, "h")))), /*#__PURE__*/React.createElement("main", {
-    className: "flex-1 bg-slate-50 p-3 pb-28 overflow-y-auto"
-  }, view === 'list' && /*#__PURE__*/React.createElement("div", {
-    className: "space-y-3"
-  }, monthlyEntries.length === 0 ? /*#__PURE__*/React.createElement("p", {
-    className: "text-center text-slate-400 py-10"
-  }, "Ch\u01B0a c\xF3 d\u1EEF li\u1EC7u (", period.label, ")") : monthlyEntries.map(e => /*#__PURE__*/React.createElement("div", {
-    key: e.id,
-    className: "bg-white p-3 rounded-xl shadow-sm border relative"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between border-b pb-2 mb-2"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "font-bold text-blue-800"
-  }, e.date.split('-').reverse().join('/')), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
+    className: "font-bold text-lg leading-tight"
+  }, "Timesheet"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500 truncate max-w-[52vw] md:max-w-xs"
+  }, profile.name || 'Chưa có họ tên — mở Cài đặt', profile.empId ? ` · ${profile.empId}` : ''))), /*#__PURE__*/React.createElement(PeriodSwitcher, {
+    month: currentMonth,
+    period: period,
+    todayPeriod: todayPeriod,
+    onChange: changeMonth
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      setEditingEntry(e);
-      setView('form');
-    },
-    className: "text-blue-500"
-  }, /*#__PURE__*/React.createElement(Icons.Edit, null)), /*#__PURE__*/React.createElement("button", {
-    onClick: () => handleDelete(e.id),
-    className: "text-red-400"
-  }, /*#__PURE__*/React.createElement(Icons.Trash, null)))), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm flex justify-between mb-1"
-  }, /*#__PURE__*/React.createElement("span", null, e.startTime, " - ", e.endTime), /*#__PURE__*/React.createElement("span", {
-    className: "font-bold text-orange-600"
-  }, e.otType !== 'NORMAL' ? e.otType : 'Giờ công thường')), /*#__PURE__*/React.createElement("div", {
-    className: "text-xs text-slate-500 truncate"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "font-bold text-blue-600"
-  }, "[", e.activityCode, "]"), " ", e.projectName)))), (view === 'form' || view.startsWith('form_new_')) && /*#__PURE__*/React.createElement(EntryForm, {
-    initialData: editingEntry,
-    defaultDate: view.startsWith('form_new_') ? view.split('_')[2] : getTodayLocal(),
-    onSave: handleSaveEntry,
-    onCancel: () => {
-      setEditingEntry(null);
-      setView('list');
-    },
-    entries: entries,
-    projects: projects
-  }), view === 'settings' && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white p-5 rounded-xl space-y-6"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "font-bold text-lg text-slate-800"
-  }, "C\xE0i \u0111\u1EB7t"), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-3"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    placeholder: "H\u1ECD T\xEAn",
-    value: profile.name,
-    onChange: e => setProfile({
-      ...profile,
-      name: e.target.value
+    id: "tsAddBtn",
+    type: "button",
+    onClick: () => openNewEntry(),
+    className: `${btnPrimary} hidden md:inline-flex`
+  }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Th\xEAm ch\u1EA5m c\xF4ng"), /*#__PURE__*/React.createElement("button", {
+    id: "tsExportBtn",
+    type: "button",
+    onClick: handleExportExcel,
+    disabled: exporting,
+    className: btnGhost,
+    title: "Xu\u1EA5t b\u1EA3ng ch\u1EA5m c\xF4ng c\u1EE7a k\u1EF3 ra Excel (m\u1EABu Schindler)",
+    "aria-label": "Xu\u1EA5t Excel"
+  }, /*#__PURE__*/React.createElement(Icons.Download, null), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline"
+  }, exporting ? 'Đang tạo file...' : 'Xuất Excel')), /*#__PURE__*/React.createElement("button", {
+    id: "tsSettingsBtn",
+    type: "button",
+    onClick: () => setDrawer({
+      type: 'settings'
     }),
-    className: "w-full border p-2 rounded"
-  }), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    placeholder: "M\xE3 NV",
-    value: profile.empId,
-    onChange: e => setProfile({
-      ...profile,
-      empId: e.target.value
-    }),
-    className: "w-full border p-2 rounded"
-  }), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    placeholder: "Ch\u1EE9c v\u1EE5",
-    value: profile.position,
-    onChange: e => setProfile({
-      ...profile,
-      position: e.target.value
-    }),
-    className: "w-full border p-2 rounded"
-  }), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    placeholder: "Ph\xF2ng ban",
-    value: profile.dept,
-    onChange: e => setProfile({
-      ...profile,
-      dept: e.target.value
-    }),
-    className: "w-full border p-2 rounded"
-  })), /*#__PURE__*/React.createElement("hr", null), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
-    className: "font-bold text-sm text-slate-800 mb-2 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(Icons.Database, null), " D\u1EEF li\u1EC7u D\u1EF1 \xE1n"), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col gap-2"
+    className: btnGhost,
+    "aria-label": "C\xE0i \u0111\u1EB7t",
+    title: "C\xE0i \u0111\u1EB7t"
+  }, /*#__PURE__*/React.createElement(Icons.Settings, null), /*#__PURE__*/React.createElement("span", {
+    className: "hidden xl:inline"
+  }, "C\xE0i \u0111\u1EB7t"))))), needProjects && projects.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    role: "alert",
+    className: "rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center gap-3"
   }, /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-slate-500"
-  }, "D\xF9ng chung v\u1EDBi \u201CTh\u1ED1ng k\xEA gi\u1EDD c\xF4ng d\u1EF1 \xE1n\u201D (ngu\u1ED3n Google Drive) \u2014 kh\xF4ng c\u1EA7n nh\u1EADp g\xEC th\xEAm."), /*#__PURE__*/React.createElement("button", {
+    className: "flex-1 min-w-[14rem] text-sm text-amber-900"
+  }, /*#__PURE__*/React.createElement("b", null, "Ch\u01B0a c\xF3 danh s\xE1ch d\u1EF1 \xE1n tr\xEAn m\xE1y n\xE0y."), " ", projStatus, " B\u1EA1n v\u1EABn ch\u1EA5m c\xF4ng b\xECnh th\u01B0\u1EDDng; g\u1EE3i \xFD t\xEAn d\u1EF1 \xE1n / WBS s\u1EBD c\xF3 sau khi \u0111\u1ED3ng b\u1ED9."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
     onClick: handleSyncProjects,
     disabled: projSyncing,
-    className: "bg-blue-600 text-white p-2 rounded text-sm disabled:opacity-50"
-  }, /*#__PURE__*/React.createElement(Icons.Refresh, null), " ", projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'), /*#__PURE__*/React.createElement("span", {
-    className: "text-xs text-green-600"
-  }, projects.length, " d\u1EF1 \xE1n \u0111\xE3 l\u01B0u"), projStatus && /*#__PURE__*/React.createElement("span", {
-    className: "text-xs text-slate-600",
-    role: "status"
-  }, projStatus))), /*#__PURE__*/React.createElement("hr", null), /*#__PURE__*/React.createElement("div", {
-    className: "bg-slate-50 p-3 rounded border grid grid-cols-2 gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: handleBackup,
-    className: "bg-white border p-2 rounded text-blue-700 text-xs font-bold"
-  }, /*#__PURE__*/React.createElement(Icons.Download, null), " Backup"), /*#__PURE__*/React.createElement("label", {
-    className: "bg-white border p-2 rounded text-green-700 text-xs font-bold cursor-pointer flex justify-center items-center"
-  }, /*#__PURE__*/React.createElement(Icons.Upload, null), " Restore ", /*#__PURE__*/React.createElement("input", {
-    type: "file",
-    onChange: handleRestore,
-    className: "hidden"
-  }))), /*#__PURE__*/React.createElement("hr", null), /*#__PURE__*/React.createElement("div", {
-    className: "p-4 border border-red-200 rounded-lg bg-red-50"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-red-700 font-bold text-sm mb-2 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(Icons.Alert, null), " V\xF9ng Nguy Hi\u1EC3m"), /*#__PURE__*/React.createElement("button", {
-    onClick: handleResetData,
-    className: "w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-bold shadow-sm transition-colors"
-  }, "X\xF3a To\xE0n B\u1ED9 D\u1EEF Li\u1EC7u"), /*#__PURE__*/React.createElement("p", {
-    className: "text-red-500 text-[10px] mt-2 text-center"
-  }, "H\xE0nh \u0111\u1ED9ng n\xE0y s\u1EBD x\xF3a h\u1EBFt l\u1ECBch s\u1EED v\xE0 c\xE0i \u0111\u1EB7t. Kh\xF4ng th\u1EC3 kh\xF4i ph\u1EE5c.")), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setView('list'),
-    className: "w-full bg-slate-800 text-white p-3 rounded font-bold"
-  }, "L\u01B0u th\xF4ng tin"))), view === 'list' && /*#__PURE__*/React.createElement("div", {
-    className: "fixed bottom-6 right-6 flex flex-col gap-3 z-40"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: handleExportExcel,
-    className: "bg-green-600 text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center border-2 border-white"
-  }, /*#__PURE__*/React.createElement(Icons.Download, null)), /*#__PURE__*/React.createElement("button", {
-    onClick: handleNewEntry,
-    className: "bg-blue-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center border-4 border-blue-100"
-  }, /*#__PURE__*/React.createElement(Icons.Plus, null))));
+    className: btnGhost
+  }, /*#__PURE__*/React.createElement(Icons.Refresh, null), " ", projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'))), /*#__PURE__*/React.createElement("main", {
+    className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 pb-28 md:pb-10 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] items-start"
+  }, /*#__PURE__*/React.createElement("aside", {
+    className: "space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start lg:block lg:space-y-4 lg:sticky lg:top-24"
+  }, /*#__PURE__*/React.createElement(StatsPanel, {
+    stats: stats
+  }), /*#__PURE__*/React.createElement(PeriodCalendar, {
+    period: period,
+    dayTotals: dayTotals,
+    missing: stats.missing,
+    selected: dayFilter,
+    onPick: d => dayTotals[d] ? setDayFilter(dayFilter === d ? null : d) : openNewEntry(d)
+  })), /*#__PURE__*/React.createElement("section", {
+    className: "bg-white rounded-2xl border border-slate-200 min-w-0",
+    "aria-labelledby": "tsListTitle"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-100"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "tsListTitle",
+    className: "font-semibold"
+  }, "Ch\u1EA5m c\xF4ng trong k\u1EF3"), /*#__PURE__*/React.createElement("span", {
+    className: "text-sm text-slate-500"
+  }, visible.length, " d\xF2ng"), dayFilter && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setDayFilter(null),
+    className: "inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-blue-50 text-blue-800 text-sm font-medium hover:bg-blue-100"
+  }, WEEKDAYS[weekdayOf(dayFilter)], ", ", fmtDMY(dayFilter), " ", /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": "true"
+  }, "\u2715"), /*#__PURE__*/React.createElement("span", {
+    className: "sr-only"
+  }, "B\u1ECF l\u1ECDc ng\xE0y")), dayFilter && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => openNewEntry(dayFilter),
+    className: "ml-auto text-sm font-semibold text-blue-700 hover:text-blue-900"
+  }, "+ Th\xEAm cho ng\xE0y ", fmtDM(dayFilter))), visible.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "px-6 py-14 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mx-auto w-12 h-12 rounded-2xl bg-slate-100 grid place-items-center text-slate-400 mb-3",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement(Icons.Calendar, null)), /*#__PURE__*/React.createElement("p", {
+    className: "font-medium text-slate-700"
+  }, "Ch\u01B0a c\xF3 ch\u1EA5m c\xF4ng trong k\u1EF3 ", fmtDMY(period.start), " \u2013 ", fmtDMY(period.end)), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-slate-500 mt-1"
+  }, "B\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "Th\xEAm ch\u1EA5m c\xF4ng"), " ho\u1EB7c ch\u1ECDn m\u1ED9t ng\xE0y tr\xEAn l\u1ECBch."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => openNewEntry(),
+    className: `${btnPrimary} mt-4`
+  }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Th\xEAm ch\u1EA5m c\xF4ng")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(EntryTable, {
+    rows: visible,
+    onEdit: openEdit,
+    onDelete: handleDelete
+  }), /*#__PURE__*/React.createElement(EntryCards, {
+    rows: visible,
+    onEdit: openEdit,
+    onDelete: handleDelete
+  })))), /*#__PURE__*/React.createElement("button", {
+    id: "tsFab",
+    type: "button",
+    onClick: () => openNewEntry(),
+    "aria-label": "Th\xEAm ch\u1EA5m c\xF4ng",
+    className: "md:hidden fixed bottom-5 right-5 z-30 w-14 h-14 rounded-full bg-blue-700 text-white shadow-xl grid place-items-center active:scale-95 transition"
+  }, /*#__PURE__*/React.createElement(Icons.Plus, null)), drawer && drawer.type === 'form' && /*#__PURE__*/React.createElement(Drawer, {
+    title: drawer.entry ? 'Sửa chấm công' : 'Thêm chấm công',
+    onClose: closeDrawer
+  }, /*#__PURE__*/React.createElement(EntryForm, {
+    key: drawer.key,
+    initialData: drawer.entry,
+    defaultDate: drawer.date,
+    onSave: handleSaveEntry,
+    onCancel: closeDrawer,
+    onDelete: drawer.entry ? () => handleDelete(drawer.entry) : null,
+    entries: entries,
+    projects: projects
+  })), drawer && drawer.type === 'settings' && /*#__PURE__*/React.createElement(Drawer, {
+    title: "C\xE0i \u0111\u1EB7t",
+    onClose: closeDrawer
+  }, /*#__PURE__*/React.createElement(SettingsPanel, {
+    profile: profile,
+    setProfile: setProfile,
+    projects: projects,
+    projSyncing: projSyncing,
+    projStatus: projStatus,
+    onSync: handleSyncProjects,
+    onBackup: handleBackup,
+    onRestore: handleRestore,
+    onReset: handleResetData,
+    onDone: closeDrawer
+  })), toast && /*#__PURE__*/React.createElement(Toast, {
+    toast: toast,
+    onClose: () => setToast(null)
+  }));
 }
+
+// ---------- Kỳ lương: ‹ tháng › + chọn nhanh ----------
+function PeriodSwitcher({
+  month,
+  period,
+  todayPeriod,
+  onChange
+}) {
+  const [y, m] = month.split('-');
+  return /*#__PURE__*/React.createElement("div", {
+    className: "order-last w-full md:order-none md:w-auto flex items-center gap-1 bg-slate-100 rounded-xl p-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => onChange(shiftMonth(month, -1)),
+    "aria-label": "K\u1EF3 l\u01B0\u01A1ng tr\u01B0\u1EDBc",
+    className: "w-9 h-10 grid place-items-center rounded-lg text-slate-600 hover:bg-white"
+  }, /*#__PURE__*/React.createElement(Icons.ChevronLeft, null)), /*#__PURE__*/React.createElement("label", {
+    className: "relative flex-1 md:flex-none md:min-w-[11.5rem] text-center px-2 cursor-pointer rounded-lg hover:bg-white"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block text-sm font-semibold leading-5"
+  }, "K\u1EF3 l\u01B0\u01A1ng th\xE1ng ", parseInt(m, 10), "/", y), /*#__PURE__*/React.createElement("span", {
+    className: "block text-xs text-slate-500 leading-4"
+  }, fmtDMY(period.start), " \u2013 ", fmtDMY(period.end)), /*#__PURE__*/React.createElement("input", {
+    type: "month",
+    value: month,
+    "aria-label": "Ch\u1ECDn k\u1EF3 l\u01B0\u01A1ng",
+    onChange: e => e.target.value && onChange(e.target.value),
+    onClick: e => {
+      try {
+        e.currentTarget.showPicker();
+      } catch (_) {/* trình duyệt cũ */}
+    },
+    className: "absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+  })), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => onChange(shiftMonth(month, 1)),
+    "aria-label": "K\u1EF3 l\u01B0\u01A1ng sau",
+    className: "w-9 h-10 grid place-items-center rounded-lg text-slate-600 hover:bg-white"
+  }, /*#__PURE__*/React.createElement(Icons.ChevronRight, null)), month !== todayPeriod && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => onChange(todayPeriod),
+    className: "h-10 px-2.5 rounded-lg text-sm font-medium text-blue-700 hover:bg-white whitespace-nowrap"
+  }, "K\u1EF3 hi\u1EC7n t\u1EA1i"));
+}
+
+// ---------- Thẻ tổng hợp ----------
+function StatsPanel({
+  stats
+}) {
+  const ots = Object.keys(stats.byOt).sort();
+  const Tile = ({
+    label,
+    value,
+    unit,
+    tone,
+    note,
+    warn
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border border-slate-200 p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-medium text-slate-500"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: `mt-1 text-2xl font-bold tabular-nums ${tone === 'blue' ? 'text-blue-700' : tone === 'orange' ? 'text-orange-600' : 'text-slate-900'}`
+  }, value, /*#__PURE__*/React.createElement("span", {
+    className: "ml-1 text-sm font-medium text-slate-500"
+  }, unit)), note && /*#__PURE__*/React.createElement("div", {
+    className: `mt-1 text-xs ${warn ? 'text-rose-600 font-medium' : 'text-slate-500'}`
+  }, note));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement(Tile, {
+    label: "Gi\u1EDD c\xF4ng th\u01B0\u1EDDng",
+    value: fmtH(stats.normal),
+    unit: "gi\u1EDD",
+    tone: "blue"
+  }), /*#__PURE__*/React.createElement(Tile, {
+    label: "T\u0103ng ca (OT)",
+    value: fmtH(stats.ot),
+    unit: "gi\u1EDD",
+    tone: "orange",
+    note: ots.length ? ots.map(k => `${k}: ${fmtH(stats.byOt[k])}`).join(' · ') : null
+  }), /*#__PURE__*/React.createElement(Tile, {
+    label: "T\u1ED5ng gi\u1EDD",
+    value: fmtH(stats.total),
+    unit: "gi\u1EDD"
+  }), /*#__PURE__*/React.createElement(Tile, {
+    label: "Ng\xE0y \u0111\xE3 ch\u1EA5m",
+    value: stats.days,
+    unit: "ng\xE0y",
+    warn: stats.missing.length > 0,
+    note: stats.missing.length ? `Còn ${stats.missing.length} ngày T2–T6 chưa chấm` : 'Đủ ngày làm việc đến hôm nay'
+  }));
+}
+
+// ---------- Lịch kỳ lương (16 → 15) ----------
+function PeriodCalendar({
+  period,
+  dayTotals,
+  missing,
+  selected,
+  onPick
+}) {
+  const today = getTodayLocal();
+  const days = daysBetween(period.start, period.end);
+  const lead = (weekdayOf(period.start) + 6) % 7; // tuần bắt đầu từ Thứ 2
+  const missingSet = new Set(missing);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl border border-slate-200 p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-3"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "font-semibold"
+  }, "L\u1ECBch k\u1EF3 l\u01B0\u01A1ng"), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-slate-500"
+  }, fmtDM(period.start), " \u2013 ", fmtDM(period.end))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-500 mb-1",
+    "aria-hidden": "true"
+  }, ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(w => /*#__PURE__*/React.createElement("div", {
+    key: w
+  }, w))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1"
+  }, Array.from({
+    length: lead
+  }).map((_, i) => /*#__PURE__*/React.createElement("div", {
+    key: 'blank' + i
+  })), days.map(d => {
+    const t = dayTotals[d],
+      w = weekdayOf(d),
+      hol = isVietnameseHoliday(d),
+      miss = missingSet.has(d);
+    const [, mm, dd] = d.split('-');
+    const showMonth = dd === '01' || d === period.start;
+    const label = `${WEEKDAYS_LONG[w]} ${fmtDMY(d)}${hol ? ', ngày lễ' : ''}: ` + (t ? `${fmtH(t.hours)} giờ — bấm để xem` : miss ? 'chưa chấm công — bấm để thêm' : 'bấm để thêm chấm công');
+    return /*#__PURE__*/React.createElement("button", {
+      key: d,
+      type: "button",
+      onClick: () => onPick(d),
+      "aria-pressed": selected === d,
+      "aria-label": label,
+      title: label,
+      className: `relative h-11 sm:h-12 rounded-lg flex flex-col items-center justify-center text-sm border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 ${selected === d ? 'border-blue-600 ring-2 ring-blue-600/30' : d === today ? 'border-slate-800' : 'border-transparent'} ${t ? t.ot ? 'bg-orange-50 hover:bg-orange-100' : 'bg-blue-50 hover:bg-blue-100' : miss ? 'bg-rose-50 hover:bg-rose-100' : 'hover:bg-slate-100'}`
+    }, /*#__PURE__*/React.createElement("span", {
+      className: `leading-none ${showMonth ? 'text-[11px] font-semibold' : ''} ${hol || w === 0 ? 'text-rose-600' : w === 6 ? 'text-slate-500' : 'text-slate-800'}`
+    }, showMonth ? `${parseInt(dd, 10)}/${parseInt(mm, 10)}` : parseInt(dd, 10)), t ? /*#__PURE__*/React.createElement("span", {
+      className: `mt-1 text-[10px] font-semibold leading-none ${t.ot ? 'text-orange-700' : 'text-blue-700'}`
+    }, fmtH(t.hours), "h") : miss ? /*#__PURE__*/React.createElement("span", {
+      className: "mt-1 w-1.5 h-1.5 rounded-full bg-rose-500",
+      "aria-hidden": "true"
+    }) : null);
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "w-2.5 h-2.5 rounded bg-blue-100 inline-block"
+  }), "\u0110\xE3 ch\u1EA5m"), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "w-2.5 h-2.5 rounded bg-orange-100 inline-block"
+  }), "C\xF3 OT"), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"
+  }), "Ch\u01B0a ch\u1EA5m (T2\u2013T6)"), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("i", {
+    className: "w-2.5 h-2.5 rounded border border-slate-800 inline-block"
+  }), "H\xF4m nay")));
+}
+function OtPill({
+  code
+}) {
+  const normal = code === 'NORMAL';
+  return /*#__PURE__*/React.createElement("span", {
+    title: otLabel(code),
+    className: `inline-flex items-center h-6 px-2 rounded-full text-xs font-semibold whitespace-nowrap ${normal ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`
+  }, normal ? 'Giờ thường' : code);
+}
+
+// ---------- Máy tính: bảng ----------
+function EntryTable({
+  rows,
+  onEdit,
+  onDelete
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "hidden lg:block overflow-x-auto"
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "w-full text-sm"
+  }, /*#__PURE__*/React.createElement("thead", {
+    className: "bg-slate-50 text-slate-500 text-xs whitespace-nowrap"
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    scope: "col",
+    className: "text-left font-medium px-4 py-2.5"
+  }, "Ng\xE0y"), /*#__PURE__*/React.createElement("th", {
+    scope: "col",
+    className: "text-left font-medium px-3 py-2.5"
+  }, "Th\u1EDDi gian"), /*#__PURE__*/React.createElement("th", {
+    scope: "col",
+    className: "text-right font-medium px-3 py-2.5"
+  }, "Gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    scope: "col",
+    className: "text-left font-medium px-3 py-2.5"
+  }, "Lo\u1EA1i gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    scope: "col",
+    className: "text-left font-medium px-3 py-2.5"
+  }, "M\xE3 CV"), /*#__PURE__*/React.createElement("th", {
+    scope: "col",
+    className: "text-left font-medium px-3 py-2.5 w-full"
+  }, "D\u1EF1 \xE1n / WBS / Ghi ch\xFA"), /*#__PURE__*/React.createElement("th", {
+    scope: "col",
+    className: "px-4 py-2.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "sr-only"
+  }, "Thao t\xE1c")))), /*#__PURE__*/React.createElement("tbody", {
+    className: "divide-y divide-slate-100"
+  }, rows.map((e, i) => {
+    const firstOfDay = i === 0 || rows[i - 1].date !== e.date;
+    const w = weekdayOf(e.date),
+      hol = isVietnameseHoliday(e.date);
+    const brk = parseFloat(e.breakTime) || 0,
+      duty = parseFloat(e.dutyHour) || 0;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: e.id,
+      onClick: () => onEdit(e),
+      className: `cursor-pointer hover:bg-blue-50/50 ${firstOfDay && i > 0 ? 'border-t-2 border-slate-200' : ''}`
+    }, /*#__PURE__*/React.createElement("td", {
+      className: "px-4 py-2.5 whitespace-nowrap align-top"
+    }, firstOfDay ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+      className: "font-semibold tabular-nums"
+    }, fmtDM(e.date)), ' ', /*#__PURE__*/React.createElement("span", {
+      className: hol || w === 0 ? 'text-rose-600' : 'text-slate-500'
+    }, WEEKDAYS[w], hol ? ' · Lễ' : '')) : /*#__PURE__*/React.createElement("span", {
+      className: "sr-only"
+    }, fmtDMY(e.date))), /*#__PURE__*/React.createElement("td", {
+      className: "px-3 py-2.5 whitespace-nowrap tabular-nums align-top"
+    }, e.startTime && e.endTime ? `${e.startTime} – ${e.endTime}` : '—', (brk > 0 || duty > 0) && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-400"
+    }, [brk > 0 ? `nghỉ ${fmtH(brk)}h` : '', duty > 0 ? `trực ${fmtH(duty)}h` : ''].filter(Boolean).join(' · '))), /*#__PURE__*/React.createElement("td", {
+      className: "px-3 py-2.5 text-right font-semibold tabular-nums align-top"
+    }, fmtH(entryHours(e))), /*#__PURE__*/React.createElement("td", {
+      className: "px-3 py-2.5 align-top"
+    }, /*#__PURE__*/React.createElement(OtPill, {
+      code: e.otType
+    })), /*#__PURE__*/React.createElement("td", {
+      className: "px-3 py-2.5 font-mono text-xs text-blue-700 align-top whitespace-nowrap"
+    }, e.activityCode), /*#__PURE__*/React.createElement("td", {
+      className: "px-3 py-2.5 align-top max-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "truncate",
+      title: e.projectName
+    }, e.projectName || '—'), e.workNumber && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-500 font-mono truncate"
+    }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-500 italic truncate",
+      title: e.remarks
+    }, e.remarks)), /*#__PURE__*/React.createElement("td", {
+      className: "px-4 py-2 align-top text-right whitespace-nowrap"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      "aria-label": `Sửa chấm công ${fmtDMY(e.date)}`,
+      onClick: ev => {
+        ev.stopPropagation();
+        onEdit(e);
+      },
+      className: "w-8 h-8 inline-grid place-items-center rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50"
+    }, /*#__PURE__*/React.createElement(Icons.Edit, null)), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      "aria-label": `Xóa chấm công ${fmtDMY(e.date)}`,
+      onClick: ev => {
+        ev.stopPropagation();
+        onDelete(e);
+      },
+      className: "w-8 h-8 inline-grid place-items-center rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50"
+    }, /*#__PURE__*/React.createElement(Icons.Trash, null))));
+  }))));
+}
+
+// ---------- Điện thoại / tablet: thẻ theo ngày ----------
+function EntryCards({
+  rows,
+  onEdit,
+  onDelete
+}) {
+  const groups = [];
+  rows.forEach(e => {
+    const g = groups[groups.length - 1];
+    if (g && g.date === e.date) g.items.push(e);else groups.push({
+      date: e.date,
+      items: [e]
+    });
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "lg:hidden divide-y divide-slate-100"
+  }, groups.map(g => {
+    const total = g.items.reduce((s, e) => s + entryHours(e), 0);
+    const w = weekdayOf(g.date),
+      hol = isVietnameseHoliday(g.date);
+    return /*#__PURE__*/React.createElement("div", {
+      key: g.date,
+      className: "px-4 py-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-semibold"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: hol || w === 0 ? 'text-rose-600' : ''
+    }, WEEKDAYS_LONG[w]), ", ", fmtDMY(g.date), hol ? /*#__PURE__*/React.createElement("span", {
+      className: "text-rose-600"
+    }, " \xB7 L\u1EC5") : null), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm text-slate-500 tabular-nums"
+    }, fmtH(total), " gi\u1EDD")), /*#__PURE__*/React.createElement("ul", {
+      className: "space-y-2"
+    }, g.items.map(e => /*#__PURE__*/React.createElement("li", {
+      key: e.id,
+      className: "rounded-xl border border-slate-200 flex items-stretch"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => onEdit(e),
+      className: "flex-1 min-w-0 text-left p-3 rounded-l-xl hover:bg-slate-50"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 flex-wrap"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-medium tabular-nums"
+    }, e.startTime && e.endTime ? `${e.startTime} – ${e.endTime}` : 'Không có giờ'), /*#__PURE__*/React.createElement(OtPill, {
+      code: e.otType
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm text-slate-500 tabular-nums"
+    }, fmtH(entryHours(e)), "h")), /*#__PURE__*/React.createElement("div", {
+      className: "mt-1 text-sm truncate"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-mono text-blue-700"
+    }, "[", e.activityCode, "]"), " ", e.projectName), e.workNumber && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-500 font-mono truncate"
+    }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-slate-500 truncate"
+    }, "Ghi ch\xFA: ", e.remarks)), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => onDelete(e),
+      "aria-label": `Xóa chấm công ${fmtDMY(e.date)}`,
+      className: "w-12 grid place-items-center rounded-r-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-l border-slate-100"
+    }, /*#__PURE__*/React.createElement(Icons.Trash, null))))));
+  }));
+}
+
+// ---------- Ngăn trượt (máy tính: bên phải · điện thoại: toàn màn hình) ----------
+function Drawer({
+  title,
+  onClose,
+  children
+}) {
+  const panel = useRef(null);
+  useEffect(() => {
+    const prevFocus = document.activeElement;
+    const onKey = e => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    if (panel.current) {
+      const first = finePointer() ? panel.current.querySelector('[data-autofocus]') : null; // không tự bật bàn phím trên điện thoại
+      (first || panel.current).focus();
+    }
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      if (prevFocus && prevFocus.focus) prevFocus.focus();
+    };
+  }, []);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-50",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "tsDrawerTitle"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute inset-0 bg-slate-900/40 ts-fade",
+    onClick: onClose
+  }), /*#__PURE__*/React.createElement("div", {
+    ref: panel,
+    tabIndex: -1,
+    className: "absolute inset-y-0 right-0 w-full md:max-w-xl bg-white shadow-2xl flex flex-col outline-none ts-drawer"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between px-5 h-14 border-b border-slate-200 shrink-0"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "tsDrawerTitle",
+    className: "font-semibold text-lg"
+  }, title), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClose,
+    "aria-label": "\u0110\xF3ng",
+    className: "w-10 h-10 grid place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
+  }, /*#__PURE__*/React.createElement(Icons.X, null))), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 overflow-y-auto"
+  }, children)));
+}
+function Toast({
+  toast,
+  onClose
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    role: "status",
+    className: "fixed z-[60] left-1/2 -translate-x-1/2 bottom-24 md:bottom-6 w-max max-w-[92vw] bg-slate-900 text-white text-sm rounded-xl shadow-xl pl-4 pr-2 py-2 flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "py-1"
+  }, toast.message), toast.action && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      toast.action.run();
+      onClose();
+    },
+    className: "h-8 px-3 rounded-lg font-semibold text-blue-300 hover:bg-white/10"
+  }, toast.action.label), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClose,
+    "aria-label": "\u0110\xF3ng th\xF4ng b\xE1o",
+    className: "w-8 h-8 grid place-items-center rounded-lg text-slate-400 hover:bg-white/10"
+  }, /*#__PURE__*/React.createElement(Icons.X, null)));
+}
+function Field({
+  label,
+  htmlFor,
+  hint,
+  children,
+  className
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: className
+  }, /*#__PURE__*/React.createElement("label", {
+    htmlFor: htmlFor,
+    className: "block text-sm font-medium text-slate-700 mb-1"
+  }, label), children, hint && /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-xs text-slate-500"
+  }, hint));
+}
+
+// ---------- Cài đặt ----------
+function SettingsPanel({
+  profile,
+  setProfile,
+  projects,
+  projSyncing,
+  projStatus,
+  onSync,
+  onBackup,
+  onRestore,
+  onReset,
+  onDone
+}) {
+  const set = k => e => setProfile({
+    ...profile,
+    [k]: e.target.value
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "px-5 py-5 space-y-6"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold"
+  }, "Th\xF4ng tin c\xE1 nh\xE2n"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500"
+  }, "In \u1EDF \u0111\u1EA7u b\u1EA3ng ch\u1EA5m c\xF4ng Excel. T\u1EF1 l\u01B0u khi b\u1EA1n g\xF5.")), /*#__PURE__*/React.createElement("div", {
+    className: "grid sm:grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "H\u1ECD v\xE0 t\xEAn",
+    htmlFor: "tsName"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsName",
+    "data-autofocus": true,
+    className: inputCls,
+    value: profile.name,
+    onChange: set('name'),
+    placeholder: "H\u1ECD T\xEAn",
+    autoComplete: "name"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "M\xE3 nh\xE2n vi\xEAn",
+    htmlFor: "tsEmpId"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsEmpId",
+    className: inputCls,
+    value: profile.empId,
+    onChange: set('empId'),
+    placeholder: "M\xE3 NV"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Ch\u1EE9c v\u1EE5",
+    htmlFor: "tsPosition"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsPosition",
+    className: inputCls,
+    value: profile.position,
+    onChange: set('position'),
+    placeholder: "Ch\u1EE9c v\u1EE5"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Ph\xF2ng ban",
+    htmlFor: "tsDept"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsDept",
+    className: inputCls,
+    value: profile.dept,
+    onChange: set('dept'),
+    placeholder: "Ph\xF2ng ban"
+  })))), /*#__PURE__*/React.createElement("section", {
+    className: "space-y-2 pt-5 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement(Icons.Database, null), " D\u1EEF li\u1EC7u D\u1EF1 \xE1n"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500"
+  }, "D\xF9ng chung v\u1EDBi \u201CTh\u1ED1ng k\xEA gi\u1EDD c\xF4ng d\u1EF1 \xE1n\u201D (ngu\u1ED3n Google Drive) \u2014 kh\xF4ng c\u1EA7n nh\u1EADp g\xEC th\xEAm."), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center gap-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onSync,
+    disabled: projSyncing,
+    className: btnGhost
+  }, /*#__PURE__*/React.createElement(Icons.Refresh, null), " ", projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'), /*#__PURE__*/React.createElement("span", {
+    className: "text-sm text-emerald-700"
+  }, projects.length, " d\u1EF1 \xE1n \u0111\xE3 l\u01B0u")), projStatus && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-slate-600",
+    role: "status"
+  }, projStatus)), /*#__PURE__*/React.createElement("section", {
+    className: "space-y-2 pt-5 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold"
+  }, "Sao l\u01B0u & kh\xF4i ph\u1EE5c"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500"
+  }, "D\u1EEF li\u1EC7u Timesheet ch\u1EC9 n\u1EB1m tr\xEAn tr\xECnh duy\u1EC7t n\xE0y \u2014 n\xEAn sao l\u01B0u \u0111\u1ECBnh k\u1EF3 ho\u1EB7c tr\u01B0\u1EDBc khi \u0111\u1ED5i m\xE1y."), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onBackup,
+    className: btnGhost
+  }, /*#__PURE__*/React.createElement(Icons.Download, null), " Backup"), /*#__PURE__*/React.createElement("label", {
+    className: `${btnGhost} cursor-pointer`
+  }, /*#__PURE__*/React.createElement(Icons.Upload, null), " Restore", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".json,application/json",
+    onChange: onRestore,
+    className: "sr-only"
+  })))), /*#__PURE__*/React.createElement("section", {
+    className: "space-y-2 pt-5 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-rose-700 flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement(Icons.Alert, null), " V\xF9ng nguy hi\u1EC3m"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500"
+  }, "X\xF3a h\u1EBFt l\u1ECBch s\u1EED ch\u1EA5m c\xF4ng v\xE0 th\xF4ng tin c\xE1 nh\xE2n tr\xEAn m\xE1y n\xE0y. Kh\xF4ng th\u1EC3 kh\xF4i ph\u1EE5c (tr\u1EEB khi c\xF3 b\u1EA3n Backup)."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onReset,
+    className: "inline-flex items-center justify-center h-10 px-4 rounded-lg border border-rose-300 text-rose-700 font-semibold hover:bg-rose-50"
+  }, "X\xF3a to\xE0n b\u1ED9 d\u1EEF li\u1EC7u")), /*#__PURE__*/React.createElement("div", {
+    className: "pt-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onDone,
+    className: `${btnPrimary} w-full`
+  }, "Xong")));
+}
+
+// ---------- Form thêm / sửa chấm công ----------
 function EntryForm({
   onSave,
   onCancel,
+  onDelete,
   defaultDate,
   initialData,
   entries,
@@ -1198,7 +1915,9 @@ function EntryForm({
     }));
     setSuggestions([]);
   };
-  const handleSubmit = () => {
+  const handleSubmit = ev => {
+    if (ev) ev.preventDefault();
+    if (!formData.date) return alert("Vui lòng chọn ngày!");
     const finalData = {
       ...formData
     };
@@ -1208,82 +1927,111 @@ function EntryForm({
     }
     onSave(finalData);
   };
-  return /*#__PURE__*/React.createElement("div", {
-    className: "bg-white p-4 rounded-xl shadow-lg animate-fade-in-up"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "font-bold text-lg mb-4 text-blue-800 border-b pb-2"
-  }, initialData ? 'Sửa' : 'Thêm'), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "NG\xC0Y"), /*#__PURE__*/React.createElement("input", {
+  const set = k => e => setFormData({
+    ...formData,
+    [k]: e.target.value
+  });
+  const hours = calculateHours(formData.startTime, formData.endTime, formData.breakTime);
+  const w = formData.date ? weekdayOf(formData.date) : null;
+  const hol = isVietnameseHoliday(formData.date);
+  return /*#__PURE__*/React.createElement("form", {
+    onSubmit: handleSubmit,
+    className: "min-h-full flex flex-col",
+    noValidate: true
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "px-5 py-5 space-y-6 flex-1"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-slate-900"
+  }, "Th\u1EDDi gian"), /*#__PURE__*/React.createElement(Field, {
+    label: "Ng\xE0y",
+    htmlFor: "tsDate",
+    hint: w === null ? null : `${WEEKDAYS_LONG[w]}${hol ? ' — ngày lễ Việt Nam' : ''}`
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsDate",
+    "data-autofocus": true,
     type: "date",
     value: formData.date,
     onChange: handleDateChange,
-    className: "w-full border p-3 rounded-lg"
+    className: inputCls,
+    required: true
   })), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-2"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "T\u1EEA"), /*#__PURE__*/React.createElement("input", {
+    className: "grid grid-cols-3 gap-3"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "T\u1EEB",
+    htmlFor: "tsFrom"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsFrom",
     type: "time",
     value: formData.startTime,
-    onChange: e => setFormData({
-      ...formData,
-      startTime: e.target.value
-    }),
-    className: "w-full border p-2 rounded-lg text-center"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "\u0110\u1EBEN"), /*#__PURE__*/React.createElement("input", {
+    onChange: set('startTime'),
+    className: `${inputCls} text-center px-1`
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "\u0110\u1EBFn",
+    htmlFor: "tsTo"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsTo",
     type: "time",
     value: formData.endTime,
-    onChange: e => setFormData({
-      ...formData,
-      endTime: e.target.value
-    }),
-    className: "w-full border p-2 rounded-lg text-center"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "NGH\u1EC8"), /*#__PURE__*/React.createElement("input", {
+    onChange: set('endTime'),
+    className: `${inputCls} text-center px-1`
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Ngh\u1EC9 (gi\u1EDD)",
+    htmlFor: "tsBreak"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsBreak",
     type: "number",
+    min: "0",
     step: "0.5",
+    inputMode: "decimal",
     value: formData.breakTime,
-    onChange: e => setFormData({
-      ...formData,
-      breakTime: e.target.value
-    }),
-    className: "w-full border p-2 rounded-lg text-center"
-  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "TR\u1EF0C (STANDBY)"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.5",
-    value: formData.dutyHour,
-    onChange: e => setFormData({
-      ...formData,
-      dutyHour: e.target.value
-    }),
-    className: "w-full border p-3 rounded-lg"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "LO\u1EA0I GI\u1EDC (T\u1EF1 \u0111\u1ED9ng \u0111\u1EC1 xu\u1EA5t)"), /*#__PURE__*/React.createElement("select", {
+    onChange: set('breakTime'),
+    className: `${inputCls} text-center`
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-600"
+  }, "S\u1ED1 gi\u1EDD t\xEDnh c\xF4ng"), /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold tabular-nums"
+  }, fmtH(hours), " gi\u1EDD")), /*#__PURE__*/React.createElement("div", {
+    className: "grid sm:grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Lo\u1EA1i gi\u1EDD",
+    htmlFor: "tsOt",
+    hint: "T\u1EF1 \u0111\u1ED9ng \u0111\u1EC1 xu\u1EA5t theo ng\xE0y & gi\u1EDD b\u1EAFt \u0111\u1EA7u."
+  }, /*#__PURE__*/React.createElement("select", {
+    id: "tsOt",
     value: formData.otType,
     onChange: handleOtChange,
-    className: "w-full border p-3 rounded-lg bg-white"
+    className: inputCls
   }, OT_TYPES.map(t => /*#__PURE__*/React.createElement("option", {
     key: t.code,
     value: t.code
-  }, t.label))), isVietnameseHoliday(formData.date) && /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-red-500 mt-1"
-  }, "* Ph\xE1t hi\u1EC7n ng\xE0y l\u1EC5 VN: ", formData.date)), /*#__PURE__*/React.createElement("div", {
-    className: "pt-2 border-t space-y-3"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "M\xC3 C\xD4NG VI\u1EC6C"), /*#__PURE__*/React.createElement("select", {
+  }, t.label)))), /*#__PURE__*/React.createElement(Field, {
+    label: "Gi\u1EDD tr\u1EF1c (standby)",
+    htmlFor: "tsDuty"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsDuty",
+    type: "number",
+    min: "0",
+    step: "0.5",
+    inputMode: "decimal",
+    value: formData.dutyHour,
+    onChange: set('dutyHour'),
+    className: inputCls
+  })))), /*#__PURE__*/React.createElement("section", {
+    className: "space-y-3 pt-5 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-slate-900"
+  }, "C\xF4ng vi\u1EC7c"), /*#__PURE__*/React.createElement(Field, {
+    label: "M\xE3 c\xF4ng vi\u1EC7c",
+    htmlFor: "tsAct"
+  }, /*#__PURE__*/React.createElement("select", {
+    id: "tsAct",
     value: formData.activityCode,
     onChange: handleActivityCodeChange,
-    className: "w-full border p-3 rounded-lg font-bold text-blue-900"
+    className: `${inputCls} font-medium text-blue-900`
   }, ACTIVITY_META.map(opt => /*#__PURE__*/React.createElement("option", {
     key: opt.id,
     value: opt.id
@@ -1294,69 +2042,97 @@ function EntryForm({
     value: customCode,
     onChange: e => setCustomCode(e.target.value),
     placeholder: "Nh\u1EADp m\xE3 code",
-    className: "mt-2 w-full border p-2 rounded text-sm bg-yellow-50"
-  })), /*#__PURE__*/React.createElement("div", {
+    "aria-label": "M\xE3 c\xF4ng vi\u1EC7c kh\xE1c",
+    className: `${inputCls} mt-2 bg-amber-50`
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "T\xEAn d\u1EF1 \xE1n",
+    htmlFor: "tsProject",
+    hint: projects.length ? `Gõ tên hoặc WBS để chọn trong ${projects.length} dự án.` : null
+  }, /*#__PURE__*/React.createElement("div", {
     className: "relative"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "T\xCAN D\u1EF0 \xC1N"), /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsProject",
     type: "text",
+    autoComplete: "off",
     value: formData.projectName,
+    role: "combobox",
+    "aria-expanded": suggestions.length > 0,
+    "aria-controls": "tsProjectList",
+    "aria-autocomplete": "list",
     onChange: e => handleProjectNameSearch(e.target.value),
-    className: "w-full border p-3 rounded-lg",
+    onKeyDown: e => {
+      if (e.key === 'Enter' && suggestions.length) {
+        e.preventDefault();
+        selectProject(suggestions[0]);
+      }
+      if (e.key === 'Escape' && suggestions.length) {
+        e.stopPropagation();
+        setSuggestions([]);
+      }
+    },
+    onBlur: () => setTimeout(() => setSuggestions([]), 150),
+    className: inputCls,
     placeholder: "Nh\u1EADp t\xEAn d\u1EF1 \xE1n..."
   }), suggestions.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "suggestion-list"
-  }, suggestions.map((p, idx) => /*#__PURE__*/React.createElement("div", {
+    id: "tsProjectList",
+    className: "suggestion-list",
+    role: "listbox"
+  }, suggestions.slice(0, 50).map((p, idx) => /*#__PURE__*/React.createElement("div", {
     key: idx,
-    onClick: () => selectProject(p),
+    role: "option",
+    "aria-selected": idx === 0,
+    onMouseDown: ev => {
+      ev.preventDefault();
+      selectProject(p);
+    },
     className: "suggestion-item"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "font-bold"
+    className: "font-semibold"
   }, p.projectName), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
-    className: "text-gray-500 text-xs"
-  }, p.workNumber))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "WORK NUMBER / WBS / M\xC3 CHI PH\xCD"), isHR ? /*#__PURE__*/React.createElement("select", {
+    className: "text-slate-500 text-xs font-mono"
+  }, p.workNumber)))))), /*#__PURE__*/React.createElement(Field, {
+    label: "Work Number / WBS / M\xE3 chi ph\xED",
+    htmlFor: "tsWbs"
+  }, isHR ? /*#__PURE__*/React.createElement("select", {
+    id: "tsWbs",
     value: formData.workNumber,
-    onChange: e => setFormData({
-      ...formData,
-      workNumber: e.target.value
-    }),
-    className: "w-full border p-3 rounded-lg bg-white"
+    onChange: set('workNumber'),
+    className: inputCls
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
   }, "-- Ch\u1ECDn lo\u1EA1i ngh\u1EC9 --"), HR_WORK_NUMBERS.map(wn => /*#__PURE__*/React.createElement("option", {
     key: wn,
     value: wn
   }, wn))) : /*#__PURE__*/React.createElement("input", {
+    id: "tsWbs",
     type: "text",
     value: formData.workNumber,
-    onChange: e => setFormData({
-      ...formData,
-      workNumber: e.target.value
-    }),
-    className: "w-full border p-3 rounded-lg"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "text-xs font-bold text-slate-500"
-  }, "GHI CH\xDA (REMARKS)"), /*#__PURE__*/React.createElement("input", {
+    onChange: set('workNumber'),
+    className: `${inputCls} font-mono`
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Ghi ch\xFA",
+    htmlFor: "tsRemarks"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsRemarks",
     type: "text",
     value: formData.remarks || '',
-    onChange: e => setFormData({
-      ...formData,
-      remarks: e.target.value
-    }),
-    className: "w-full border p-3 rounded-lg",
+    onChange: set('remarks'),
+    className: inputCls,
     placeholder: "Ghi ch\xFA th\xEAm..."
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-3 pt-4"
-  }, /*#__PURE__*/React.createElement("button", {
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "sticky bottom-0 bg-white border-t border-slate-200 px-5 py-3 flex items-center gap-3"
+  }, onDelete && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onDelete,
+    className: "h-11 px-3 rounded-lg text-rose-700 font-semibold hover:bg-rose-50 inline-flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement(Icons.Trash, null), " X\xF3a"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
     onClick: onCancel,
-    className: "flex-1 p-3 border rounded-lg font-bold text-slate-500"
+    className: `${btnGhost} h-11 flex-1 md:flex-none md:ml-auto`
   }, "H\u1EE7y"), /*#__PURE__*/React.createElement("button", {
-    onClick: handleSubmit,
-    className: "flex-1 p-3 bg-blue-600 text-white rounded-lg font-bold shadow"
-  }, "L\u01B0u"))));
+    type: "submit",
+    className: `${btnPrimary} h-11 flex-1 md:flex-none md:min-w-[8rem]`
+  }, "L\u01B0u")));
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(/*#__PURE__*/React.createElement(App, null));
