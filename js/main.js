@@ -164,7 +164,8 @@ function openUpdateModal() {
             <b>6. Sao lưu / phục hồi bằng file JSON (trên máy bạn)</b>
             <p>Tải <b>toàn bộ dữ liệu hiện tại</b> thành 1 file <b>.json</b> để lưu trên máy làm bản dự phòng;
             hoặc <b>nạp lại</b> từ file .json đã lưu (thay thế toàn bộ dữ liệu trong app). Dùng khi Google Drive
-            tạm thời không tải được.</p>
+            tạm thời không tải được. <i>File sao lưu có cả thông tin cá nhân nhân viên (ngày sinh…) — chỉ lưu ở nơi an toàn,
+            không chia sẻ.</i> (File trên Google Drive thì <b>không</b> chứa các thông tin này.)</p>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px">
             <button class="btn btn-primary" id="updBackupDownload">⬇ Tải bản sao lưu (.json)</button>

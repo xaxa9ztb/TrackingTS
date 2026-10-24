@@ -10,10 +10,22 @@ const Cloud = (() => {
     return !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_CLIENT_ID);
   }
 
-  async function gatherAll() {
-    const [employees, projects, timesheets] = await Promise.all([
+  // Thông tin cá nhân trong EE Data mà người xem KHÔNG cần (app chỉ dùng khi admin Export Excel
+  // hoặc sửa nhân viên). File trên Drive ai có link cũng tải được → KHÔNG đưa các trường này lên;
+  // chúng chỉ nằm trên máy admin đã import EE Data (và trong file sao lưu JSON của admin).
+  const PRIVATE_EMP_FIELDS = ['dob', 'gender', 'username', 'personId'];
+  const withoutPrivate = (e) => {
+    const out = { ...e };
+    PRIVATE_EMP_FIELDS.forEach(f => { delete out[f]; });
+    return out;
+  };
+
+  // forPublish = true: bản để đưa lên Drive (đã bỏ thông tin cá nhân)
+  async function gatherAll({ forPublish = false } = {}) {
+    const [allEmployees, projects, timesheets] = await Promise.all([
       DB.getAll('employees'), DB.getAll('projects'), DB.getAll('timesheets'),
     ]);
+    const employees = forPublish ? allEmployees.map(withoutPrivate) : allEmployees;
     let specHeaders = null;
     try { specHeaders = JSON.parse(localStorage.getItem('specHeaders') || 'null'); } catch (e) { /* ignore */ }
     return {
@@ -54,6 +66,19 @@ const Cloud = (() => {
       throw new Error('File dữ liệu trên Drive không đúng định dạng');
     }
     normalizeLoaded(data);
+    // File Drive không chứa thông tin cá nhân → giữ lại các trường đó nếu máy này (máy admin đã
+    // import EE Data) đang có, để Export Excel / sửa nhân viên không bị mất dữ liệu.
+    let kept = new Map();
+    try {
+      kept = new Map((await DB.getAll('employees')).map(e => [String(e.empId), e]));
+    } catch (e) { /* chưa có dữ liệu */ }
+    if (kept.size) {
+      for (const e of data.employees) {
+        const old = kept.get(String(e && e.empId));
+        if (!old) continue;
+        PRIVATE_EMP_FIELDS.forEach(f => { if (!(f in e) && old[f] !== undefined) e[f] = old[f]; });
+      }
+    }
     await DB.clear('employees');
     await DB.clear('projects');
     await DB.clear('timesheets');
@@ -149,7 +174,7 @@ const Cloud = (() => {
   async function saveToDrive() {
     if (!canWrite()) throw new Error('Chưa cấu hình DRIVE_FILE_ID / GOOGLE_CLIENT_ID trong config.js');
     const token = await getToken();
-    const data = await gatherAll();
+    const data = await gatherAll({ forPublish: true }); // file công khai: không kèm thông tin cá nhân
     const json = JSON.stringify(data);
     const gz = await gzipBytes(json);            // nén nếu trình duyệt hỗ trợ
     const resp = await fetch(
@@ -173,7 +198,7 @@ const Cloud = (() => {
     const token = await getToken();
     const boundary = 'xTimesheetBoundary7391';
     const meta = { name: 'timesheet-data.json' };
-    const content = JSON.stringify(await gatherAll());
+    const content = JSON.stringify(await gatherAll({ forPublish: true }));
     const body =
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
       `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
@@ -229,7 +254,8 @@ const Cloud = (() => {
   }
 
   // ---- sao lưu / phục hồi bằng file JSON trên máy (phương án dự phòng) ----
-  // Dùng CHUNG định dạng với file Drive (gatherAll/applyData).
+  // Dùng CHUNG định dạng với file Drive (gatherAll/applyData). Bản sao lưu là file RIÊNG của
+  // admin nên giữ ĐẦY ĐỦ (kể cả thông tin cá nhân) để phục hồi được hoàn toàn.
   async function exportLocalBackup() {
     const data = await gatherAll();
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
