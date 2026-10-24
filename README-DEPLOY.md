@@ -9,20 +9,45 @@ Kiến trúc: app chạy trên **GitHub Pages** (miễn phí), dữ liệu dùng
 
 ## Bộ công cụ (nhiều công cụ trong 1 repo)
 
-Repo này là **Bộ công cụ dự án**: link gốc mở trang chủ, chọn công cụ để vào.
+Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức năng lớn**; người dùng
+**đăng nhập một lần ở trang chủ rồi chọn chức năng**.
 
-| Đường dẫn | Công cụ | Nguồn |
-|---|---|---|
-| `index.html` | Trang chủ Bộ công cụ | — |
-| `tracking.html` | Thống kê giờ công dự án (app chính, các bước bên dưới) | — |
-| `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | `xaxa9ztb/swat-hour` |
-| `tools/timesheet/` | Timesheet cá nhân | `xaxa9ztb/Timesheet` (gộp bằng `git subtree`, giữ lịch sử) |
-| `tools/tiendotm/` | Tiến độ thi công thang máy | `xaxa9ztb/TiendoTM` (gộp bằng `git subtree`, giữ lịch sử) |
+| Đường dẫn | Chức năng | Ai được dùng | Nguồn |
+|---|---|---|---|
+| `index.html` | Trang chủ: Đăng nhập → Chọn chức năng | — | — |
+| `tracking.html` | Thống kê giờ công dự án (các bước bên dưới) | Mọi nhân viên | — |
+| `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | `xaxa9ztb/swat-hour` |
+| `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) |
+| `tools/tiendotm/` | Tiến độ thi công thang máy | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) |
 
-- Mỗi công cụ trong `tools/` gọi `tools/toolset-nav.js` ngay sau thẻ `<body>` để có thanh
-  "‹ Bộ công cụ" quay về trang chủ. Thêm công cụ mới: chép vào `tools/<tên>/`, chèn dòng
-  `<script src="../toolset-nav.js" data-tool="Tên công cụ"></script>` và thêm 1 thẻ trên `index.html`.
-- Các công cụ cùng chạy trên `https://xaxa9ztb.github.io`, nên dữ liệu đã lưu trên trình duyệt
+### Đăng nhập & phân quyền (`js/session.js`)
+- Nhân viên đăng nhập bằng **họ tên đầy đủ + mã số nhân viên**, đối chiếu với EE Data (không phân
+  biệt hoa/thường, có dấu/không dấu). Danh sách nhân viên lấy từ dữ liệu đã lưu trên máy; nếu
+  không khớp thì tự cập nhật từ Google Drive **một lần** rồi thử lại.
+- **Ghi nhớ trên thiết bị này**: giữ đăng nhập 30 ngày (hợp cho điện thoại dùng Timesheet hằng ngày).
+  Không chọn thì phiên hết khi đóng tab. Phiên **quản trị không bao giờ được ghi nhớ**.
+- **Vai trò lấy theo chức danh (cột Position trong EE Data)**:
+  - *Quản lý dự án*: chứa `project manager` / `quản lý dự án`
+  - *Site Sup*: chứa `supervisor` / `site sup` / `project engineer` / `giám sát`
+    (cùng định nghĩa Site Sup đang dùng ở Dashboard)
+  - còn lại: *Nhân viên*. Quản trị viên được dùng mọi chức năng.
+  - Đổi quy tắc: sửa `ROLE_RULES` và `roles` của từng chức năng trong `TOOLS` ở `js/session.js`.
+- Mở thẳng link một chức năng khi chưa đăng nhập → về trang đăng nhập, xong **tự quay lại đúng
+  chức năng đó**. Không đủ quyền → về trang chủ kèm thông báo lý do.
+- Timesheet tự điền họ tên / mã NV / chức vụ từ phiên đăng nhập (chỉ điền ô còn trống).
+
+> **Giới hạn:** đây là kiểm soát **phía trình duyệt** (web tĩnh GitHub Pages): đủ để điều hướng
+> đúng người, nhưng người rành kỹ thuật vẫn có thể vượt qua. Cần bảo mật thật sự (dữ liệu nhạy
+> cảm, quyền ghi) thì phải có xác thực phía máy chủ — ví dụ Azure Static Web Apps + Entra ID.
+
+### Thêm một chức năng mới
+1. Chép công cụ vào `tools/<tên>/`.
+2. Trong `<head>`: `<script src="../../js/session.js"></script><script>Session.guard('<id>');</script>`
+3. Ngay sau `<body>`: `<script src="../toolset-nav.js" data-tool="Tên chức năng"></script>`
+4. Khai báo `<id>` trong `TOOLS` (`js/session.js`, thêm `roles` nếu giới hạn quyền) và nội dung thẻ
+   trong `CARDS` / `ICONS` / `ORDER` ở `index.html`.
+
+- Các chức năng cùng chạy trên `https://xaxa9ztb.github.io`, nên dữ liệu đã lưu trên trình duyệt
   (ví dụ chấm công của Timesheet) vẫn còn khi mở ở đường dẫn mới.
 - Từ nay sửa Timesheet / TiendoTM **ngay trong repo này** (thư mục `tools/...`).
 
@@ -115,11 +140,12 @@ Chờ 1-2 phút để Pages cập nhật.
 
 ## Sử dụng hằng ngày
 
-**Người xem:** mở link github.io → app tự tải dữ liệu mới nhất từ Drive. Chỉ xem,
-lọc, export Excel — không thấy các nút thêm/sửa/xoá.
+**Người xem:** mở link github.io → đăng nhập (họ tên + mã NV) → chọn **Thống kê giờ công dự án**
+→ app tự tải dữ liệu mới nhất từ Drive. Chỉ xem, lọc — không thấy các nút thêm/sửa/xoá.
 
 **Admin cập nhật dữ liệu:**
-1. Mở link github.io → bấm **🔒 Admin** → nhập mật khẩu.
+1. Mở link github.io → **Đăng nhập quản trị** → nhập mật khẩu → chọn **Thống kê giờ công dự án**
+   (hoặc đang ở trong app thì bấm **🔒 Admin**).
 2. Bấm **Cập nhật Data** → import file tổng hoặc file lẻ như bình thường.
 3. Bấm **Lưu lên Drive** → đăng nhập Google (lần đầu mỗi phiên) → xong.
    Mọi người tải lại trang là thấy dữ liệu mới.

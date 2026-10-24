@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Timesheet V35 Fix Date</title>
+    <!-- Bộ công cụ: phải đăng nhập ở trang chủ trước khi vào -->
+    <script src="../../js/session.js?v=33"></script>
+    <script>Session.guard('timesheet');</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -38,7 +41,7 @@
     </style>
 </head>
 <body class="bg-slate-100">
-    <script src="../toolset-nav.js" data-tool="Timesheet cá nhân"></script>
+    <script src="../toolset-nav.js?v=33" data-tool="Timesheet cá nhân"></script>
     <div id="root"></div>
 
     <!-- Official Schindler timesheet template (xlsx, base64). Loaded by ExcelJS at export time. -->
@@ -257,6 +260,10 @@
                 
                 if (savedEntries) setEntries(JSON.parse(savedEntries));
                 if (savedProfile) setProfile(JSON.parse(savedProfile));
+                // Bộ công cụ: điền sẵn họ tên / mã NV / chức vụ từ phiên đăng nhập — chỉ điền ô còn trống
+                const who = (typeof Session !== 'undefined') ? Session.current() : null;
+                if (who && !who.admin) setProfile(p => ({ ...p,
+                    name: p.name || who.name, empId: p.empId || who.empId, position: p.position || who.position }));
                 if (savedProjects) setProjects(JSON.parse(savedProjects));
                 else setView('settings'); 
             }, []);

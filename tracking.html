@@ -4,29 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thống Kê Giờ Công Dự Án</title>
-<link rel="stylesheet" href="css/style.css?v=32">
-<script src="js/xlsx.full.min.js?v=32"></script>
+<!-- Đăng nhập ở trang chủ Bộ công cụ; chưa đăng nhập thì chuyển về đó rồi quay lại đây -->
+<script src="js/session.js?v=33"></script>
+<script>Session.guard('tracking');</script>
+<link rel="stylesheet" href="css/style.css?v=33">
+<script src="js/xlsx.full.min.js?v=33"></script>
 </head>
 <body>
-
-<!-- ===== Tường xác thực người xem (họ tên + mã số nhân viên) ===== -->
-<div id="viewGate" class="gate-overlay" style="display:none">
-  <div class="gate-box">
-    <div class="gate-brand">Schindler</div>
-    <h2>Xác thực người xem</h2>
-    <p class="gate-sub">Nhập <b>họ tên đầy đủ</b> và <b>mã số nhân viên</b> của bạn để xem ứng dụng.</p>
-    <label class="gate-field">Họ và tên đầy đủ
-      <input id="gateName" type="text" autocomplete="off" placeholder="Nhập họ và tên đầy đủ">
-    </label>
-    <label class="gate-field">Mã số nhân viên
-      <input id="gateId" type="text" autocomplete="off" inputmode="numeric" placeholder="Nhập mã số nhân viên">
-    </label>
-    <div id="gateErr" class="gate-err"></div>
-    <button class="btn btn-primary gate-submit" id="gateSubmit">Vào xem →</button>
-    <button type="button" class="gate-admin-link" id="gateAdmin">Đăng nhập quản trị</button>
-    <a class="gate-home-link" href="index.html">‹ Về Bộ công cụ</a>
-  </div>
-</div>
 
 <div id="app">
 
@@ -45,6 +29,8 @@
       <button id="btnSaveDrive" class="btn btn-primary admin-only" style="display:none">Lưu lên Drive</button>
       <button id="btnExport" class="btn btn-secondary admin-only">Export Excel</button>
       <button id="btnAdmin" class="btn btn-secondary" style="display:none">🔒 Admin</button>
+      <span id="whoAmI" class="who-am-i"></span>
+      <button id="btnLogout" class="btn btn-secondary">Đăng xuất</button>
     </div>
   </header>
 
@@ -240,7 +226,7 @@
         <span class="batch-hint">Xuất báo cáo hàng loạt — chỉ các dự án đã ghi Swat Target Hour</span>
       </div>
       <div class="swat-frame-wrap">
-        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=32" title="SWAT Calculator"></iframe>
+        <iframe id="swatFrame" src="tools/swat-hour/index.html?v=33" title="SWAT Calculator"></iframe>
       </div>
     </section>
 
@@ -249,19 +235,19 @@
 
 <div id="modalRoot"></div>
 
-<script src="js/config.js?v=32"></script>
-<script src="js/db.js?v=32"></script>
-<script src="js/backup.js?v=32"></script>
-<script src="js/cloud.js?v=32"></script>
-<script src="js/importer.js?v=32"></script>
-<script src="js/charts.js?v=32"></script>
-<script src="js/combo.js?v=32"></script>
-<script src="js/tablefilter.js?v=32"></script>
-<script src="js/dashboard.js?v=32"></script>
-<script src="js/projects.js?v=32"></script>
-<script src="js/timesheet.js?v=32"></script>
-<script src="js/employees.js?v=32"></script>
-<script src="js/swat.js?v=32"></script>
-<script src="js/main.js?v=32"></script>
+<script src="js/config.js?v=33"></script>
+<script src="js/db.js?v=33"></script>
+<script src="js/backup.js?v=33"></script>
+<script src="js/cloud.js?v=33"></script>
+<script src="js/importer.js?v=33"></script>
+<script src="js/charts.js?v=33"></script>
+<script src="js/combo.js?v=33"></script>
+<script src="js/tablefilter.js?v=33"></script>
+<script src="js/dashboard.js?v=33"></script>
+<script src="js/projects.js?v=33"></script>
+<script src="js/timesheet.js?v=33"></script>
+<script src="js/employees.js?v=33"></script>
+<script src="js/swat.js?v=33"></script>
+<script src="js/main.js?v=33"></script>
 </body>
 </html>
