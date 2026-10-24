@@ -119,9 +119,13 @@
   .intro { padding-block: 40px 22px; }
   .intro h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.2; letter-spacing: -.3px; }
   .intro p { margin: 0; color: var(--muted); }
+  .group { padding-bottom: 36px; }
+  .group-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 14px; }
+  .group-head h2 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--ink-2); }
+  .group-head .tag { font-size: 12px; }
   .tools {
-    list-style: none; margin: 0; padding: 0 0 40px;
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px;
+    list-style: none; margin: 0; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px;
   }
   .tool {
     position: relative; height: 100%;
@@ -140,7 +144,7 @@
   }
   .icon svg { width: 24px; height: 24px; }
   .num { font: 600 12px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
-  .tool h2 { margin: 4px 0 0; font-size: 18px; line-height: 1.3; }
+  .tool h3 { margin: 4px 0 0; font-size: 18px; line-height: 1.3; }
   .tool p { margin: 0; color: var(--ink-2); font-size: 14px; flex: 1; }
   .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; padding: 0; list-style: none; }
   .meta li { font-size: 12px; color: var(--ink-2); background: var(--tile); border-radius: 999px; padding: 3px 10px; }
@@ -152,10 +156,41 @@
   a.tool:hover .open .arrow { transform: translateX(3px); }
   /* thẻ bị khoá (không đủ quyền) */
   .tool.locked { background: #fafafa; border-style: dashed; }
-  .tool.locked h2, .tool.locked p { color: var(--muted); }
+  .tool.locked h3, .tool.locked p { color: var(--muted); }
   .tool.locked .icon { color: #9ca3af; }
   .tool.locked .open { color: var(--muted); font-weight: 500; }
   .tool.locked .open svg { width: 16px; height: 16px; flex: none; }
+  /* thẻ "đang phát triển": bấm vào chỉ mở hộp thông báo */
+  .soon-badge { font-size: 11.5px; font-weight: 600; color: var(--warn-ink); background: var(--warn-bg);
+    border: 1px solid var(--warn-line); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  button.tool { width: 100%; text-align: left; font: inherit; cursor: pointer; border-style: dashed; background: #fcfcfd; }
+  button.tool:hover { border-color: var(--line-strong); box-shadow: 0 6px 18px rgba(17,24,39,.06); }
+  button.tool:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  button.tool .icon { color: var(--ink-2); }
+  button.tool .open { color: var(--ink-2); font-weight: 500; }
+
+  /* nhóm chức năng không đủ quyền: gọn thành 1 khối */
+  .locked-panel { background: #fafafa; border: 1px dashed var(--line-strong); border-radius: 12px; padding: 16px 18px; }
+  .locked-panel > p { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+  .locked-panel > p svg { width: 16px; height: 16px; flex: none; }
+  .mini-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 16px; }
+  .mini { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.3; min-width: 0; }
+  .mini-text { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+  .mini .icon { width: 32px; height: 32px; border-radius: 8px; color: #9ca3af; }
+  .mini .icon svg { width: 18px; height: 18px; }
+  .mini .soon-badge { font-size: 10.5px; padding: 1px 7px; }
+
+  /* hộp thông báo "đang phát triển" */
+  .dlg { width: min(460px, calc(100vw - 32px)); padding: 0; border: none; border-radius: 14px; color: var(--ink);
+    box-shadow: 0 20px 50px rgba(17,24,39,.25); }
+  .dlg::backdrop { background: rgba(17,24,39,.45); }
+  .dlg form { padding: 24px; }
+  .dlg-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .dlg-head h2 { margin: 4px 0 0; font-size: 19px; line-height: 1.3; }
+  .dlg p { margin: 0 0 10px; color: var(--ink-2); font-size: 14.5px; }
+  .dlg ul { margin: 0 0 20px; padding-left: 20px; color: var(--ink-2); font-size: 14px; }
+  .dlg li { margin: 3px 0; }
+  .dlg .dlg-sub { font-weight: 600; color: var(--ink); margin-top: 14px; }
 
   /* ---- chân trang ---- */
   footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
@@ -248,13 +283,26 @@
     <p>Chọn chức năng để bắt đầu.</p>
   </section>
   <div class="note note-warn" id="deniedNote" role="status" hidden></div>
-  <ul class="tools" id="toolList"></ul>
+  <div id="toolList"></div>
 
   <section class="install" id="installCard" data-pwa-install hidden>
     <span class="icon" aria-hidden="true"><img src="icons/icon-192.png" alt="" width="44" height="44" style="border-radius:10px"></span>
     <div class="install-text" id="installText"><b>Cài Bộ công cụ lên máy</b> — mở nhanh từ màn hình chính và dùng được cả khi mất mạng (công trường, hố thang…).</div>
     <button type="button" class="btn-install" id="btnInstall">Cài đặt</button>
   </section>
+
+  <dialog class="dlg" id="soonDlg" aria-labelledby="soonTitle">
+    <form method="dialog">
+      <div class="dlg-head">
+        <span class="icon" id="soonIcon" aria-hidden="true"></span>
+        <div><span class="soon-badge">Đang phát triển</span><h2 id="soonTitle"></h2></div>
+      </div>
+      <p>Chức năng này <b>đang được phát triển</b> và sẽ có trong Bộ công cụ ở các bản cập nhật tới.</p>
+      <p class="dlg-sub">Dự kiến bao gồm</p>
+      <ul id="soonScope"></ul>
+      <button class="btn-primary" value="ok" id="soonOk">Đã hiểu</button>
+    </form>
+  </dialog>
 </main>
 
 <footer>
@@ -266,8 +314,8 @@
 
 <script src="js/config.js?v=36"></script>
 <script src="js/db.js?v=36"></script>
-<script src="js/cloud.js?v=36"></script>
-<script src="js/session.js?v=38"></script>
+<script src="js/cloud.js?v=37"></script>
+<script src="js/session.js?v=39"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -277,6 +325,10 @@
     tracking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
     timesheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8.5 15l2.3 2.3L15.5 13"/></svg>',
     tiendotm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V4"/><path d="M9 12.5l2 2 4-4"/><path d="M9 17.5h6" opacity=".5"/></svg>',
+    handover: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13.5h7M12.5 11l2.5 2.5-2.5 2.5"/></svg>',
+    ffplus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M14 3v5h5M14 3l5 5v3"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg>',
+    projectplan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><path d="M7 8h6M10 12h7M8 16h5"/></svg>',
+    materials: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v2"/><path d="M3 13h18M10.5 13v2h3v-2"/></svg>',
   };
   const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
@@ -294,8 +346,30 @@
       desc: 'Lập trọn bộ hồ sơ quản lý chất lượng lắp đặt (phiếu đề nghị, biên bản nghiệm thu…) và bảng tiến độ thi công khổ A3 từ hợp đồng (quét PDF / ảnh, OCR).',
       meta: ['Xử lý 100% trong trình duyệt'],
     },
+    // ---- đang phát triển: `scope` hiện trong hộp thông báo khi bấm vào ----
+    handover: {
+      desc: 'Tổng hợp tài liệu bàn giao và kiểm tra đảm bảo đúng quy trình bàn giao NI – EI.',
+      scope: ['Tổng hợp tài liệu bàn giao theo từng dự án', 'Danh mục kiểm tra theo các bước của quy trình bàn giao', 'Theo dõi hồ sơ còn thiếu trước khi bàn giao'],
+    },
+    ffplus: {
+      desc: 'Tổng hợp tài liệu và công cụ kiểm tra đảm bảo hồ sơ đầy đủ phục vụ quy trình FF+.',
+      scope: ['Tổng hợp tài liệu FF+ theo từng dự án', 'Công cụ kiểm tra hồ sơ đủ / thiếu', 'Cảnh báo tài liệu còn thiếu trước khi nộp'],
+    },
+    projectplan: {
+      desc: 'Kế hoạch điều phối nhân sự, kế hoạch lắp đặt, hàng về và bàn giao các dự án.',
+      scope: ['Kế hoạch điều phối nhân sự giữa các dự án', 'Kế hoạch lắp đặt', 'Kế hoạch hàng về', 'Kế hoạch bàn giao'],
+    },
+    materials: {
+      desc: 'Quản lý và điều phối công cụ dụng cụ, vật tư cho các dự án.',
+      scope: ['Danh mục công cụ dụng cụ, vật tư và nơi đang sử dụng', 'Điều phối, điều chuyển giữa các dự án', 'Theo dõi cấp phát và thu hồi'],
+    },
   };
-  const ORDER = ['tracking', 'timesheet', 'tiendotm'];
+  // Trang chủ chia theo nhóm; trong nhóm, chức năng dùng được xếp trước
+  const GROUPS = [
+    { title: 'Chức năng chung', ids: ['tracking', 'timesheet'] },
+    { title: 'Quản lý dự án & Giám sát dự án', ids: ['tiendotm', 'handover', 'ffplus', 'projectplan', 'materials'] },
+  ];
+  const ORDER = GROUPS.flatMap(g => g.ids);
 
   const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const initial = (name) => { const w = String(name || '').trim().split(/\s+/).pop() || '?'; return w.charAt(0).toUpperCase(); };
@@ -310,13 +384,16 @@
   }
 
   function renderLogin() {
-    $('introList').innerHTML = ORDER.map(id => {
+    const tagOf = (t) => t.rolesLabel ? ` <span class="tag">${esc(t.rolesLabel.replace(' và ', ' · '))}</span>` : '';
+    const soon = ORDER.filter(id => Session.TOOLS[id].soon);
+    $('introList').innerHTML = ORDER.filter(Session.ready).map(id => {
       const t = Session.TOOLS[id];
-      const tag = t.rolesLabel ? ` <span class="tag">${esc(t.rolesLabel.replace(' và ', ' · '))}</span>` : '';
-      return `<li><span class="icon" aria-hidden="true">${ICONS[id]}</span><span>${esc(t.name)}${tag}</span></li>`;
-    }).join('');
+      return `<li><span class="icon" aria-hidden="true">${ICONS[id]}</span><span>${esc(t.name)}${tagOf(t)}</span></li>`;
+    }).join('') + (soon.length
+      ? `<li><span class="icon" aria-hidden="true">${ICONS.projectplan}</span><span>${soon.length} chức năng mới đang phát triển${tagOf(Session.TOOLS[soon[0]])}</span></li>`
+      : '');
     const next = params.get('next');
-    if (next && Session.TOOLS[next]) {
+    if (Session.ready(next)) {
       $('nextNote').textContent = `Vui lòng đăng nhập để mở “${Session.TOOLS[next].name}”.`;
       $('nextNote').hidden = false;
     }
@@ -342,31 +419,73 @@
       $('deniedNote').hidden = true;
     }
 
-    // chức năng dùng được xếp trước, chức năng bị khoá xếp sau
-    const ids = ORDER.filter(id => Session.canAccess(id, s)).concat(ORDER.filter(id => !Session.canAccess(id, s)));
-    $('toolList').innerHTML = ids.map((id, i) => {
-      const t = Session.TOOLS[id], c = CARDS[id], allowed = Session.canAccess(id, s);
-      // thẻ khoá đã nói rõ "Chỉ dành cho …" ở dòng cuối → không lặp lại ở chip
-      const meta = c.meta.concat(allowed && t.rolesLabel ? ['Dành cho ' + t.rolesLabel] : [])
-        .map(m => `<li>${esc(m)}</li>`).join('');
-      const body = `
-        <div class="tool-head"><span class="icon" aria-hidden="true">${ICONS[id]}</span><span class="num">0${i + 1}</span></div>
-        <h2>${esc(t.name)}</h2>
-        <p>${esc(c.desc)}</p>
-        <ul class="meta">${meta}</ul>`;
-      return allowed
-        ? `<li><a class="tool" href="${esc(Session.url(id))}" data-tool="${id}">${body}
-             <span class="open">Mở chức năng <span class="arrow" aria-hidden="true">→</span></span></a></li>`
-        : `<li><div class="tool locked" aria-disabled="true" data-tool="${id}">${body}
-             <span class="open">${LOCK} Chỉ dành cho ${esc(t.rolesLabel)}</span></div></li>`;
+    let n = 0; // số thứ tự chạy liên tục qua các nhóm (chỉ thẻ đã dùng được)
+    $('toolList').innerHTML = GROUPS.map(g => {
+      const allowed = g.ids.filter(id => Session.canAccess(id, s));
+      const locked = g.ids.filter(id => !Session.canAccess(id, s));
+      // cả nhóm cùng một quyền → nói một lần ở tiêu đề nhóm
+      const label = Session.TOOLS[g.ids[0]].rolesLabel;
+      const sameRoles = label && g.ids.every(id => Session.TOOLS[id].rolesLabel === label);
+      const head = `<div class="group-head"><h2>${esc(g.title)}</h2>${sameRoles && allowed.length ? `<span class="tag">Dành cho ${esc(label)}</span>` : ''}</div>`;
+      const cards = allowed.length ? `<ul class="tools">${allowed.map(id => card(id, sameRoles, ++n)).join('')}</ul>` : '';
+      return `<section class="group" aria-label="${esc(g.title)}">${head}${cards}${locked.length ? lockedPanel(locked) : ''}</section>`;
     }).join('');
   }
+
+  function card(id, roleInHeader, num) {
+    const t = Session.TOOLS[id], c = CARDS[id];
+    const meta = (c.meta || []).concat(t.rolesLabel && !roleInHeader ? ['Dành cho ' + t.rolesLabel] : [])
+      .map(m => `<li>${esc(m)}</li>`).join('');
+    const body = `
+      <div class="tool-head"><span class="icon" aria-hidden="true">${ICONS[id]}</span>${t.soon
+        ? '<span class="soon-badge">Đang phát triển</span>'
+        : `<span class="num">${String(num).padStart(2, '0')}</span>`}</div>
+      <h3>${esc(t.name)}</h3>
+      <p>${esc(c.desc)}</p>
+      ${meta ? `<ul class="meta">${meta}</ul>` : ''}`;
+    return t.soon
+      ? `<li><button type="button" class="tool soon" data-tool="${id}" aria-haspopup="dialog">${body}
+           <span class="open">Xem dự kiến <span class="arrow" aria-hidden="true">›</span></span></button></li>`
+      : `<li><a class="tool" href="${esc(Session.url(id))}" data-tool="${id}">${body}
+           <span class="open">Mở chức năng <span class="arrow" aria-hidden="true">→</span></span></a></li>`;
+  }
+
+  // chức năng không đủ quyền: gom gọn thành một khối, không chiếm chỗ như thẻ thật
+  function lockedPanel(ids) {
+    const labels = [...new Set(ids.map(id => Session.TOOLS[id].rolesLabel))];
+    return `<div class="locked-panel"><p>${LOCK} Chỉ dành cho ${esc(labels.join(', '))}</p><ul class="mini-list">${ids.map(id => {
+      const t = Session.TOOLS[id];
+      return `<li class="mini locked" data-tool="${id}" aria-disabled="true"><span class="icon" aria-hidden="true">${ICONS[id]}</span>
+        <span class="mini-text"><span class="mini-name">${esc(t.name)}</span>${t.soon ? '<span class="soon-badge">Đang phát triển</span>' : ''}</span></li>`;
+    }).join('')}</ul></div>`;
+  }
+
+  // ---------- chức năng đang phát triển ----------
+  $('toolList').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button.tool.soon');
+    if (b) showSoon(b.dataset.tool, b);
+  });
+  let soonFrom = null;
+  function showSoon(id, from) {
+    const t = Session.TOOLS[id], c = CARDS[id] || {};
+    const dlg = $('soonDlg');
+    if (typeof dlg.showModal !== 'function') { alert(`“${t.name}” đang được phát triển, sẽ có trong thời gian tới.`); return; }
+    $('soonIcon').innerHTML = ICONS[id] || '';
+    $('soonTitle').textContent = t.name;
+    $('soonScope').innerHTML = (c.scope || []).map(x => `<li>${esc(x)}</li>`).join('');
+    $('soonScope').previousElementSibling.hidden = !(c.scope || []).length;
+    soonFrom = from;
+    dlg.showModal();
+    $('soonOk').focus();
+  }
+  $('soonDlg').addEventListener('click', (ev) => { if (ev.target === $('soonDlg')) $('soonDlg').close(); }); // bấm ra ngoài
+  $('soonDlg').addEventListener('close', () => { if (soonFrom && soonFrom.isConnected) soonFrom.focus(); soonFrom = null; });
 
   // Sau khi đăng nhập: mở thẳng chức năng người dùng định vào (nếu có quyền), nếu không thì hiện danh sách
   function afterLogin() {
     const s = Session.current();
     const next = params.get('next');
-    if (next && Session.TOOLS[next] && Session.canAccess(next, s)) { location.href = Session.url(next); return; }
+    if (Session.ready(next) && Session.canAccess(next, s)) { location.href = Session.url(next); return; }
     params.delete('next');
     history.replaceState(null, '', location.pathname);
     render();

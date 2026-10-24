@@ -11,12 +11,12 @@
     <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
     <script src="../../js/pwa.js?v=36" defer></script>
     <!-- Bộ công cụ: phải đăng nhập ở trang chủ trước khi vào -->
-    <script src="../../js/session.js?v=38"></script>
+    <script src="../../js/session.js?v=39"></script>
     <script>Session.guard('timesheet');</script>
     <!-- Dữ liệu Dự án dùng CHUNG với "Thống kê giờ công dự án" (cùng IndexedDB, nguồn Google Drive) -->
     <script src="../../js/config.js?v=36"></script>
     <script src="../../js/db.js?v=36"></script>
-    <script src="../../js/cloud.js?v=36"></script>
+    <script src="../../js/cloud.js?v=37"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- FileSaver (nhỏ) dùng cho Backup & Xuất Excel. ExcelJS và mẫu bảng chấm công (ts-template.xlsx)
@@ -45,13 +45,13 @@
         @media (prefers-reduced-motion: reduce) { .ts-drawer, .ts-fade { animation: none; } }
     </style>
     <!-- CSS Tailwind đã biên dịch sẵn (npm run build), đặt sau <style> như bản play CDN trước đây -->
-    <link rel="stylesheet" href="tailwind.css?v=37">
+    <link rel="stylesheet" href="tailwind.css?v=38">
 </head>
 <body class="bg-slate-100">
     <script src="../toolset-nav.js?v=36" data-tool="Timesheet cá nhân"></script>
     <div id="root"></div>
 
     <!-- Mã ứng dụng đã biên dịch sẵn từ src/app.jsx (npm run build) — sửa src/app.jsx, không sửa app.js -->
-    <script src="app.js?v=37"></script>
+    <script src="app.js?v=38"></script>
 </body>
 </html>

@@ -659,7 +659,23 @@ const btnGhost = 'inline-flex items-center justify-center gap-2 h-10 px-3 rounde
 const btnPrimary = 'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-blue-700 text-white font-semibold hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60';
 function App() {
   const [entries, setEntries] = useState([]);
-  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+  // Đọc ngay khi mở (không đợi useEffect) để thẻ Thông tin nhân viên hiện đúng từ lần vẽ đầu.
+  // Bộ công cụ: điền sẵn họ tên / mã NV / chức vụ từ phiên đăng nhập — chỉ điền ô còn trống.
+  const [profile, setProfile] = useState(() => {
+    let p = DEFAULT_PROFILE;
+    try {
+      const saved = localStorage.getItem('ts_profile_v28');
+      if (saved) p = JSON.parse(saved);
+    } catch (e) {/* bỏ qua */}
+    const who = typeof Session !== 'undefined' ? Session.current() : null;
+    if (who && !who.admin) p = {
+      ...p,
+      name: p.name || who.name,
+      empId: p.empId || who.empId,
+      position: p.position || who.position
+    };
+    return p;
+  });
   const [projects, setProjects] = useState([]);
   // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
   const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
@@ -668,23 +684,15 @@ function App() {
   const [toast, setToast] = useState(null);
   const [syncStatus, setSyncStatus] = useState('');
   const [projSyncing, setProjSyncing] = useState(false);
-  const [projStatus, setProjStatus] = useState('');
+  const [projStatus, setProjStatus] = useState(null); // {ok, text} của lần đồng bộ gần nhất
   const [needProjects, setNeedProjects] = useState(false); // máy chưa có danh sách dự án → nhắc (không chặn màn hình)
-
+  // lần tải dữ liệu chung từ Drive gần nhất (trang chủ / Thống kê giờ công / Timesheet đều cập nhật)
+  const lastDriveSync = () => typeof Cloud !== 'undefined' && Cloud.getLastSyncedAt ? Cloud.getLastSyncedAt() : '';
+  const [projSyncedAt, setProjSyncedAt] = useState(lastDriveSync);
   useEffect(() => {
     const savedEntries = localStorage.getItem('ts_entries_v28');
-    const savedProfile = localStorage.getItem('ts_profile_v28');
     const savedProjects = localStorage.getItem('ts_projects_v28');
     if (savedEntries) setEntries(JSON.parse(savedEntries));
-    if (savedProfile) setProfile(JSON.parse(savedProfile));
-    // Bộ công cụ: điền sẵn họ tên / mã NV / chức vụ từ phiên đăng nhập — chỉ điền ô còn trống
-    const who = typeof Session !== 'undefined' ? Session.current() : null;
-    if (who && !who.admin) setProfile(p => ({
-      ...p,
-      name: p.name || who.name,
-      empId: p.empId || who.empId,
-      position: p.position || who.position
-    }));
     if (savedProjects) setProjects(JSON.parse(savedProjects));
     // Dự án dùng chung: lấy ngay bản trên máy (cùng dữ liệu với Thống kê giờ công);
     // máy chưa có thì tải từ Google Drive; vẫn không có thì hiện lời nhắc trên trang (vẫn chấm công được).
@@ -694,7 +702,9 @@ function App() {
         setProjects(shared);
         return;
       }
-      const n = await syncSharedProjects();
+      const {
+        n
+      } = await syncSharedProjects();
       if (!n && !savedProjects) setNeedProjects(true);
     })();
   }, []);
@@ -758,10 +768,10 @@ function App() {
   const visible = dayFilter ? monthlyEntries.filter(e => e.date === dayFilter) : monthlyEntries;
 
   // Đồng bộ Dự án: tải bản mới nhất từ Google Drive vào kho dùng chung rồi đọc lại.
-  // Drive lỗi (mất mạng / hết hạn mức) thì giữ bản đang có trên máy. Trả về số dự án.
+  // Drive lỗi (mất mạng / hết hạn mức) thì giữ bản đang có trên máy. Trả về {n: số dự án, reason: lỗi}.
   const syncSharedProjects = async () => {
     setProjSyncing(true);
-    setProjStatus('');
+    setProjStatus(null);
     let reason = '';
     try {
       if (typeof Cloud !== 'undefined' && Cloud.configured()) await Cloud.loadFromDrive();
@@ -770,12 +780,23 @@ function App() {
     }
     const shared = await loadSharedProjects();
     if (shared.length) setProjects(shared);
+    setProjSyncedAt(lastDriveSync());
     setProjSyncing(false);
-    setProjStatus(shared.length ? reason ? `${reason} — đang dùng ${shared.length} dự án đã có trên máy.` : `Đã cập nhật ${shared.length} dự án.` : reason ? `${reason}. Vui lòng thử lại sau.` : 'Chưa có dữ liệu Dự án — vui lòng liên hệ quản trị viên.');
-    return shared.length;
+    setProjStatus({
+      ok: !reason && shared.length > 0,
+      text: shared.length ? reason ? `${reason} — đang dùng ${shared.length} dự án đã có trên máy.` : `Đã cập nhật ${shared.length} dự án.` : reason ? `${reason}. Vui lòng thử lại sau.` : 'Chưa có dữ liệu Dự án — vui lòng liên hệ quản trị viên.'
+    });
+    return {
+      n: shared.length,
+      reason
+    };
   };
-  const handleSyncProjects = () => {
-    syncSharedProjects();
+  const handleSyncProjects = async () => {
+    const {
+      n,
+      reason
+    } = await syncSharedProjects();
+    if (n && !reason) showToast(`Đã cập nhật ${n} dự án.`);
   };
   const showToast = (message, action) => setToast({
     message,
@@ -1028,7 +1049,7 @@ function App() {
     className: "font-bold text-lg leading-tight"
   }, "Timesheet"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500 truncate max-w-[52vw] md:max-w-xs"
-  }, profile.name || 'Chưa có họ tên — mở Cài đặt', profile.empId ? ` · ${profile.empId}` : ''))), /*#__PURE__*/React.createElement(PeriodSwitcher, {
+  }, profile.name || 'Chưa có họ tên', profile.empId ? ` · ${profile.empId}` : ''))), /*#__PURE__*/React.createElement(PeriodSwitcher, {
     month: currentMonth,
     period: period,
     todayPeriod: todayPeriod,
@@ -1057,23 +1078,23 @@ function App() {
       type: 'settings'
     }),
     className: btnGhost,
-    "aria-label": "C\xE0i \u0111\u1EB7t",
-    title: "C\xE0i \u0111\u1EB7t"
+    "aria-label": "Sao l\u01B0u & kh\xF4i ph\u1EE5c",
+    title: "Sao l\u01B0u & kh\xF4i ph\u1EE5c"
   }, /*#__PURE__*/React.createElement(Icons.Settings, null), /*#__PURE__*/React.createElement("span", {
     className: "hidden xl:inline"
-  }, "C\xE0i \u0111\u1EB7t"))))), needProjects && projects.length === 0 && /*#__PURE__*/React.createElement("div", {
-    className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    role: "alert",
-    className: "rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center gap-3"
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "flex-1 min-w-[14rem] text-sm text-amber-900"
-  }, /*#__PURE__*/React.createElement("b", null, "Ch\u01B0a c\xF3 danh s\xE1ch d\u1EF1 \xE1n tr\xEAn m\xE1y n\xE0y."), " ", projStatus, " B\u1EA1n v\u1EABn ch\u1EA5m c\xF4ng b\xECnh th\u01B0\u1EDDng; g\u1EE3i \xFD t\xEAn d\u1EF1 \xE1n / WBS s\u1EBD c\xF3 sau khi \u0111\u1ED3ng b\u1ED9."), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: handleSyncProjects,
-    disabled: projSyncing,
-    className: btnGhost
-  }, /*#__PURE__*/React.createElement(Icons.Refresh, null), " ", projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'))), /*#__PURE__*/React.createElement("main", {
+  }, "Sao l\u01B0u"))))), /*#__PURE__*/React.createElement("div", {
+    className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 grid gap-4 lg:gap-6 md:grid-cols-2"
+  }, /*#__PURE__*/React.createElement(ProfileCard, {
+    profile: profile,
+    setProfile: setProfile
+  }), /*#__PURE__*/React.createElement(ProjectSyncCard, {
+    count: projects.length,
+    syncing: projSyncing,
+    status: projStatus,
+    syncedAt: projSyncedAt,
+    missing: needProjects && projects.length === 0,
+    onSync: handleSyncProjects
+  })), /*#__PURE__*/React.createElement("main", {
     className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 pb-28 md:pb-10 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] items-start"
   }, /*#__PURE__*/React.createElement("aside", {
     className: "space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start lg:block lg:space-y-4 lg:sticky lg:top-24"
@@ -1147,15 +1168,9 @@ function App() {
     entries: entries,
     projects: projects
   })), drawer && drawer.type === 'settings' && /*#__PURE__*/React.createElement(Drawer, {
-    title: "C\xE0i \u0111\u1EB7t",
+    title: "Sao l\u01B0u & kh\xF4i ph\u1EE5c",
     onClose: closeDrawer
   }, /*#__PURE__*/React.createElement(SettingsPanel, {
-    profile: profile,
-    setProfile: setProfile,
-    projects: projects,
-    projSyncing: projSyncing,
-    projStatus: projStatus,
-    onSync: handleSyncProjects,
     onBackup: handleBackup,
     onRestore: handleRestore,
     onReset: handleResetData,
@@ -1602,39 +1617,60 @@ function Field({
   }, hint));
 }
 
-// ---------- Cài đặt ----------
-function SettingsPanel({
+// ---------- Thông tin nhân viên (in ở đầu bảng chấm công Excel) ----------
+function ProfileCard({
   profile,
-  setProfile,
-  projects,
-  projSyncing,
-  projStatus,
-  onSync,
-  onBackup,
-  onRestore,
-  onReset,
-  onDone
+  setProfile
 }) {
+  const incomplete = !profile.name || !profile.empId;
+  const [editing, setEditing] = useState(incomplete); // chưa đủ họ tên / mã NV → mở sẵn ô nhập
   const set = k => e => setProfile({
     ...profile,
     [k]: e.target.value
   });
-  return /*#__PURE__*/React.createElement("div", {
-    className: "px-5 py-5 space-y-6"
-  }, /*#__PURE__*/React.createElement("section", {
-    className: "space-y-3"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold"
-  }, "Th\xF4ng tin c\xE1 nh\xE2n"), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-slate-500"
-  }, "In \u1EDF \u0111\u1EA7u b\u1EA3ng ch\u1EA5m c\xF4ng Excel. T\u1EF1 l\u01B0u khi b\u1EA1n g\xF5.")), /*#__PURE__*/React.createElement("div", {
-    className: "grid sm:grid-cols-2 gap-3"
+  const initial = (String(profile.name || '').trim().split(/\s+/).pop() || '?').charAt(0).toUpperCase();
+  const facts = [['Mã NV', profile.empId], ['Chức vụ', profile.position], ['Phòng ban', profile.dept]];
+  return /*#__PURE__*/React.createElement("section", {
+    id: "tsProfileCard",
+    className: "bg-white rounded-2xl border border-slate-200 p-4",
+    "aria-labelledby": "tsProfileTitle"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-10 h-10 rounded-full bg-slate-800 text-white grid place-items-center font-semibold shrink-0",
+    "aria-hidden": "true"
+  }, initial), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "tsProfileTitle",
+    className: "text-xs font-medium text-slate-500"
+  }, "Th\xF4ng tin nh\xE2n vi\xEAn"), /*#__PURE__*/React.createElement("p", {
+    className: "font-semibold leading-6 truncate"
+  }, profile.name || /*#__PURE__*/React.createElement("span", {
+    className: "text-rose-600"
+  }, "Ch\u01B0a c\xF3 h\u1ECD t\xEAn"))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setEditing(!editing),
+    "aria-expanded": editing,
+    "aria-controls": "tsProfileForm",
+    className: `${btnGhost} h-9 text-sm shrink-0`
+  }, editing ? 'Xong' : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Icons.Edit, null), " S\u1EEDa"))), !editing && /*#__PURE__*/React.createElement("dl", {
+    className: "mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-slate-600"
+  }, facts.map(([k, v]) => /*#__PURE__*/React.createElement("div", {
+    key: k,
+    className: "flex gap-1 min-w-0"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-400"
+  }, k, ":"), /*#__PURE__*/React.createElement("dd", {
+    className: `truncate ${v ? '' : 'text-rose-600'}`
+  }, v || 'chưa nhập')))), editing && /*#__PURE__*/React.createElement("div", {
+    id: "tsProfileForm",
+    className: "mt-3 grid sm:grid-cols-2 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "H\u1ECD v\xE0 t\xEAn",
     htmlFor: "tsName"
   }, /*#__PURE__*/React.createElement("input", {
     id: "tsName",
-    "data-autofocus": true,
     className: inputCls,
     value: profile.name,
     onChange: set('name'),
@@ -1667,26 +1703,88 @@ function SettingsPanel({
     value: profile.dept,
     onChange: set('dept'),
     placeholder: "Ph\xF2ng ban"
-  })))), /*#__PURE__*/React.createElement("section", {
-    className: "space-y-2 pt-5 border-t border-slate-200"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "font-semibold flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(Icons.Database, null), " D\u1EEF li\u1EC7u D\u1EF1 \xE1n"), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-slate-500"
-  }, "D\xF9ng chung v\u1EDBi \u201CTh\u1ED1ng k\xEA gi\u1EDD c\xF4ng d\u1EF1 \xE1n\u201D (ngu\u1ED3n Google Drive) \u2014 kh\xF4ng c\u1EA7n nh\u1EADp g\xEC th\xEAm."), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap items-center gap-3"
-  }, /*#__PURE__*/React.createElement("button", {
+  })), /*#__PURE__*/React.createElement("p", {
+    className: "sm:col-span-2 text-xs text-slate-500"
+  }, "In \u1EDF \u0111\u1EA7u b\u1EA3ng ch\u1EA5m c\xF4ng Excel. T\u1EF1 l\u01B0u khi b\u1EA1n g\xF5.")));
+}
+
+// ---------- Dữ liệu dự án (dùng chung với Thống kê giờ công, nguồn Google Drive) ----------
+const fmtSyncedAt = iso => {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const day = toLocalISOString(d);
+  return day === getTodayLocal() ? `${hm} hôm nay` : `${hm} ${fmtDMY(day)}`;
+};
+function ProjectSyncCard({
+  count,
+  syncing,
+  status,
+  syncedAt,
+  missing,
+  onSync
+}) {
+  const warn = missing || status && !status.ok;
+  const state = syncing ? {
+    dot: 'bg-blue-500 animate-pulse',
+    text: 'Đang đồng bộ…'
+  } : warn ? {
+    dot: 'bg-amber-500',
+    text: 'Chưa đồng bộ được'
+  } : syncedAt ? {
+    dot: 'bg-emerald-500',
+    text: `Đã đồng bộ lúc ${fmtSyncedAt(syncedAt)}`
+  } : {
+    dot: 'bg-slate-400',
+    text: 'Đang dùng dữ liệu đã có trên máy'
+  };
+  return /*#__PURE__*/React.createElement("section", {
+    id: "tsProjectCard",
+    "aria-labelledby": "tsProjectTitle",
+    className: `rounded-2xl border p-4 ${missing ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `w-10 h-10 rounded-full grid place-items-center shrink-0 ${missing ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700'}`,
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement(Icons.Database, null)), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "tsProjectTitle",
+    className: "text-xs font-medium text-slate-500",
+    title: "D\xF9ng chung v\u1EDBi Th\u1ED1ng k\xEA gi\u1EDD c\xF4ng d\u1EF1 \xE1n (ngu\u1ED3n Google Drive)"
+  }, "D\u1EEF li\u1EC7u d\u1EF1 \xE1n"), /*#__PURE__*/React.createElement("p", {
+    className: "font-semibold leading-6"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "tabular-nums"
+  }, count), " d\u1EF1 \xE1n")), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onSync,
-    disabled: projSyncing,
-    className: btnGhost
-  }, /*#__PURE__*/React.createElement(Icons.Refresh, null), " ", projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'), /*#__PURE__*/React.createElement("span", {
-    className: "text-sm text-emerald-700"
-  }, projects.length, " d\u1EF1 \xE1n \u0111\xE3 l\u01B0u")), projStatus && /*#__PURE__*/React.createElement("p", {
-    className: "text-sm text-slate-600",
-    role: "status"
-  }, projStatus)), /*#__PURE__*/React.createElement("section", {
-    className: "space-y-2 pt-5 border-t border-slate-200"
+    disabled: syncing,
+    className: `${btnGhost} h-9 text-sm shrink-0`
+  }, /*#__PURE__*/React.createElement(Icons.Refresh, null), " ", syncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay')), /*#__PURE__*/React.createElement("p", {
+    className: "mt-2 text-sm text-slate-600 flex items-center gap-2",
+    "aria-live": "polite"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: `w-2 h-2 rounded-full shrink-0 ${state.dot}`,
+    "aria-hidden": "true"
+  }), state.text), warn && !syncing && /*#__PURE__*/React.createElement("p", {
+    role: "alert",
+    className: "mt-1 text-sm text-amber-900"
+  }, missing && /*#__PURE__*/React.createElement("b", null, "Ch\u01B0a c\xF3 danh s\xE1ch d\u1EF1 \xE1n tr\xEAn m\xE1y n\xE0y. "), status ? status.text : '', missing ? ' Bạn vẫn chấm công bình thường; gợi ý tên dự án / WBS sẽ có sau khi đồng bộ.' : ''));
+}
+
+// ---------- Sao lưu & khôi phục ----------
+function SettingsPanel({
+  onBackup,
+  onRestore,
+  onReset,
+  onDone
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "px-5 py-5 space-y-6"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "space-y-2"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "font-semibold"
   }, "Sao l\u01B0u & kh\xF4i ph\u1EE5c"), /*#__PURE__*/React.createElement("p", {

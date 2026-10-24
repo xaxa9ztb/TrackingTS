@@ -131,6 +131,8 @@ const Cloud = (() => {
     try { data = JSON.parse(text); }
     catch (e) { throw new Error('Dữ liệu trên Drive không đọc được (Drive có thể trả về trang lỗi thay vì file).'); }
     await applyData(data);
+    // thời điểm tải thành công gần nhất — các chức năng (vd. Timesheet) hiện "Đã đồng bộ lúc …"
+    try { localStorage.setItem('driveSyncedAt', new Date().toISOString()); } catch (e) { /* ignore */ }
     return data;
   }
 
@@ -284,5 +286,6 @@ const Cloud = (() => {
     configured, canWrite, loadFromDrive, saveToDrive, createDriveFile,
     listDriveRevisions, restoreDriveRevision, exportLocalBackup, importLocalBackup,
     getLastUpdatedAt: () => lastUpdatedAt,
+    getLastSyncedAt: () => { try { return localStorage.getItem('driveSyncedAt') || ''; } catch (e) { return ''; } },
   };
 })();
