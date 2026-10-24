@@ -1,7 +1,7 @@
 {
   "name": "Bộ công cụ dự án",
   "short_name": "Bộ công cụ",
-  "description": "Thống kê giờ công dự án, Timesheet cá nhân, Tiến độ thi công thang máy",
+  "description": "Thống kê giờ công dự án, Timesheet cá nhân, Hồ sơ chất lượng thang máy",
   "lang": "vi",
   "id": "./index.html",
   "start_url": "./index.html",

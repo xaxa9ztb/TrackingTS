@@ -18,7 +18,7 @@ Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức n�
 | `tracking.html` | Thống kê giờ công dự án (các bước bên dưới) | Mọi nhân viên | — |
 | `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | `xaxa9ztb/swat-hour` |
 | `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) |
-| `tools/tiendotm/` | Tiến độ thi công thang máy | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) |
+| `tools/tiendotm/` | Hồ sơ chất lượng thang máy (hồ sơ quản lý chất lượng + bảng tiến độ thi công) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) |
 
 ### Đăng nhập & phân quyền (`js/session.js`)
 - Nhân viên đăng nhập bằng **họ tên đầy đủ + mã số nhân viên**, đối chiếu với EE Data (không phân
@@ -49,7 +49,7 @@ Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức n�
 - **Timesheet và Thống kê giờ công hoạt động độc lập**: chỉ dùng chung *EE Data* và *Dự án*
   (Timesheet chỉ đọc). Hai bên **không import dữ liệu chấm công cho nhau** — bảng công vào
   Thống kê giờ công vẫn do admin nhập tay qua **Cập nhật Data** như trước.
-- **TiendoTM** cũng đọc danh sách này: ô *Chọn dự án từ danh sách chung* ở bước 1 điền sẵn Tên dự án,
+- **Hồ sơ chất lượng thang máy** (`tools/tiendotm`) cũng đọc danh sách này: ô *Chọn dự án từ danh sách chung* ở bước 1 điền sẵn Tên dự án,
   Bên Mua / Chủ đầu tư (customer) và Thiết bị (product line). Địa chỉ, số hợp đồng vẫn lấy từ OCR / nhập tay.
 
 ### Thông tin cá nhân không đưa lên Drive
