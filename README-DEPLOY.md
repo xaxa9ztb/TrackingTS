@@ -46,6 +46,9 @@ Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức n�
 - Admin import Yan_COM rồi **Lưu lên Drive** như bình thường → người dùng Timesheet bấm
   **Cài đặt → Đồng bộ ngay** (hoặc mở lại Timesheet) là có danh sách mới. Không còn Google Sheet
   dự án riêng cho Timesheet.
+- **Timesheet và Thống kê giờ công hoạt động độc lập**: chỉ dùng chung *EE Data* và *Dự án*
+  (Timesheet chỉ đọc). Hai bên **không import dữ liệu chấm công cho nhau** — bảng công vào
+  Thống kê giờ công vẫn do admin nhập tay qua **Cập nhật Data** như trước.
 
 > **Giới hạn:** đây là kiểm soát **phía trình duyệt** (web tĩnh GitHub Pages): đủ để điều hướng
 > đúng người, nhưng người rành kỹ thuật vẫn có thể vượt qua. Cần bảo mật thật sự (dữ liệu nhạy
