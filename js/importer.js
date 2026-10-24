@@ -1,10 +1,15 @@
 // Reads Data v1.xlsx (sheets: EE DATA, Yan_COM, TS All) via SheetJS and maps into the app's data model.
 const Importer = (() => {
 
+  // File bảng công xuất từ Timesheet bản lỗi (trước 10/2026) ghi ngày = 0 giờ giờ Việt Nam tính theo UTC,
+  // tức 17:00 hôm TRƯỚC (Excel hiện lùi 1 ngày). Ngày thật luôn là số nguyên → phần lẻ đúng 17:00 là dấu hiệu lỗi đó.
+  const VN_MIDNIGHT_FRACTION = 17 / 24;
   function excelSerialToISO(v) {
     if (v instanceof Date) return v.toISOString().slice(0, 10);
     if (typeof v === 'number') {
-      const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+      let day = Math.floor(v);
+      if (Math.abs((v - day) - VN_MIDNIGHT_FRACTION) < 1 / 1440) day += 1; // sửa ngày từ file Timesheet bản lỗi
+      const d = new Date((day - 25569) * 86400 * 1000);
       return d.toISOString().slice(0, 10);
     }
     if (typeof v === 'string') {
