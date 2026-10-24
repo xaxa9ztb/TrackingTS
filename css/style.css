@@ -19,7 +19,14 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe
   background: var(--card-bg); border-bottom: 1px solid var(--border);
   padding: 10px 20px; flex-wrap: wrap;
 }
-.brand { font-weight: 700; font-size: 18px; color: var(--blue-dark); white-space: nowrap; }
+.brand { font-weight: 700; font-size: 18px; color: var(--blue-dark); white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+/* lối về trang chủ Bộ công cụ (index.html) */
+.brand-home {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 6px; flex: none;
+  background: #eef2f7; color: var(--text); text-decoration: none; font-size: 20px; line-height: 1;
+}
+.brand-home:hover, .brand-home:focus-visible { background: #dde3ea; outline: none; }
 .tabs { display: flex; gap: 4px; flex: 1; }
 .tab-btn {
   background: none; border: none; padding: 10px 16px; font-size: 14px; cursor: pointer;
@@ -65,6 +72,9 @@ main { padding: 20px; }
 .gate-submit { width: 100%; justify-content: center; padding: 11px; font-size: 15px; }
 .gate-admin-link { display: block; width: 100%; margin-top: 12px; background: none; border: none;
   color: #6b7280; font-size: 12px; cursor: pointer; text-decoration: underline; }
+.gate-home-link { display: block; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  text-align: center; color: var(--text); font-size: 13px; text-decoration: none; }
+.gate-home-link:hover { text-decoration: underline; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 .field select, .field input[type=date] {
