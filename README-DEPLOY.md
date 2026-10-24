@@ -36,6 +36,13 @@ Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức n�
   chức năng đó**. Không đủ quyền → về trang chủ kèm thông báo lý do.
 - Timesheet tự điền họ tên / mã NV / chức vụ từ phiên đăng nhập (chỉ điền ô còn trống).
 
+### Dữ liệu Dự án dùng chung
+- Danh sách dự án của **Timesheet** lấy **chung với tab Dự án** của Thống kê giờ công (cùng kho
+  dữ liệu trên máy, nguồn là file Google Drive). WBS của dự án = *Work Number* trong Timesheet.
+- Admin import Yan_COM rồi **Lưu lên Drive** như bình thường → người dùng Timesheet bấm
+  **Cài đặt → Đồng bộ ngay** (hoặc mở lại Timesheet) là có danh sách mới. Không còn Google Sheet
+  dự án riêng cho Timesheet.
+
 > **Giới hạn:** đây là kiểm soát **phía trình duyệt** (web tĩnh GitHub Pages): đủ để điều hướng
 > đúng người, nhưng người rành kỹ thuật vẫn có thể vượt qua. Cần bảo mật thật sự (dữ liệu nhạy
 > cảm, quyền ghi) thì phải có xác thực phía máy chủ — ví dụ Azure Static Web Apps + Entra ID.

@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Timesheet V35 Fix Date</title>
     <!-- Bộ công cụ: phải đăng nhập ở trang chủ trước khi vào -->
-    <script src="../../js/session.js?v=33"></script>
+    <script src="../../js/session.js?v=34"></script>
     <script>Session.guard('timesheet');</script>
+    <!-- Dữ liệu Dự án dùng CHUNG với "Thống kê giờ công dự án" (cùng IndexedDB, nguồn Google Drive) -->
+    <script src="../../js/config.js?v=34"></script>
+    <script src="../../js/db.js?v=34"></script>
+    <script src="../../js/cloud.js?v=34"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -167,24 +171,15 @@
             return toLocalISOString(new Date(y, m - 1, d + n));
         };
 
-        // Parse CSV text respecting quoted fields (handles commas inside quotes, escaped "")
-        const parseCSV = (text) => {
-            const rows = [];
-            let row = [], field = '', inQuotes = false;
-            for (let i = 0; i < text.length; i++) {
-                const ch = text[i];
-                if (inQuotes) {
-                    if (ch === '"') {
-                        if (text[i + 1] === '"') { field += '"'; i++; }
-                        else inQuotes = false;
-                    } else field += ch;
-                } else if (ch === '"') inQuotes = true;
-                else if (ch === ',') { row.push(field); field = ''; }
-                else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-                else if (ch !== '\r') field += ch;
-            }
-            if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
-            return rows;
+        // Danh sách Dự án lấy CHUNG với "Thống kê giờ công dự án": đọc kho dữ liệu trên máy
+        // (IndexedDB do js/db.js quản lý, được làm mới từ Google Drive). WBS = Work Number.
+        const loadSharedProjects = async () => {
+            if (typeof DB === 'undefined') return [];
+            const rows = await DB.getAll('projects').catch(() => []);
+            return rows
+                .map(p => ({ workNumber: String(p.wbs == null ? '' : p.wbs).trim(), projectName: String(p.projectName == null ? '' : p.projectName).trim() }))
+                .filter(p => p.workNumber && p.projectName)
+                .sort((a, b) => a.projectName.localeCompare(b.projectName, 'vi'));
         };
 
         // Decode the embedded (base64) Excel template into an ArrayBuffer for ExcelJS.
@@ -252,6 +247,8 @@
             const [currentMonth, setCurrentMonth] = useState(getTodayLocal().slice(0, 7));
             const [editingEntry, setEditingEntry] = useState(null);
             const [syncStatus, setSyncStatus] = useState('');
+            const [projSyncing, setProjSyncing] = useState(false);
+            const [projStatus, setProjStatus] = useState('');
 
             useEffect(() => {
                 const savedEntries = localStorage.getItem('ts_entries_v28');
@@ -265,7 +262,14 @@
                 if (who && !who.admin) setProfile(p => ({ ...p,
                     name: p.name || who.name, empId: p.empId || who.empId, position: p.position || who.position }));
                 if (savedProjects) setProjects(JSON.parse(savedProjects));
-                else setView('settings'); 
+                // Dự án dùng chung: lấy ngay bản trên máy (cùng dữ liệu với Thống kê giờ công);
+                // máy chưa có thì tải từ Google Drive; vẫn không có thì mở Cài đặt như trước.
+                (async () => {
+                    const shared = await loadSharedProjects();
+                    if (shared.length) { setProjects(shared); return; }
+                    const n = await syncSharedProjects();
+                    if (!n && !savedProjects) setView('settings');
+                })();
             }, []);
 
             useEffect(() => { localStorage.setItem('ts_entries_v28', JSON.stringify(entries)); }, [entries]);
@@ -288,33 +292,25 @@
                 return { normal: normal.toFixed(1), ot: ot.toFixed(1) };
             }, [monthlyEntries]);
 
-            const handleSyncProjects = async () => {
-                if(!profile.sheetId) return alert("Vui lòng nhập Sheet ID!");
-                setSyncStatus('Đang đồng bộ...');
+            // Đồng bộ Dự án: tải bản mới nhất từ Google Drive vào kho dùng chung rồi đọc lại.
+            // Drive lỗi (mất mạng / hết hạn mức) thì giữ bản đang có trên máy. Trả về số dự án.
+            const syncSharedProjects = async () => {
+                setProjSyncing(true); setProjStatus('');
+                let reason = '';
                 try {
-                    const sheetUrl = `https://docs.google.com/spreadsheets/d/${profile.sheetId}/export?format=csv`;
-                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(sheetUrl)}`;
-                    const response = await fetch(proxyUrl);
-                    if(!response.ok) throw new Error("Không thể tải file.");
-                    const csvText = await response.text();
-                    const rows = parseCSV(csvText);
-                    const newProjects = [];
-                    for(let i=1; i<rows.length; i++) {
-                        const cols = rows[i];
-                        if(cols.length > 3) {
-                            const name = cols[2]?.trim();
-                            const wn = cols[3]?.trim();
-                            if(wn && name) newProjects.push({ workNumber: wn, projectName: name });
-                        }
-                    }
-                    setProjects(newProjects);
-                    setSyncStatus(`Đã đồng bộ ${newProjects.length} dự án!`);
-                    setTimeout(() => setSyncStatus(''), 3000);
+                    if (typeof Cloud !== 'undefined' && Cloud.configured()) await Cloud.loadFromDrive();
                 } catch (err) {
-                    setSyncStatus('Lỗi đồng bộ');
-                    alert("Lỗi: Đảm bảo file Sheet đã Publish to Web.");
+                    reason = /QUOTA/.test(err.message) ? 'Google Drive đang giới hạn lượt tải hôm nay' : 'Không tải được từ Google Drive';
                 }
+                const shared = await loadSharedProjects();
+                if (shared.length) setProjects(shared);
+                setProjSyncing(false);
+                setProjStatus(shared.length
+                    ? (reason ? `${reason} — đang dùng ${shared.length} dự án đã có trên máy.` : `Đã cập nhật ${shared.length} dự án.`)
+                    : (reason ? `${reason}. Vui lòng thử lại sau.` : 'Chưa có dữ liệu Dự án — vui lòng liên hệ quản trị viên.'));
+                return shared.length;
             };
+            const handleSyncProjects = () => { syncSharedProjects(); };
 
             const handleDelete = (id) => {
                 if (confirm('Xóa dòng này?')) setEntries(entries.filter(e => e.id !== id));
@@ -516,11 +512,12 @@
                                 </div>
                                 <hr/>
                                 <div>
-                                    <h2 className="font-bold text-sm text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> Cơ sở dữ liệu Dự án</h2>
+                                    <h2 className="font-bold text-sm text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> Dữ liệu Dự án</h2>
                                     <div className="flex flex-col gap-2">
-                                        <input type="text" value={profile.sheetId || ''} onChange={e => setProfile({...profile, sheetId: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Google Sheet ID..."/>
-                                        <button onClick={handleSyncProjects} disabled={!profile.sheetId} className="bg-blue-600 text-white p-2 rounded text-sm disabled:opacity-50"><Icons.Refresh/> {syncStatus || 'Đồng bộ ngay'}</button>
+                                        <p className="text-xs text-slate-500">Dùng chung với “Thống kê giờ công dự án” (nguồn Google Drive) — không cần nhập gì thêm.</p>
+                                        <button onClick={handleSyncProjects} disabled={projSyncing} className="bg-blue-600 text-white p-2 rounded text-sm disabled:opacity-50"><Icons.Refresh/> {projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</button>
                                         <span className="text-xs text-green-600">{projects.length} dự án đã lưu</span>
+                                        {projStatus && <span className="text-xs text-slate-600" role="status">{projStatus}</span>}
                                     </div>
                                 </div>
                                 <hr/>
