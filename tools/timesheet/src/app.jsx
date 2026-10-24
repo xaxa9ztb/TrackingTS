@@ -227,7 +227,15 @@
 
         function App() {
             const [entries, setEntries] = useState([]);
-            const [profile, setProfile] = useState(DEFAULT_PROFILE);
+            // Đọc ngay khi mở (không đợi useEffect) để thẻ Thông tin nhân viên hiện đúng từ lần vẽ đầu.
+            // Bộ công cụ: điền sẵn họ tên / mã NV / chức vụ từ phiên đăng nhập — chỉ điền ô còn trống.
+            const [profile, setProfile] = useState(() => {
+                let p = DEFAULT_PROFILE;
+                try { const saved = localStorage.getItem('ts_profile_v28'); if (saved) p = JSON.parse(saved); } catch (e) { /* bỏ qua */ }
+                const who = (typeof Session !== 'undefined') ? Session.current() : null;
+                if (who && !who.admin) p = { ...p, name: p.name || who.name, empId: p.empId || who.empId, position: p.position || who.position };
+                return p;
+            });
             const [projects, setProjects] = useState([]);
             // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
             const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
@@ -236,27 +244,24 @@
             const [toast, setToast] = useState(null);
             const [syncStatus, setSyncStatus] = useState('');
             const [projSyncing, setProjSyncing] = useState(false);
-            const [projStatus, setProjStatus] = useState('');
+            const [projStatus, setProjStatus] = useState(null); // {ok, text} của lần đồng bộ gần nhất
             const [needProjects, setNeedProjects] = useState(false); // máy chưa có danh sách dự án → nhắc (không chặn màn hình)
+            // lần tải dữ liệu chung từ Drive gần nhất (trang chủ / Thống kê giờ công / Timesheet đều cập nhật)
+            const lastDriveSync = () => (typeof Cloud !== 'undefined' && Cloud.getLastSyncedAt ? Cloud.getLastSyncedAt() : '');
+            const [projSyncedAt, setProjSyncedAt] = useState(lastDriveSync);
 
             useEffect(() => {
                 const savedEntries = localStorage.getItem('ts_entries_v28');
-                const savedProfile = localStorage.getItem('ts_profile_v28');
                 const savedProjects = localStorage.getItem('ts_projects_v28');
 
                 if (savedEntries) setEntries(JSON.parse(savedEntries));
-                if (savedProfile) setProfile(JSON.parse(savedProfile));
-                // Bộ công cụ: điền sẵn họ tên / mã NV / chức vụ từ phiên đăng nhập — chỉ điền ô còn trống
-                const who = (typeof Session !== 'undefined') ? Session.current() : null;
-                if (who && !who.admin) setProfile(p => ({ ...p,
-                    name: p.name || who.name, empId: p.empId || who.empId, position: p.position || who.position }));
                 if (savedProjects) setProjects(JSON.parse(savedProjects));
                 // Dự án dùng chung: lấy ngay bản trên máy (cùng dữ liệu với Thống kê giờ công);
                 // máy chưa có thì tải từ Google Drive; vẫn không có thì hiện lời nhắc trên trang (vẫn chấm công được).
                 (async () => {
                     const shared = await loadSharedProjects();
                     if (shared.length) { setProjects(shared); return; }
-                    const n = await syncSharedProjects();
+                    const { n } = await syncSharedProjects();
                     if (!n && !savedProjects) setNeedProjects(true);
                 })();
             }, []);
@@ -302,9 +307,9 @@
             const visible = dayFilter ? monthlyEntries.filter(e => e.date === dayFilter) : monthlyEntries;
 
             // Đồng bộ Dự án: tải bản mới nhất từ Google Drive vào kho dùng chung rồi đọc lại.
-            // Drive lỗi (mất mạng / hết hạn mức) thì giữ bản đang có trên máy. Trả về số dự án.
+            // Drive lỗi (mất mạng / hết hạn mức) thì giữ bản đang có trên máy. Trả về {n: số dự án, reason: lỗi}.
             const syncSharedProjects = async () => {
-                setProjSyncing(true); setProjStatus('');
+                setProjSyncing(true); setProjStatus(null);
                 let reason = '';
                 try {
                     if (typeof Cloud !== 'undefined' && Cloud.configured()) await Cloud.loadFromDrive();
@@ -313,13 +318,17 @@
                 }
                 const shared = await loadSharedProjects();
                 if (shared.length) setProjects(shared);
+                setProjSyncedAt(lastDriveSync());
                 setProjSyncing(false);
-                setProjStatus(shared.length
+                setProjStatus({ ok: !reason && shared.length > 0, text: shared.length
                     ? (reason ? `${reason} — đang dùng ${shared.length} dự án đã có trên máy.` : `Đã cập nhật ${shared.length} dự án.`)
-                    : (reason ? `${reason}. Vui lòng thử lại sau.` : 'Chưa có dữ liệu Dự án — vui lòng liên hệ quản trị viên.'));
-                return shared.length;
+                    : (reason ? `${reason}. Vui lòng thử lại sau.` : 'Chưa có dữ liệu Dự án — vui lòng liên hệ quản trị viên.') });
+                return { n: shared.length, reason };
             };
-            const handleSyncProjects = () => { syncSharedProjects(); };
+            const handleSyncProjects = async () => {
+                const { n, reason } = await syncSharedProjects();
+                if (n && !reason) showToast(`Đã cập nhật ${n} dự án.`);
+            };
 
             const showToast = (message, action) => setToast({ message, action, id: Date.now() });
             const changeMonth = (m) => { setCurrentMonth(m); setDayFilter(null); };
@@ -508,7 +517,7 @@
                                 <div className="min-w-0">
                                     <h1 className="font-bold text-lg leading-tight">Timesheet</h1>
                                     <p className="text-xs text-slate-500 truncate max-w-[52vw] md:max-w-xs">
-                                        {profile.name || 'Chưa có họ tên — mở Cài đặt'}{profile.empId ? ` · ${profile.empId}` : ''}
+                                        {profile.name || 'Chưa có họ tên'}{profile.empId ? ` · ${profile.empId}` : ''}
                                     </p>
                                 </div>
                             </div>
@@ -523,25 +532,19 @@
                                     className={btnGhost} title="Xuất bảng chấm công của kỳ ra Excel (mẫu Schindler)" aria-label="Xuất Excel">
                                     <Icons.Download/><span className="hidden sm:inline">{exporting ? 'Đang tạo file...' : 'Xuất Excel'}</span>
                                 </button>
-                                <button id="tsSettingsBtn" type="button" onClick={() => setDrawer({ type: 'settings' })} className={btnGhost} aria-label="Cài đặt" title="Cài đặt">
-                                    <Icons.Settings/><span className="hidden xl:inline">Cài đặt</span>
+                                <button id="tsSettingsBtn" type="button" onClick={() => setDrawer({ type: 'settings' })} className={btnGhost} aria-label="Sao lưu & khôi phục" title="Sao lưu & khôi phục">
+                                    <Icons.Settings/><span className="hidden xl:inline">Sao lưu</span>
                                 </button>
                             </div>
                         </div>
                     </header>
 
-                    {needProjects && projects.length === 0 && (
-                        <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4">
-                            <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center gap-3">
-                                <p className="flex-1 min-w-[14rem] text-sm text-amber-900">
-                                    <b>Chưa có danh sách dự án trên máy này.</b> {projStatus} Bạn vẫn chấm công bình thường; gợi ý tên dự án / WBS sẽ có sau khi đồng bộ.
-                                </p>
-                                <button type="button" onClick={handleSyncProjects} disabled={projSyncing} className={btnGhost}>
-                                    <Icons.Refresh/> {projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                    {/* ---------- Thông tin nhân viên + Dữ liệu dự án: luôn hiện, không phải mở Cài đặt ---------- */}
+                    <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 grid gap-4 lg:gap-6 md:grid-cols-2">
+                        <ProfileCard profile={profile} setProfile={setProfile}/>
+                        <ProjectSyncCard count={projects.length} syncing={projSyncing} status={projStatus} syncedAt={projSyncedAt}
+                            missing={needProjects && projects.length === 0} onSync={handleSyncProjects}/>
+                    </div>
 
                     <main className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 pb-28 md:pb-10 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] items-start">
                         <aside className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start lg:block lg:space-y-4 lg:sticky lg:top-24">
@@ -596,10 +599,8 @@
                         </Drawer>
                     )}
                     {drawer && drawer.type === 'settings' && (
-                        <Drawer title="Cài đặt" onClose={closeDrawer}>
-                            <SettingsPanel profile={profile} setProfile={setProfile} projects={projects}
-                                projSyncing={projSyncing} projStatus={projStatus} onSync={handleSyncProjects}
-                                onBackup={handleBackup} onRestore={handleRestore} onReset={handleResetData} onDone={closeDrawer}/>
+                        <Drawer title="Sao lưu & khôi phục" onClose={closeDrawer}>
+                            <SettingsPanel onBackup={handleBackup} onRestore={handleRestore} onReset={handleResetData} onDone={closeDrawer}/>
                         </Drawer>
                     )}
                     {toast && <Toast toast={toast} onClose={() => setToast(null)}/>}
@@ -871,35 +872,97 @@
             );
         }
 
-        // ---------- Cài đặt ----------
-        function SettingsPanel({ profile, setProfile, projects, projSyncing, projStatus, onSync, onBackup, onRestore, onReset, onDone }) {
+        // ---------- Thông tin nhân viên (in ở đầu bảng chấm công Excel) ----------
+        function ProfileCard({ profile, setProfile }) {
+            const incomplete = !profile.name || !profile.empId;
+            const [editing, setEditing] = useState(incomplete); // chưa đủ họ tên / mã NV → mở sẵn ô nhập
             const set = (k) => (e) => setProfile({ ...profile, [k]: e.target.value });
+            const initial = (String(profile.name || '').trim().split(/\s+/).pop() || '?').charAt(0).toUpperCase();
+            const facts = [
+                ['Mã NV', profile.empId], ['Chức vụ', profile.position], ['Phòng ban', profile.dept],
+            ];
             return (
-                <div className="px-5 py-5 space-y-6">
-                    <section className="space-y-3">
-                        <div>
-                            <h3 className="font-semibold">Thông tin cá nhân</h3>
-                            <p className="text-xs text-slate-500">In ở đầu bảng chấm công Excel. Tự lưu khi bạn gõ.</p>
+                <section id="tsProfileCard" className="bg-white rounded-2xl border border-slate-200 p-4" aria-labelledby="tsProfileTitle">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 text-white grid place-items-center font-semibold shrink-0" aria-hidden="true">{initial}</div>
+                        <div className="min-w-0 flex-1">
+                            <h2 id="tsProfileTitle" className="text-xs font-medium text-slate-500">Thông tin nhân viên</h2>
+                            <p className="font-semibold leading-6 truncate">{profile.name || <span className="text-rose-600">Chưa có họ tên</span>}</p>
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-3">
-                            <Field label="Họ và tên" htmlFor="tsName"><input id="tsName" data-autofocus className={inputCls} value={profile.name} onChange={set('name')} placeholder="Họ Tên" autoComplete="name"/></Field>
+                        <button type="button" onClick={() => setEditing(!editing)} aria-expanded={editing} aria-controls="tsProfileForm"
+                            className={`${btnGhost} h-9 text-sm shrink-0`}>
+                            {editing ? 'Xong' : <React.Fragment><Icons.Edit/> Sửa</React.Fragment>}
+                        </button>
+                    </div>
+                    {!editing && (
+                        <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-slate-600">
+                            {facts.map(([k, v]) => (
+                                <div key={k} className="flex gap-1 min-w-0">
+                                    <dt className="text-slate-400">{k}:</dt>
+                                    <dd className={`truncate ${v ? '' : 'text-rose-600'}`}>{v || 'chưa nhập'}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    )}
+                    {editing && (
+                        <div id="tsProfileForm" className="mt-3 grid sm:grid-cols-2 gap-3">
+                            <Field label="Họ và tên" htmlFor="tsName"><input id="tsName" className={inputCls} value={profile.name} onChange={set('name')} placeholder="Họ Tên" autoComplete="name"/></Field>
                             <Field label="Mã nhân viên" htmlFor="tsEmpId"><input id="tsEmpId" className={inputCls} value={profile.empId} onChange={set('empId')} placeholder="Mã NV"/></Field>
                             <Field label="Chức vụ" htmlFor="tsPosition"><input id="tsPosition" className={inputCls} value={profile.position} onChange={set('position')} placeholder="Chức vụ"/></Field>
                             <Field label="Phòng ban" htmlFor="tsDept"><input id="tsDept" className={inputCls} value={profile.dept} onChange={set('dept')} placeholder="Phòng ban"/></Field>
+                            <p className="sm:col-span-2 text-xs text-slate-500">In ở đầu bảng chấm công Excel. Tự lưu khi bạn gõ.</p>
                         </div>
-                    </section>
+                    )}
+                </section>
+            );
+        }
 
-                    <section className="space-y-2 pt-5 border-t border-slate-200">
-                        <h3 className="font-semibold flex items-center gap-2"><Icons.Database/> Dữ liệu Dự án</h3>
-                        <p className="text-xs text-slate-500">Dùng chung với “Thống kê giờ công dự án” (nguồn Google Drive) — không cần nhập gì thêm.</p>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button type="button" onClick={onSync} disabled={projSyncing} className={btnGhost}><Icons.Refresh/> {projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</button>
-                            <span className="text-sm text-emerald-700">{projects.length} dự án đã lưu</span>
+        // ---------- Dữ liệu dự án (dùng chung với Thống kê giờ công, nguồn Google Drive) ----------
+        const fmtSyncedAt = (iso) => {
+            const d = new Date(iso);
+            if (isNaN(d)) return '';
+            const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const day = toLocalISOString(d);
+            return day === getTodayLocal() ? `${hm} hôm nay` : `${hm} ${fmtDMY(day)}`;
+        };
+        function ProjectSyncCard({ count, syncing, status, syncedAt, missing, onSync }) {
+            const warn = missing || (status && !status.ok);
+            const state = syncing ? { dot: 'bg-blue-500 animate-pulse', text: 'Đang đồng bộ…' }
+                : warn ? { dot: 'bg-amber-500', text: 'Chưa đồng bộ được' }
+                : syncedAt ? { dot: 'bg-emerald-500', text: `Đã đồng bộ lúc ${fmtSyncedAt(syncedAt)}` }
+                : { dot: 'bg-slate-400', text: 'Đang dùng dữ liệu đã có trên máy' };
+            return (
+                <section id="tsProjectCard" aria-labelledby="tsProjectTitle"
+                    className={`rounded-2xl border p-4 ${missing ? 'bg-amber-50 border-amber-300' : 'bg-white border-slate-200'}`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full grid place-items-center shrink-0 ${missing ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700'}`} aria-hidden="true"><Icons.Database/></div>
+                        <div className="min-w-0 flex-1">
+                            <h2 id="tsProjectTitle" className="text-xs font-medium text-slate-500" title="Dùng chung với Thống kê giờ công dự án (nguồn Google Drive)">Dữ liệu dự án</h2>
+                            <p className="font-semibold leading-6"><span className="tabular-nums">{count}</span> dự án</p>
                         </div>
-                        {projStatus && <p className="text-sm text-slate-600" role="status">{projStatus}</p>}
-                    </section>
+                        <button type="button" onClick={onSync} disabled={syncing} className={`${btnGhost} h-9 text-sm shrink-0`}>
+                            <Icons.Refresh/> {syncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}
+                        </button>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600 flex items-center gap-2" aria-live="polite">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${state.dot}`} aria-hidden="true"/>{state.text}
+                    </p>
+                    {warn && !syncing && (
+                        <p role="alert" className="mt-1 text-sm text-amber-900">
+                            {missing && <b>Chưa có danh sách dự án trên máy này. </b>}
+                            {status ? status.text : ''}
+                            {missing ? ' Bạn vẫn chấm công bình thường; gợi ý tên dự án / WBS sẽ có sau khi đồng bộ.' : ''}
+                        </p>
+                    )}
+                </section>
+            );
+        }
 
-                    <section className="space-y-2 pt-5 border-t border-slate-200">
+        // ---------- Sao lưu & khôi phục ----------
+        function SettingsPanel({ onBackup, onRestore, onReset, onDone }) {
+            return (
+                <div className="px-5 py-5 space-y-6">
+                    <section className="space-y-2">
                         <h3 className="font-semibold">Sao lưu &amp; khôi phục</h3>
                         <p className="text-xs text-slate-500">Dữ liệu Timesheet chỉ nằm trên trình duyệt này — nên sao lưu định kỳ hoặc trước khi đổi máy.</p>
                         <div className="grid grid-cols-2 gap-3">

@@ -55,7 +55,7 @@ Quản lý dự án và Site Sup); bấm vào chỉ hiện thông báo "đang ph
 - Danh sách dự án của **Timesheet** lấy **chung với tab Dự án** của Thống kê giờ công (cùng kho
   dữ liệu trên máy, nguồn là file Google Drive). WBS của dự án = *Work Number* trong Timesheet.
 - Admin import Yan_COM rồi **Lưu lên Drive** như bình thường → người dùng Timesheet bấm
-  **Cài đặt → Đồng bộ ngay** (hoặc mở lại Timesheet) là có danh sách mới. Không còn Google Sheet
+  **Đồng bộ ngay** ở thẻ *Dữ liệu dự án* ngay trên màn hình Timesheet (hiện số dự án và lần đồng bộ gần nhất) là có danh sách mới. Không còn Google Sheet
   dự án riêng cho Timesheet.
 - **Timesheet và Thống kê giờ công hoạt động độc lập**: chỉ dùng chung *EE Data* và *Dự án*
   (Timesheet chỉ đọc). Hai bên **không import dữ liệu chấm công cho nhau** — bảng công vào

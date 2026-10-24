@@ -19,6 +19,10 @@ GitHub Pages phục vụ thẳng các file **đã build** — người dùng kh�
 
 - Mặc định mở **kỳ lương đang diễn ra** (16 tháng trước → 15 tháng này, chứa hôm nay); lưu một dòng thuộc kỳ khác thì tự chuyển sang kỳ đó.
 - Lịch: số giờ mỗi ngày, ngày T2–T6 **chưa chấm** (chấm đỏ), ngày lễ, ngày có OT; bấm ngày trống để thêm, bấm ngày đã chấm để lọc.
+- **Thông tin nhân viên** và **Dữ liệu dự án** luôn hiện ở đầu trang (không phải mở Cài đặt):
+  sửa họ tên / mã NV / chức vụ / phòng ban ngay tại chỗ (bấm **Sửa**); thẻ dự án cho biết số dự án,
+  lần đồng bộ gần nhất (`Cloud.getLastSyncedAt()`, dùng chung cho cả Bộ công cụ) và nút **Đồng bộ ngay**.
+  Nút bánh răng chỉ còn **Sao lưu / Khôi phục / Xóa dữ liệu**.
 - Xóa có **Hoàn tác** (thông báo dưới màn hình) thay cho hộp xác nhận.
 - Dữ liệu (`ts_entries_v28`, `ts_profile_v28`, `ts_projects_v28`) và file Excel xuất ra **không đổi**.
 
