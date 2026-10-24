@@ -49,6 +49,33 @@ Repo này là **Bộ công cụ dự án**. Mỗi repo cũ là **một chức n�
 - **Timesheet và Thống kê giờ công hoạt động độc lập**: chỉ dùng chung *EE Data* và *Dự án*
   (Timesheet chỉ đọc). Hai bên **không import dữ liệu chấm công cho nhau** — bảng công vào
   Thống kê giờ công vẫn do admin nhập tay qua **Cập nhật Data** như trước.
+- **TiendoTM** cũng đọc danh sách này: ô *Chọn dự án từ danh sách chung* ở bước 1 điền sẵn Tên dự án,
+  Bên Mua / Chủ đầu tư (customer) và Thiết bị (product line). Địa chỉ, số hợp đồng vẫn lấy từ OCR / nhập tay.
+
+### Thông tin cá nhân không đưa lên Drive
+File dữ liệu trên Google Drive **ai có link cũng tải được**, nên khi **Lưu lên Drive** app **bỏ**
+các trường cá nhân mà người xem không cần: *ngày sinh, giới tính, username, mã cá nhân (personId)*.
+- Máy admin đã import EE Data **vẫn giữ** các trường này (Export Excel, sửa nhân viên vẫn đủ).
+- File **sao lưu JSON** trên máy admin vẫn đầy đủ → giữ ở nơi an toàn, không chia sẻ.
+- File trên Drive chỉ gọn lại sau lần **Lưu lên Drive** kế tiếp. Google Drive còn giữ các phiên bản
+  cũ của file (~30 ngày, chỉ chủ sở hữu xem được qua API có đăng nhập).
+
+### Cài lên máy & dùng khi mất mạng (PWA — `sw.js`, `manifest.webmanifest`, `js/pwa.js`)
+- Trang chủ có thẻ **Cài Bộ công cụ lên máy** (Chrome / Edge / Android); trên iPhone: Safari →
+  **Chia sẻ → Thêm vào MH chính**. Sau đó mở từ màn hình chính như một ứng dụng.
+- Mỗi chức năng đã mở **một lần khi có mạng** sẽ mở được khi **mất mạng**: Timesheet (cả Xuất Excel),
+  Thống kê giờ công (dữ liệu trên máy), TiendoTM (trừ OCR lần đầu — cần tải mô hình nhận dạng),
+  và đăng nhập lại bằng danh sách nhân viên trên máy. Có nhãn **📴 Ngoại tuyến** khi mất mạng.
+- Khi cập nhật code: vẫn **tăng `?v=`** như cũ. Nếu **thêm file mới** cần dùng ngoại tuyến hoặc đổi
+  cách lưu đệm: thêm vào `SHELL_FILES` / `CDN_FILES` trong `sw.js` và **tăng `VERSION`**.
+
+### Timesheet: mã nguồn & build
+Timesheet được **build sẵn** (mở nhanh hơn ~5 lần trên điện thoại): sửa `tools/timesheet/src/app.jsx`
+rồi chạy `npm install && npm run build` trong `tools/timesheet/` — xem `tools/timesheet/README.md`.
+
+### Repo cũ
+`xaxa9ztb/Timesheet` và `xaxa9ztb/TiendoTM` chỉ còn **trang tự chuyển hướng** sang Bộ công cụ
+(merge các PR đó **sau** khi bản Bộ công cụ đã lên GitHub Pages), rồi có thể *Archive* hai repo đó.
 
 > **Giới hạn:** đây là kiểm soát **phía trình duyệt** (web tĩnh GitHub Pages): đủ để điều hướng
 > đúng người, nhưng người rành kỹ thuật vẫn có thể vượt qua. Cần bảo mật thật sự (dữ liệu nhạy
