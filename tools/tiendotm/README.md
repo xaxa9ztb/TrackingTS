@@ -1,3 +1,5 @@
+> Trong **Bộ công cụ dự án**, ứng dụng này là chức năng **Hồ sơ chất lượng thang máy** (thư mục `tools/tiendotm/`, chỉ Quản lý dự án và Site Sup).
+
 # Lift Schedule Builder — Bảng tiến độ thi công thang máy
 
 Ứng dụng web **tĩnh 100%** (chỉ 1 file `index.html`) — chạy hoàn toàn trên trình duyệt, không cần server, phù hợp GitHub Pages. Dữ liệu hợp đồng KHÔNG được gửi đi bất cứ đâu.

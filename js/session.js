@@ -24,7 +24,7 @@ const Session = (() => {
     tracking: { name: 'Thống kê giờ công dự án', path: 'tracking.html' },
     timesheet: { name: 'Timesheet cá nhân', path: 'tools/timesheet/' },
     tiendotm: {
-      name: 'Tiến độ thi công thang máy', path: 'tools/tiendotm/',
+      name: 'Hồ sơ chất lượng thang máy', path: 'tools/tiendotm/',
       roles: ['pm', 'sitesup'], rolesLabel: 'Quản lý dự án và Site Sup',
     },
   };

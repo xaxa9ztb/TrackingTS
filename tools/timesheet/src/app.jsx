@@ -1,4 +1,4 @@
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
         // --- ICONS ---
         const Icons = {
@@ -11,6 +11,10 @@
             Refresh: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
             Upload: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
             Database: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>,
+            Calendar: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>,
+            ChevronLeft: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+            ChevronRight: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+            X: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
             Alert: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         };
 
@@ -193,23 +197,53 @@
 
         const normalizeString = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
         const removeAccents = (str) => normalizeString(str).replace(/\s+/g, '_');
+        // ================================================================
+        //   GIAO DIỆN (responsive: điện thoại · tablet · máy tính)
+        // ================================================================
+        const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+        const WEEKDAYS_LONG = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+        const parseLocal = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+        const weekdayOf = (s) => parseLocal(s).getDay();
+        const fmtDM = (s) => { const [, m, d] = s.split('-'); return `${d}/${m}`; };
+        const fmtDMY = (s) => s.split('-').reverse().join('/');
+        const fmtH = (h) => (Math.round(h * 10) / 10).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+        const entryHours = (e) => calculateHours(e.startTime, e.endTime, e.breakTime);
+        const otLabel = (code) => (OT_TYPES.find(t => t.code === code) || {}).label || code;
+        // Kỳ lương tháng M = 16/(M-1) → 15/M, nên từ ngày 16 trở đi thuộc kỳ của tháng sau
+        const periodMonthOf = (dateStr) => {
+            const d = parseLocal(dateStr);
+            if (d.getDate() >= 16) d.setMonth(d.getMonth() + 1, 1);
+            return toLocalISOString(d).slice(0, 7);
+        };
+        const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); return toLocalISOString(new Date(y, m - 1 + n, 1)).slice(0, 7); };
+        const daysBetween = (start, end) => { const out = []; for (let d = start; d <= end; d = addDaysLocal(d, 1)) out.push(d); return out; };
+        const isWorkday = (s) => { const w = weekdayOf(s); return w >= 1 && w <= 5 && !isVietnameseHoliday(s); };
+        const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
+        const DEFAULT_PROFILE = { name: '', empId: '', position: '', dept: 'NI', sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I' };
+
+        const inputCls = 'w-full h-11 rounded-lg border border-slate-300 bg-white px-3 text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50';
+        const btnGhost = 'inline-flex items-center justify-center gap-2 h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 disabled:opacity-60';
+        const btnPrimary = 'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-blue-700 text-white font-semibold hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60';
 
         function App() {
-            const [view, setView] = useState('list'); 
             const [entries, setEntries] = useState([]);
-            const [profile, setProfile] = useState({ name: '', empId: '', position: '', dept: 'NI', sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I' });
-            const [projects, setProjects] = useState([]); 
-            const [currentMonth, setCurrentMonth] = useState(getTodayLocal().slice(0, 7));
-            const [editingEntry, setEditingEntry] = useState(null);
+            const [profile, setProfile] = useState(DEFAULT_PROFILE);
+            const [projects, setProjects] = useState([]);
+            // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
+            const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
+            const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
+            const [dayFilter, setDayFilter] = useState(null);
+            const [toast, setToast] = useState(null);
             const [syncStatus, setSyncStatus] = useState('');
             const [projSyncing, setProjSyncing] = useState(false);
             const [projStatus, setProjStatus] = useState('');
+            const [needProjects, setNeedProjects] = useState(false); // máy chưa có danh sách dự án → nhắc (không chặn màn hình)
 
             useEffect(() => {
                 const savedEntries = localStorage.getItem('ts_entries_v28');
                 const savedProfile = localStorage.getItem('ts_profile_v28');
                 const savedProjects = localStorage.getItem('ts_projects_v28');
-                
+
                 if (savedEntries) setEntries(JSON.parse(savedEntries));
                 if (savedProfile) setProfile(JSON.parse(savedProfile));
                 // Bộ công cụ: điền sẵn họ tên / mã NV / chức vụ từ phiên đăng nhập — chỉ điền ô còn trống
@@ -218,34 +252,54 @@
                     name: p.name || who.name, empId: p.empId || who.empId, position: p.position || who.position }));
                 if (savedProjects) setProjects(JSON.parse(savedProjects));
                 // Dự án dùng chung: lấy ngay bản trên máy (cùng dữ liệu với Thống kê giờ công);
-                // máy chưa có thì tải từ Google Drive; vẫn không có thì mở Cài đặt như trước.
+                // máy chưa có thì tải từ Google Drive; vẫn không có thì hiện lời nhắc trên trang (vẫn chấm công được).
                 (async () => {
                     const shared = await loadSharedProjects();
                     if (shared.length) { setProjects(shared); return; }
                     const n = await syncSharedProjects();
-                    if (!n && !savedProjects) setView('settings');
+                    if (!n && !savedProjects) setNeedProjects(true);
                 })();
             }, []);
 
             useEffect(() => { localStorage.setItem('ts_entries_v28', JSON.stringify(entries)); }, [entries]);
             useEffect(() => { localStorage.setItem('ts_profile_v28', JSON.stringify(profile)); }, [profile]);
             useEffect(() => { localStorage.setItem('ts_projects_v28', JSON.stringify(projects)); }, [projects]);
+            useEffect(() => {
+                if (!toast) return;
+                const t = setTimeout(() => setToast(null), 6000);
+                return () => clearTimeout(t);
+            }, [toast]);
 
             const period = useMemo(() => getSalaryPeriod(currentMonth), [currentMonth]);
             const monthlyEntries = useMemo(() => {
                 // IMPORTANT: String comparison works correctly for YYYY-MM-DD
                 return entries.filter(e => e.date >= period.start && e.date <= period.end)
-                              .sort((a,b) => b.date.localeCompare(a.date));
+                              .sort((a, b) => b.date.localeCompare(a.date) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
             }, [entries, period]);
 
-            const stats = useMemo(() => {
-                let normal = 0, ot = 0;
+            const dayTotals = useMemo(() => {
+                const t = {};
                 monthlyEntries.forEach(e => {
-                    const h = calculateHours(e.startTime, e.endTime, e.breakTime);
-                    if (e.otType === 'NORMAL') normal += h; else ot += h;
+                    const d = t[e.date] || (t[e.date] = { hours: 0, ot: false, count: 0 });
+                    d.hours += entryHours(e); d.count++; if (e.otType !== 'NORMAL') d.ot = true;
                 });
-                return { normal: normal.toFixed(1), ot: ot.toFixed(1) };
+                return t;
             }, [monthlyEntries]);
+
+            const stats = useMemo(() => {
+                let normal = 0, ot = 0; const byOt = {};
+                monthlyEntries.forEach(e => {
+                    const h = entryHours(e);
+                    if (e.otType === 'NORMAL') normal += h; else { ot += h; byOt[e.otType] = (byOt[e.otType] || 0) + h; }
+                });
+                // ngày làm việc (T2–T6, không phải ngày lễ) đã qua trong kỳ mà chưa chấm công
+                const today = getTodayLocal();
+                const last = period.end < today ? period.end : today;
+                const missing = period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d) && !dayTotals[d]) : [];
+                return { normal, ot, total: normal + ot, byOt, days: Object.keys(dayTotals).length, missing };
+            }, [monthlyEntries, dayTotals, period]);
+
+            const visible = dayFilter ? monthlyEntries.filter(e => e.date === dayFilter) : monthlyEntries;
 
             // Đồng bộ Dự án: tải bản mới nhất từ Google Drive vào kho dùng chung rồi đọc lại.
             // Drive lỗi (mất mạng / hết hạn mức) thì giữ bản đang có trên máy. Trả về số dự án.
@@ -267,8 +321,34 @@
             };
             const handleSyncProjects = () => { syncSharedProjects(); };
 
-            const handleDelete = (id) => {
-                if (confirm('Xóa dòng này?')) setEntries(entries.filter(e => e.id !== id));
+            const showToast = (message, action) => setToast({ message, action, id: Date.now() });
+            const changeMonth = (m) => { setCurrentMonth(m); setDayFilter(null); };
+            const closeDrawer = () => setDrawer(null);
+
+            const openNewEntry = (date) => {
+                let d = date;
+                if (!d) { // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
+                    d = getTodayLocal();
+                    if (entries.length > 0) d = addDaysLocal(entries.reduce((a, b) => (b.date > a.date ? b : a)).date, 1);
+                }
+                setDrawer({ type: 'form', entry: null, date: d, key: Date.now() });
+            };
+            const openEdit = (entry) => setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() });
+
+            const handleSaveEntry = (data) => {
+                const editing = drawer && drawer.entry;
+                if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? { ...data, id: editing.id } : e));
+                else setEntries(prev => [...prev, { ...data, id: Date.now() }]);
+                setDrawer(null);
+                const pm = periodMonthOf(data.date); // ngày thuộc kỳ khác → chuyển sang kỳ đó để thấy ngay
+                if (pm !== currentMonth) changeMonth(pm);
+                showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.`);
+            };
+
+            const handleDelete = (entry) => {
+                setEntries(prev => prev.filter(e => e.id !== entry.id));
+                if (drawer && drawer.entry && drawer.entry.id === entry.id) setDrawer(null);
+                showToast(`Đã xóa chấm công ${fmtDMY(entry.date)}.`, { label: 'Hoàn tác', run: () => setEntries(prev => [...prev, entry]) });
             };
 
             const handleResetData = () => {
@@ -278,30 +358,12 @@
                         localStorage.removeItem('ts_profile_v28');
                         localStorage.removeItem('ts_projects_v28');
                         setEntries([]);
-                        setProfile({ name: '', empId: '', position: '', dept: 'NI', sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I' });
+                        setProfile(DEFAULT_PROFILE);
                         setProjects([]);
-                        alert("Đã xóa dữ liệu thành công! Ứng dụng đã được reset.");
+                        setDrawer(null);
+                        showToast('Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
                     }
                 }
-            };
-
-            const handleNewEntry = () => {
-                let defaultD = getTodayLocal();
-
-                if (entries && entries.length > 0) {
-                    const latest = entries.reduce((a, b) => (b.date > a.date ? b : a));
-                    defaultD = addDaysLocal(latest.date, 1);
-                }
-
-                setEditingEntry(null);
-                setView('form_new_' + defaultD);
-            };
-
-            const handleSaveEntry = (data) => {
-                if (editingEntry) setEntries(entries.map(e => e.id === editingEntry.id ? { ...data, id: editingEntry.id } : e));
-                else setEntries([...entries, { ...data, id: Date.now() }]);
-                setEditingEntry(null);
-                setView('list');
             };
 
             const handleExportExcel = async () => {
@@ -415,107 +477,452 @@
                 saveAs(new Blob([buffer]), `${cleanName}_Thang_${m}_${y}.xlsx`);
                 setSyncStatus('');
             };
-            
+
             const handleBackup = () => { const blob = new Blob([JSON.stringify({ profile, entries, projects })], { type: "application/json" }); saveAs(blob, `TS_Backup_${profile.name}.json`); };
-            const handleRestore = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if (data.entries) setEntries(data.entries); if (data.profile) setProfile(data.profile); if (data.projects) setProjects(data.projects); alert("Thành công!"); } catch (err) { alert("Lỗi file"); } }; reader.readAsText(file); };
+            const handleRestore = (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const data = JSON.parse(ev.target.result);
+                        if (data.entries) setEntries(data.entries);
+                        if (data.profile) setProfile(data.profile);
+                        if (data.projects) setProjects(data.projects);
+                        showToast(`Đã khôi phục ${data.entries ? data.entries.length : 0} dòng chấm công từ bản sao lưu.`);
+                    } catch (err) { alert('Lỗi file: không đọc được bản sao lưu.'); }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+            };
+
+            const exporting = syncStatus === 'Đang tạo file...';
+            const todayPeriod = periodMonthOf(getTodayLocal());
 
             return (
-                <div className="max-w-md mx-auto bg-white min-h-screen shadow-2xl overflow-hidden relative flex flex-col">
-                    <header className="bg-blue-800 text-white p-4 sticky top-0 z-50 shadow-lg">
-                        <div className="flex justify-between items-center mb-3">
-                            <h1 className="font-bold text-lg flex items-center gap-2">Timesheet <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded">V35</span></h1>
-                            <button onClick={() => setView('settings')}><Icons.Settings/></button>
-                        </div>
-                        <div className="bg-blue-900/50 p-2 rounded-lg flex items-center justify-between backdrop-blur-sm border border-blue-700">
-                            <span className="text-xs font-bold text-white">Kỳ lương</span>
-                            <input type="month" value={currentMonth} onChange={(e) => setCurrentMonth(e.target.value)} className="bg-white text-blue-900 text-sm font-bold px-2 py-1 rounded w-32 text-center"/>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                            <div className="bg-white/10 p-2 rounded flex flex-col items-center"><span className="text-[10px] text-blue-200">Giờ công thường</span><span className="font-bold text-white text-lg">{stats.normal}h</span></div>
-                            <div className="bg-white/10 p-2 rounded flex flex-col items-center"><span className="text-[10px] text-orange-200">Tăng ca (OT)</span><span className="font-bold text-orange-300 text-lg">{stats.ot}h</span></div>
+                <div className="min-h-screen bg-slate-100 text-slate-800">
+                    {/* ---------- Thanh trên: tên · kỳ lương · thao tác ---------- */}
+                    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
+                        <div className="max-w-7xl mx-auto px-4 lg:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+                            <div className="flex items-center gap-3 min-w-0 mr-auto">
+                                <div className="w-10 h-10 rounded-xl bg-blue-700 text-white grid place-items-center shrink-0" aria-hidden="true"><Icons.Calendar/></div>
+                                <div className="min-w-0">
+                                    <h1 className="font-bold text-lg leading-tight">Timesheet</h1>
+                                    <p className="text-xs text-slate-500 truncate max-w-[52vw] md:max-w-xs">
+                                        {profile.name || 'Chưa có họ tên — mở Cài đặt'}{profile.empId ? ` · ${profile.empId}` : ''}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <PeriodSwitcher month={currentMonth} period={period} todayPeriod={todayPeriod} onChange={changeMonth}/>
+
+                            <div className="flex items-center gap-2">
+                                <button id="tsAddBtn" type="button" onClick={() => openNewEntry()} className={`${btnPrimary} hidden md:inline-flex`}>
+                                    <Icons.Plus/> Thêm chấm công
+                                </button>
+                                <button id="tsExportBtn" type="button" onClick={handleExportExcel} disabled={exporting}
+                                    className={btnGhost} title="Xuất bảng chấm công của kỳ ra Excel (mẫu Schindler)" aria-label="Xuất Excel">
+                                    <Icons.Download/><span className="hidden sm:inline">{exporting ? 'Đang tạo file...' : 'Xuất Excel'}</span>
+                                </button>
+                                <button id="tsSettingsBtn" type="button" onClick={() => setDrawer({ type: 'settings' })} className={btnGhost} aria-label="Cài đặt" title="Cài đặt">
+                                    <Icons.Settings/><span className="hidden xl:inline">Cài đặt</span>
+                                </button>
+                            </div>
                         </div>
                     </header>
 
-                    <main className="flex-1 bg-slate-50 p-3 pb-28 overflow-y-auto">
-                        {view === 'list' && (
-                            <div className="space-y-3">
-                                {monthlyEntries.length === 0 ? <p className="text-center text-slate-400 py-10">Chưa có dữ liệu ({period.label})</p> : monthlyEntries.map(e => (
-                                    <div key={e.id} className="bg-white p-3 rounded-xl shadow-sm border relative">
-                                        <div className="flex justify-between border-b pb-2 mb-2">
-                                            <span className="font-bold text-blue-800">{e.date.split('-').reverse().join('/')}</span>
-                                            <div className="flex gap-2"><button onClick={() => { setEditingEntry(e); setView('form'); }} className="text-blue-500"><Icons.Edit/></button><button onClick={() => handleDelete(e.id)} className="text-red-400"><Icons.Trash/></button></div>
-                                        </div>
-                                        <div className="text-sm flex justify-between mb-1">
-                                            <span>{e.startTime} - {e.endTime}</span>
-                                            <span className="font-bold text-orange-600">{e.otType !== 'NORMAL' ? e.otType : 'Giờ công thường'}</span>
-                                        </div>
-                                        <div className="text-xs text-slate-500 truncate"><span className="font-bold text-blue-600">[{e.activityCode}]</span> {e.projectName}</div>
-                                    </div>
-                                ))}
+                    {needProjects && projects.length === 0 && (
+                        <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4">
+                            <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center gap-3">
+                                <p className="flex-1 min-w-[14rem] text-sm text-amber-900">
+                                    <b>Chưa có danh sách dự án trên máy này.</b> {projStatus} Bạn vẫn chấm công bình thường; gợi ý tên dự án / WBS sẽ có sau khi đồng bộ.
+                                </p>
+                                <button type="button" onClick={handleSyncProjects} disabled={projSyncing} className={btnGhost}>
+                                    <Icons.Refresh/> {projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}
+                                </button>
                             </div>
-                        )}
-                        {(view === 'form' || view.startsWith('form_new_')) && (
-                            <EntryForm 
-                                initialData={editingEntry} 
-                                defaultDate={view.startsWith('form_new_') ? view.split('_')[2] : getTodayLocal()}
-                                onSave={handleSaveEntry} 
-                                onCancel={() => { setEditingEntry(null); setView('list'); }} 
-                                entries={entries} 
-                                projects={projects}
-                            />
-                        )}
-                        {view === 'settings' && (
-                            <div className="bg-white p-5 rounded-xl space-y-6">
-                                <h2 className="font-bold text-lg text-slate-800">Cài đặt</h2>
-                                <div className="grid gap-3">
-                                    <input type="text" placeholder="Họ Tên" value={profile.name} onChange={e=>setProfile({...profile, name:e.target.value})} className="w-full border p-2 rounded"/>
-                                    <input type="text" placeholder="Mã NV" value={profile.empId} onChange={e=>setProfile({...profile, empId:e.target.value})} className="w-full border p-2 rounded"/>
-                                    <input type="text" placeholder="Chức vụ" value={profile.position} onChange={e=>setProfile({...profile, position:e.target.value})} className="w-full border p-2 rounded"/>
-                                    <input type="text" placeholder="Phòng ban" value={profile.dept} onChange={e=>setProfile({...profile, dept:e.target.value})} className="w-full border p-2 rounded"/>
-                                </div>
-                                <hr/>
-                                <div>
-                                    <h2 className="font-bold text-sm text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> Dữ liệu Dự án</h2>
-                                    <div className="flex flex-col gap-2">
-                                        <p className="text-xs text-slate-500">Dùng chung với “Thống kê giờ công dự án” (nguồn Google Drive) — không cần nhập gì thêm.</p>
-                                        <button onClick={handleSyncProjects} disabled={projSyncing} className="bg-blue-600 text-white p-2 rounded text-sm disabled:opacity-50"><Icons.Refresh/> {projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</button>
-                                        <span className="text-xs text-green-600">{projects.length} dự án đã lưu</span>
-                                        {projStatus && <span className="text-xs text-slate-600" role="status">{projStatus}</span>}
-                                    </div>
-                                </div>
-                                <hr/>
-                                <div className="bg-slate-50 p-3 rounded border grid grid-cols-2 gap-2">
-                                    <button onClick={handleBackup} className="bg-white border p-2 rounded text-blue-700 text-xs font-bold"><Icons.Download/> Backup</button>
-                                    <label className="bg-white border p-2 rounded text-green-700 text-xs font-bold cursor-pointer flex justify-center items-center"><Icons.Upload/> Restore <input type="file" onChange={handleRestore} className="hidden"/></label>
-                                </div>
-                                
-                                <hr/>
-                                <div className="p-4 border border-red-200 rounded-lg bg-red-50">
-                                    <h3 className="text-red-700 font-bold text-sm mb-2 flex items-center gap-2"><Icons.Alert/> Vùng Nguy Hiểm</h3>
-                                    <button onClick={handleResetData} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-bold shadow-sm transition-colors">
-                                        Xóa Toàn Bộ Dữ Liệu
+                        </div>
+                    )}
+
+                    <main className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 pb-28 md:pb-10 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] items-start">
+                        <aside className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start lg:block lg:space-y-4 lg:sticky lg:top-24">
+                            <StatsPanel stats={stats}/>
+                            <PeriodCalendar period={period} dayTotals={dayTotals} missing={stats.missing} selected={dayFilter}
+                                onPick={(d) => (dayTotals[d] ? setDayFilter(dayFilter === d ? null : d) : openNewEntry(d))}/>
+                        </aside>
+
+                        <section className="bg-white rounded-2xl border border-slate-200 min-w-0" aria-labelledby="tsListTitle">
+                            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-100">
+                                <h2 id="tsListTitle" className="font-semibold">Chấm công trong kỳ</h2>
+                                <span className="text-sm text-slate-500">{visible.length} dòng</span>
+                                {dayFilter && (
+                                    <button type="button" onClick={() => setDayFilter(null)} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-blue-50 text-blue-800 text-sm font-medium hover:bg-blue-100">
+                                        {WEEKDAYS[weekdayOf(dayFilter)]}, {fmtDMY(dayFilter)} <span aria-hidden="true">✕</span><span className="sr-only">Bỏ lọc ngày</span>
                                     </button>
-                                    <p className="text-red-500 text-[10px] mt-2 text-center">Hành động này sẽ xóa hết lịch sử và cài đặt. Không thể khôi phục.</p>
-                                </div>
-                                
-                                <button onClick={() => setView('list')} className="w-full bg-slate-800 text-white p-3 rounded font-bold">Lưu thông tin</button>
+                                )}
+                                {dayFilter && (
+                                    <button type="button" onClick={() => openNewEntry(dayFilter)} className="ml-auto text-sm font-semibold text-blue-700 hover:text-blue-900">
+                                        + Thêm cho ngày {fmtDM(dayFilter)}
+                                    </button>
+                                )}
                             </div>
-                        )}
+                            {visible.length === 0 ? (
+                                <div className="px-6 py-14 text-center">
+                                    <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-100 grid place-items-center text-slate-400 mb-3" aria-hidden="true"><Icons.Calendar/></div>
+                                    <p className="font-medium text-slate-700">Chưa có chấm công trong kỳ {fmtDMY(period.start)} – {fmtDMY(period.end)}</p>
+                                    <p className="text-sm text-slate-500 mt-1">Bấm <b>Thêm chấm công</b> hoặc chọn một ngày trên lịch.</p>
+                                    <button type="button" onClick={() => openNewEntry()} className={`${btnPrimary} mt-4`}><Icons.Plus/> Thêm chấm công</button>
+                                </div>
+                            ) : (
+                                <React.Fragment>
+                                    <EntryTable rows={visible} onEdit={openEdit} onDelete={handleDelete}/>
+                                    <EntryCards rows={visible} onEdit={openEdit} onDelete={handleDelete}/>
+                                </React.Fragment>
+                            )}
+                        </section>
                     </main>
 
-                    {view === 'list' && (
-                        <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
-                            <button onClick={handleExportExcel} className="bg-green-600 text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center border-2 border-white"><Icons.Download/></button>
-                            <button onClick={handleNewEntry} className="bg-blue-600 text-white w-16 h-16 rounded-full shadow-xl flex items-center justify-center border-4 border-blue-100"><Icons.Plus/></button>
-                        </div>
+                    {/* Điện thoại / tablet: nút thêm nổi, trong tầm ngón cái */}
+                    <button id="tsFab" type="button" onClick={() => openNewEntry()} aria-label="Thêm chấm công"
+                        className="md:hidden fixed bottom-5 right-5 z-30 w-14 h-14 rounded-full bg-blue-700 text-white shadow-xl grid place-items-center active:scale-95 transition">
+                        <Icons.Plus/>
+                    </button>
+
+                    {drawer && drawer.type === 'form' && (
+                        <Drawer title={drawer.entry ? 'Sửa chấm công' : 'Thêm chấm công'} onClose={closeDrawer}>
+                            <EntryForm key={drawer.key} initialData={drawer.entry} defaultDate={drawer.date}
+                                onSave={handleSaveEntry} onCancel={closeDrawer}
+                                onDelete={drawer.entry ? () => handleDelete(drawer.entry) : null}
+                                entries={entries} projects={projects}/>
+                        </Drawer>
+                    )}
+                    {drawer && drawer.type === 'settings' && (
+                        <Drawer title="Cài đặt" onClose={closeDrawer}>
+                            <SettingsPanel profile={profile} setProfile={setProfile} projects={projects}
+                                projSyncing={projSyncing} projStatus={projStatus} onSync={handleSyncProjects}
+                                onBackup={handleBackup} onRestore={handleRestore} onReset={handleResetData} onDone={closeDrawer}/>
+                        </Drawer>
+                    )}
+                    {toast && <Toast toast={toast} onClose={() => setToast(null)}/>}
+                </div>
+            );
+        }
+
+        // ---------- Kỳ lương: ‹ tháng › + chọn nhanh ----------
+        function PeriodSwitcher({ month, period, todayPeriod, onChange }) {
+            const [y, m] = month.split('-');
+            return (
+                <div className="order-last w-full md:order-none md:w-auto flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                    <button type="button" onClick={() => onChange(shiftMonth(month, -1))} aria-label="Kỳ lương trước"
+                        className="w-9 h-10 grid place-items-center rounded-lg text-slate-600 hover:bg-white"><Icons.ChevronLeft/></button>
+                    <label className="relative flex-1 md:flex-none md:min-w-[11.5rem] text-center px-2 cursor-pointer rounded-lg hover:bg-white">
+                        <span className="block text-sm font-semibold leading-5">Kỳ lương tháng {parseInt(m, 10)}/{y}</span>
+                        <span className="block text-xs text-slate-500 leading-4">{fmtDMY(period.start)} – {fmtDMY(period.end)}</span>
+                        <input type="month" value={month} aria-label="Chọn kỳ lương"
+                            onChange={(e) => e.target.value && onChange(e.target.value)}
+                            onClick={(e) => { try { e.currentTarget.showPicker(); } catch (_) { /* trình duyệt cũ */ } }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                    </label>
+                    <button type="button" onClick={() => onChange(shiftMonth(month, 1))} aria-label="Kỳ lương sau"
+                        className="w-9 h-10 grid place-items-center rounded-lg text-slate-600 hover:bg-white"><Icons.ChevronRight/></button>
+                    {month !== todayPeriod && (
+                        <button type="button" onClick={() => onChange(todayPeriod)} className="h-10 px-2.5 rounded-lg text-sm font-medium text-blue-700 hover:bg-white whitespace-nowrap">Kỳ hiện tại</button>
                     )}
                 </div>
             );
         }
 
-        function EntryForm({ onSave, onCancel, defaultDate, initialData, entries, projects }) {
-            const [formData, setFormData] = useState({ 
-                date: defaultDate, startTime: '08:00', endTime: '17:00', breakTime: '1', 
+        // ---------- Thẻ tổng hợp ----------
+        function StatsPanel({ stats }) {
+            const ots = Object.keys(stats.byOt).sort();
+            const Tile = ({ label, value, unit, tone, note, warn }) => (
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                    <div className="text-xs font-medium text-slate-500">{label}</div>
+                    <div className={`mt-1 text-2xl font-bold tabular-nums ${tone === 'blue' ? 'text-blue-700' : tone === 'orange' ? 'text-orange-600' : 'text-slate-900'}`}>
+                        {value}<span className="ml-1 text-sm font-medium text-slate-500">{unit}</span>
+                    </div>
+                    {note && <div className={`mt-1 text-xs ${warn ? 'text-rose-600 font-medium' : 'text-slate-500'}`}>{note}</div>}
+                </div>
+            );
+            return (
+                <div className="grid grid-cols-2 gap-3">
+                    <Tile label="Giờ công thường" value={fmtH(stats.normal)} unit="giờ" tone="blue"/>
+                    <Tile label="Tăng ca (OT)" value={fmtH(stats.ot)} unit="giờ" tone="orange"
+                        note={ots.length ? ots.map(k => `${k}: ${fmtH(stats.byOt[k])}`).join(' · ') : null}/>
+                    <Tile label="Tổng giờ" value={fmtH(stats.total)} unit="giờ"/>
+                    <Tile label="Ngày đã chấm" value={stats.days} unit="ngày" warn={stats.missing.length > 0}
+                        note={stats.missing.length ? `Còn ${stats.missing.length} ngày T2–T6 chưa chấm` : 'Đủ ngày làm việc đến hôm nay'}/>
+                </div>
+            );
+        }
+
+        // ---------- Lịch kỳ lương (16 → 15) ----------
+        function PeriodCalendar({ period, dayTotals, missing, selected, onPick }) {
+            const today = getTodayLocal();
+            const days = daysBetween(period.start, period.end);
+            const lead = (weekdayOf(period.start) + 6) % 7; // tuần bắt đầu từ Thứ 2
+            const missingSet = new Set(missing);
+            return (
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="font-semibold">Lịch kỳ lương</h2>
+                        <span className="text-xs text-slate-500">{fmtDM(period.start)} – {fmtDM(period.end)}</span>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-500 mb-1" aria-hidden="true">
+                        {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(w => <div key={w}>{w}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                        {Array.from({ length: lead }).map((_, i) => <div key={'blank' + i}/>)}
+                        {days.map(d => {
+                            const t = dayTotals[d], w = weekdayOf(d), hol = isVietnameseHoliday(d), miss = missingSet.has(d);
+                            const [, mm, dd] = d.split('-');
+                            const showMonth = dd === '01' || d === period.start;
+                            const label = `${WEEKDAYS_LONG[w]} ${fmtDMY(d)}${hol ? ', ngày lễ' : ''}: ` +
+                                (t ? `${fmtH(t.hours)} giờ — bấm để xem` : miss ? 'chưa chấm công — bấm để thêm' : 'bấm để thêm chấm công');
+                            return (
+                                <button key={d} type="button" onClick={() => onPick(d)} aria-pressed={selected === d} aria-label={label} title={label}
+                                    className={`relative h-11 sm:h-12 rounded-lg flex flex-col items-center justify-center text-sm border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 ${
+                                        selected === d ? 'border-blue-600 ring-2 ring-blue-600/30' : d === today ? 'border-slate-800' : 'border-transparent'
+                                    } ${t ? (t.ot ? 'bg-orange-50 hover:bg-orange-100' : 'bg-blue-50 hover:bg-blue-100') : miss ? 'bg-rose-50 hover:bg-rose-100' : 'hover:bg-slate-100'}`}>
+                                    <span className={`leading-none ${showMonth ? 'text-[11px] font-semibold' : ''} ${hol || w === 0 ? 'text-rose-600' : w === 6 ? 'text-slate-500' : 'text-slate-800'}`}>
+                                        {showMonth ? `${parseInt(dd, 10)}/${parseInt(mm, 10)}` : parseInt(dd, 10)}
+                                    </span>
+                                    {t ? <span className={`mt-1 text-[10px] font-semibold leading-none ${t.ot ? 'text-orange-700' : 'text-blue-700'}`}>{fmtH(t.hours)}h</span>
+                                       : miss ? <span className="mt-1 w-1.5 h-1.5 rounded-full bg-rose-500" aria-hidden="true"/> : null}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500" aria-hidden="true">
+                        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded bg-blue-100 inline-block"/>Đã chấm</span>
+                        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded bg-orange-100 inline-block"/>Có OT</span>
+                        <span className="inline-flex items-center gap-1"><i className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"/>Chưa chấm (T2–T6)</span>
+                        <span className="inline-flex items-center gap-1"><i className="w-2.5 h-2.5 rounded border border-slate-800 inline-block"/>Hôm nay</span>
+                    </div>
+                </div>
+            );
+        }
+
+        function OtPill({ code }) {
+            const normal = code === 'NORMAL';
+            return (
+                <span title={otLabel(code)} className={`inline-flex items-center h-6 px-2 rounded-full text-xs font-semibold whitespace-nowrap ${normal ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'}`}>
+                    {normal ? 'Giờ thường' : code}
+                </span>
+            );
+        }
+
+        // ---------- Máy tính: bảng ----------
+        function EntryTable({ rows, onEdit, onDelete }) {
+            return (
+                <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 text-slate-500 text-xs whitespace-nowrap">
+                            <tr>
+                                <th scope="col" className="text-left font-medium px-4 py-2.5">Ngày</th>
+                                <th scope="col" className="text-left font-medium px-3 py-2.5">Thời gian</th>
+                                <th scope="col" className="text-right font-medium px-3 py-2.5">Giờ</th>
+                                <th scope="col" className="text-left font-medium px-3 py-2.5">Loại giờ</th>
+                                <th scope="col" className="text-left font-medium px-3 py-2.5">Mã CV</th>
+                                <th scope="col" className="text-left font-medium px-3 py-2.5 w-full">Dự án / WBS / Ghi chú</th>
+                                <th scope="col" className="px-4 py-2.5"><span className="sr-only">Thao tác</span></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {rows.map((e, i) => {
+                                const firstOfDay = i === 0 || rows[i - 1].date !== e.date;
+                                const w = weekdayOf(e.date), hol = isVietnameseHoliday(e.date);
+                                const brk = parseFloat(e.breakTime) || 0, duty = parseFloat(e.dutyHour) || 0;
+                                return (
+                                    <tr key={e.id} onClick={() => onEdit(e)} className={`cursor-pointer hover:bg-blue-50/50 ${firstOfDay && i > 0 ? 'border-t-2 border-slate-200' : ''}`}>
+                                        <td className="px-4 py-2.5 whitespace-nowrap align-top">
+                                            {firstOfDay ? (
+                                                <React.Fragment>
+                                                    <span className="font-semibold tabular-nums">{fmtDM(e.date)}</span>{' '}
+                                                    <span className={hol || w === 0 ? 'text-rose-600' : 'text-slate-500'}>{WEEKDAYS[w]}{hol ? ' · Lễ' : ''}</span>
+                                                </React.Fragment>
+                                            ) : <span className="sr-only">{fmtDMY(e.date)}</span>}
+                                        </td>
+                                        <td className="px-3 py-2.5 whitespace-nowrap tabular-nums align-top">
+                                            {e.startTime && e.endTime ? `${e.startTime} – ${e.endTime}` : '—'}
+                                            {(brk > 0 || duty > 0) && (
+                                                <div className="text-xs text-slate-400">{[brk > 0 ? `nghỉ ${fmtH(brk)}h` : '', duty > 0 ? `trực ${fmtH(duty)}h` : ''].filter(Boolean).join(' · ')}</div>
+                                            )}
+                                        </td>
+                                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums align-top">{fmtH(entryHours(e))}</td>
+                                        <td className="px-3 py-2.5 align-top"><OtPill code={e.otType}/></td>
+                                        <td className="px-3 py-2.5 font-mono text-xs text-blue-700 align-top whitespace-nowrap">{e.activityCode}</td>
+                                        <td className="px-3 py-2.5 align-top max-w-0">
+                                            <div className="truncate" title={e.projectName}>{e.projectName || '—'}</div>
+                                            {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
+                                            {e.remarks && <div className="text-xs text-slate-500 italic truncate" title={e.remarks}>{e.remarks}</div>}
+                                        </td>
+                                        <td className="px-4 py-2 align-top text-right whitespace-nowrap">
+                                            <button type="button" aria-label={`Sửa chấm công ${fmtDMY(e.date)}`} onClick={(ev) => { ev.stopPropagation(); onEdit(e); }}
+                                                className="w-8 h-8 inline-grid place-items-center rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50"><Icons.Edit/></button>
+                                            <button type="button" aria-label={`Xóa chấm công ${fmtDMY(e.date)}`} onClick={(ev) => { ev.stopPropagation(); onDelete(e); }}
+                                                className="w-8 h-8 inline-grid place-items-center rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50"><Icons.Trash/></button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        }
+
+        // ---------- Điện thoại / tablet: thẻ theo ngày ----------
+        function EntryCards({ rows, onEdit, onDelete }) {
+            const groups = [];
+            rows.forEach(e => {
+                const g = groups[groups.length - 1];
+                if (g && g.date === e.date) g.items.push(e); else groups.push({ date: e.date, items: [e] });
+            });
+            return (
+                <div className="lg:hidden divide-y divide-slate-100">
+                    {groups.map(g => {
+                        const total = g.items.reduce((s, e) => s + entryHours(e), 0);
+                        const w = weekdayOf(g.date), hol = isVietnameseHoliday(g.date);
+                        return (
+                            <div key={g.date} className="px-4 py-3">
+                                <div className="flex items-baseline justify-between mb-2">
+                                    <span className="font-semibold">
+                                        <span className={hol || w === 0 ? 'text-rose-600' : ''}>{WEEKDAYS_LONG[w]}</span>, {fmtDMY(g.date)}{hol ? <span className="text-rose-600"> · Lễ</span> : null}
+                                    </span>
+                                    <span className="text-sm text-slate-500 tabular-nums">{fmtH(total)} giờ</span>
+                                </div>
+                                <ul className="space-y-2">
+                                    {g.items.map(e => (
+                                        <li key={e.id} className="rounded-xl border border-slate-200 flex items-stretch">
+                                            <button type="button" onClick={() => onEdit(e)} className="flex-1 min-w-0 text-left p-3 rounded-l-xl hover:bg-slate-50">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-medium tabular-nums">{e.startTime && e.endTime ? `${e.startTime} – ${e.endTime}` : 'Không có giờ'}</span>
+                                                    <OtPill code={e.otType}/>
+                                                    <span className="text-sm text-slate-500 tabular-nums">{fmtH(entryHours(e))}h</span>
+                                                </div>
+                                                <div className="mt-1 text-sm truncate"><span className="font-mono text-blue-700">[{e.activityCode}]</span> {e.projectName}</div>
+                                                {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
+                                                {e.remarks && <div className="text-xs text-slate-500 truncate">Ghi chú: {e.remarks}</div>}
+                                            </button>
+                                            <button type="button" onClick={() => onDelete(e)} aria-label={`Xóa chấm công ${fmtDMY(e.date)}`}
+                                                className="w-12 grid place-items-center rounded-r-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-l border-slate-100"><Icons.Trash/></button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        // ---------- Ngăn trượt (máy tính: bên phải · điện thoại: toàn màn hình) ----------
+        function Drawer({ title, onClose, children }) {
+            const panel = useRef(null);
+            useEffect(() => {
+                const prevFocus = document.activeElement;
+                const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+                document.addEventListener('keydown', onKey);
+                const prevOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+                if (panel.current) {
+                    const first = finePointer() ? panel.current.querySelector('[data-autofocus]') : null; // không tự bật bàn phím trên điện thoại
+                    (first || panel.current).focus();
+                }
+                return () => {
+                    document.removeEventListener('keydown', onKey);
+                    document.body.style.overflow = prevOverflow;
+                    if (prevFocus && prevFocus.focus) prevFocus.focus();
+                };
+            }, []);
+            return (
+                <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="tsDrawerTitle">
+                    <div className="absolute inset-0 bg-slate-900/40 ts-fade" onClick={onClose}/>
+                    <div ref={panel} tabIndex={-1} className="absolute inset-y-0 right-0 w-full md:max-w-xl bg-white shadow-2xl flex flex-col outline-none ts-drawer">
+                        <div className="flex items-center justify-between px-5 h-14 border-b border-slate-200 shrink-0">
+                            <h2 id="tsDrawerTitle" className="font-semibold text-lg">{title}</h2>
+                            <button type="button" onClick={onClose} aria-label="Đóng" className="w-10 h-10 grid place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><Icons.X/></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">{children}</div>
+                    </div>
+                </div>
+            );
+        }
+
+        function Toast({ toast, onClose }) {
+            return (
+                <div role="status" className="fixed z-[60] left-1/2 -translate-x-1/2 bottom-24 md:bottom-6 w-max max-w-[92vw] bg-slate-900 text-white text-sm rounded-xl shadow-xl pl-4 pr-2 py-2 flex items-center gap-3">
+                    <span className="py-1">{toast.message}</span>
+                    {toast.action && (
+                        <button type="button" onClick={() => { toast.action.run(); onClose(); }} className="h-8 px-3 rounded-lg font-semibold text-blue-300 hover:bg-white/10">{toast.action.label}</button>
+                    )}
+                    <button type="button" onClick={onClose} aria-label="Đóng thông báo" className="w-8 h-8 grid place-items-center rounded-lg text-slate-400 hover:bg-white/10"><Icons.X/></button>
+                </div>
+            );
+        }
+
+        function Field({ label, htmlFor, hint, children, className }) {
+            return (
+                <div className={className}>
+                    <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                    {children}
+                    {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+                </div>
+            );
+        }
+
+        // ---------- Cài đặt ----------
+        function SettingsPanel({ profile, setProfile, projects, projSyncing, projStatus, onSync, onBackup, onRestore, onReset, onDone }) {
+            const set = (k) => (e) => setProfile({ ...profile, [k]: e.target.value });
+            return (
+                <div className="px-5 py-5 space-y-6">
+                    <section className="space-y-3">
+                        <div>
+                            <h3 className="font-semibold">Thông tin cá nhân</h3>
+                            <p className="text-xs text-slate-500">In ở đầu bảng chấm công Excel. Tự lưu khi bạn gõ.</p>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-3">
+                            <Field label="Họ và tên" htmlFor="tsName"><input id="tsName" data-autofocus className={inputCls} value={profile.name} onChange={set('name')} placeholder="Họ Tên" autoComplete="name"/></Field>
+                            <Field label="Mã nhân viên" htmlFor="tsEmpId"><input id="tsEmpId" className={inputCls} value={profile.empId} onChange={set('empId')} placeholder="Mã NV"/></Field>
+                            <Field label="Chức vụ" htmlFor="tsPosition"><input id="tsPosition" className={inputCls} value={profile.position} onChange={set('position')} placeholder="Chức vụ"/></Field>
+                            <Field label="Phòng ban" htmlFor="tsDept"><input id="tsDept" className={inputCls} value={profile.dept} onChange={set('dept')} placeholder="Phòng ban"/></Field>
+                        </div>
+                    </section>
+
+                    <section className="space-y-2 pt-5 border-t border-slate-200">
+                        <h3 className="font-semibold flex items-center gap-2"><Icons.Database/> Dữ liệu Dự án</h3>
+                        <p className="text-xs text-slate-500">Dùng chung với “Thống kê giờ công dự án” (nguồn Google Drive) — không cần nhập gì thêm.</p>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button type="button" onClick={onSync} disabled={projSyncing} className={btnGhost}><Icons.Refresh/> {projSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</button>
+                            <span className="text-sm text-emerald-700">{projects.length} dự án đã lưu</span>
+                        </div>
+                        {projStatus && <p className="text-sm text-slate-600" role="status">{projStatus}</p>}
+                    </section>
+
+                    <section className="space-y-2 pt-5 border-t border-slate-200">
+                        <h3 className="font-semibold">Sao lưu &amp; khôi phục</h3>
+                        <p className="text-xs text-slate-500">Dữ liệu Timesheet chỉ nằm trên trình duyệt này — nên sao lưu định kỳ hoặc trước khi đổi máy.</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button type="button" onClick={onBackup} className={btnGhost}><Icons.Download/> Backup</button>
+                            <label className={`${btnGhost} cursor-pointer`}><Icons.Upload/> Restore<input type="file" accept=".json,application/json" onChange={onRestore} className="sr-only"/></label>
+                        </div>
+                    </section>
+
+                    <section className="space-y-2 pt-5 border-t border-slate-200">
+                        <h3 className="font-semibold text-rose-700 flex items-center gap-2"><Icons.Alert/> Vùng nguy hiểm</h3>
+                        <p className="text-xs text-slate-500">Xóa hết lịch sử chấm công và thông tin cá nhân trên máy này. Không thể khôi phục (trừ khi có bản Backup).</p>
+                        <button type="button" onClick={onReset} className="inline-flex items-center justify-center h-10 px-4 rounded-lg border border-rose-300 text-rose-700 font-semibold hover:bg-rose-50">Xóa toàn bộ dữ liệu</button>
+                    </section>
+
+                    <div className="pt-2"><button type="button" onClick={onDone} className={`${btnPrimary} w-full`}>Xong</button></div>
+                </div>
+            );
+        }
+
+        // ---------- Form thêm / sửa chấm công ----------
+        function EntryForm({ onSave, onCancel, onDelete, defaultDate, initialData, entries, projects }) {
+            const [formData, setFormData] = useState({
+                date: defaultDate, startTime: '08:00', endTime: '17:00', breakTime: '1',
                 otType: 'NORMAL', projectName: '', workNumber: '', activityCode: '1110', dutyHour: '0', remarks: ''
             });
             const [customCode, setCustomCode] = useState('');
@@ -529,12 +936,12 @@
             // === AUTO-SELECT OT LOGIC ===
             const determineOTType = useCallback((dateStr, startTime) => {
                 if (!dateStr || !startTime) return 'NORMAL';
-                
+
                 const [dy, dm, dd] = dateStr.split('-').map(Number);
                 const day = new Date(dy, dm - 1, dd).getDay(); // 0 = Sun, 6 = Sat (local, TZ-safe)
                 const isHol = isVietnameseHoliday(dateStr);
                 const startHour = parseInt(startTime.split(':')[0]);
-                
+
                 // NIGHT SHIFT (Starts >= 22:00)
                 if (startHour >= 22) {
                     if (isHol) return 'OT6'; // Holiday Night
@@ -544,28 +951,28 @@
 
                 // DAY SHIFT
                 if (isHol) return 'OT3'; // Holiday Day
-                
+
                 if (day === 0) return 'OT2'; // Sunday Day
-                
+
                 if (day === 6) {
                     // Saturday: Afternoon (>= 13:00) is OT2
                     if (startHour >= 13) return 'OT2';
                     return 'NORMAL'; // Saturday Morning is usually Normal
                 }
-                
+
                 // Mon-Fri
                 if (startHour >= 17) return 'OT1'; // Normal Day Evening
-                
+
                 return 'NORMAL';
             }, []);
 
             // Auto-run logic when Date or StartTime changes
             useEffect(() => {
                 const suggested = determineOTType(formData.date, formData.startTime);
-                
+
                 // SPECIAL CASE: Don't auto-switch if user selected OT7 and suggestion is OT4
                 if (formData.otType === 'OT7' && suggested === 'OT4') return;
-                
+
                 if (formData.otType !== suggested) {
                     // NEW LOGIC: Normal -> BreakTime = 1, OT -> BreakTime = 0
                     const newBreakTime = (suggested !== 'NORMAL') ? '0' : '1';
@@ -573,7 +980,7 @@
                 }
             }, [formData.date, formData.startTime, determineOTType]);
 
-            useEffect(() => { 
+            useEffect(() => {
                 if (initialData) {
                     setFormData(initialData);
                     const isStandard = ACTIVITY_META.some(opt => opt.id === initialData.activityCode);
@@ -581,7 +988,7 @@
                 } else {
                     fillFromDate(defaultDate);
                 }
-            }, [initialData]); 
+            }, [initialData]);
 
             const fillFromDate = (targetDate) => {
                  if (!entries || entries.length === 0) {
@@ -630,7 +1037,7 @@
             const handleOtChange = (e) => {
                 const type = e.target.value;
                 let newData = { ...formData, otType: type };
-                
+
                 // NEW LOGIC: Manual OT Selection
                 if (type !== 'NORMAL') {
                     newData.breakTime = '0';
@@ -660,7 +1067,9 @@
                 setSuggestions([]);
             };
 
-            const handleSubmit = () => {
+            const handleSubmit = (ev) => {
+                if (ev) ev.preventDefault();
+                if (!formData.date) return alert("Vui lòng chọn ngày!");
                 const finalData = { ...formData };
                 if (finalData.activityCode === 'OTHER') {
                     if(!customCode) return alert("Vui lòng nhập mã code!");
@@ -669,59 +1078,98 @@
                 onSave(finalData);
             };
 
+            const set = (k) => (e) => setFormData({ ...formData, [k]: e.target.value });
+            const hours = calculateHours(formData.startTime, formData.endTime, formData.breakTime);
+            const w = formData.date ? weekdayOf(formData.date) : null;
+            const hol = isVietnameseHoliday(formData.date);
+
             return (
-                <div className="bg-white p-4 rounded-xl shadow-lg animate-fade-in-up">
-                    <h2 className="font-bold text-lg mb-4 text-blue-800 border-b pb-2">{initialData ? 'Sửa' : 'Thêm'}</h2>
-                    <div className="space-y-4">
-                        <div><label className="text-xs font-bold text-slate-500">NGÀY</label><input type="date" value={formData.date} onChange={handleDateChange} className="w-full border p-3 rounded-lg"/></div>
-                        <div className="grid grid-cols-3 gap-2">
-                            <div><label className="text-xs font-bold text-slate-500">TỪ</label><input type="time" value={formData.startTime} onChange={e=>setFormData({...formData, startTime:e.target.value})} className="w-full border p-2 rounded-lg text-center"/></div>
-                            <div><label className="text-xs font-bold text-slate-500">ĐẾN</label><input type="time" value={formData.endTime} onChange={e=>setFormData({...formData, endTime:e.target.value})} className="w-full border p-2 rounded-lg text-center"/></div>
-                            <div><label className="text-xs font-bold text-slate-500">NGHỈ</label><input type="number" step="0.5" value={formData.breakTime} onChange={e=>setFormData({...formData, breakTime:e.target.value})} className="w-full border p-2 rounded-lg text-center"/></div>
-                        </div>
-                        <div><label className="text-xs font-bold text-slate-500">TRỰC (STANDBY)</label><input type="number" step="0.5" value={formData.dutyHour} onChange={e=>setFormData({...formData, dutyHour:e.target.value})} className="w-full border p-3 rounded-lg"/></div>
-                        
-                        <div>
-                            <label className="text-xs font-bold text-slate-500">LOẠI GIỜ (Tự động đề xuất)</label>
-                            <select value={formData.otType} onChange={handleOtChange} className="w-full border p-3 rounded-lg bg-white">
-                                {OT_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
-                            </select>
-                            {isVietnameseHoliday(formData.date) && <p className="text-xs text-red-500 mt-1">* Phát hiện ngày lễ VN: {formData.date}</p>}
-                        </div>
-                        
-                        <div className="pt-2 border-t space-y-3">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500">MÃ CÔNG VIỆC</label>
-                                <select value={formData.activityCode} onChange={handleActivityCodeChange} className="w-full border p-3 rounded-lg font-bold text-blue-900">
+                <form onSubmit={handleSubmit} className="min-h-full flex flex-col" noValidate>
+                    <div className="px-5 py-5 space-y-6 flex-1">
+                        {/* Thời gian */}
+                        <section className="space-y-3">
+                            <h3 className="font-semibold text-slate-900">Thời gian</h3>
+                            <Field label="Ngày" htmlFor="tsDate"
+                                hint={w === null ? null : `${WEEKDAYS_LONG[w]}${hol ? ' — ngày lễ Việt Nam' : ''}`}>
+                                <input id="tsDate" data-autofocus type="date" value={formData.date} onChange={handleDateChange} className={inputCls} required/>
+                            </Field>
+                            <div className="grid grid-cols-3 gap-3">
+                                <Field label="Từ" htmlFor="tsFrom"><input id="tsFrom" type="time" value={formData.startTime} onChange={set('startTime')} className={`${inputCls} text-center px-1`}/></Field>
+                                <Field label="Đến" htmlFor="tsTo"><input id="tsTo" type="time" value={formData.endTime} onChange={set('endTime')} className={`${inputCls} text-center px-1`}/></Field>
+                                <Field label="Nghỉ (giờ)" htmlFor="tsBreak"><input id="tsBreak" type="number" min="0" step="0.5" inputMode="decimal" value={formData.breakTime} onChange={set('breakTime')} className={`${inputCls} text-center`}/></Field>
+                            </div>
+                            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                                <span className="text-slate-600">Số giờ tính công</span>
+                                <span className="font-semibold tabular-nums">{fmtH(hours)} giờ</span>
+                            </div>
+                            <div className="grid sm:grid-cols-2 gap-3">
+                                <Field label="Loại giờ" htmlFor="tsOt" hint="Tự động đề xuất theo ngày & giờ bắt đầu.">
+                                    <select id="tsOt" value={formData.otType} onChange={handleOtChange} className={inputCls}>
+                                        {OT_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
+                                    </select>
+                                </Field>
+                                <Field label="Giờ trực (standby)" htmlFor="tsDuty">
+                                    <input id="tsDuty" type="number" min="0" step="0.5" inputMode="decimal" value={formData.dutyHour} onChange={set('dutyHour')} className={inputCls}/>
+                                </Field>
+                            </div>
+                        </section>
+
+                        {/* Công việc */}
+                        <section className="space-y-3 pt-5 border-t border-slate-200">
+                            <h3 className="font-semibold text-slate-900">Công việc</h3>
+                            <Field label="Mã công việc" htmlFor="tsAct">
+                                <select id="tsAct" value={formData.activityCode} onChange={handleActivityCodeChange} className={`${inputCls} font-medium text-blue-900`}>
                                     {ACTIVITY_META.map(opt => <option key={opt.id} value={opt.id}>{opt.desc}</option>)}
                                     <option value="OTHER">Khác</option>
                                 </select>
-                                {formData.activityCode === 'OTHER' && <input type="text" value={customCode} onChange={e=>setCustomCode(e.target.value)} placeholder="Nhập mã code" className="mt-2 w-full border p-2 rounded text-sm bg-yellow-50"/>}
-                            </div>
-                            
-                            <div className="relative">
-                                <label className="text-xs font-bold text-slate-500">TÊN DỰ ÁN</label>
-                                <input type="text" value={formData.projectName} onChange={e=>handleProjectNameSearch(e.target.value)} className="w-full border p-3 rounded-lg" placeholder="Nhập tên dự án..."/>
-                                {suggestions.length > 0 && <div className="suggestion-list">{suggestions.map((p, idx) => <div key={idx} onClick={() => selectProject(p)} className="suggestion-item"><span className="font-bold">{p.projectName}</span><br/><span className="text-gray-500 text-xs">{p.workNumber}</span></div>)}</div>}
-                            </div>
+                                {formData.activityCode === 'OTHER' && <input type="text" value={customCode} onChange={e=>setCustomCode(e.target.value)} placeholder="Nhập mã code" aria-label="Mã công việc khác" className={`${inputCls} mt-2 bg-amber-50`}/>}
+                            </Field>
 
-                            <div>
-                                <label className="text-xs font-bold text-slate-500">WORK NUMBER / WBS / MÃ CHI PHÍ</label>
+                            <Field label="Tên dự án" htmlFor="tsProject" hint={projects.length ? `Gõ tên hoặc WBS để chọn trong ${projects.length} dự án.` : null}>
+                                <div className="relative">
+                                    <input id="tsProject" type="text" autoComplete="off" value={formData.projectName}
+                                        role="combobox" aria-expanded={suggestions.length > 0} aria-controls="tsProjectList" aria-autocomplete="list"
+                                        onChange={e=>handleProjectNameSearch(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter' && suggestions.length) { e.preventDefault(); selectProject(suggestions[0]); } if (e.key === 'Escape' && suggestions.length) { e.stopPropagation(); setSuggestions([]); } }}
+                                        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+                                        className={inputCls} placeholder="Nhập tên dự án..."/>
+                                    {suggestions.length > 0 && (
+                                        <div id="tsProjectList" className="suggestion-list" role="listbox">
+                                            {suggestions.slice(0, 50).map((p, idx) => (
+                                                <div key={idx} role="option" aria-selected={idx === 0} onMouseDown={(ev) => { ev.preventDefault(); selectProject(p); }} className="suggestion-item">
+                                                    <span className="font-semibold">{p.projectName}</span><br/><span className="text-slate-500 text-xs font-mono">{p.workNumber}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </Field>
+
+                            <Field label="Work Number / WBS / Mã chi phí" htmlFor="tsWbs">
                                 {isHR ? (
-                                    <select value={formData.workNumber} onChange={e=>setFormData({...formData, workNumber:e.target.value})} className="w-full border p-3 rounded-lg bg-white">
+                                    <select id="tsWbs" value={formData.workNumber} onChange={set('workNumber')} className={inputCls}>
                                         <option value="">-- Chọn loại nghỉ --</option>
                                         {HR_WORK_NUMBERS.map(wn => <option key={wn} value={wn}>{wn}</option>)}
                                     </select>
                                 ) : (
-                                    <input type="text" value={formData.workNumber} onChange={e=>setFormData({...formData, workNumber:e.target.value})} className="w-full border p-3 rounded-lg"/>
+                                    <input id="tsWbs" type="text" value={formData.workNumber} onChange={set('workNumber')} className={`${inputCls} font-mono`}/>
                                 )}
-                            </div>
-                            
-                            <div><label className="text-xs font-bold text-slate-500">GHI CHÚ (REMARKS)</label><input type="text" value={formData.remarks || ''} onChange={e=>setFormData({...formData, remarks:e.target.value})} className="w-full border p-3 rounded-lg" placeholder="Ghi chú thêm..."/></div>
-                        </div>
-                        <div className="flex gap-3 pt-4"><button onClick={onCancel} className="flex-1 p-3 border rounded-lg font-bold text-slate-500">Hủy</button><button onClick={handleSubmit} className="flex-1 p-3 bg-blue-600 text-white rounded-lg font-bold shadow">Lưu</button></div>
+                            </Field>
+
+                            <Field label="Ghi chú" htmlFor="tsRemarks">
+                                <input id="tsRemarks" type="text" value={formData.remarks || ''} onChange={set('remarks')} className={inputCls} placeholder="Ghi chú thêm..."/>
+                            </Field>
+                        </section>
                     </div>
-                </div>
+
+                    <div className="sticky bottom-0 bg-white border-t border-slate-200 px-5 py-3 flex items-center gap-3">
+                        {onDelete && (
+                            <button type="button" onClick={onDelete} className="h-11 px-3 rounded-lg text-rose-700 font-semibold hover:bg-rose-50 inline-flex items-center gap-2"><Icons.Trash/> Xóa</button>
+                        )}
+                        <button type="button" onClick={onCancel} className={`${btnGhost} h-11 flex-1 md:flex-none md:ml-auto`}>Hủy</button>
+                        <button type="submit" className={`${btnPrimary} h-11 flex-1 md:flex-none md:min-w-[8rem]`}>Lưu</button>
+                    </div>
+                </form>
             );
         }
 
