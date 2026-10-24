@@ -7,6 +7,10 @@
 <!-- Bộ công cụ: chỉ Quản lý dự án và Site Sup (và quản trị viên) được vào — xem js/session.js -->
 <script src="../../js/session.js?v=35"></script>
 <script>Session.guard('tiendotm');</script>
+<!-- Dữ liệu Dự án dùng CHUNG với "Thống kê giờ công dự án" (cùng IndexedDB, nguồn Google Drive) -->
+<script src="../../js/config.js?v=36"></script>
+<script src="../../js/db.js?v=36"></script>
+<script src="../../js/cloud.js?v=36"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -31,6 +35,19 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--focus);outline-o
 input[type=number]{font-family:var(--mono)}
 input[type=date]{font-family:var(--mono)}
 input[type=checkbox],input[type=radio]{width:auto}
+/* Bộ công cụ: chọn dự án từ dữ liệu Dự án dùng chung */
+.pp{margin:4px 0 16px;padding:14px;border:1px solid var(--line);border-radius:6px;background:#f7f9fc}
+.pp-opt{text-transform:none;letter-spacing:0;font-weight:400}
+.pp-box{position:relative}
+.pp-list{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);margin:0;padding:4px;list-style:none;
+  background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px rgba(23,33,47,.12);max-height:290px;overflow:auto}
+.pp-list li{padding:8px 10px;border-radius:4px;cursor:pointer}
+.pp-list li[aria-selected=true],.pp-list li:hover{background:var(--sec)}
+.pp-list .pp-n{font-weight:600}
+.pp-list .pp-m{display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.pp-list .pp-empty{color:var(--muted);cursor:default;background:none}
+.pp-note{margin-top:8px;font-size:12.5px;color:var(--muted)}
+.pp-note.ok{color:var(--ink)}
 
 /* ===== App chrome ===== */
 .topbar{background:var(--navy);color:#fff;padding:14px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -223,6 +240,18 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:30px 0;font
   <div class="panel">
     <h2><span class="no">01</span>Nhập hợp đồng &amp; quét thông tin (PDF hoặc ảnh)</h2>
     <p class="hint">Phần mềm quét file bằng OCR ngay trên máy của bạn (không upload lên server), tự nhận diện: thông tin dự án, khách hàng, hợp đồng, thiết bị, thời gian thực hiện, điều kiện thi công. Dữ liệu này dùng cho cả hai chức năng. Có thể bỏ qua và nhập tay.</p>
+    <!-- Bộ công cụ: chọn dự án từ dữ liệu Dự án dùng chung (Yan_COM) để điền sẵn -->
+    <div class="pp" id="projPick">
+      <div class="f">
+        <label for="ppInput">Chọn dự án từ danh sách chung <span class="pp-opt">(tuỳ chọn)</span></label>
+        <div class="pp-box">
+          <input id="ppInput" type="text" autocomplete="off" placeholder="Gõ tên dự án hoặc WBS…"
+            role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ppList">
+          <ul class="pp-list" id="ppList" role="listbox" hidden></ul>
+        </div>
+      </div>
+      <div class="pp-note" id="ppNote" role="status">Điền sẵn <b>Tên dự án</b>, <b>Bên Mua / Chủ đầu tư</b> và <b>Thiết bị</b> từ dữ liệu Dự án (cùng nguồn với Thống kê giờ công). Vẫn có thể quét hợp đồng bên dưới để lấy thêm thông tin.</div>
+    </div>
     <div class="drop" id="drop">
       <div class="big">Kéo thả file hợp đồng vào đây</div>
       <div class="small">hoặc bấm để chọn file · PDF / JPG / PNG · quét tối đa 20 trang đầu</div>
@@ -2514,6 +2543,107 @@ document.getElementById("holidays").oninput=function(){document.getElementById("
 autoFillHolidays(true); // tự liệt kê ngày nghỉ lễ VN ngay khi mở
 renderSigners();renderSteps();renderFactors();renderQElevs();renderQParties();renderQExtras();renderQPhases();pushForm();showLogo();
 showScreen("screenContract"); // bắt đầu ở bước nhập hợp đồng
+</script>
+<script>
+/* ================================================================
+   BỘ CÔNG CỤ: CHỌN DỰ ÁN TỪ DỮ LIỆU DỰ ÁN DÙNG CHUNG
+   Cùng kho với "Thống kê giờ công dự án" (IndexedDB, nguồn Google Drive).
+   Điền sẵn: Tên dự án (luôn), Bên Mua / Chủ đầu tư và Thiết bị (chỉ khi ô
+   đang trống hoặc vẫn là giá trị lần chọn trước → không đè kết quả OCR / sửa tay).
+================================================================ */
+(function () {
+  const input = document.getElementById('ppInput');
+  const list = document.getElementById('ppList');
+  const note = document.getElementById('ppNote');
+  if (!input) return;
+
+  const plain = s => String(s == null ? '' : s).toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+  const html = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  let projects = null, loading = null, shown = [], active = -1;
+  const lastFilled = {}; // giá trị đã điền ở lần chọn trước
+
+  function loadProjects() {
+    if (projects) return Promise.resolve(projects);
+    if (loading) return loading;
+    loading = (async () => {
+      if (typeof DB === 'undefined') return (projects = []);
+      let rows = await DB.getAll('projects').catch(() => []);
+      // máy chưa có dữ liệu: tải 1 lần từ Google Drive (giống Thống kê giờ công / Timesheet)
+      if (!rows.length && typeof Cloud !== 'undefined' && Cloud.configured()) {
+        try { await Cloud.loadFromDrive(); rows = await DB.getAll('projects'); } catch (e) { /* ngoại tuyến / hết hạn mức */ }
+      }
+      projects = rows
+        .map(p => ({
+          wbs: String(p.wbs == null ? '' : p.wbs).trim(),
+          name: String(p.projectName == null ? '' : p.projectName).trim(),
+          customer: String(p.customer == null ? '' : p.customer).trim(),
+          product: String(p.productLine == null ? '' : p.productLine).trim(),
+        }))
+        .filter(p => p.wbs && p.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+      projects.forEach(p => { p.key = plain(p.name + ' ' + p.wbs + ' ' + p.customer); });
+      return projects;
+    })();
+    return loading;
+  }
+
+  function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); active = -1; }
+  function paint() {
+    list.innerHTML = shown.length
+      ? shown.map((p, i) => `<li role="option" id="pp-o${i}" data-i="${i}" aria-selected="${i === active}">
+          <span class="pp-n">${html(p.name)}</span>
+          <span class="pp-m">${html(p.wbs)}${p.customer ? ' · ' + html(p.customer) : ''}</span></li>`).join('')
+      : `<li class="pp-empty">${projects && projects.length ? 'Không tìm thấy dự án phù hợp' : 'Chưa có dữ liệu Dự án trên máy này'}</li>`;
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    if (active >= 0) input.setAttribute('aria-activedescendant', 'pp-o' + active); else input.removeAttribute('aria-activedescendant');
+  }
+  async function search() {
+    const all = await loadProjects();
+    const terms = plain(input.value).split(/\s+/).filter(Boolean);
+    shown = (terms.length ? all.filter(p => terms.every(t => p.key.includes(t))) : all).slice(0, 8);
+    active = shown.length ? 0 : -1;
+    paint();
+  }
+
+  function choose(p) {
+    if (!p) return;
+    pullForm(); // giữ những gì người dùng đã gõ trên form
+    const P = S.project, done = [];
+    const fill = (key, val, label, always) => {
+      if (!val) return;
+      if (always || !P[key] || P[key] === lastFilled[key]) { P[key] = val; lastFilled[key] = val; done.push(label); }
+    };
+    fill('name', p.name, 'Tên dự án', true);
+    fill('buyer', p.customer, 'Bên Mua / Chủ đầu tư');
+    fill('equip', p.product, 'Thiết bị');
+    P.wbs = p.wbs;
+    pushForm();
+    input.value = p.name;
+    close();
+    note.className = 'pp-note ok';
+    note.innerHTML = `✓ Đã chọn <b>${html(p.name)}</b> (WBS ${html(p.wbs)}) — đã điền: ${done.map(html).join(', ')}. ` +
+      'Kiểm tra lại ở bước kiểm tra dữ liệu.';
+  }
+
+  input.addEventListener('focus', search);
+  input.addEventListener('input', search);
+  input.addEventListener('keydown', e => {
+    if (list.hidden && (e.key === 'ArrowDown' || e.key === 'Enter')) { search(); return; }
+    if (e.key === 'ArrowDown' && shown.length) { e.preventDefault(); active = (active + 1) % shown.length; paint(); }
+    else if (e.key === 'ArrowUp' && shown.length) { e.preventDefault(); active = (active - 1 + shown.length) % shown.length; paint(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); choose(shown[active]); }
+    else if (e.key === 'Escape') close();
+  });
+  // mousedown (không phải click) để chọn trước khi ô nhập mất focus
+  list.addEventListener('mousedown', e => {
+    const li = e.target.closest('li[data-i]');
+    if (li) { e.preventDefault(); choose(shown[+li.dataset.i]); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 120));
+})();
 </script>
 </body>
 </html>
