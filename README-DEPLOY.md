@@ -215,6 +215,38 @@ Chờ 1-2 phút để Pages cập nhật.
 3. Bấm **Lưu lên Drive** → đăng nhập Google (lần đầu mỗi phiên) → xong.
    Mọi người tải lại trang là thấy dữ liệu mới.
 
+**Chặn ghi đè nhầm:** trước khi lưu, app tải bản đang có trên Drive để so sánh. Nếu máy này **mất hơn 20%**
+nhân viên / dự án / dòng bảng công (với loại có từ 20 dòng trở lên; loại ít hơn thì chỉ khi máy này trống hẳn),
+hoặc bản trên Drive **mới hơn** bản máy này đang có, hoặc không đọc được bản trên Drive → app **dừng lại**, liệt kê
+chênh lệch và chỉ lưu khi gõ `LUU`. Thường nên bấm Huỷ, tải lại trang (lấy bản mới nhất) rồi làm lại; gõ `LUU`
+khi cố ý (vừa khôi phục phiên bản cũ, hoặc vừa xoá dữ liệu sai).
+
+## Giảm rủi ro khi còn dùng Google Drive
+
+File dữ liệu trên Drive **ai có link cũng tải được** và đăng nhập Bộ công cụ chỉ là họ tên + mã NV, nên đây chỉ là
+lớp bảo vệ tạm thời. Ba việc admin nên làm (mỗi việc vài phút):
+
+1. **Giới hạn API key** — [console.cloud.google.com](https://console.cloud.google.com) → đúng project →
+   **APIs & Services → Credentials** → bấm vào API key đang dùng:
+   - *Application restrictions*: **Websites** → **Add** `https://xaxa9ztb.github.io/*` (thêm `http://localhost:5173/*`
+     nếu còn chạy thử trên máy) → *API restrictions*: **Restrict key** → chỉ chọn **Google Drive API** → **Save**.
+   - Mở lại Bộ công cụ, bấm **Đồng bộ ngay** ở trang chủ để chắc vẫn tải được (thay đổi có thể mất ~5 phút).
+   - Chỉ chặn người khác dùng key của bạn làm hết hạn mức; **không** làm file Drive hết công khai.
+2. **Đổi mật khẩu admin dài** (từ 16 ký tự, vd. một câu 4–5 từ không dấu): mở trang Thống kê giờ công → F12 →
+   Console → `await hashPassword('mật-khẩu-mới')` → dán kết quả vào `ADMIN_PASSWORD_HASH` của `js/config.js` trên
+   GitHub → Commit → chờ 1–2 phút, tải lại trang **2 lần** (lần đầu trình duyệt còn dùng bản lưu đệm).
+   Nếu đã triển khai kho Quản lý dự án (`PM_SYNC_URL`): tạo lại `ADMIN_KEY` theo
+   [`apps-script/HUONG-DAN.md`](tools/projectplan/apps-script/HUONG-DAN.md) bước 6 bằng mật khẩu mới.
+3. **Tài khoản Google dự phòng** (khi mất tài khoản chính vẫn cứu được dữ liệu):
+   - drive.google.com → chuột phải `timesheet-data.json` → **Chia sẻ** → thêm email dự phòng, quyền **Người chỉnh sửa**.
+   - Google Cloud Console → **IAM & Admin → IAM** → **Grant access** → email dự phòng, vai trò **Owner**.
+   - **OAuth consent screen → Test users** → thêm email dự phòng.
+   - Tài khoản dự phòng dùng để **giữ quyền truy cập và lịch sử phiên bản**, không dùng để bấm *Lưu lên Drive*
+     hằng ngày (quyền `drive.file` của app chỉ ghi được file do chính tài khoản đó tạo qua app). Khi mất tài khoản chính:
+     đăng nhập bằng tài khoản dự phòng, tải file về máy → **Cập nhật Data → ⬆ Nạp bản sao lưu (.json)** (nhận được
+     cả file tải thẳng từ Drive) → `await Cloud.createDriveFile()`
+     (bước 4) → thay `DRIVE_FILE_ID` mới vào `config.js`.
+
 ## Sự cố thường gặp
 
 | Hiện tượng | Nguyên nhân / cách xử lý |
