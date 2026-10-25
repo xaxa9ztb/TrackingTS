@@ -53,10 +53,10 @@ function need(me, ...roles) {
 }
 
 function employeeOut(e, full) {
-  const base = { empId: e.emp_id, name: e.full_name, position: e.position };
+  const base = { empId: e.emp_id, name: e.full_name, position: e.position, supervisor: e.supervisor, hireDate: e.hire_date || '', startDate: e.start_date || '' };
   if (!full) return base;
   return {
-    ...base, supervisor: e.supervisor, email: e.email || '', roleOverride: e.role_override,
+    ...base, email: e.email || '', roleOverride: e.role_override,
     active: !!e.active, roles: e.role_override ? (e.role_override === 'staff' ? [] : [e.role_override]) : rolesFromPosition(e.position),
     updatedAt: e.updated_at,
   };
@@ -136,7 +136,7 @@ async function putProjectStaff(env, me, wbs, request) {
 // Gói miễn phí của D1 giới hạn số câu lệnh mỗi lần gọi và 100 tham số mỗi câu lệnh, nên ghi nhiều dòng
 // một câu lệnh (tối đa 100 tham số) và giới hạn số câu lệnh mỗi yêu cầu — trang quản trị gửi từng đợt nhỏ.
 const MAX_STMTS = 40;
-const EMP_PER_STMT = 20;      // 5 tham số × 20 = 100
+const EMP_PER_STMT = 14;      // 7 tham số × 14 = 98
 const PROJ_PER_STMT = 12;     // 8 tham số × 12 = 96
 const IDS_PER_STMT = 90;
 
@@ -161,7 +161,7 @@ async function importData(env, me, request) {
   const empRows = new Map();   // emp_id → dòng (dòng sau đè dòng trước)
   for (const e of employees) {
     const id = str(e && e.empId, 50), name = str(e && e.fullName, 200);
-    if (id && name) empRows.set(id, [id, name, str(e.position, 200), str(e.supervisor, 200), t]);
+    if (id && name) empRows.set(id, [id, name, str(e.position, 200), str(e.supervisor, 200), str(e.hireDate, 40), str(e.startDate, 40), t]);
   }
   const projRows = new Map();
   for (const p of projects) {
@@ -174,7 +174,7 @@ async function importData(env, me, request) {
   }
 
   const parts = [
-    ...chunks([...empRows.values()], EMP_PER_STMT).map(r => multiRow('employees', ['emp_id', 'full_name', 'position', 'supervisor', 'updated_at'], 'emp_id', r)),
+    ...chunks([...empRows.values()], EMP_PER_STMT).map(r => multiRow('employees', ['emp_id', 'full_name', 'position', 'supervisor', 'hire_date', 'start_date', 'updated_at'], 'emp_id', r)),
     ...chunks([...projRows.values()], PROJ_PER_STMT).map(r => multiRow('projects', ['wbs', 'project_name', 'project_number', 'product_line', 'customer', 'supervisor', 'extra', 'updated_at'], 'wbs', r)),
   ];
 
@@ -365,6 +365,39 @@ async function assignPmAll(env, me, request) {
   return json({ ok: true, ...summary });
 }
 
+// ---------- kho dữ liệu chung của "Quản lý dự án" (giao thức giống Apps Script cũ: load / save + số phiên bản) ----------
+const PM_KEY = 'projectplan';
+const PM_MAX_BYTES = 1500000;       // D1: một dòng tối đa ~2 MB
+async function pmStore(env, me, request) {
+  if (!(me.isAdmin || me.roles.includes('pm') || me.roles.includes('sitesup'))) {
+    return json({ ok: false, denied: true, error: 'Chỉ Quản lý dự án và Site Sup được dùng kho dữ liệu này' });
+  }
+  const body = await readJson(request);
+  const row = await env.DB.prepare('SELECT version, data, saved_at, saved_by FROM kv_store WHERE key = ?').bind(PM_KEY).first();
+  const cur = row ? { version: row.version, updatedAt: row.saved_at, updatedBy: row.saved_by, data: row.data ? JSON.parse(row.data) : null }
+    : { version: 0, updatedAt: '', updatedBy: '', data: null };
+  if (body.action === 'load') return json({ ok: true, ...cur, user: me.name });
+  if (body.action !== 'save') return json({ ok: false, error: 'Thao tác không hỗ trợ' });
+
+  const d = body.data;
+  if (!d || !Array.isArray(d.fitters) || !Array.isArray(d.projects) || typeof d.alloc !== 'object' || d.alloc === null || Array.isArray(d.alloc)) {
+    return json({ ok: false, error: 'Dữ liệu không hợp lệ' });
+  }
+  const text = JSON.stringify({ fitters: d.fitters, projects: d.projects, alloc: d.alloc });
+  if (text.length > PM_MAX_BYTES) return json({ ok: false, error: 'Dữ liệu quá lớn để lưu một lần' });
+  const base = Number(body.baseVersion) || 0;
+  const t = now();
+  // Ghi có điều kiện theo số phiên bản (nguyên tử): có người lưu trước thì không ghi, trả bản mới nhất để gộp
+  const res = base === 0
+    ? await env.DB.prepare('INSERT INTO kv_store (key, version, data, saved_at, saved_by) VALUES (?, 1, ?, ?, ?) ON CONFLICT(key) DO NOTHING').bind(PM_KEY, text, t, me.name).run()
+    : await env.DB.prepare('UPDATE kv_store SET version = version + 1, data = ?, saved_at = ?, saved_by = ? WHERE key = ? AND version = ?').bind(text, t, me.name, PM_KEY, base).run();
+  if (!res.meta || res.meta.changes !== 1) {
+    const now2 = await env.DB.prepare('SELECT version, data, saved_at, saved_by FROM kv_store WHERE key = ?').bind(PM_KEY).first();
+    return json({ ok: false, conflict: true, version: now2 ? now2.version : 0, updatedAt: now2 ? now2.saved_at : '', updatedBy: now2 ? now2.saved_by : '', data: now2 && now2.data ? JSON.parse(now2.data) : null });
+  }
+  return json({ ok: true, version: base + 1, updatedAt: t, updatedBy: me.name });
+}
+
 async function patchEmployee(env, me, empId, request) {
   need(me);
   const body = await readJson(request);
@@ -438,6 +471,7 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/projects\/([^/]+)\/staff$/)) && method === 'PUT') return await putProjectStaff(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/import' && method === 'POST') return await importData(env, me, request);
     if (path === '/api/admin/emails' && method === 'POST') return await setEmails(env, me, request);
+    if (path === '/api/pm-store' && method === 'POST') return await pmStore(env, me, request);
     if (path === '/api/projects/pm' && method === 'POST') return await assignPmAll(env, me, request);
     if (path === '/api/supervisors' && method === 'GET') return await listSupervisors(env, me);
     if (path === '/api/supervisors/apply' && method === 'POST') return await applySupervisors(env, me, request);

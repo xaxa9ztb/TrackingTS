@@ -285,6 +285,13 @@
       <div class="note note-warn" id="endedNote" role="status" hidden>Phiên đăng nhập đã kết thúc vì mã nhân viên không còn trong danh sách nhân sự. Nếu có nhầm lẫn, vui lòng liên hệ quản trị viên.</div>
       <div class="note note-info" id="nextNote" hidden></div>
 
+      <div id="serverLogin" hidden>
+        <h2>Đang đăng nhập…</h2>
+        <p class="sub" id="serverLoginMsg" role="status" aria-live="polite">Đang kiểm tra tài khoản của bạn.</p>
+        <button class="btn-primary" type="button" id="serverRetry" hidden>Thử lại</button>
+        <button type="button" class="link" id="serverLogout" hidden>Đăng xuất / dùng email khác</button>
+      </div>
+
       <form id="formUser" novalidate>
         <h2 id="loginTitle">Đăng nhập</h2>
         <p class="sub">Dùng họ tên đầy đủ và mã số nhân viên theo dữ liệu nhân sự.</p>
@@ -365,8 +372,8 @@
 
 <script src="js/config.js?v=37"></script>
 <script src="js/db.js?v=36"></script>
-<script src="js/cloud.js?v=39"></script>
-<script src="js/session.js?v=41"></script>
+<script src="js/cloud.js?v=40"></script>
+<script src="js/session.js?v=42"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -438,7 +445,44 @@
     if (s) renderHome(s); else renderLogin();
   }
 
+  // ---------- bản máy chủ: không có form; danh tính do Cloudflare Access xác thực, máy chủ cho biết vai trò ----------
+  let booting = false;
+  async function serverBoot() {
+    if (booting) return;
+    booting = true;
+    const msg = $('serverLoginMsg'), retry = $('serverRetry'), out = $('serverLogout');
+    retry.hidden = true; out.hidden = true; msg.textContent = 'Đang kiểm tra tài khoản của bạn.';
+    const r = await Session.boot();
+    booting = false;
+    if (r.status === 'ok') {
+      await syncIfStale(true);
+      afterLogin();
+      return;
+    }
+    msg.textContent = r.status === 'denied' ? r.error
+      : r.status === 'login' ? 'Phiên đăng nhập đã hết hạn. Bấm “Thử lại” để đăng nhập lại.'
+      : r.status === 'offline' ? 'Không có kết nối mạng. Kiểm tra mạng rồi bấm “Thử lại”.'
+      : (r.error || 'Chưa đăng nhập được. Bấm “Thử lại”.');
+    retry.hidden = r.status === 'denied';
+    out.hidden = r.status !== 'denied';
+  }
+  // Danh sách nhân viên / dự án trên máy cũ quá 1 giờ (hoặc chưa có) → tải lại từ máy chủ
+  async function syncIfStale(wait) {
+    if (!Session.SERVER) return;
+    const at = Cloud.getLastSyncedAt();
+    const stale = !at || Date.now() - new Date(at).getTime() > 36e5;
+    if (!stale) return;
+    const run = Cloud.loadFromDrive().then(() => { if (!$('viewHome').hidden) renderSync(); }).catch(() => { /* dùng dữ liệu trên máy */ });
+    if (wait) await run;
+  }
+  $('serverRetry').addEventListener('click', () => { if (Session.SERVER) location.reload(); });
+  $('serverLogout').addEventListener('click', () => Session.logout());
+
   function renderLogin() {
+    if (Session.SERVER) {
+      $('formUser').hidden = true; $('formAdmin').hidden = true; $('serverLogin').hidden = false;
+      serverBoot();
+    }
     const next = params.get('next');
     // các chức năng dạng biểu tượng: bấm chọn → đăng nhập xong mở thẳng chức năng đó
     $('introList').innerHTML = ORDER.map(id => {
@@ -461,6 +505,7 @@
   }
 
   function renderHome(s) {
+    syncIfStale(false);
     $('userName').textContent = s.name;
     $('userRole').textContent = Session.roleLabel(s);
     $('userAvatar').textContent = initial(s.name);
@@ -550,8 +595,8 @@
     try { [emp, proj] = (await Promise.all([DB.getAll('employees'), DB.getAll('projects')])).map(x => (x || []).length); } catch (e) { /* chưa có dữ liệu */ }
     const s = Session.current();
     $('syncCounts').innerHTML = `${emp} nhân viên · ${proj} dự án trên máy này — dùng cho Thống kê giờ công, Timesheet, Hồ sơ chất lượng, Quản lý dự án.` +
-      (s && s.admin ? ` <a class="sync-admin" href="tracking.html">Cập nhật dữ liệu lên Drive (admin) →</a>` +
-        ` <a class="sync-admin" href="tools/accounts/">Tài khoản máy chủ mới (admin) →</a>` : '');
+      (s && s.admin && !Session.SERVER ? ` <a class="sync-admin" href="tracking.html">Cập nhật dữ liệu lên Drive (admin) →</a>` : '') +
+      (s && Session.SERVER && (s.admin || (Session.roles(s) || []).includes('pm')) ? ` <a class="sync-admin" href="tools/accounts/">Tài khoản & phân quyền →</a>` : '');
   }
   $('btnSync').addEventListener('click', async () => {
     const btn = $('btnSync');

@@ -11,7 +11,9 @@ const Auth = (() => {
   function applyUI() {
     document.body.classList.toggle('admin-mode', admin);
     const btnAdmin = document.getElementById('btnAdmin');
-    if (CONFIG.ADMIN_PASSWORD_HASH) {
+    if (Session.SERVER) {            // bản máy chủ: quyền admin do máy chủ cấp, không có mật khẩu admin ở trình duyệt
+      btnAdmin.style.display = 'none';
+    } else if (CONFIG.ADMIN_PASSWORD_HASH) {
       btnAdmin.style.display = '';
       btnAdmin.textContent = admin ? 'Admin ✓ (Thoát)' : '🔒 Admin';
     } else {
@@ -21,12 +23,14 @@ const Auth = (() => {
   }
 
   function init() {
-    if (!CONFIG.ADMIN_PASSWORD_HASH) admin = true; // chạy local, không khoá
+    if (Session.SERVER) { const ss = Session.current(); admin = !!(ss && ss.admin); }
+    else if (!CONFIG.ADMIN_PASSWORD_HASH) admin = true; // chạy local, không khoá
     else if (sessionStorage.getItem('adminOk') === CONFIG.ADMIN_PASSWORD_HASH) admin = true;
     applyUI();
   }
 
   async function toggle() {
+    if (Session.SERVER) return;
     if (admin && CONFIG.ADMIN_PASSWORD_HASH) {
       admin = false;
       sessionStorage.removeItem('adminOk');

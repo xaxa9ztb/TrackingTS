@@ -9,6 +9,9 @@
 // LƯU Ý: đây là lớp kiểm soát phía trình duyệt (web tĩnh trên GitHub Pages),
 // giúp điều hướng đúng người — không thay thế được xác thực phía máy chủ.
 const Session = (() => {
+  // Bản chạy trên máy chủ Cloudflare: danh tính + vai trò lấy từ /api/me (Cloudflare Access đã xác thực email),
+  // không còn đăng nhập họ tên + mã NV. scripts/build-pages.mjs đổi dòng dưới thành `true` khi đóng gói.
+  const SERVER_MODE = false;
   const KEY = 'toolsetSession';
   const REMEMBER_DAYS = 30;  // "Ghi nhớ trên thiết bị này"
   const SESSION_HOURS = 12;  // phiên thường: hết khi đóng tab, tối đa 12 giờ
@@ -55,6 +58,7 @@ const Session = (() => {
   function roles(s) {
     if (!s) return [];
     if (s.admin) return ['admin'];
+    if (SERVER_MODE && Array.isArray(s.roles)) return s.roles.filter(r => r === 'pm' || r === 'sitesup'); // vai trò do máy chủ quyết định
     const pos = plain(s.position);
     return Object.keys(ROLE_RULES).filter(r => ROLE_RULES[r].test(pos));
   }
@@ -86,9 +90,11 @@ const Session = (() => {
     const s = {
       name: String(data.name || ''), empId: String(data.empId || ''),
       position: String(data.position || ''), admin: !!data.admin, at: now,
-      exp: now + (remember && !data.admin ? REMEMBER_DAYS * 864e5 : SESSION_HOURS * 36e5),
+      exp: now + (SERVER_MODE ? 7 * 864e5 : remember && !data.admin ? REMEMBER_DAYS * 864e5 : SESSION_HOURS * 36e5),
     };
-    const keep = remember && !s.admin ? 'localStorage' : 'sessionStorage'; // quản trị không bao giờ ghi nhớ
+    if (SERVER_MODE) { s.roles = Array.isArray(data.roles) ? data.roles.map(String) : []; s.email = String(data.email || ''); }
+    // bản máy chủ: phiên chỉ là bản lưu đệm danh tính (luôn được hỏi lại máy chủ), nên lưu cả cho quản trị
+    const keep = SERVER_MODE || (remember && !s.admin) ? 'localStorage' : 'sessionStorage'; // bản github.io: quản trị không bao giờ ghi nhớ
     const drop = keep === 'localStorage' ? 'sessionStorage' : 'localStorage';
     try { window[drop].removeItem(KEY); window[keep].setItem(KEY, JSON.stringify(s)); } catch (e) { /* ignore */ }
     return s;
@@ -112,6 +118,7 @@ const Session = (() => {
   //   - mã NV không còn trong danh sách (nghỉ việc)  → huỷ phiên       → 'removed'
   // Máy chưa có danh sách nhân viên thì bỏ qua. Chỉ đọc; không tạo cơ sở dữ liệu rỗng.
   function revalidate() {
+    if (SERVER_MODE) return revalidateServer();
     const s = current();
     if (!s || s.admin || !s.empId || !window.indexedDB) return Promise.resolve(null);
     return new Promise((resolve) => {
@@ -139,6 +146,38 @@ const Session = (() => {
     });
   }
 
+  // ---- chế độ máy chủ: hỏi /api/me ----
+  // Trả { status, me?, error? }: 'ok' | 'login' (phiên Cloudflare Access hết hạn) | 'denied' (email chưa gắn / bị khoá) | 'offline' | 'error'
+  async function fetchMe() {
+    let resp;
+    try { resp = await fetch('/api/me', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' }); }
+    catch (e) { return { status: 'offline' }; }
+    if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400) || resp.status === 401) return { status: 'login' };
+    let body = {};
+    try { body = await resp.json(); } catch (e) { /* không phải JSON */ }
+    if (resp.status === 403) return { status: 'denied', error: body.error || 'Tài khoản chưa được cấp quyền' };
+    if (!resp.ok) return { status: 'error', error: body.error || ('Lỗi máy chủ (HTTP ' + resp.status + ')') };
+    return { status: 'ok', me: body };
+  }
+  const fromMe = (me) => ({ name: me.name, empId: me.empId, position: me.position, admin: !!me.isAdmin, roles: me.roles || [], email: me.email });
+  // Đăng nhập tự động: danh tính do Cloudflare Access xác thực, máy chủ cho biết là ai và vai trò gì
+  async function boot() {
+    const r = await fetchMe();
+    if (r.status === 'ok') save(fromMe(r.me), true);
+    return r;
+  }
+  async function revalidateServer() {
+    const s = current();
+    if (!s) return null;
+    const r = await fetchMe();
+    if (r.status === 'denied') { clear(); return 'removed'; }       // khoá tài khoản / gỡ email → thoát ngay
+    if (r.status !== 'ok') return null;                              // mất mạng / hết phiên Access: giữ nguyên, lần sau hỏi lại
+    const n = fromMe(r.me);
+    const changed = n.name !== s.name || n.position !== s.position || n.admin !== s.admin || JSON.stringify(n.roles) !== JSON.stringify(s.roles || []);
+    if (changed) { update(n); return 'updated'; }
+    return null;
+  }
+
   // Gọi lại `onChange` khi phiên có thể đã đổi mà trang không tải lại:
   //  - bấm Back/Forward: trình duyệt khôi phục NGUYÊN trang từ bộ nhớ đệm, không chạy lại script
   //  - đăng xuất / đăng nhập ở tab khác (phiên "ghi nhớ" nằm trong localStorage)
@@ -153,7 +192,11 @@ const Session = (() => {
     const q = new URLSearchParams(params || {}).toString();
     return ROOT + 'index.html' + (q ? '?' + q : '');
   }
-  function logout() { clear(); location.href = homeUrl(); }
+  function logout() {
+    clear();
+    // bản máy chủ: kết thúc luôn phiên Cloudflare Access (nếu không, mở lại trang là vào ngay)
+    location.href = SERVER_MODE ? '/cdn-cgi/access/logout' : homeUrl();
+  }
 
   // Gọi trong <head> của trang công cụ, trước khi công cụ chạy.
   function redirectFor(toolId) {
@@ -178,5 +221,5 @@ const Session = (() => {
     return true;
   }
 
-  return { TOOLS, ready, current, save, clear, logout, roles, roleLabel, canAccess, guard, revalidate, watch, url, homeUrl, norm };
+  return { SERVER: SERVER_MODE, TOOLS, ready, current, save, clear, logout, roles, roleLabel, canAccess, guard, revalidate, boot, watch, url, homeUrl, norm };
 })();

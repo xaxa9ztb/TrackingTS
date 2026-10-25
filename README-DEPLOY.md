@@ -162,6 +162,19 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
    → vào `tools/accounts/` → chọn file sao lưu .json (Thống kê giờ công → Cập nhật Data → ⬇ Tải bản sao lưu) →
    **Đưa lên máy chủ** → gắn email cho từng người → phân công Site Sup / Quản lý dự án cho dự án.
 
+### Chế độ máy chủ của giao diện (bản `*.pages.dev`)
+`scripts/build-pages.mjs` đóng gói **cùng mã nguồn** với bản github.io nhưng đặt chế độ máy chủ (bản github.io không đổi):
+- `js/session.js`: `SERVER_MODE = true` → **không còn đăng nhập họ tên + mã NV**. Danh tính do Cloudflare Access xác thực email,
+  `/api/me` cho biết là ai và vai trò gì (Admin / Quản lý dự án / Site Sup / nhân viên). Phiên chỉ là bản lưu đệm 7 ngày và được
+  hỏi lại máy chủ mỗi lần mở trang: đổi vai trò, khoá tài khoản có hiệu lực ngay. Đăng xuất kết thúc luôn phiên Access.
+- `js/config.js` được **thay bằng bản tối giản** (`{ SERVER: true, PM_SYNC_URL: '/api/pm-store' }`): khoá Google, mã băm mật khẩu admin
+  không được chép sang bản máy chủ.
+- `js/cloud.js`: nhân viên + dự án đọc từ `/api/employees`, `/api/projects` (nút **Đồng bộ ngay** vẫn dùng như cũ; tự đồng bộ khi dữ liệu
+  trên máy cũ quá 1 giờ). Bảng công trên máy giữ nguyên.
+- **Quản lý dự án**: kho dữ liệu chung lưu trong D1 (`/api/pm-store`, có số phiên bản + gộp khi hai người cùng sửa) thay cho Apps Script.
+- Thống kê giờ công: quyền admin theo máy chủ. **Chưa chuyển:** bảng công (Timesheet cá nhân lưu online, nhập Thống kê giờ công) — làm ở giai đoạn sau;
+  trong lúc đó dùng bản github.io cho phần này.
+
 **Danh sách email ở 2 nơi:** Access (ai mở được trang) và trang Tài khoản (ai là ai, vai trò gì). Thêm / khoá người
 thì sửa cả hai — trang Tài khoản có sẵn danh sách để sao chép. Máy chủ luôn kiểm tra lại: email có trong Access mà
 chưa gắn với nhân viên (hoặc đã bị khoá) vẫn **không** lấy được dữ liệu.

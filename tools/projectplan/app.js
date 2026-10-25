@@ -45,6 +45,7 @@
   // Mọi Quản lý dự án / Site Sup cùng xem & sửa một bộ dữ liệu: tự tải khi mở, tự lưu sau mỗi thay đổi,
   // có người lưu trước → gộp thay đổi (PMIO.merge) rồi lưu lại. Mất mạng → giữ trên máy, có mạng lại thì lưu.
   const STORE_URL = (window.CONFIG && CONFIG.PM_SYNC_URL) || '';
+  const STORE_NAME = (window.CONFIG && CONFIG.SERVER) ? 'máy chủ' : 'Drive';   // bản Cloudflare lưu trên máy chủ, bản github.io lưu trên Drive (Apps Script)
   const BASE_KEY = 'pm_base_v1', META_KEY = 'pm_store_meta_v1';
   const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
   let base = readJSON(BASE_KEY);                                   // bản chung lúc đồng bộ lần cuối
@@ -62,8 +63,12 @@
     return { name: s.name, empId: s.empId };
   }
   async function call(action, extra) {
-    const res = await fetch(STORE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    // Apps Script (khác tên miền) buộc dùng text/plain để khỏi bị chặn CORS; máy chủ Cloudflare cùng tên miền nên gửi JSON
+    const same = STORE_URL.startsWith('/');
+    const res = await fetch(STORE_URL, { method: 'POST', credentials: 'same-origin', redirect: same ? 'manual' : 'follow',
+      headers: { 'Content-Type': same ? 'application/json' : 'text/plain;charset=utf-8' },
       body: JSON.stringify(Object.assign({ action, user: who() }, extra || {})) });
+    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400) || res.status === 401) throw new Error('Phiên đăng nhập đã hết hạn — tải lại trang (F5)');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return res.json();
   }
@@ -130,9 +135,11 @@
   function renderStore() {
     const bar = $('storeBar');
     $('btnSave').hidden = !STORE_URL;
+    $('btnSave').querySelector('span').textContent = 'Lưu lên ' + STORE_NAME;
+    $('miReload').textContent = 'Tải lại dữ liệu chung từ ' + STORE_NAME;
     $('miReload').hidden = !STORE_URL;
     $('miSample').hidden = !!STORE_URL;
-    $('miClear').textContent = STORE_URL ? 'Bỏ dữ liệu trên máy, tải lại từ Drive' : 'Xóa toàn bộ dữ liệu trên máy';
+    $('miClear').textContent = STORE_URL ? 'Bỏ dữ liệu trên máy, tải lại từ ' + STORE_NAME : 'Xóa toàn bộ dữ liệu trên máy';
     if (!STORE_URL) {
       bar.innerHTML = '<span class="dot warn"></span><span><b>Chỉ lưu trên máy này</b> — chưa kết nối kho dữ liệu chung trên Drive (quản trị viên: xem hướng dẫn). Chia sẻ tạm bằng Xuất / Nhập Excel trong menu ⋯.</span>';
       return;
@@ -141,13 +148,13 @@
     $('btnSave').disabled = saving || !d || ph === 'denied';
     let dot = 'ok', txt, act = '';
     if (ph === 'loading') { dot = 'busy'; txt = 'Đang tải dữ liệu chung…'; }
-    else if (ph === 'saving') { dot = 'busy'; txt = 'Đang lưu lên Drive…'; }
+    else if (ph === 'saving') { dot = 'busy'; txt = 'Đang lưu lên ' + STORE_NAME + '…'; }
     else if (ph === 'denied') { dot = 'err'; txt = `<b>Không dùng được kho dữ liệu chung:</b> ${esc(st.msg)}`; }
     else if (ph === 'error') { dot = 'err'; txt = `<b>Chưa kết nối được kho dữ liệu chung</b> (${esc(st.msg)}) — thay đổi vẫn giữ trên máy.`; act = '<button type="button" class="lnk" data-act="retry">Thử lại</button>'; }
-    else if (ph === 'offline') { dot = 'warn'; txt = '<b>Ngoại tuyến</b> — thay đổi giữ trên máy, tự lưu lên Drive khi có mạng.'; }
-    else if (d) { dot = 'warn'; txt = '<b>Có thay đổi chưa lưu</b> — đang tự lưu lên Drive…'; }
-    else if (meta.version) { txt = `<b>Đã lưu trên Drive</b> · ${esc(fmtWhen(meta.updatedAt))}${meta.updatedBy ? ' · bởi ' + esc(meta.updatedBy) : ''} · phiên bản ${meta.version}`; act = '<button type="button" class="lnk" data-act="reload">Tải lại</button>'; }
-    else { txt = '<b>Kho dữ liệu chung đang trống</b> — dữ liệu bạn nhập sẽ được lưu lên Drive cho cả nhóm.'; }
+    else if (ph === 'offline') { dot = 'warn'; txt = `<b>Ngoại tuyến</b> — thay đổi giữ trên máy, tự lưu lên ${STORE_NAME} khi có mạng.`; }
+    else if (d) { dot = 'warn'; txt = `<b>Có thay đổi chưa lưu</b> — đang tự lưu lên ${STORE_NAME}…`; }
+    else if (meta.version) { txt = `<b>Đã lưu trên ${STORE_NAME}</b> · ${esc(fmtWhen(meta.updatedAt))}${meta.updatedBy ? ' · bởi ' + esc(meta.updatedBy) : ''} · phiên bản ${meta.version}`; act = '<button type="button" class="lnk" data-act="reload">Tải lại</button>'; }
+    else { txt = `<b>Kho dữ liệu chung đang trống</b> — dữ liệu bạn nhập sẽ được lưu lên ${STORE_NAME} cho cả nhóm.`; }
     bar.innerHTML = `<span class="dot ${dot}"></span><span>${txt}</span>${act}`;
   }
 
@@ -724,7 +731,7 @@
       </div>
       ${w.length ? `<p><b>${w.length} điểm cần kiểm tra</b> (đã nhập, có thể sửa trong ứng dụng):</p><ul class="im-warn">${w.map(x => `<li>${esc(x.msg)}</li>`).join('')}</ul>` : '<p>Không có cảnh báo.</p>'}
       <p class="sub">Ô màu xám trong sheet Nhân sự được hiểu là <b>dự kiến</b>. Tên ngắn trong lưới được khớp với dự án trong Plan khi chắc chắn.</p>
-      ${has ? `<p class="im-replace">${STORE_URL ? 'Dữ liệu <b>chung của cả nhóm trên Drive</b>' : 'Dữ liệu hiện có trên máy'} sẽ được <b>thay toàn bộ</b> bằng dữ liệu trong file (có thể Hoàn tác ngay sau khi nhập).</p>` : ''}`;
+      ${has ? `<p class="im-replace">${STORE_URL ? `Dữ liệu <b>chung của cả nhóm trên ${STORE_NAME}</b>` : 'Dữ liệu hiện có trên máy'} sẽ được <b>thay toàn bộ</b> bằng dữ liệu trong file (có thể Hoàn tác ngay sau khi nhập).</p>` : ''}`;
     $('dlgImport').showModal();
   });
   $('imCancel').addEventListener('click', () => { pending = null; $('dlgImport').close(); });
@@ -815,7 +822,7 @@
   $('miClear').addEventListener('click', () => {
     closeMenu();
     if (STORE_URL) { // không xoá dữ liệu chung — chỉ bỏ bản trên máy và tải lại
-      if (dirty() && !confirm('Bỏ các thay đổi chưa lưu lên Drive và tải lại dữ liệu chung?')) return;
+      if (dirty() && !confirm('Bỏ các thay đổi chưa lưu lên ' + STORE_NAME + ' và tải lại dữ liệu chung?')) return;
       clearTimeout(saveTimer); base = null; meta = { version: null, updatedAt: '', updatedBy: '' }; keepMeta();
       data = P.emptyData(); try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* bỏ qua */ }
       pull(); return;

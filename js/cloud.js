@@ -1,13 +1,17 @@
 // Google Drive integration: viewers read a public data.json via API key;
 // admin writes it back after signing in with Google (OAuth, scope drive.file).
+//
+// Bản chạy trên máy chủ Cloudflare (CONFIG.SERVER = true, do scripts/build-pages.mjs đặt): các hàm bên dưới
+// giữ nguyên tên để mọi chức năng dùng chung, nhưng đọc nhân viên + dự án từ /api (đã qua Cloudflare Access).
 const Cloud = (() => {
   let lastUpdatedAt = null;
+  const SERVER = !!(window.CONFIG && CONFIG.SERVER);
 
   function configured() {
-    return !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_API_KEY);
+    return SERVER || !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_API_KEY);
   }
   function canWrite() {
-    return !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_CLIENT_ID);
+    return !SERVER && !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_CLIENT_ID);
   }
 
   // Thông tin cá nhân trong EE Data mà người xem KHÔNG cần (app chỉ dùng khi admin Export Excel
@@ -109,7 +113,7 @@ const Cloud = (() => {
   }
 
   // ---- read path (everyone) ----
-  async function loadFromDrive() {
+  async function loadFromDriveFile() {
     const url = `https://www.googleapis.com/drive/v3/files/${CONFIG.DRIVE_FILE_ID}?alt=media&key=${CONFIG.GOOGLE_API_KEY}`;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 25000);
@@ -137,6 +141,40 @@ const Cloud = (() => {
       localStorage.setItem('driveDataUpdatedAt', data.updatedAt || ''); // lúc admin Lưu lên Drive
     } catch (e) { /* ignore */ }
     return data;
+  }
+
+  // ---- bản máy chủ: nhân viên + dự án từ /api ----
+  async function serverGet(path) {
+    let resp;
+    try { resp = await fetch(path, { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' }); }
+    catch (e) { throw new Error('Lỗi mạng khi tải dữ liệu từ máy chủ: ' + e.message); }
+    if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400) || resp.status === 401) {
+      throw new Error('Phiên đăng nhập đã hết hạn — tải lại trang (F5) để đăng nhập lại.');
+    }
+    let body = {};
+    try { body = await resp.json(); } catch (e) { /* không phải JSON */ }
+    if (!resp.ok) throw new Error(body.error || ('Không tải được dữ liệu từ máy chủ (HTTP ' + resp.status + ')'));
+    return body;
+  }
+
+  // Chỉ thay NHÂN VIÊN và DỰ ÁN (giống bản Drive); bảng công trên máy giữ nguyên.
+  async function loadFromServer() {
+    const [e, p] = await Promise.all([serverGet('/api/employees'), serverGet('/api/projects')]);
+    const employees = (e.employees || []).map(x => ({
+      empId: String(x.empId), fullName: x.name, position: x.position || '', supervisor: x.supervisor || '',
+      hireDate: x.hireDate || '', startDate: x.startDate || '',
+    }));
+    const projects = (p.projects || []).map(x => { const { staff, updatedAt, ...rest } = x; return rest; });
+    await DB.clear('employees'); await DB.clear('projects');
+    await DB.bulkPut('employees', employees);
+    await DB.bulkPut('projects', projects);
+    const stamps = [...(e.employees || []).map(x => x.updatedAt), ...(p.projects || []).map(x => x.updatedAt)].filter(Boolean).sort();
+    lastUpdatedAt = stamps.length ? stamps[stamps.length - 1] : null;
+    try {
+      localStorage.setItem('driveSyncedAt', new Date().toISOString());
+      localStorage.setItem('driveDataUpdatedAt', lastUpdatedAt || '');
+    } catch (err) { /* ignore */ }
+    return { employees, projects };
   }
 
   // ---- write path (admin) ----
@@ -338,6 +376,8 @@ const Cloud = (() => {
       employees: data.employees.length, projects: data.projects.length, timesheets: data.timesheets.length,
     };
   }
+
+  const loadFromDrive = SERVER ? loadFromServer : loadFromDriveFile;
 
   return {
     configured, canWrite, loadFromDrive, saveToDrive, createDriveFile,
