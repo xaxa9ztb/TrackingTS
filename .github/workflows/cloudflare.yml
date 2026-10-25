@@ -2,7 +2,8 @@
 # - Mọi lần push / PR: chạy kiểm thử máy chủ + thử đóng gói giao diện.
 # - Push lên main: triển khai bản chính thức. Chạy tay (Run workflow) trên nhánh khác: bản xem trước.
 # Cần 2 secret: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (xem README-DEPLOY.md, mục Máy chủ Cloudflare).
-# Tuỳ chọn: secret ADMIN_EMAILS; variables ACCESS_TEAM_DOMAIN, ACCESS_AUD (sau khi bật Cloudflare Access).
+# Sau khi bật Cloudflare Access: variables ACCESS_TEAM_DOMAIN, ACCESS_AUD và secret ADMIN_EMAILS
+# (được ghi vào wrangler.toml của lần triển khai bởi scripts/write-vars.mjs).
 name: Cloudflare
 
 on:
@@ -82,20 +83,17 @@ jobs:
       - name: Dự án Pages (tạo nếu chưa có)
         run: npx wrangler pages project create "$PROJECT" --production-branch main || echo "Dự án $PROJECT đã có"
 
-      - name: Cấu hình đăng nhập (chỉ đặt khi đã khai báo)
+      - name: Cấu hình đăng nhập (ghi vào cấu hình triển khai)
         env:
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           ACCESS_TEAM_DOMAIN: ${{ vars.ACCESS_TEAM_DOMAIN }}
           ACCESS_AUD: ${{ vars.ACCESS_AUD }}
         run: |
+          # Bản trước đặt 3 giá trị này dạng "secret" của dự án Pages; xoá đi để không trùng tên với cấu hình mới
           for k in ADMIN_EMAILS ACCESS_TEAM_DOMAIN ACCESS_AUD; do
-            v="${!k}"
-            if [ -n "$v" ]; then
-              printf '%s' "$v" | npx wrangler pages secret put "$k" --project-name "$PROJECT"
-            else
-              echo "$k chưa khai báo — bỏ qua (API sẽ từ chối mọi yêu cầu cho tới khi cấu hình xong)"
-            fi
+            npx wrangler pages secret delete "$k" --project-name "$PROJECT" >/dev/null 2>&1 || true
           done
+          node scripts/write-vars.mjs
 
       - name: Đóng gói giao diện
         run: npm run build:pages

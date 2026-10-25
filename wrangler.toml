@@ -9,3 +9,8 @@ binding = "DB"
 database_name = "trackingts"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+
+[vars]
+ACCESS_TEAM_DOMAIN = "small-rice-4f91"
+ACCESS_AUD = "5e81f676bfe422bc6cd16a7206256beaa943bfb5ef0d7501166ffde87e9b7c7f"
+ADMIN_EMAILS = "a@example.com"
