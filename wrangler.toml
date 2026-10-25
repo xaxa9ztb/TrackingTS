@@ -1,0 +1,11 @@
+# Cấu hình Cloudflare Pages (giao diện + /api) — triển khai tự động bằng GitHub Actions
+# (.github/workflows/cloudflare.yml). database_id được điền lúc triển khai, KHÔNG sửa tay.
+name = "trackingts"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "trackingts"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

@@ -23,6 +23,7 @@ trong repo này. Người dùng **đăng nhập một lần ở trang chủ rồ
 | `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | chép từ `xaxa9ztb/swat-hour` |
 | `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
 | `tools/tiendotm/` | Hồ sơ chất lượng thang máy (hồ sơ quản lý chất lượng + bảng tiến độ thi công) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
+| `tools/accounts/` | Tài khoản & phân quyền — chỉ chạy trên **máy chủ Cloudflare** (xem mục *Máy chủ mới*) | **Admin**, Quản lý dự án (phân công) | — |
 | `tools/projectplan/` | Quản lý dự án — **bản demo**: điều phối fitter + lịch trình dự án; lưu chung trên Drive qua Apps Script (`PM_SYNC_URL`), Excel nhập / xuất dự phòng | **Quản lý dự án, Site Sup** | — (xem `tools/projectplan/README.md`, `apps-script/HUONG-DAN.md`) |
 
 **Đang phát triển** — đã có chỗ ở trang chủ (nhóm *Quản lý dự án & Giám sát dự án*, dành cho
@@ -115,6 +116,51 @@ Tăng `?v=` của `js/session.js` và `VERSION` trong `sw.js` (thêm trang mới
 - Các chức năng cùng chạy trên `https://xaxa9ztb.github.io`, nên dữ liệu đã lưu trên trình duyệt
   (ví dụ chấm công của Timesheet) vẫn còn khi mở ở đường dẫn mới.
 - Sửa Timesheet / Hồ sơ chất lượng thang máy / SWAT Hour **ngay trong repo này** (thư mục `tools/...`).
+
+---
+
+## Máy chủ mới trên Cloudflare (đang chuyển dần)
+
+Theo đề xuất đã duyệt: giao diện chạy trên **Cloudflare Pages**, dữ liệu trong **D1**, đăng nhập bằng
+**Cloudflare Access** (mã gửi qua email / Google), quyền kiểm tra ở máy chủ cho từng yêu cầu. Gói miễn phí, 0 đ.
+Trong lúc chuyển, bản GitHub Pages + Google Drive **vẫn chạy như cũ**.
+
+| Thành phần | Ở đâu |
+|---|---|
+| API (`/api/*`) | `server/api.mjs` (vai trò: `server/roles.mjs`, xác thực Access: `server/auth.mjs`), điểm vào `functions/api/[[path]].js` |
+| Cấu trúc dữ liệu D1 | `migrations/*.sql` — thêm file mới, không sửa file cũ |
+| Cấu hình | `wrangler.toml` (`database_id` do GitHub Actions điền, không sửa tay) |
+| Đóng gói giao diện | `scripts/build-pages.mjs` → `dist/` |
+| Triển khai | `.github/workflows/cloudflare.yml`: mọi PR chạy kiểm thử; merge vào `main` → tự triển khai |
+| Kiểm thử máy chủ | `npm install && npm run test:server` (D1 giả lập, không cần mạng / tài khoản) |
+| Trang quản trị | `tools/accounts/` — gắn email, vai trò, phân công dự án, đưa EE Data + Dự án lên, nhật ký |
+
+**Đã làm (người giữ tài khoản Cloudflare):** tài khoản + quản trị phụ, API token `trackingts-deploy`
+(Workers Scripts, D1, Cloudflare Pages, Workers R2 Storage — Edit), secret GitHub `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`. Lần merge đầu tiên vào `main` sẽ tự tạo D1 `trackingts` và dự án Pages `trackingts`
+(địa chỉ dạng `https://trackingts.pages.dev` — xem đúng địa chỉ ở **Workers & Pages → trackingts**).
+Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health` trả lời) — không lộ dữ liệu.
+
+### Bật Cloudflare Access (bước 5)
+1. dash.cloudflare.com → **Zero Trust** → đặt **team name** (vd. `trackingts-team`) → chọn gói **Free**.
+2. **Settings → Authentication → Login methods**: *One-time PIN* có sẵn (mã gửi qua email). Tuỳ chọn thêm **Google**.
+3. **Access → Applications → Add an application → Self-hosted**:
+   - *Application name*: `trackingts` · *Session Duration*: **1 month** (giữ đăng nhập 30 ngày).
+   - *Domain*: địa chỉ Pages ở trên (vd. `trackingts.pages.dev`).
+   - *Policy*: tên `Team`, *Action* **Allow**, *Include* → **Emails** → nhập email admin (sau này dán danh sách từ trang
+     **Tài khoản & phân quyền → Danh sách email cho Cloudflare Access**).
+   - Lưu. Mở lại ứng dụng vừa tạo → chép **Application Audience (AUD) Tag**.
+4. GitHub → **Settings → Secrets and variables → Actions**:
+   - Tab **Variables**: `ACCESS_TEAM_DOMAIN` = team name; `ACCESS_AUD` = AUD Tag vừa chép.
+   - Tab **Secrets**: `ADMIN_EMAILS` = email của admin (nhiều email cách nhau dấu phẩy) — người được vào với quyền
+     admin ngay cả khi chưa gắn với nhân viên nào.
+5. **Actions → Cloudflare → Run workflow** (nhánh `main`) để áp dụng. Mở địa chỉ Pages → đăng nhập bằng mã gửi qua email
+   → vào `tools/accounts/` → chọn file sao lưu .json (Thống kê giờ công → Cập nhật Data → ⬇ Tải bản sao lưu) →
+   **Đưa lên máy chủ** → gắn email cho từng người → phân công Site Sup / Quản lý dự án cho dự án.
+
+**Danh sách email ở 2 nơi:** Access (ai mở được trang) và trang Tài khoản (ai là ai, vai trò gì). Thêm / khoá người
+thì sửa cả hai — trang Tài khoản có sẵn danh sách để sao chép. Máy chủ luôn kiểm tra lại: email có trong Access mà
+chưa gắn với nhân viên (hoặc đã bị khoá) vẫn **không** lấy được dữ liệu.
 
 ---
 

@@ -16,3 +16,5 @@ timesheet-data.json
 
 # Công cụ build của Timesheet (cài bằng npm install, không commit)
 node_modules/
+dist/
+.wrangler/

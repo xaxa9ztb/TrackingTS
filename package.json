@@ -1,0 +1,12 @@
+{
+  "name": "trackingts",
+  "private": true,
+  "description": "Bộ công cụ dự án — máy chủ Cloudflare (Pages + Functions + D1). Giao diện vẫn là web tĩnh.",
+  "scripts": {
+    "test:server": "node --test test/server/*.test.mjs",
+    "build:pages": "node scripts/build-pages.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.152.0"
+  }
+}

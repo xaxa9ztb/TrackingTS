@@ -1,0 +1,51 @@
+/* Tài khoản & phân quyền — cùng phong cách với Quản lý dự án */
+:root {
+  --bg: #f4f5f7; --card: #fff; --ink: #111827; --ink-2: #374151; --muted: #6b7280;
+  --line: #e5e7eb; --blue: #1d4ed8; --blue-bg: #eff6ff; --red: #b91c1c; --red-bg: #fef2f2;
+  --amber: #92400e; --amber-bg: #fffbeb; --green: #047857;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.ac-wrap { max-width: 1200px; margin: 0 auto; padding-inline: 16px; }
+.ac-top { background: #fff; border-bottom: 1px solid var(--line); padding-block: 14px 10px; }
+.ac-top h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ac-badge { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--blue); background: var(--blue-bg); border: 1px solid #bfdbfe; border-radius: 999px; padding: 2px 8px; }
+.ac-sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.ac-who { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); }
+.ac-msg { margin: 16px 0; padding: 14px 16px; border-radius: 10px; background: var(--amber-bg); border: 1px solid #fcd34d; color: var(--amber); }
+.ac-msg.err { background: var(--red-bg); border-color: #fecaca; color: var(--red); }
+.ac-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 16px 0; }
+.ac-card h2 { margin: 0 0 6px; font-size: 16px; }
+.ac-help { margin: 0 0 10px; color: var(--ink-2); font-size: 13px; max-width: 75ch; }
+.ac-counts { margin: 0 0 8px; font-weight: 600; }
+.ac-check { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13.5px; }
+.ac-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; }
+.ac-row input[type=search] { flex: 1 1 260px; max-width: 420px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; }
+.ac-note { color: var(--muted); font-size: 13px; }
+.ac-note.ok { color: var(--green); } .ac-note.err { color: var(--red); }
+.btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+.btn:hover:not(:disabled) { background: #f9fafb; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: #1e40af; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.ac-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ac-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.ac-table th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); padding: 6px 8px; white-space: nowrap; }
+.ac-table td { border-bottom: 1px solid #f1f5f9; padding: 6px 8px; vertical-align: middle; }
+.ac-table tr.off td { color: var(--muted); }
+.ac-table input[type=email] { width: 100%; min-width: 200px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 16px; }
+.ac-table select { padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; background: #fff; max-width: 280px; }
+.ac-table select[multiple] { min-width: 160px; }
+.ac-table .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+.ac-table .dirty input, .ac-table .dirty select { border-color: #f59e0b; }
+.ac-table .detail { color: var(--ink-2); font-size: 12.5px; max-width: 420px; }
+.ac-access { margin-top: 12px; }
+.ac-access summary { cursor: pointer; font-weight: 600; }
+.ac-access textarea { width: 100%; margin: 6px 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font: 13px ui-monospace, Menlo, Consolas, monospace; }
+.ac-toast { position: fixed; left: 0; right: 0; bottom: 20px; margin: auto; width: fit-content; max-width: calc(100% - 32px); background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+@media (max-width: 640px) {
+  .ac-table th:nth-child(3), .ac-table td:nth-child(3) { display: none; }
+}
