@@ -29,7 +29,7 @@ const Session = (() => {
     tiendotm: { name: 'Hồ sơ chất lượng thang máy', path: 'tools/tiendotm/', ...PM_TEAM },
     handover: { name: 'Hồ sơ bàn giao NI – EI', soon: true, ...PM_TEAM },
     ffplus: { name: 'Hồ sơ FF+', soon: true, ...PM_TEAM },
-    projectplan: { name: 'Quản lý dự án', soon: true, ...PM_TEAM },
+    projectplan: { name: 'Quản lý dự án', path: 'tools/projectplan/', demo: true, ...PM_TEAM }, // bản demo
     materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
   };
   // chức năng đã có trang để mở
