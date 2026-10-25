@@ -214,6 +214,7 @@ const TimesheetPage = (() => {
     if (!selected.size) return;
     if (!confirm(`Xoá ${selected.size} dòng bảng công đã chọn?`)) return;
     await Backup.snapshot(`Trước khi xoá ${selected.size} dòng bảng công (tự động)`);
+    DB.markEdit('timesheets');
     const store = (await DB.open()).transaction('timesheets', 'readwrite').objectStore('timesheets');
     await new Promise((resolve, reject) => {
       const tx = store.transaction;

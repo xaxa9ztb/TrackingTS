@@ -4,6 +4,14 @@ const DB = (() => {
   const DB_VERSION = 2;
   let dbPromise = null;
 
+  // Bản máy chủ: đánh dấu "bảng công trên máy này có thay đổi chưa lưu lên máy chủ" để lần đồng bộ sau không ghi đè.
+  // Việc đồng bộ từ máy chủ tự ghi vào IndexedDB nên chạy trong quietly() để không bị tính là sửa tay.
+  let quiet = 0;
+  const markEdit = (storeName) => {
+    if (storeName === 'timesheets' && !quiet) { try { localStorage.setItem('tsLocalEdits', '1'); } catch (e) { /* ignore */ } }
+  };
+  async function quietly(fn) { quiet++; try { return await fn(); } finally { quiet--; } }
+
   function open() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
@@ -47,6 +55,7 @@ const DB = (() => {
   }
 
   async function put(storeName, value) {
+    markEdit(storeName);
     const store = await tx(storeName, 'readwrite');
     return new Promise((resolve, reject) => {
       const req = store.put(value);
@@ -56,6 +65,7 @@ const DB = (() => {
   }
 
   async function bulkPut(storeName, values) {
+    markEdit(storeName);
     const store = await tx(storeName, 'readwrite');
     return new Promise((resolve, reject) => {
       values.forEach(v => store.put(v));
@@ -65,6 +75,7 @@ const DB = (() => {
   }
 
   async function bulkRemove(storeName, keys) {
+    markEdit(storeName);
     const store = await tx(storeName, 'readwrite');
     return new Promise((resolve, reject) => {
       keys.forEach(k => store.delete(k));
@@ -74,6 +85,7 @@ const DB = (() => {
   }
 
   async function remove(storeName, key) {
+    markEdit(storeName);
     const store = await tx(storeName, 'readwrite');
     return new Promise((resolve, reject) => {
       const req = store.delete(key);
@@ -83,6 +95,7 @@ const DB = (() => {
   }
 
   async function clear(storeName) {
+    markEdit(storeName);
     const store = await tx(storeName, 'readwrite');
     return new Promise((resolve, reject) => {
       const req = store.clear();
@@ -100,5 +113,5 @@ const DB = (() => {
     });
   }
 
-  return { open, getAll, put, bulkPut, remove, bulkRemove, clear, count };
+  return { open, getAll, put, bulkPut, remove, bulkRemove, clear, count, quietly, markEdit };
 })();

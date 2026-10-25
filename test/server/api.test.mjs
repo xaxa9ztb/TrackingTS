@@ -505,3 +505,90 @@ test('kho Quản lý dự án: hai người lưu cùng lúc — đúng một ng�
   assert.equal([a, b].filter(x => x.data.conflict).length, 1);
   assert.equal((await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'load' } })).data.version, 3);
 });
+
+// ---------- bảng công cho Thống kê giờ công ----------
+const tsRow = (i) => ({ id: 1000 + i, empId: 'E' + (i % 50), empName: 'Nhân viên ' + (i % 50), wbs: 'W-' + (i % 9), projectName: 'Dự án ' + (i % 9),
+  activities: 'Lắp đặt ' + i, category: 'NI', date: `2026-09-${String(1 + (i % 28)).padStart(2, '0')}`, timeFrom: '08:00', timeTo: '17:00', role: 'Fitter', normal: 8, ot1: 0 });
+
+async function uploadTs(email, rows, { baseVersion, count } = {}) {
+  const b = await call('POST', '/api/admin/timesheets/begin', { email, body: {} });
+  assert.equal(b.status, 200, JSON.stringify(b.data));
+  for (let i = 0; i < rows.length; i += 160) {
+    const r = await call('POST', '/api/admin/timesheets/rows', { email, body: { batch: b.data.batch, rows: rows.slice(i, i + 160) } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+  }
+  const c = await call('POST', '/api/admin/timesheets/commit', { email, body: { batch: b.data.batch, baseVersion: baseVersion ?? b.data.version, count: count ?? rows.length } });
+  return { begin: b, commit: c };
+}
+async function readTs(email) {
+  const out = []; let after = 0, pages = 0, meta;
+  for (;;) {
+    const r = await call('GET', `/api/timesheets?after=${after}&limit=500`, { email });
+    assert.equal(r.status, 200); meta = r.data; pages++;
+    out.push(...r.data.rows);
+    if (r.data.next === null) break; after = r.data.next;
+  }
+  return { rows: out, pages, meta };
+}
+
+test('bảng công: chưa có dữ liệu → meta rỗng, danh sách rỗng', async () => {
+  const m = await call('GET', '/api/timesheets/meta', { email: 'tho@example.com' });
+  assert.deepEqual([m.data.version, m.data.count], [0, 0]);
+  assert.deepEqual((await readTs('tho@example.com')).rows, []);
+});
+
+test('bảng công: nạp 12.439 dòng theo đợt, đọc lại đủ và đúng từng dòng', async () => {
+  const rows = Array.from({ length: 12439 }, (_, i) => tsRow(i));
+  const { commit } = await uploadTs('boss@example.com', rows);
+  assert.equal(commit.status, 200, JSON.stringify(commit.data));
+  assert.deepEqual([commit.data.version, commit.data.count], [1, 12439]);
+  const got = await readTs('tho@example.com');           // fitter đọc được
+  assert.equal(got.rows.length, 12439);
+  assert.equal(got.pages, 25);
+  assert.equal(got.meta.version, 1);
+  const { id, ...expected } = rows[777];
+  assert.deepEqual(got.rows[777], expected, 'dòng giữ nguyên các trường, bỏ id');
+  assert.ok(got.rows.every(r => !('id' in r)));
+});
+
+test('bảng công: chỉ admin nạp; người thường chỉ đọc', async () => {
+  for (const email of ['tho@example.com', 'sv01@example.com']) {   // fitter và Site Sup
+    assert.equal((await call('POST', '/api/admin/timesheets/begin', { email, body: {} })).status, 403);
+    assert.equal((await call('POST', '/api/admin/timesheets/rows', { email, body: { batch: 2, rows: [] } })).status, 403);
+    assert.equal((await call('POST', '/api/admin/timesheets/commit', { email, body: { batch: 2 } })).status, 403);
+  }
+});
+
+test('bảng công: thay thế nguyên tử — đang nạp dở thì người xem vẫn thấy bản cũ; commit xong mới đổi', async () => {
+  const b = await call('POST', '/api/admin/timesheets/begin', { email: 'boss@example.com', body: {} });
+  await call('POST', '/api/admin/timesheets/rows', { email: 'boss@example.com', body: { batch: b.data.batch, rows: [tsRow(1), tsRow(2)] } });
+  assert.equal((await readTs('tho@example.com')).rows.length, 12439, 'bản cũ còn nguyên khi đợt mới chưa commit');
+  const bad = await call('POST', '/api/admin/timesheets/commit', { email: 'boss@example.com', body: { batch: b.data.batch, baseVersion: 1, count: 3 } });
+  assert.equal(bad.status, 400); assert.match(bad.data.error, /chưa đủ dòng/);
+  assert.equal((await readTs('tho@example.com')).rows.length, 12439);
+  const ok = await call('POST', '/api/admin/timesheets/commit', { email: 'boss@example.com', body: { batch: b.data.batch, baseVersion: 1, count: 2 } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  const after = await readTs('tho@example.com');
+  assert.equal(after.rows.length, 2); assert.equal(after.meta.version, 2);
+  assert.equal((await env.DB.prepare('SELECT COUNT(*) c FROM timesheets').first()).c, 2, 'dòng của đợt cũ đã được dọn');
+});
+
+test('bảng công: có người cập nhật trước → xung đột 409, không ghi đè', async () => {
+  const other = await uploadTs('boss@example.com', [tsRow(7), tsRow(8), tsRow(9)]);
+  assert.equal(other.commit.status, 200);
+  assert.equal(other.commit.data.version, 3);
+  const stale = await uploadTs('boss@example.com', [tsRow(1)], { baseVersion: 2 });   // admin này vẫn đang giữ bản số 2
+  assert.equal(stale.commit.status, 409); assert.equal(stale.commit.data.conflict, true); assert.equal(stale.commit.data.version, 3);
+  const now = await readTs('tho@example.com');
+  assert.equal(now.rows.length, 3); assert.equal(now.meta.version, 3);
+});
+
+test('bảng công: dòng thiếu mã NV / ngày hoặc quá lớn bị bỏ qua; đợt không hợp lệ / quá nhiều dòng bị từ chối', async () => {
+  const b = await call('POST', '/api/admin/timesheets/begin', { email: 'boss@example.com', body: {} });
+  const r = await call('POST', '/api/admin/timesheets/rows', { email: 'boss@example.com', body: { batch: b.data.batch, rows: [
+    tsRow(1), { date: '2026-09-01' }, { empId: 'E1' }, null, 'x', { ...tsRow(2), activities: 'y'.repeat(4000) }] } });
+  assert.deepEqual([r.data.inserted, r.data.skipped], [1, 5]);
+  assert.equal((await call('POST', '/api/admin/timesheets/rows', { email: 'boss@example.com', body: { batch: 999, rows: [] } })).status, 400);
+  assert.equal((await call('POST', '/api/admin/timesheets/rows', { email: 'boss@example.com', body: { batch: b.data.batch, rows: Array.from({ length: 161 }, (_, i) => tsRow(i)) } })).status, 413);
+  assert.equal((await readTs('tho@example.com')).rows.length, 3, 'đợt dở dang không ảnh hưởng người xem');
+});
