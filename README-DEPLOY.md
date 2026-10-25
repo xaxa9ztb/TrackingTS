@@ -9,6 +9,9 @@ Kiến trúc: app chạy trên **GitHub Pages** (miễn phí), dữ liệu dùng
 
 ## Bộ công cụ (tất cả trong 1 repo)
 
+Trang chủ hiển thị các chức năng dạng **biểu tượng** (màu riêng cho từng chức năng; xám = đang phát triển),
+ngay cả ở màn đăng nhập: chọn biểu tượng rồi đăng nhập là mở thẳng chức năng đó.
+
 Repo **TrackingTS** là nơi **duy nhất** chứa và phát triển **Bộ công cụ dự án**: mọi chức năng
 (kể cả Timesheet, Hồ sơ chất lượng thang máy, SWAT Hour trước đây nằm ở repo riêng) đều sửa ngay
 trong repo này. Người dùng **đăng nhập một lần ở trang chủ rồi chọn chức năng**.
@@ -52,6 +55,10 @@ Quản lý dự án và Site Sup); bấm vào chỉ hiện thông báo "đang ph
 - Timesheet tự điền họ tên / mã NV / chức vụ từ phiên đăng nhập (chỉ điền ô còn trống).
 
 ### Dữ liệu Dự án dùng chung
+- **Trang chủ** có thẻ **Dữ liệu dùng chung**: lần đồng bộ gần nhất, lúc admin cập nhật dữ liệu, số nhân viên / dự án
+  trên máy và nút **Đồng bộ ngay** (tải bản mới nhất từ Google Drive cho mọi chức năng). Không tự tải khi mở trang
+  (tiết kiệm hạn mức Drive); đồng bộ xong, quyền theo chức danh được cập nhật ngay. Admin có thêm liên kết
+  *Cập nhật dữ liệu lên Drive*.
 - Danh sách dự án của **Timesheet** lấy **chung với tab Dự án** của Thống kê giờ công (cùng kho
   dữ liệu trên máy, nguồn là file Google Drive). WBS của dự án = *Work Number* trong Timesheet.
 - Admin import Yan_COM rồi **Lưu lên Drive** như bình thường → người dùng Timesheet bấm
