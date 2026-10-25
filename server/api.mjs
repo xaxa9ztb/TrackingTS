@@ -132,6 +132,23 @@ async function putProjectStaff(env, me, wbs, request) {
 
 // Đưa EE Data + Dự án (cùng định dạng file Drive / bản sao lưu JSON) lên máy chủ.
 // Không đụng tới email, vai trò chỉnh tay, trạng thái khoá đã đặt trên máy chủ.
+// Gói miễn phí của D1 giới hạn số câu lệnh mỗi lần gọi và 100 tham số mỗi câu lệnh, nên ghi nhiều dòng
+// một câu lệnh (tối đa 100 tham số) và giới hạn số câu lệnh mỗi yêu cầu — trang quản trị gửi từng đợt nhỏ.
+const MAX_STMTS = 40;
+const EMP_PER_STMT = 20;      // 5 tham số × 20 = 100
+const PROJ_PER_STMT = 12;     // 8 tham số × 12 = 96
+const IDS_PER_STMT = 90;
+
+function multiRow(table, cols, conflictKey, rows) {
+  const ph = '(' + cols.map(() => '?').join(', ') + ')';
+  const upd = cols.filter(c => c !== conflictKey).map(c => `${c} = excluded.${c}`).join(', ');
+  return {
+    sql: `INSERT INTO ${table} (${cols.join(', ')}) VALUES ${rows.map(() => ph).join(', ')} ON CONFLICT(${conflictKey}) DO UPDATE SET ${upd}`,
+    params: rows.flat(),
+  };
+}
+const chunks = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+
 async function importData(env, me, request) {
   need(me);
   const body = await readJson(request);
@@ -139,49 +156,90 @@ async function importData(env, me, request) {
   const projects = Array.isArray(body.projects) ? body.projects : [];
   if (employees.length > MAX_ROWS || projects.length > MAX_ROWS) throw new HttpError(413, 'Quá nhiều dòng trong một lần gửi');
   const t = now();
-  const stmts = [];
-  const empIds = [];
+
+  const empRows = new Map();   // emp_id → dòng (dòng sau đè dòng trước)
   for (const e of employees) {
-    const id = str(e && e.empId, 50);
-    const name = str(e && e.fullName, 200);
-    if (!id || !name) continue;
-    empIds.push(id);
-    stmts.push(env.DB.prepare(
-      `INSERT INTO employees (emp_id, full_name, position, supervisor, updated_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(emp_id) DO UPDATE SET full_name = excluded.full_name, position = excluded.position,
-         supervisor = excluded.supervisor, updated_at = excluded.updated_at`
-    ).bind(id, name, str(e.position, 200), str(e.supervisor, 200), t));
+    const id = str(e && e.empId, 50), name = str(e && e.fullName, 200);
+    if (id && name) empRows.set(id, [id, name, str(e.position, 200), str(e.supervisor, 200), t]);
   }
-  let projCount = 0;
+  const projRows = new Map();
   for (const p of projects) {
     const wbs = str(p && p.wbs, 100);
     if (!wbs) continue;
-    projCount++;
     const extra = {};
     for (const [k, v] of Object.entries(p)) if (!PROJECT_COLS[k]) extra[k] = v;
-    stmts.push(env.DB.prepare(
-      `INSERT INTO projects (wbs, project_name, project_number, product_line, customer, supervisor, extra, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(wbs) DO UPDATE SET project_name = excluded.project_name, project_number = excluded.project_number,
-         product_line = excluded.product_line, customer = excluded.customer, supervisor = excluded.supervisor,
-         extra = excluded.extra, updated_at = excluded.updated_at`
-    ).bind(wbs, str(p.projectName, 300), str(p.projectNumber, 100), str(p.productLine, 200), str(p.customer, 300),
-      str(p.supervisor, 200), JSON.stringify(extra).slice(0, 20000), t));
+    projRows.set(wbs, [wbs, str(p.projectName, 300), str(p.projectNumber, 100), str(p.productLine, 200), str(p.customer, 300),
+      str(p.supervisor, 200), JSON.stringify(extra).slice(0, 20000), t]);
   }
+
+  const parts = [
+    ...chunks([...empRows.values()], EMP_PER_STMT).map(r => multiRow('employees', ['emp_id', 'full_name', 'position', 'supervisor', 'updated_at'], 'emp_id', r)),
+    ...chunks([...projRows.values()], PROJ_PER_STMT).map(r => multiRow('projects', ['wbs', 'project_name', 'project_number', 'product_line', 'customer', 'supervisor', 'extra', 'updated_at'], 'wbs', r)),
+  ];
+
+  // "Khoá người không còn trong EE Data": danh sách đầy đủ có thể gửi riêng (allEmpIds) vì dữ liệu được gửi từng đợt
   let deactivated = 0;
-  if (body.deactivateMissing && empIds.length) {
+  const keepList = Array.isArray(body.allEmpIds) ? body.allEmpIds.map(x => str(x, 50)).filter(Boolean) : [...empRows.keys()];
+  if (body.deactivateMissing && keepList.length) {
+    const keep = new Set(keepList);
     const { results } = await env.DB.prepare('SELECT emp_id FROM employees WHERE active = 1').all();
-    const keep = new Set(empIds);
-    for (const r of results) {
-      if (keep.has(r.emp_id)) continue;
-      deactivated++;
-      stmts.push(env.DB.prepare('UPDATE employees SET active = 0, updated_at = ? WHERE emp_id = ?').bind(t, r.emp_id));
+    const missing = results.map(r => r.emp_id).filter(id => !keep.has(id));
+    deactivated = missing.length;
+    for (const ids of chunks(missing, IDS_PER_STMT)) {
+      parts.push({ sql: `UPDATE employees SET active = 0, updated_at = ? WHERE emp_id IN (${ids.map(() => '?').join(', ')})`, params: [t, ...ids] });
     }
   }
-  if (stmts.length) await env.DB.batch(stmts);
-  const summary = { employees: empIds.length, projects: projCount, deactivated };
+  if (parts.length > MAX_STMTS) throw new HttpError(413, 'Gửi quá nhiều dòng một lần — gửi từng đợt nhỏ hơn (tối đa khoảng 300 nhân viên hoặc 150 dự án mỗi lần)');
+  if (parts.length) await env.DB.batch(parts.map(x => env.DB.prepare(x.sql).bind(...x.params)));
+  const summary = { employees: empRows.size, projects: projRows.size, deactivated };
   await audit(env, me, 'import', 'data', '', undefined, summary);
   return json({ ok: true, ...summary });
+}
+
+// Gắn email hàng loạt: [{ empId, email }, …] (tối đa 40 dòng mỗi lần). Trả kết quả từng dòng; dòng lỗi không làm hỏng dòng khác.
+async function setEmails(env, me, request) {
+  need(me);
+  const body = await readJson(request);
+  const items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) throw new HttpError(400, 'Chưa có dòng nào');
+  if (items.length > 40) throw new HttpError(413, 'Gửi tối đa 40 dòng mỗi lần');
+  const rows = items.map(i => ({ empId: str(i && i.empId, 50), email: str(i && i.email, 200).toLowerCase() }));
+  const ids = [...new Set(rows.map(r => r.empId).filter(Boolean))];
+  const mails = [...new Set(rows.map(r => r.email).filter(e => EMAIL_RE.test(e)))];
+  const emps = new Map();
+  if (ids.length) {
+    const { results } = await env.DB.prepare(`SELECT emp_id, full_name, email FROM employees WHERE emp_id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+    for (const r of results) emps.set(r.emp_id, r);
+  }
+  const owner = new Map();     // email → emp_id đang giữ
+  if (mails.length) {
+    const { results } = await env.DB.prepare(`SELECT emp_id, email FROM employees WHERE email IN (${mails.map(() => '?').join(',')}) COLLATE NOCASE`).bind(...mails).all();
+    for (const r of results) owner.set(String(r.email).toLowerCase(), r.emp_id);
+  }
+  const taken = new Map();     // email → empId trong chính yêu cầu này
+  const results = [], stmts = [], changes = [];
+  const t = now();
+  for (const r of rows) {
+    const res = { empId: r.empId, email: r.email, ok: false, error: '' };
+    results.push(res);
+    if (!r.empId) { res.error = 'Thiếu mã NV'; continue; }
+    if (!EMAIL_RE.test(r.email)) { res.error = 'Email không hợp lệ'; continue; }
+    const emp = emps.get(r.empId);
+    if (!emp) { res.error = 'Không có mã NV này trên máy chủ'; continue; }
+    if (me.empId && me.empId === r.empId) { res.error = 'Không tự đổi email của chính mình ở đây'; continue; }
+    if (taken.has(r.email) && taken.get(r.email) !== r.empId) { res.error = 'Email trùng với một dòng khác trong danh sách'; continue; }
+    if (owner.has(r.email) && owner.get(r.email) !== r.empId) { res.error = 'Email đã gắn cho nhân viên ' + owner.get(r.email); continue; }
+    taken.set(r.email, r.empId);
+    res.ok = true; res.name = emp.full_name;
+    if ((emp.email || '').toLowerCase() === r.email) { res.unchanged = true; continue; }
+    stmts.push(env.DB.prepare('UPDATE employees SET email = ?, updated_at = ? WHERE emp_id = ?').bind(r.email, t, r.empId));
+    changes.push({ empId: r.empId, before: emp.email || '', after: r.email });
+  }
+  if (stmts.length) {
+    await env.DB.batch(stmts);
+    await audit(env, me, 'set_emails', 'employee', '', undefined, { changes });
+  }
+  return json({ ok: true, applied: changes.length, results });
 }
 
 async function patchEmployee(env, me, empId, request) {
@@ -256,6 +314,7 @@ export async function handle(request, env, opts = {}) {
     if (path === '/api/projects' && method === 'GET') return await listProjects(env);
     if ((m = path.match(/^\/api\/projects\/([^/]+)\/staff$/)) && method === 'PUT') return await putProjectStaff(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/import' && method === 'POST') return await importData(env, me, request);
+    if (path === '/api/admin/emails' && method === 'POST') return await setEmails(env, me, request);
     if ((m = path.match(/^\/api\/admin\/employees\/([^/]+)$/)) && method === 'PATCH') return await patchEmployee(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     throw new HttpError(404, 'Không có đường dẫn này');

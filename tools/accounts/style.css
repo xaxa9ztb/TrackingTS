@@ -49,3 +49,4 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 640px) {
   .ac-table th:nth-child(3), .ac-table td:nth-child(3) { display: none; }
 }
+.ac-pre { white-space: pre-wrap; margin: 4px 0 0; font-family: inherit; }

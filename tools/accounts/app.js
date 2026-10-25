@@ -20,18 +20,25 @@
     let resp;
     try {
       resp = await fetch(path, {
-        method, credentials: 'same-origin',
+        method, credentials: 'same-origin', redirect: 'manual',
         headers: body === undefined ? {} : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (e) {
-      // Access chuyển hướng sang trang đăng nhập khi phiên hết hạn → fetch báo lỗi mạng
-      const err = new Error('Không kết nối được máy chủ, hoặc phiên đăng nhập đã hết hạn — tải lại trang.');
+      const err = new Error('Không gửi được yêu cầu tới máy chủ (' + (e && e.message ? e.message : 'lỗi mạng') + ') — kiểm tra mạng rồi thử lại.');
       err.status = 0; throw err;
+    }
+    // Phiên Cloudflare Access hết hạn: yêu cầu bị chuyển hướng sang trang đăng nhập
+    if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)) {
+      const err = new Error('Phiên đăng nhập đã hết hạn — tải lại trang (F5) để đăng nhập lại.');
+      err.status = 401; throw err;
     }
     let data = {};
     try { data = await resp.json(); } catch (e) { /* không phải JSON */ }
-    if (!resp.ok) { const err = new Error(data.error || ('Lỗi máy chủ (HTTP ' + resp.status + ')')); err.status = resp.status; throw err; }
+    if (!resp.ok) {
+      const err = new Error(data.error || ('Lỗi máy chủ (HTTP ' + resp.status + ')'));
+      err.status = resp.status; throw err;
+    }
     return data;
   }
 
@@ -87,19 +94,72 @@
       msg.className = 'ac-note'; msg.textContent = 'Đang đưa lên…';
       $('btnImport').disabled = true;
       try {
-        // chỉ gửi trường cần thiết — không gửi ngày sinh, giới tính, mã cá nhân
-        const body = {
-          employees: localData.employees.map(e => ({ empId: e.empId, fullName: e.fullName, position: e.position, supervisor: e.supervisor })),
-          projects: localData.projects,
-          deactivateMissing: $('deactivateMissing').checked,
-        };
-        const r = await api('POST', '/api/admin/import', body);
+        // chỉ gửi trường cần thiết — không gửi ngày sinh, giới tính, mã cá nhân; gửi từng đợt nhỏ (giới hạn của máy chủ miễn phí)
+        const emps = localData.employees.map(e => ({ empId: e.empId, fullName: e.fullName, position: e.position, supervisor: e.supervisor }));
+        const projs = localData.projects;
+        const EMP_BATCH = 200, PROJ_BATCH = 100;
+        const steps = Math.ceil(emps.length / EMP_BATCH) + Math.ceil(projs.length / PROJ_BATCH) + ($('deactivateMissing').checked ? 1 : 0);
+        let done = 0, nEmp = 0, nProj = 0, deact = 0;
+        const progress = () => { msg.textContent = `Đang đưa lên… ${Math.round(done / steps * 100)}% (${nEmp} nhân viên, ${nProj} dự án)`; };
+        for (let i = 0; i < emps.length; i += EMP_BATCH) {
+          nEmp += (await api('POST', '/api/admin/import', { employees: emps.slice(i, i + EMP_BATCH) })).employees; done++; progress();
+        }
+        for (let i = 0; i < projs.length; i += PROJ_BATCH) {
+          nProj += (await api('POST', '/api/admin/import', { projects: projs.slice(i, i + PROJ_BATCH) })).projects; done++; progress();
+        }
+        if ($('deactivateMissing').checked) {
+          deact = (await api('POST', '/api/admin/import', { deactivateMissing: true, allEmpIds: emps.map(e => e.empId) })).deactivated; done++;
+        }
         msg.className = 'ac-note ok';
-        msg.textContent = `✓ Đã đưa lên ${r.employees} nhân viên, ${r.projects} dự án` + (r.deactivated ? `, khoá ${r.deactivated} người không còn trong EE Data.` : '.');
+        msg.textContent = `✓ Đã đưa lên ${nEmp} nhân viên, ${nProj} dự án` + (deact ? `, khoá ${deact} người không còn trong EE Data.` : '.');
         await loadAll();
       } catch (e) {
-        msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message;
+        msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message + ' (dữ liệu đã gửi trước đó vẫn được giữ; bấm lại để gửi tiếp)';
       } finally { $('btnImport').disabled = false; }
+    });
+  }
+
+  // ---------- 2b. dán danh sách email ----------
+  const EMAIL_TOKEN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // Mỗi dòng: mã NV và email, cách nhau bằng tab / dấu phẩy / chấm phẩy / khoảng trắng (dán thẳng từ Excel được)
+  function parsePaste(text) {
+    const rows = [], bad = [];
+    String(text || '').split(/\r?\n/).forEach((line, i) => {
+      const raw = line.trim(); if (!raw) return;
+      const tokens = raw.split(/[\t,;]+|\s+/).map(x => x.trim()).filter(Boolean);
+      const email = tokens.find(x => EMAIL_TOKEN.test(x));
+      const id = tokens.find(x => !EMAIL_TOKEN.test(x));
+      if (!email || !id) {
+        if (i === 0 && /m[ãa]|email/i.test(raw)) return;            // dòng tiêu đề
+        bad.push(`Dòng ${i + 1}: "${raw.slice(0, 60)}" — ` + (!email && tokens.length >= 2 ? 'email không hợp lệ' : 'cần có mã NV và email'));
+        return;
+      }
+      rows.push({ empId: id, email: email.toLowerCase() });
+    });
+    return { rows, bad };
+  }
+
+  function wirePaste() {
+    $('btnPaste').addEventListener('click', async () => {
+      const out = $('pasteMsg');
+      const { rows, bad } = parsePaste($('pasteBox').value);
+      if (!rows.length) { out.className = 'ac-note err'; out.textContent = '✗ Chưa có dòng hợp lệ. Mỗi dòng gồm mã NV và email.' + (bad.length ? '\n' + bad.join('\n') : ''); return; }
+      out.className = 'ac-note'; out.textContent = 'Đang gắn email…'; $('btnPaste').disabled = true;
+      let applied = 0, unchanged = 0; const problems = [...bad];
+      try {
+        for (let i = 0; i < rows.length; i += 40) {
+          const r = await api('POST', '/api/admin/emails', { items: rows.slice(i, i + 40) });
+          applied += r.applied;
+          for (const x of r.results) {
+            if (!x.ok) problems.push(`${x.empId || '(trống)'} · ${x.email}: ${x.error}`);
+            else if (x.unchanged) unchanged++;
+          }
+        }
+        out.className = problems.length ? 'ac-note err' : 'ac-note ok';
+        out.textContent = `✓ Đã gắn ${applied} email` + (unchanged ? `, ${unchanged} dòng không đổi` : '') + (problems.length ? `; ${problems.length} dòng chưa được:\n` + problems.join('\n') : '.');
+        await loadAll();
+      } catch (e) { out.className = 'ac-note err'; out.textContent = '✗ ' + e.message; }
+      finally { $('btnPaste').disabled = false; }
     });
   }
 
@@ -218,10 +278,10 @@
   }
 
   // ---------- 4. nhật ký ----------
-  const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án' };
+  const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt' };
   const FIELD = { email: 'email', roleOverride: 'vai trò chỉnh tay', active: 'đang làm', sitesup: 'Site Sup', pm: 'QLDA',
-    employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá' };
-  const val = (v) => Array.isArray(v) ? (v.join(', ') || '—') : v === true ? 'có' : v === false ? 'không' : (v === '' || v == null ? '—' : (ROLE_LABEL[v] || v));
+    employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá', changes: 'thay đổi' };
+  const val = (v) => Array.isArray(v) ? (v.length && typeof v[0] === 'object' ? v.length + ' dòng' : (v.join(', ') || '—')) : v === true ? 'có' : v === false ? 'không' : (v === '' || v == null ? '—' : (ROLE_LABEL[v] || v));
   function detail(e) {
     const show = (o) => o ? Object.entries(o).map(([k, v]) => `${FIELD[k] || k}: ${val(v)}`).join(' · ') : '';
     return e.before ? `${show(e.before)} → ${show(e.after)}` : show(e.after);
@@ -270,6 +330,7 @@
     if (me.isAdmin) {
       ['secImport', 'secPeople', 'secAudit'].forEach(id => { $(id).hidden = false; });
       wirePeople();
+      wirePaste();
       initImport();
     }
     try { await loadAll(); } catch (e) { gate(esc(e.message), true); }
