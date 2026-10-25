@@ -75,10 +75,6 @@
   }
   .login-intro h1 { margin: 0 0 10px; font-size: 32px; line-height: 1.15; letter-spacing: -.4px; }
   .login-intro > p { margin: 0 0 24px; color: var(--muted); max-width: 460px; }
-  .intro-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 460px; }
-  .intro-list li { display: flex; align-items: center; gap: 12px; color: var(--ink-2); font-size: 14px; }
-  .intro-list .icon { width: 36px; height: 36px; border-radius: 9px; background: #fff; border: 1px solid var(--line); }
-  .intro-list .icon svg { width: 20px; height: 20px; }
   .tag { font-size: 11.5px; color: var(--ink-2); background: #e5e7eb; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 
   .login-card {
@@ -123,51 +119,80 @@
   .group-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 14px; }
   .group-head h2 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--ink-2); }
   .group-head .tag { font-size: 12px; }
+  /* lưới chức năng dạng biểu tượng (như màn hình ứng dụng) */
   .tools {
     list-style: none; margin: 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 14px;
   }
   .tool {
-    position: relative; height: 100%;
-    display: flex; flex-direction: column; gap: 12px;
-    padding: 22px 22px 18px; background: var(--card);
-    border: 1px solid var(--line); border-radius: 12px;
-    color: inherit; text-decoration: none;
+    position: relative; height: 100%; width: 100%;
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+    padding: 20px 14px 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 16px;
+    color: inherit; text-decoration: none; font: inherit; cursor: pointer;
     transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
   }
-  a.tool:hover { border-color: var(--line-strong); box-shadow: 0 8px 24px rgba(17,24,39,.08); transform: translateY(-2px); }
-  a.tool:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
-  .tool-head { display: flex; align-items: center; justify-content: space-between; }
+  a.tool:hover, button.tool:hover { border-color: var(--line-strong); box-shadow: 0 10px 26px rgba(17,24,39,.10); transform: translateY(-2px); }
+  .tool:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  .app-icon {
+    width: 64px; height: 64px; border-radius: 18px; flex: none; margin-bottom: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--c, #374151); color: #fff; box-shadow: 0 6px 16px -6px var(--c, #374151);
+  }
+  .app-icon svg { width: 32px; height: 32px; stroke-width: 2; }
   .icon {
     width: 44px; height: 44px; border-radius: 10px; background: var(--tile); color: var(--ink);
     display: inline-flex; align-items: center; justify-content: center; flex: none;
   }
   .icon svg { width: 24px; height: 24px; }
-  .num { font: 600 12px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
-  .tool h3 { margin: 4px 0 0; font-size: 18px; line-height: 1.3; }
-  .tool p { margin: 0; color: var(--ink-2); font-size: 14px; flex: 1; }
-  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 0; padding: 0; list-style: none; }
-  .meta li { font-size: 12px; color: var(--ink-2); background: var(--tile); border-radius: 999px; padding: 3px 10px; }
-  .open {
-    display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 14px;
-    border-top: 1px solid var(--line); font-weight: 600; font-size: 14px; color: var(--ink);
-  }
-  .open .arrow { transition: transform .15s ease; }
-  a.tool:hover .open .arrow { transform: translateX(3px); }
-  /* thẻ bị khoá (không đủ quyền) */
-  .tool.locked { background: #fafafa; border-style: dashed; }
-  .tool.locked h3, .tool.locked p { color: var(--muted); }
-  .tool.locked .icon { color: #9ca3af; }
-  .tool.locked .open { color: var(--muted); font-weight: 500; }
-  .tool.locked .open svg { width: 16px; height: 16px; flex: none; }
-  /* thẻ "đang phát triển": bấm vào chỉ mở hộp thông báo */
-  .soon-badge { font-size: 11.5px; font-weight: 600; color: var(--warn-ink); background: var(--warn-bg);
-    border: 1px solid var(--warn-line); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
-  button.tool { width: 100%; text-align: left; font: inherit; cursor: pointer; border-style: dashed; background: #fcfcfd; }
-  button.tool:hover { border-color: var(--line-strong); box-shadow: 0 6px 18px rgba(17,24,39,.06); }
-  button.tool:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
-  button.tool .icon { color: var(--ink-2); }
-  button.tool .open { color: var(--ink-2); font-weight: 500; }
+  .tool h3 { margin: 0; font-size: 15.5px; line-height: 1.3; }
+  .tool p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .app-badge { position: absolute; top: 10px; right: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+    color: var(--warn-ink); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 999px; padding: 1px 7px; }
+  /* thẻ "đang phát triển": biểu tượng xám, bấm vào chỉ mở hộp thông báo */
+  .soon-badge { font-size: 11px; font-weight: 600; color: var(--warn-ink); background: var(--warn-bg);
+    border: 1px solid var(--warn-line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+  button.tool { border-style: dashed; background: #fcfcfd; }
+  button.tool .app-icon { background: #e5e7eb; color: #6b7280; box-shadow: none; }
+
+  /* ---- đồng bộ dữ liệu dùng chung ---- */
+  .sync { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 14px; margin: 0 0 26px; padding: 14px 16px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+  .sync-icon { width: 44px; height: 44px; border-radius: 12px; background: #e0f2fe; color: #0369a1; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .sync-icon svg { width: 24px; height: 24px; }
+  .sync-text { min-width: 0; }
+  .sync-title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sync-line { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+  .sync-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; margin-right: 6px; vertical-align: 1px; }
+  .sync-dot.ok { background: #059669; } .sync-dot.old { background: #d97706; } .sync-dot.err { background: var(--err); }
+  .sync-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .sync-msg { grid-column: 1 / -1; font-size: 13px; margin: 0; }
+  .sync-msg.err { color: var(--err); } .sync-msg.ok { color: #047857; }
+  .btn-sync { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); background: #fff; color: var(--ink);
+    border-radius: 10px; padding: 9px 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-sync:hover { background: #f9fafb; }
+  .btn-sync:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  .btn-sync:disabled { opacity: .6; cursor: not-allowed; }
+  .btn-sync svg { width: 16px; height: 16px; }
+  .btn-sync.busy svg { animation: ts-spin 1s linear infinite; }
+  @keyframes ts-spin { to { transform: rotate(360deg); } }
+  .sync-admin { font-size: 12.5px; color: var(--ink-2); }
+
+  /* ---- màn đăng nhập: các chức năng dạng biểu tượng ---- */
+  .intro-apps-label { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .intro-apps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; max-width: 520px; }
+  .intro-app { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+    padding: 12px 6px 10px; border-radius: 14px; border: 1px solid var(--line); background: #fff; font: inherit; color: var(--ink); cursor: pointer; }
+  .intro-app:hover { border-color: var(--line-strong); box-shadow: 0 6px 18px rgba(17,24,39,.08); }
+  .intro-app:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  .intro-app[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink) inset; }
+  .intro-app .app-icon { width: 48px; height: 48px; border-radius: 14px; margin: 0; }
+  .intro-app .app-icon svg { width: 26px; height: 26px; }
+  .intro-app b { font-size: 12.5px; line-height: 1.3; font-weight: 600; }
+  .intro-app small { font-size: 10.5px; color: var(--muted); }
+  .intro-app.soon { cursor: default; border-style: dashed; background: #fcfcfd; }
+  .intro-app.soon .app-icon { background: #e5e7eb; color: #6b7280; box-shadow: none; }
 
   /* nhóm chức năng không đủ quyền: gọn thành 1 khối */
   .locked-panel { background: #fafafa; border: 1px dashed var(--line-strong); border-radius: 12px; padding: 16px 18px; }
@@ -176,8 +201,8 @@
   .mini-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 16px; }
   .mini { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.3; min-width: 0; }
   .mini-text { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-  .mini .icon { width: 32px; height: 32px; border-radius: 8px; color: #9ca3af; }
-  .mini .icon svg { width: 18px; height: 18px; }
+  .mini .icon { width: 36px; height: 36px; border-radius: 10px; color: #9ca3af; background: #eef0f3; }
+  .mini .icon svg { width: 20px; height: 20px; }
   .mini .soon-badge { font-size: 10.5px; padding: 1px 7px; }
 
   /* hộp thông báo "đang phát triển" */
@@ -198,19 +223,32 @@
   footer a { color: var(--ink-2); }
 
   @media (max-width: 860px) {
-    .login-grid { grid-template-columns: 1fr; gap: 28px; padding-block: 24px 40px; }
-    .login-card { order: -1; padding: 22px; }
+    .login-grid { grid-template-columns: 1fr; gap: 16px; padding-block: 16px 40px; }
+    .login-card { padding: 22px; }
+    .login-intro > p:not(.intro-apps-label) { display: none; }
     .login-intro h1 { font-size: 20px; }
   }
   @media (max-width: 560px) {
+    .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .sync { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+    .btn-sync { grid-column: 1 / -1; justify-content: center; }
+    .tool { padding: 16px 10px 12px; }
+    .app-icon { width: 56px; height: 56px; border-radius: 16px; }
+    .intro-apps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .intro-app { padding: 8px 2px 6px; gap: 4px; border-radius: 12px; }
+    .intro-app .app-icon { width: 40px; height: 40px; border-radius: 12px; }
+    .intro-app .app-icon svg { width: 22px; height: 22px; }
+    .intro-app b { font-size: 11px; }
+    .intro-app small { display: none; }
     .intro { padding-block: 26px 16px; }
     .intro h1 { font-size: 23px; }
     .divider, .product { display: none; }
     .user-text { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .tool, .open .arrow { transition: none; }
-    a.tool:hover { transform: none; }
+    .tool { transition: none; }
+    a.tool:hover, button.tool:hover { transform: none; }
+    .btn-sync.busy svg { animation: none; }
   }
 </style>
 </head>
@@ -239,7 +277,8 @@
     <section class="login-intro">
       <h1>Bộ công cụ dự án</h1>
       <p>Đăng nhập một lần, sau đó chọn chức năng phù hợp với công việc của bạn.</p>
-      <ul class="intro-list" id="introList"></ul>
+      <p class="intro-apps-label" id="introLabel">Các chức năng — chọn một chức năng rồi đăng nhập để mở ngay:</p>
+      <ul class="intro-apps" id="introList" aria-labelledby="introLabel"></ul>
     </section>
 
     <section class="login-card" aria-labelledby="loginTitle">
@@ -283,6 +322,18 @@
     <p>Chọn chức năng để bắt đầu.</p>
   </section>
   <div class="note note-warn" id="deniedNote" role="status" hidden></div>
+
+  <section class="sync" id="syncCard" aria-labelledby="syncTitle">
+    <span class="sync-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><path d="M12 12v6M9.5 15.5 12 18l2.5-2.5"/></svg></span>
+    <div class="sync-text">
+      <div class="sync-title" id="syncTitle">Dữ liệu dùng chung</div>
+      <div class="sync-line"><span class="sync-dot" id="syncDot" aria-hidden="true"></span><span id="syncWhen"></span></div>
+      <div class="sync-sub" id="syncCounts"></div>
+    </div>
+    <button type="button" class="btn-sync" id="btnSync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span>Đồng bộ ngay</span></button>
+    <p class="sync-msg" id="syncMsg" role="status" hidden></p>
+  </section>
+
   <div id="toolList"></div>
 
   <section class="install" id="installCard" data-pwa-install hidden>
@@ -314,7 +365,7 @@
 
 <script src="js/config.js?v=36"></script>
 <script src="js/db.js?v=36"></script>
-<script src="js/cloud.js?v=37"></script>
+<script src="js/cloud.js?v=38"></script>
 <script src="js/session.js?v=40"></script>
 <script>
 (function () {
@@ -330,21 +381,24 @@
     projectplan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><path d="M7 8h6M10 12h7M8 16h5"/></svg>',
     materials: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v2"/><path d="M3 13h18M10.5 13v2h3v-2"/></svg>',
   };
+  // màu biểu tượng từng chức năng (biểu tượng trắng trên nền màu, tương phản ≥ 3:1)
+  const COLORS = { tracking: '#2563eb', timesheet: '#059669', tiendotm: '#7c3aed', projectplan: '#ea580c', handover: '#0d9488', ffplus: '#db2777', materials: '#b45309' };
   const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
   // Nội dung hiển thị của từng chức năng (tên / đường dẫn / quyền nằm ở Session.TOOLS)
   const CARDS = {
+    // desc = dòng ngắn dưới biểu tượng; full = mô tả đầy đủ (hiện khi rê chuột / trình đọc màn hình)
     tracking: {
-      desc: 'Dashboard giờ công theo dự án, bảng công, so sánh với INS Time và SWAT Hour, xuất báo cáo PDF / Excel.',
-      meta: ['Dữ liệu chung · Google Drive'],
+      desc: 'Giờ công theo dự án, so sánh INS Time & SWAT, báo cáo PDF / Excel',
+      full: 'Dashboard giờ công theo dự án, bảng công, so sánh với INS Time và SWAT Hour, xuất báo cáo PDF / Excel. Dữ liệu chung trên Google Drive.',
     },
     timesheet: {
-      desc: 'Chấm công hằng ngày, tự tính giờ thường và tăng ca theo kỳ lương, xuất bảng công Excel.',
-      meta: ['Lưu trên máy của bạn', 'Tối ưu cho điện thoại'],
+      desc: 'Chấm công hằng ngày, tự tính giờ thường & OT, xuất bảng công',
+      full: 'Chấm công hằng ngày, tự tính giờ thường và tăng ca theo Luật Lao động, xuất bảng công Excel, báo cáo và gửi mail cho giám sát. Lưu trên máy của bạn.',
     },
     tiendotm: {
-      desc: 'Lập trọn bộ hồ sơ quản lý chất lượng lắp đặt (phiếu đề nghị, biên bản nghiệm thu…) và bảng tiến độ thi công khổ A3 từ hợp đồng (quét PDF / ảnh, OCR).',
-      meta: ['Xử lý 100% trong trình duyệt'],
+      desc: 'Hồ sơ quản lý chất lượng & bảng tiến độ thi công từ hợp đồng',
+      full: 'Lập trọn bộ hồ sơ quản lý chất lượng lắp đặt (phiếu đề nghị, biên bản nghiệm thu…) và bảng tiến độ thi công khổ A3 từ hợp đồng (quét PDF / ảnh, OCR). Xử lý 100% trong trình duyệt.',
     },
     // ---- đang phát triển: `scope` hiện trong hộp thông báo khi bấm vào ----
     handover: {
@@ -356,8 +410,9 @@
       scope: ['Tổng hợp tài liệu FF+ theo từng dự án', 'Công cụ kiểm tra hồ sơ đủ / thiếu', 'Cảnh báo tài liệu còn thiếu trước khi nộp'],
     },
     projectplan: {
-      desc: 'Điều phối fitter theo ngày và lịch trình các dự án: hàng về, bàn giao hố, nhận hố, lắp đặt, bàn giao. Nhập / xuất Excel theo mẫu đang dùng.',
-      meta: ['Bản demo', 'Lưu trên máy này · Excel'],
+      desc: 'Điều phối fitter & lịch trình hàng về, nhận hố, bàn giao',
+      full: 'Điều phối fitter theo ngày và lịch trình các dự án: hàng về, bàn giao hố, nhận hố, lắp đặt, bàn giao. Nhập / xuất Excel theo mẫu đang dùng. Bản demo, lưu trên máy này.',
+      badge: 'Demo',
     },
     materials: {
       desc: 'Quản lý và điều phối công cụ dụng cụ, vật tư cho các dự án.',
@@ -384,19 +439,20 @@
   }
 
   function renderLogin() {
-    const tagOf = (t) => t.rolesLabel ? ` <span class="tag">${esc(t.rolesLabel.replace(' và ', ' · '))}</span>` : '';
-    const soon = ORDER.filter(id => Session.TOOLS[id].soon);
-    $('introList').innerHTML = ORDER.filter(Session.ready).map(id => {
-      const t = Session.TOOLS[id];
-      return `<li><span class="icon" aria-hidden="true">${ICONS[id]}</span><span>${esc(t.name)}${tagOf(t)}</span></li>`;
-    }).join('') + (soon.length
-      ? `<li><span class="icon" aria-hidden="true">${ICONS.projectplan}</span><span>${soon.length} chức năng mới đang phát triển${tagOf(Session.TOOLS[soon[0]])}</span></li>`
-      : '');
     const next = params.get('next');
+    // các chức năng dạng biểu tượng: bấm chọn → đăng nhập xong mở thẳng chức năng đó
+    $('introList').innerHTML = ORDER.map(id => {
+      const t = Session.TOOLS[id], c = CARDS[id];
+      const who = t.rolesLabel ? `<small>${esc(t.rolesLabel.replace('Quản lý dự án', 'QLDA').replace(' và ', ' · '))}</small>` : '<small>Mọi nhân viên</small>';
+      const icon = `<span class="app-icon" style="--c:${COLORS[id]}" aria-hidden="true">${ICONS[id]}</span>`;
+      return Session.ready(id)
+        ? `<li><button type="button" class="intro-app" data-tool="${id}" aria-pressed="${next === id}" title="${esc(c.full || c.desc)}">${icon}<b>${esc(t.name)}</b>${who}</button></li>`
+        : `<li><div class="intro-app soon" data-tool="${id}" title="${esc(c.desc)}">${icon}<b>${esc(t.name)}</b><small>Đang phát triển</small></div></li>`;
+    }).join('');
     if (Session.ready(next)) {
       $('nextNote').textContent = `Vui lòng đăng nhập để mở “${Session.TOOLS[next].name}”.`;
       $('nextNote').hidden = false;
-    }
+    } else $('nextNote').hidden = true;
     $('endedNote').hidden = params.get('ended') !== '1';
     // Đặt sẵn con trỏ vào ô Họ tên — nhưng KHÔNG giành con trỏ nếu người dùng / trình tự điền
     // đã chọn ô khác, và không tự bật bàn phím trên điện thoại (chỉ làm trên máy có chuột).
@@ -419,7 +475,7 @@
       $('deniedNote').hidden = true;
     }
 
-    let n = 0; // số thứ tự chạy liên tục qua các nhóm (chỉ thẻ đã dùng được)
+    renderSync();
     $('toolList').innerHTML = GROUPS.map(g => {
       const allowed = g.ids.filter(id => Session.canAccess(id, s));
       const locked = g.ids.filter(id => !Session.canAccess(id, s));
@@ -427,27 +483,22 @@
       const label = Session.TOOLS[g.ids[0]].rolesLabel;
       const sameRoles = label && g.ids.every(id => Session.TOOLS[id].rolesLabel === label);
       const head = `<div class="group-head"><h2>${esc(g.title)}</h2>${sameRoles && allowed.length ? `<span class="tag">Dành cho ${esc(label)}</span>` : ''}</div>`;
-      const cards = allowed.length ? `<ul class="tools">${allowed.map(id => card(id, sameRoles, ++n)).join('')}</ul>` : '';
+      const cards = allowed.length ? `<ul class="tools">${allowed.map(id => card(id, sameRoles)).join('')}</ul>` : '';
       return `<section class="group" aria-label="${esc(g.title)}">${head}${cards}${locked.length ? lockedPanel(locked) : ''}</section>`;
     }).join('');
   }
 
-  function card(id, roleInHeader, num) {
+  function card(id, roleInHeader) {
     const t = Session.TOOLS[id], c = CARDS[id];
-    const meta = (c.meta || []).concat(t.rolesLabel && !roleInHeader ? ['Dành cho ' + t.rolesLabel] : [])
-      .map(m => `<li>${esc(m)}</li>`).join('');
+    const tip = [c.full || c.desc, t.rolesLabel && !roleInHeader ? 'Dành cho ' + t.rolesLabel : ''].filter(Boolean).join(' ');
     const body = `
-      <div class="tool-head"><span class="icon" aria-hidden="true">${ICONS[id]}</span>${t.soon
-        ? '<span class="soon-badge">Đang phát triển</span>'
-        : `<span class="num">${String(num).padStart(2, '0')}</span>`}</div>
+      ${t.soon ? '<span class="app-badge soon-badge">Đang phát triển</span>' : c.badge ? `<span class="app-badge">${esc(c.badge)}</span>` : ''}
+      <span class="app-icon" style="--c:${COLORS[id]}" aria-hidden="true">${ICONS[id]}</span>
       <h3>${esc(t.name)}</h3>
-      <p>${esc(c.desc)}</p>
-      ${meta ? `<ul class="meta">${meta}</ul>` : ''}`;
+      <p>${esc(c.desc)}</p>`;
     return t.soon
-      ? `<li><button type="button" class="tool soon" data-tool="${id}" aria-haspopup="dialog">${body}
-           <span class="open">Xem dự kiến <span class="arrow" aria-hidden="true">›</span></span></button></li>`
-      : `<li><a class="tool" href="${esc(Session.url(id))}" data-tool="${id}">${body}
-           <span class="open">Mở chức năng <span class="arrow" aria-hidden="true">→</span></span></a></li>`;
+      ? `<li><button type="button" class="tool soon" data-tool="${id}" aria-haspopup="dialog" title="${esc(tip)}">${body}</button></li>`
+      : `<li><a class="tool" href="${esc(Session.url(id))}" data-tool="${id}" title="${esc(tip)}">${body}</a></li>`;
   }
 
   // chức năng không đủ quyền: gom gọn thành một khối, không chiếm chỗ như thẻ thật
@@ -459,6 +510,64 @@
         <span class="mini-text"><span class="mini-name">${esc(t.name)}</span>${t.soon ? '<span class="soon-badge">Đang phát triển</span>' : ''}</span></li>`;
     }).join('')}</ul></div>`;
   }
+
+  $('introList').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button.intro-app'); if (!b) return;
+    const id = b.dataset.tool;
+    if (params.get('next') === id) params.delete('next'); else params.set('next', id);
+    history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : ''));
+    renderLogin();
+    if (params.get('next')) $('inName').focus();
+  });
+
+  // ---------- đồng bộ dữ liệu dùng chung (Google Drive → máy này) ----------
+  const fmtWhen = (iso) => {
+    const d = new Date(iso); if (!iso || isNaN(d)) return '';
+    const p2 = (n) => String(n).padStart(2, '0'), hm = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    const day = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`, now = new Date();
+    return d.toDateString() === now.toDateString() ? `${hm} hôm nay` : `${hm} ${day}`;
+  };
+  let syncState = null; // {ok, text} của lần bấm Đồng bộ gần nhất
+  async function renderSync() {
+    const configured = typeof Cloud !== 'undefined' && Cloud.configured();
+    const at = configured && Cloud.getLastSyncedAt ? Cloud.getLastSyncedAt() : '';
+    const ver = configured && Cloud.getDataUpdatedAt ? Cloud.getDataUpdatedAt() : '';
+    const offline = navigator.onLine === false;
+    const age = at ? (Date.now() - new Date(at).getTime()) / 36e5 : Infinity;
+    $('syncDot').className = 'sync-dot ' + (syncState && !syncState.ok ? 'err' : age <= 24 ? 'ok' : 'old');
+    $('syncWhen').textContent = !configured ? 'Chưa cấu hình Google Drive — liên hệ quản trị viên.'
+      : at ? `Đồng bộ lần cuối: ${fmtWhen(at)}${ver ? ` · Admin cập nhật dữ liệu: ${fmtWhen(ver)}` : ''}`
+      : 'Máy này chưa đồng bộ — bấm “Đồng bộ ngay”.';
+    const btn = $('btnSync');
+    btn.hidden = !configured;
+    if (!btn.classList.contains('busy')) {
+      btn.disabled = offline;
+      btn.querySelector('span').textContent = offline ? 'Đang ngoại tuyến' : 'Đồng bộ ngay';
+    }
+    const msg = $('syncMsg');
+    msg.hidden = !syncState; if (syncState) { msg.textContent = syncState.text; msg.className = 'sync-msg ' + (syncState.ok ? 'ok' : 'err'); }
+    let emp = 0, proj = 0;
+    try { [emp, proj] = (await Promise.all([DB.getAll('employees'), DB.getAll('projects')])).map(x => (x || []).length); } catch (e) { /* chưa có dữ liệu */ }
+    const s = Session.current();
+    $('syncCounts').innerHTML = `${emp} nhân viên · ${proj} dự án trên máy này — dùng cho Thống kê giờ công, Timesheet, Hồ sơ chất lượng, Quản lý dự án.` +
+      (s && s.admin ? ` <a class="sync-admin" href="tracking.html">Cập nhật dữ liệu lên Drive (admin) →</a>` : '');
+  }
+  $('btnSync').addEventListener('click', async () => {
+    const btn = $('btnSync');
+    btn.classList.add('busy'); btn.disabled = true; btn.querySelector('span').textContent = 'Đang đồng bộ…';
+    try {
+      const d = await Cloud.loadFromDrive();
+      syncState = { ok: true, text: `Đã cập nhật: ${(d.employees || []).length} nhân viên, ${(d.projects || []).length} dự án.` };
+    } catch (e) {
+      syncState = { ok: false, text: /QUOTA/.test(e.message)
+        ? 'Google Drive đang giới hạn lượt tải hôm nay — vẫn dùng dữ liệu đã có trên máy. Thử lại sau.'
+        : 'Chưa đồng bộ được: ' + e.message.replace(/^QUOTA:\s*/, '') + ' — vẫn dùng dữ liệu đã có trên máy.' };
+    } finally { btn.classList.remove('busy'); }
+    // chức danh / nghỉ việc có thể đã đổi theo dữ liệu mới
+    const r = await Session.revalidate();
+    if (r === 'removed') { params.set('ended', '1'); syncState = null; }
+    render();
+  });
 
   // ---------- chức năng đang phát triển ----------
   $('toolList').addEventListener('click', (ev) => {
@@ -574,7 +683,7 @@
   $('btnLogout').addEventListener('click', () => Session.logout());
 
   // ---------- ngoại tuyến & cài ứng dụng (xem js/pwa.js, sw.js) ----------
-  const showNet = () => { $('netOff').hidden = navigator.onLine !== false; };
+  const showNet = () => { $('netOff').hidden = navigator.onLine !== false; if (!$('viewHome').hidden) renderSync(); };
   window.addEventListener('online', showNet); window.addEventListener('offline', showNet); showNet();
   function showInstall() {
     const pwa = window.ToolsetPWA;

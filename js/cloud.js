@@ -132,7 +132,10 @@ const Cloud = (() => {
     catch (e) { throw new Error('Dữ liệu trên Drive không đọc được (Drive có thể trả về trang lỗi thay vì file).'); }
     await applyData(data);
     // thời điểm tải thành công gần nhất — các chức năng (vd. Timesheet) hiện "Đã đồng bộ lúc …"
-    try { localStorage.setItem('driveSyncedAt', new Date().toISOString()); } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem('driveSyncedAt', new Date().toISOString());
+      localStorage.setItem('driveDataUpdatedAt', data.updatedAt || ''); // lúc admin Lưu lên Drive
+    } catch (e) { /* ignore */ }
     return data;
   }
 
@@ -287,5 +290,6 @@ const Cloud = (() => {
     listDriveRevisions, restoreDriveRevision, exportLocalBackup, importLocalBackup,
     getLastUpdatedAt: () => lastUpdatedAt,
     getLastSyncedAt: () => { try { return localStorage.getItem('driveSyncedAt') || ''; } catch (e) { return ''; } },
+    getDataUpdatedAt: () => { try { return localStorage.getItem('driveDataUpdatedAt') || ''; } catch (e) { return ''; } },
   };
 })();
