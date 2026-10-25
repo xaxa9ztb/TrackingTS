@@ -15,6 +15,8 @@
             ChevronLeft: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
             ChevronRight: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
             X: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Mail: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M3 6.5l9 6.5 9-6.5"/></svg>,
+            Chart: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="5" width="3" height="13" rx="1"/></svg>,
             Alert: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         };
 
@@ -134,6 +136,7 @@
             if (!res.ok) throw new Error('không tải được mẫu bảng chấm công (HTTP ' + res.status + ')');
             return res.arrayBuffer();
         };
+        const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
         const cloneStyle = (s) => (s ? JSON.parse(JSON.stringify(s)) : {});
         // Ngày ghi vào Excel PHẢI tạo theo UTC: ExcelJS đổi Date sang số ngày Excel theo giờ UTC.
         // new Date(y, m-1, d) là 0 giờ GIỜ MÁY — ở Việt Nam (UTC+7) = 17 giờ hôm TRƯỚC theo UTC → Excel lùi 1 ngày
@@ -230,6 +233,9 @@
             // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
             const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
             const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
+            const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+            const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
+            const [supervisorName, setSupervisorName] = useState(''); // giám sát theo EE Data (nếu có trên máy)
             const [dayFilter, setDayFilter] = useState(null);
             const [toast, setToast] = useState(null);
             const [syncStatus, setSyncStatus] = useState('');
@@ -256,6 +262,13 @@
                 })();
             }, []);
 
+            useEffect(() => {
+                if (typeof DB === 'undefined' || !profile.empId) return;
+                DB.getAll('employees').then(list => {
+                    const me = (list || []).find(e => String(e.empId).trim().toLowerCase() === String(profile.empId).trim().toLowerCase());
+                    setSupervisorName(me && me.supervisor ? String(me.supervisor) : '');
+                }).catch(() => {});
+            }, [profile.empId, projSyncedAt]); // máy mới: EE Data có sau lần đồng bộ đầu
             useEffect(() => { localStorage.setItem('ts_entries_v28', JSON.stringify(entries)); }, [entries]);
             useEffect(() => { localStorage.setItem('ts_profile_v28', JSON.stringify(profile)); }, [profile]);
             useEffect(() => { localStorage.setItem('ts_projects_v28', JSON.stringify(projects)); }, [projects]);
@@ -374,21 +387,13 @@
                 }
             };
 
-            const handleExportExcel = async () => {
-                if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+            // Tạo file bảng chấm công Excel (mẫu Schindler) của kỳ đang xem → { blob, name }.
+            // Dùng cho Xuất Excel và để đính kèm khi Gửi mail. Lỗi tải thư viện / mẫu → throw.
+            const buildExcelFile = async () => {
                 const sortedData = [...monthlyEntries].sort((a,b) => a.date.localeCompare(b.date));
-
-                setSyncStatus('Đang tạo file...');
-                let workbook;
-                try {
-                    await ensureExcelJS();
-                    workbook = new ExcelJS.Workbook();
-                    await workbook.xlsx.load(await getTemplateBuffer());
-                } catch (err) {
-                    setSyncStatus('');
-                    return alert('Không xuất được Excel: ' + err.message +
-                        (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.'));
-                }
+                await ensureExcelJS();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(await getTemplateBuffer());
                 const sheet = workbook.getWorksheet('New TS') || workbook.worksheets[0];
 
                 // Snapshot template styles BEFORE editing: a data row (11), the total row (59),
@@ -489,8 +494,29 @@
                 const buffer = await workbook.xlsx.writeBuffer();
                 const cleanName = removeAccents(profile.name || 'Timesheet');
                 const [y, m] = currentMonth.split('-');
-                saveAs(new Blob([buffer]), `${cleanName}_Thang_${m}_${y}.xlsx`);
-                setSyncStatus('');
+                return { blob: new Blob([buffer], { type: XLSX_MIME }), name: `${cleanName}_Thang_${m}_${y}.xlsx` };
+            };
+            const excelError = (err) => 'Không xuất được Excel: ' + err.message +
+                (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
+            const handleExportExcel = async () => {
+                if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+                setSyncStatus('Đang tạo file...');
+                try {
+                    const f = await buildExcelFile();
+                    saveAs(f.blob, f.name);
+                } catch (err) {
+                    alert(excelError(err));
+                } finally {
+                    setSyncStatus('');
+                }
+            };
+
+            const openMail = async () => {
+                setDrawer({ type: 'mail', key: Date.now() });
+                if (!monthlyEntries.length) { setMailFile({ status: 'empty' }); return; }
+                setMailFile({ status: 'loading' });
+                try { setMailFile({ status: 'ready', ...(await buildExcelFile()) }); }
+                catch (err) { setMailFile({ status: 'error', error: excelError(err) }); }
             };
 
             const handleBackup = () => { const blob = new Blob([JSON.stringify({ profile, entries, projects })], { type: "application/json" }); saveAs(blob, `TS_Backup_${profile.name}.json`); };
@@ -534,9 +560,17 @@
                                 <button id="tsAddBtn" type="button" onClick={() => openNewEntry()} className={`${btnPrimary} hidden md:inline-flex`}>
                                     <Icons.Plus/> Thêm chấm công
                                 </button>
+                                <button id="tsReportBtn" type="button" onClick={() => setReportOpen(true)} className={btnGhost}
+                                    title="Báo cáo tổng quan của kỳ (in / lưu PDF gửi giám sát)" aria-label="Báo cáo tổng quan">
+                                    <Icons.Chart/><span className="hidden sm:inline">Báo cáo</span>
+                                </button>
                                 <button id="tsExportBtn" type="button" onClick={handleExportExcel} disabled={exporting}
                                     className={btnGhost} title="Xuất bảng chấm công của kỳ ra Excel (mẫu Schindler)" aria-label="Xuất Excel">
                                     <Icons.Download/><span className="hidden sm:inline">{exporting ? 'Đang tạo file...' : 'Xuất Excel'}</span>
+                                </button>
+                                <button id="tsMailBtn" type="button" onClick={openMail} className={btnGhost}
+                                    title="Gửi bảng chấm công của kỳ cho giám sát / quản lý qua email" aria-label="Gửi mail">
+                                    <Icons.Mail/><span className="hidden sm:inline">Gửi mail</span>
                                 </button>
                                 <button id="tsSettingsBtn" type="button" onClick={() => setDrawer({ type: 'settings' })} className={btnGhost} aria-label="Sao lưu & khôi phục" title="Sao lưu & khôi phục">
                                     <Icons.Settings/><span className="hidden xl:inline">Sao lưu</span>
@@ -604,10 +638,22 @@
                                 entries={entries} projects={projects} sch={sch}/>
                         </Drawer>
                     )}
+                    {drawer && drawer.type === 'mail' && (
+                        <Drawer title="Gửi bảng công cho giám sát" onClose={closeDrawer}>
+                            <MailPanel key={drawer.key} profile={profile} setProfile={setProfile} file={mailFile} supervisorName={supervisorName}
+                                mail={buildMailText(buildReport({ rows: monthlyEntries, bdOf, period, sch, holidays, missing: stats.missing }), profile, period, currentMonth, supervisorName)}
+                                onSent={(msg) => { closeDrawer(); showToast(msg); }} onCancel={closeDrawer}/>
+                        </Drawer>
+                    )}
                     {drawer && drawer.type === 'settings' && (
                         <Drawer title="Sao lưu & khôi phục" onClose={closeDrawer}>
                             <SettingsPanel onBackup={handleBackup} onRestore={handleRestore} onReset={handleResetData} onDone={closeDrawer}/>
                         </Drawer>
+                    )}
+                    {reportOpen && (
+                        <ReportView onClose={() => setReportOpen(false)}
+                            data={buildReport({ rows: monthlyEntries, bdOf, period, sch, holidays, missing: stats.missing })}
+                            profile={profile} sch={sch} period={period} month={currentMonth}/>
                     )}
                     {toast && <Toast toast={toast} onClose={() => setToast(null)}/>}
                 </div>
@@ -871,6 +917,417 @@
                         </div>
                         <div className="flex-1 overflow-y-auto">{children}</div>
                     </div>
+                </div>
+            );
+        }
+
+
+        // ================================================================
+        //   BÁO CÁO TỔNG QUAN (cho giám sát xem nhanh) — in / lưu PDF bằng trình duyệt
+        // ================================================================
+        const CAT_LABEL = { NI: 'Lắp đặt mới (NI)', MOD: 'Hiện đại hoá (MOD)', EI: 'Bảo trì, sửa chữa (EI)', TF: 'Kiểm định (TF)',
+            SAF: 'An toàn', HR: 'Họp, đào tạo, hành chính', Other: 'Khác' };
+        const LEAVE_LABEL = { '6010': 'Nghỉ hưởng lương (phép năm / lễ)', '6020': 'Nghỉ ốm / tai nạn', '6090': 'Nghỉ không lương' };
+        const pct = (x, total) => (total > 0 ? Math.round(x / total * 1000) / 10 : 0);
+        const fmtPct = (x) => x.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + '%';
+
+        // Tổng hợp số liệu của kỳ: giờ làm việc (không tính nghỉ), dự án, hoạt động, nghỉ, theo ngày
+        function buildReport({ rows, bdOf, period, sch, holidays, missing }) {
+            const isLeave = (e) => LaborVN.LEAVE_CODES.includes(String(e.activityCode));
+            const work = rows.filter(e => !isLeave(e)), leaveRows = rows.filter(isLeave);
+            const byType = {}; let normal = 0, ot = 0, weighted = 0;
+            const projects = {}, activities = {}, cats = {}, leave = {};
+            const day = {};
+            work.forEach(e => {
+                const bd = bdOf(e), h = sumBd(bd);
+                Object.keys(bd).forEach(k => {
+                    byType[k] = (byType[k] || 0) + bd[k];
+                    if (k === 'NORMAL') normal += bd[k]; else ot += bd[k];
+                    weighted += bd[k] * (LaborVN.OT_RATES[k] || 100) / 100;
+                });
+                const d = day[e.date] || (day[e.date] = { normal: 0, ot: 0, leave: false });
+                d.normal += bd.NORMAL || 0; d.ot += h - (bd.NORMAL || 0);
+                const pk = (e.workNumber || '') + '|' + (e.projectName || '');
+                const p = projects[pk] || (projects[pk] = { name: e.projectName || '(không ghi dự án)', wbs: e.workNumber || '', days: {}, normal: 0, ot: 0 });
+                p.days[e.date] = true; p.normal += bd.NORMAL || 0; p.ot += h - (bd.NORMAL || 0);
+                const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
+                const ak = String(e.activityCode || '—');
+                const a = activities[ak] || (activities[ak] = { code: ak, desc: meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : 'Mã khác', cat: meta ? meta.cat : 'Other', hours: 0 });
+                a.hours += h;
+                cats[a.cat] = (cats[a.cat] || 0) + h;
+            });
+            leaveRows.forEach(e => {
+                const code = String(e.activityCode);
+                const l = leave[code] || (leave[code] = { code, label: LEAVE_LABEL[code] || code, days: {}, hours: 0 });
+                l.days[e.date] = true; l.hours += entryHours(e);
+                (day[e.date] || (day[e.date] = { normal: 0, ot: 0, leave: false })).leave = true;
+            });
+            const total = normal + ot;
+            const projectList = Object.values(projects).map(p => ({ ...p, days: Object.keys(p.days).length, total: p.normal + p.ot }))
+                .sort((a, b) => b.total - a.total);
+            const activityList = Object.values(activities).sort((a, b) => b.hours - a.hours);
+            const catList = Object.keys(cats).map(c => ({ cat: c, label: CAT_LABEL[c] || c, hours: cats[c] })).sort((a, b) => b.hours - a.hours);
+            const leaveList = Object.values(leave).map(l => ({ ...l, dates: Object.keys(l.days).sort(), days: Object.keys(l.days).length }));
+            const workDays = Object.keys(day).filter(d => day[d].normal + day[d].ot > 0).length;
+            const days = daysBetween(period.start, period.end).map(d => ({ date: d, ...(day[d] || { normal: 0, ot: 0, leave: false }),
+                holiday: holidayOf(d, sch), rest: LaborVN.isRestDay(d, sch), missing: missing.includes(d) }));
+            return { total, normal, ot, weighted, byType, workDays, projectList, activityList, catList, leaveList,
+                leaveDays: new Set(leaveRows.map(e => e.date)).size, leaveHours: leaveRows.reduce((s, e) => s + entryHours(e), 0),
+                days, holidays, missing, entries: rows.length };
+        }
+
+        // Giờ làm theo ngày: cột chồng giờ thường (xanh) + tăng ca (cam), vạch tham chiếu 8 giờ
+        function DailyChart({ days }) {
+            const W = 720, H = 190, padL = 26, padB = 30, padT = 10;
+            const max = Math.max(12, ...days.map(d => d.normal + d.ot));
+            const top = Math.ceil(max / 4) * 4;
+            const cw = (W - padL) / days.length, bw = Math.max(6, Math.min(16, cw - 4));
+            const y = (h) => padT + (H - padT - padB) * (1 - h / top);
+            const grid = []; for (let g = 0; g <= top; g += 4) grid.push(g);
+            return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="rp-chart" role="img" aria-label="Biểu đồ giờ làm theo ngày trong kỳ">
+                    {grid.map(g => (
+                        <g key={g}>
+                            <line x1={padL} x2={W} y1={y(g)} y2={y(g)} stroke={g === 0 ? '#94a3b8' : '#e2e8f0'} strokeWidth="1"/>
+                            <text x={padL - 5} y={y(g) + 3} textAnchor="end" className="rp-axis">{g}</text>
+                        </g>
+                    ))}
+                    <line x1={padL} x2={W} y1={y(8)} y2={y(8)} stroke="#64748b" strokeWidth="1" strokeDasharray="3 3"/>
+                    <text x={W - 2} y={y(8) - 3} textAnchor="end" className="rp-axis">8 giờ</text>
+                    {days.map((d, i) => {
+                        const x = padL + i * cw + (cw - bw) / 2, cx = padL + i * cw + cw / 2;
+                        const [, mm, dd] = d.date.split('-');
+                        const total = d.normal + d.ot;
+                        const label = `${WEEKDAYS_LONG[weekdayOf(d.date)]} ${fmtDMY(d.date)}: ${fmtH(d.normal)} giờ thường` +
+                            (d.ot ? `, ${fmtH(d.ot)} giờ tăng ca` : '') + (d.holiday ? ` — ${d.holiday.name}` : '') + (d.leave ? ' — có nghỉ' : '') + (d.missing ? ' — chưa chấm' : '');
+                        const yN = y(d.normal), yT = y(total), gap = d.normal > 0 && d.ot > 0 ? 2 : 0;
+                        return (
+                            <g key={d.date}>
+                                <title>{label}</title>
+                                {(d.holiday || d.rest) && <rect x={padL + i * cw} y={padT} width={cw} height={H - padT - padB} fill={d.holiday ? '#fef3c7' : '#f1f5f9'}/>}
+                                <rect x={padL + i * cw} y={padT} width={cw} height={H - padT - padB} fill="transparent"/>
+                                {d.normal > 0 && <path d={barPath(x, yN, bw, y(0) - yN, d.ot > 0 ? 0 : 3)} fill="#1d4ed8"/>}
+                                {d.ot > 0 && <path d={barPath(x, yT, bw, Math.max(1, yN - yT - gap), 3)} fill="#ea580c"/>}
+                                <text x={cx} y={H - padB + 12} textAnchor="middle" className={`rp-axis ${d.holiday || weekdayOf(d.date) === 0 ? 'rp-red' : ''}`}>
+                                    {dd === '01' || i === 0 ? `${parseInt(dd, 10)}/${parseInt(mm, 10)}` : parseInt(dd, 10)}
+                                </text>
+                                {d.leave && <text x={cx} y={H - padB + 24} textAnchor="middle" className="rp-axis rp-leave">P</text>}
+                                {d.missing && <circle cx={cx} cy={H - padB + 21} r="2.5" fill="#e11d48"/>}
+                            </g>
+                        );
+                    })}
+                </svg>
+            );
+        }
+        // cột bo góc 4px ở đầu dữ liệu (phía trên), đáy vuông nằm trên trục
+        const barPath = (x, y, w, h, r) => {
+            if (h <= 0) return '';
+            r = Math.min(r, w / 2, h);
+            return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+        };
+
+        function Bar({ value, max, color }) {
+            return <span className="rp-bar"><span style={{ width: `${max > 0 ? Math.max(1, value / max * 100) : 0}%`, background: color || '#1d4ed8' }}/></span>;
+        }
+
+        function ReportView({ data, profile, sch, period, month, onClose }) {
+            useEffect(() => {
+                document.body.classList.add('ts-report-open');
+                const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+                document.addEventListener('keydown', onKey);
+                const title = document.title;
+                const [y, m] = month.split('-');
+                document.title = `Bao_cao_tong_quan_${removeAccents(profile.name || 'Timesheet')}_Thang_${m}_${y}`; // tên file PDF gợi ý
+                return () => { document.body.classList.remove('ts-report-open'); document.removeEventListener('keydown', onKey); document.title = title; };
+            }, []);
+            const [y, m] = month.split('-');
+            const d = data;
+            const otTypes = OT_TYPES.filter(t => d.byType[t.code] > 0);
+            const maxProj = d.projectList.length ? d.projectList[0].total : 0;
+            const maxAct = d.activityList.length ? d.activityList[0].hours : 0;
+            const leaveDates = (l) => l.dates.map(fmtDM).join(', ');
+            return (
+                <div className="rp-overlay" role="dialog" aria-modal="true" aria-labelledby="rpTitle">
+                    <div className="rp-toolbar">
+                        <button type="button" onClick={() => window.print()} className={btnPrimary}><Icons.Download/> In / Lưu PDF</button>
+                        <button type="button" onClick={onClose} className={btnGhost}>Đóng</button>
+                        <span className="rp-hint">Chọn “Lưu dưới dạng PDF” để gửi giám sát.</span>
+                    </div>
+                    <article className="rp-page" id="tsReport">
+                        <header className="rp-head">
+                            <div>
+                                <div className="rp-kicker">Schindler · Timesheet cá nhân</div>
+                                <h1 id="rpTitle">Báo cáo tổng quan chấm công</h1>
+                                <div className="rp-sub">Kỳ lương tháng {parseInt(m, 10)}/{y} · {fmtDMY(period.start)} – {fmtDMY(period.end)}</div>
+                            </div>
+                            <dl className="rp-who">
+                                <div><dt>Họ tên</dt><dd>{profile.name || '—'}</dd></div>
+                                <div><dt>Mã NV</dt><dd>{profile.empId || '—'}</dd></div>
+                                <div><dt>Chức vụ</dt><dd>{profile.position || '—'}</dd></div>
+                                <div><dt>Phòng ban</dt><dd>{profile.dept || '—'}</dd></div>
+                                <div><dt>Lịch làm việc</dt><dd>{LaborVN.SCHEDULES[sch].short}</dd></div>
+                            </dl>
+                        </header>
+
+                        <section className="rp-kpis" aria-label="Số liệu chính">
+                            <div className="rp-kpi"><span>Tổng giờ làm việc</span><b>{fmtH(d.total)}<small> giờ</small></b><em>{d.workDays} ngày có làm việc</em></div>
+                            <div className="rp-kpi"><span>Giờ công thường</span><b className="rp-blue">{fmtH(d.normal)}<small> giờ</small></b><em>{fmtPct(pct(d.normal, d.total))} tổng giờ</em></div>
+                            <div className="rp-kpi"><span>Tăng ca (OT)</span><b className="rp-orange">{fmtH(d.ot)}<small> giờ</small></b><em>{fmtPct(pct(d.ot, d.total))} tổng giờ</em></div>
+                            <div className="rp-kpi"><span>Nghỉ</span><b>{d.leaveDays}<small> ngày</small></b><em>{d.leaveHours > 0 ? `${fmtH(d.leaveHours)} giờ` : 'không có'}</em></div>
+                            <div className={`rp-kpi ${d.missing.length ? 'rp-warn' : ''}`}><span>Ngày chưa chấm</span><b>{d.missing.length}<small> ngày</small></b>
+                                <em>{d.missing.length ? '⚠ ' + d.missing.map(fmtDM).join(', ') : '✓ đủ ngày làm việc'}</em></div>
+                        </section>
+
+                        <section className="rp-sec">
+                            <h2>Giờ làm theo ngày</h2>
+                            <div className="rp-chartwrap"><DailyChart days={d.days}/></div>
+                            <div className="rp-legend">
+                                <span><i style={{ background: '#1d4ed8' }}/>Giờ thường</span>
+                                <span><i style={{ background: '#ea580c' }}/>Tăng ca</span>
+                                <span><i style={{ background: '#fef3c7', border: '1px solid #fcd34d' }}/>Ngày lễ / nghỉ bù</span>
+                                <span><i style={{ background: '#f1f5f9', border: '1px solid #cbd5e1' }}/>Ngày nghỉ hằng tuần</span>
+                                <span><b className="rp-leave">P</b> Nghỉ phép / ốm</span>
+                                <span><i className="rp-dot"/>Chưa chấm</span>
+                            </div>
+                        </section>
+
+                        <div className="rp-cols">
+                            <section className="rp-sec">
+                                <h2>Theo dự án</h2>
+                                {d.projectList.length ? (
+                                    <table className="rp-table">
+                                        <thead><tr><th>Dự án / WBS</th><th className="r">Ngày</th><th className="r">Thường</th><th className="r">OT</th><th className="r">Tổng</th><th className="rp-wbar">Tỷ lệ</th></tr></thead>
+                                        <tbody>
+                                            {d.projectList.map(p => (
+                                                <tr key={p.wbs + p.name}>
+                                                    <td><div className="rp-name">{p.name}</div>{p.wbs && <div className="rp-mono">{p.wbs}</div>}</td>
+                                                    <td className="r">{p.days}</td><td className="r">{fmtH(p.normal)}</td><td className="r">{fmtH(p.ot)}</td>
+                                                    <td className="r b">{fmtH(p.total)}</td>
+                                                    <td className="rp-wbar"><Bar value={p.total} max={maxProj}/><span className="rp-pct">{fmtPct(pct(p.total, d.total))}</span></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : <p className="rp-empty">Chưa có giờ làm việc trong kỳ.</p>}
+                            </section>
+
+                            <section className="rp-sec">
+                                <h2>Theo hoạt động</h2>
+                                {d.activityList.length ? (
+                                    <React.Fragment>
+                                        <table className="rp-table">
+                                            <thead><tr><th>Mã · Hoạt động</th><th className="r">Giờ</th><th className="rp-wbar">Tỷ lệ</th></tr></thead>
+                                            <tbody>
+                                                {d.activityList.map(a => (
+                                                    <tr key={a.code}>
+                                                        <td><span className="rp-mono">{a.code}</span> {a.desc}</td>
+                                                        <td className="r b">{fmtH(a.hours)}</td>
+                                                        <td className="rp-wbar"><Bar value={a.hours} max={maxAct}/><span className="rp-pct">{fmtPct(pct(a.hours, d.total))}</span></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        <h3>Theo nhóm công việc</h3>
+                                        <ul className="rp-cats">
+                                            {d.catList.map(c => <li key={c.cat}><span>{c.label}</span><b>{fmtH(c.hours)} giờ · {fmtPct(pct(c.hours, d.total))}</b></li>)}
+                                        </ul>
+                                    </React.Fragment>
+                                ) : <p className="rp-empty">Chưa có hoạt động trong kỳ.</p>}
+                            </section>
+                        </div>
+
+                        <div className="rp-cols">
+                            <section className="rp-sec">
+                                <h2>Giờ công theo loại</h2>
+                                <table className="rp-table">
+                                    <thead><tr><th>Loại giờ</th><th className="r">Hệ số</th><th className="r">Giờ</th><th className="r">Tỷ lệ</th></tr></thead>
+                                    <tbody>
+                                        {otTypes.length ? otTypes.map(t => (
+                                            <tr key={t.code}><td>{t.label.replace(/ \(\d+%\)$/, '')}</td><td className="r">{LaborVN.OT_RATES[t.code]}%</td>
+                                                <td className="r b">{fmtH(d.byType[t.code])}</td><td className="r">{fmtPct(pct(d.byType[t.code], d.total))}</td></tr>
+                                        )) : <tr><td colSpan="4" className="rp-empty">Chưa có giờ làm việc.</td></tr>}
+                                    </tbody>
+                                    <tfoot><tr><td>Tổng</td><td/><td className="r b">{fmtH(d.total)}</td><td className="r">100%</td></tr>
+                                        <tr><td colSpan="2">Giờ quy đổi theo hệ số</td><td className="r b">{fmtH(d.weighted)}</td><td/></tr></tfoot>
+                                </table>
+                            </section>
+
+                            <section className="rp-sec">
+                                <h2>Nghỉ & ngày lễ</h2>
+                                <table className="rp-table">
+                                    <thead><tr><th>Loại nghỉ</th><th className="r">Ngày</th><th className="r">Giờ</th></tr></thead>
+                                    <tbody>
+                                        {d.leaveList.length ? d.leaveList.map(l => (
+                                            <tr key={l.code}><td>{l.label}<div className="rp-muted">{leaveDates(l)}</div></td><td className="r b">{l.days}</td><td className="r">{fmtH(l.hours)}</td></tr>
+                                        )) : <tr><td colSpan="3" className="rp-empty">Không nghỉ phép / ốm / không lương trong kỳ.</td></tr>}
+                                    </tbody>
+                                </table>
+                                <h3>Ngày lễ trong kỳ</h3>
+                                {d.holidays.length
+                                    ? <ul className="rp-list">{d.holidays.map(h => <li key={h.date}><b>{fmtDM(h.date)}</b> {h.name}</li>)}</ul>
+                                    : <p className="rp-muted">Không có ngày lễ.</p>}
+                            </section>
+                        </div>
+
+                        <footer className="rp-foot">
+                            <p>Giờ tăng ca tính theo Bộ luật Lao động 2019 (Điều 98, 106) và Nghị định 145/2020 (Điều 57). Chi tiết từng dòng xem file bảng chấm công Excel.
+                                Lập ngày {fmtDMY(getTodayLocal())} từ Timesheet cá nhân ({d.entries} dòng chấm công).</p>
+                            <div className="rp-sign">
+                                <div><span>Người lao động</span><i/>{profile.name || ''}</div>
+                                <div><span>Giám sát (PM / PE) xác nhận</span><i/></div>
+                            </div>
+                        </footer>
+                    </article>
+                </div>
+            );
+        }
+
+
+        // ================================================================
+        //   GỬI MAIL CHO GIÁM SÁT
+        //   Web tĩnh không tự gửi được thư → mở ứng dụng mail đã điền sẵn người nhận / tiêu đề / nội dung:
+        //   - Chia sẻ (điện thoại, Windows, Mac): kèm luôn file Excel, chọn Gmail / Outlook trong bảng chia sẻ
+        //   - mailto: (Outlook / ứng dụng mail mặc định), Gmail web, Outlook web: tải file Excel để đính kèm
+        // ================================================================
+        const EMAIL_RE = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
+        const parseEmails = (s) => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+        const MAILTO_MAX = 1900; // một số ứng dụng mail cắt / từ chối link mailto dài hơn ~2000 ký tự
+
+        function buildMailText(d, profile, period, month, supervisorName) {
+            const [y, m] = month.split('-');
+            const kp = `kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDMY(period.start)} – ${fmtDMY(period.end)})`;
+            const name = profile.name || 'Nhân viên';
+            const subject = `[Timesheet] ${name}${profile.empId ? ` (${profile.empId})` : ''} – Kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDM(period.start)}–${fmtDM(period.end)}/${period.end.slice(0, 4)})`;
+            const ots = OT_TYPES.filter(t => t.code !== 'NORMAL' && d.byType[t.code] > 0).map(t => `${t.code}: ${fmtH(d.byType[t.code])}`).join(' · ');
+            const who = [`Nhân viên: ${name}`, profile.empId && `Mã NV: ${profile.empId}`, profile.position && `Chức vụ: ${profile.position}`, profile.dept && `Phòng ban: ${profile.dept}`].filter(Boolean).join(' – ');
+            const head = [
+                `Kính gửi Anh/Chị${supervisorName ? ' ' + supervisorName : ''},`, '',
+                `Tôi xin gửi bảng chấm công ${kp}.`, '',
+                who,
+                `Tổng giờ làm việc: ${fmtH(d.total)} giờ (${d.workDays} ngày)`,
+                `- Giờ thường: ${fmtH(d.normal)} giờ`,
+                `- Tăng ca: ${fmtH(d.ot)} giờ${ots ? ` (${ots})` : ''}`,
+            ];
+            const leave = d.leaveDays
+                ? `Nghỉ: ${d.leaveDays} ngày${d.leaveHours ? `, ${fmtH(d.leaveHours)} giờ` : ''} (${d.leaveList.map(l => `${l.label}: ${l.days} ngày`).join('; ')})`
+                : 'Nghỉ: không';
+            const top = d.projectList.slice(0, 5);
+            const projects = top.length ? ['Dự án:', ...top.map(p => `- ${p.name}${p.wbs ? ` (${p.wbs})` : ''}: ${fmtH(p.total)} giờ`),
+                ...(d.projectList.length > top.length ? [`- … và ${d.projectList.length - top.length} dự án khác`] : [])] : [];
+            const missing = d.missing.length ? [`Ngày chưa chấm: ${d.missing.map(fmtDM).join(', ')}`] : [];
+            const tail = ['', 'File bảng chấm công Excel đính kèm.', '', 'Trân trọng,', name];
+            const body = [...head, leave, ...projects, ...missing, ...tail].join('\n');
+            const shortBody = [...head, leave, ...missing, ...tail].join('\n'); // cho link mailto quá dài
+            return { subject, body, shortBody };
+        }
+
+        const canShareFiles = () => {
+            try { return !!(navigator.canShare && navigator.share && navigator.canShare({ files: [new File(['x'], 'x.xlsx', { type: XLSX_MIME })] })); }
+            catch (e) { return false; }
+        };
+        const qs = (o) => Object.keys(o).filter(k => o[k]).map(k => `${k}=${encodeURIComponent(o[k])}`).join('&');
+        const crlf = (t) => t.replace(/\r?\n/g, '\r\n');
+        const openLink = (url) => { // mở mailto: bằng thẻ <a> (không rời trang)
+            const a = document.createElement('a'); a.href = url; a.rel = 'noopener';
+            document.body.appendChild(a); a.click(); a.remove();
+        };
+
+        function MailPanel({ profile, setProfile, file, mail, supervisorName, onSent, onCancel }) {
+            const [to, setTo] = useState(profile.mailTo || '');
+            const [cc, setCc] = useState(profile.mailCc || '');
+            const [subject, setSubject] = useState(mail.subject);
+            const [body, setBody] = useState(mail.body);
+            const [touched, setTouched] = useState(false);
+            const share = useMemo(canShareFiles, []);
+            const toList = parseEmails(to), ccList = parseEmails(cc);
+            const badTo = !toList.length ? 'Nhập email giám sát / quản lý.' : toList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${toList.find(e => !EMAIL_RE.test(e))}` : '';
+            const badCc = ccList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${ccList.find(e => !EMAIL_RE.test(e))}` : '';
+            const invalid = !!(badTo || badCc);
+            const ready = file && file.status === 'ready';
+            const remember = () => setProfile({ ...profile, mailTo: toList.join(', '), mailCc: ccList.join(', ') });
+            const guard = () => { setTouched(true); if (invalid) return false; remember(); return true; };
+            const download = () => { if (ready) saveAs(file.blob, file.name); };
+            const attachNote = ready ? ` — file ${file.name} đã tải về máy, hãy đính kèm vào thư trước khi gửi.` : '.';
+
+            const viaShare = () => {
+                if (!guard() || !ready) return;
+                const f = new File([file.blob], file.name, { type: XLSX_MIME });
+                try { navigator.clipboard && navigator.clipboard.writeText(toList.join(', ')).catch(() => {}); } catch (e) { /* bỏ qua */ }
+                navigator.share({ files: [f], title: subject, text: body })
+                    .then(() => onSent(`Đã chuyển sang ứng dụng mail kèm file ${file.name}. Địa chỉ giám sát đã chép sẵn — dán vào ô Người nhận.`))
+                    .catch(err => { if (err && err.name !== 'AbortError') alert('Không chia sẻ được: ' + err.message); });
+            };
+            const viaMailto = () => {
+                if (!guard()) return;
+                download();
+                let url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({ cc: ccList.join(','), subject, body: crlf(body) });
+                if (url.length > MAILTO_MAX) url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({ cc: ccList.join(','), subject, body: crlf(body === mail.body ? mail.shortBody : body.slice(0, 900) + '\n…') });
+                openLink(url);
+                onSent('Đã mở ứng dụng mail (Outlook / mail mặc định)' + attachNote);
+            };
+            const viaWeb = (kind) => {
+                if (!guard()) return;
+                download();
+                const url = kind === 'gmail'
+                    ? 'https://mail.google.com/mail/?view=cm&fs=1&' + qs({ to: toList.join(','), cc: ccList.join(','), su: subject, body })
+                    : 'https://outlook.office.com/mail/deeplink/compose?' + qs({ to: toList.join(','), cc: ccList.join(','), subject, body });
+                window.open(url, '_blank', 'noopener');
+                onSent(`Đã mở ${kind === 'gmail' ? 'Gmail' : 'Outlook web'}` + attachNote);
+            };
+
+            const btnRow = 'w-full justify-start h-11';
+            return (
+                <div className="px-5 py-5 space-y-5">
+                    <section className="space-y-3">
+                        <Field label="Gửi đến (email giám sát / quản lý)" htmlFor="tsMailTo"
+                            hint={supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.'}>
+                            <input id="tsMailTo" data-autofocus type="email" multiple inputMode="email" autoComplete="email" className={inputCls}
+                                value={to} onChange={e => setTo(e.target.value)} onBlur={() => setTouched(true)} placeholder="email@congty.com"
+                                aria-invalid={touched && !!badTo} aria-describedby="tsMailErr"/>
+                        </Field>
+                        <Field label="CC (không bắt buộc)" htmlFor="tsMailCc">
+                            <input id="tsMailCc" type="email" multiple inputMode="email" className={inputCls} value={cc} onChange={e => setCc(e.target.value)} placeholder="email@congty.com"/>
+                        </Field>
+                        <p id="tsMailErr" role="alert" className="text-sm text-rose-700 empty:hidden">{touched ? (badTo || badCc) : ''}</p>
+                        <Field label="Tiêu đề" htmlFor="tsMailSubject">
+                            <input id="tsMailSubject" type="text" className={inputCls} value={subject} onChange={e => setSubject(e.target.value)}/>
+                        </Field>
+                        <Field label="Nội dung" htmlFor="tsMailBody">
+                            <textarea id="tsMailBody" rows={11} className={`${inputCls} h-auto py-2 leading-snug font-normal`} value={body} onChange={e => setBody(e.target.value)}/>
+                            {(body !== mail.body || subject !== mail.subject) && (
+                                <button type="button" onClick={() => { setBody(mail.body); setSubject(mail.subject); }} className="mt-1 text-sm font-medium text-blue-700 hover:text-blue-900">Soạn lại theo số liệu kỳ</button>
+                            )}
+                        </Field>
+                        <div id="tsMailFile" className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
+                            <span aria-hidden="true">📎</span>
+                            {!file || file.status === 'loading' ? <span className="text-slate-500">Đang tạo file bảng chấm công Excel…</span>
+                                : file.status === 'ready' ? <span><b>{file.name}</b> <span className="text-slate-500">· {Math.max(1, Math.round(file.blob.size / 1024))} KB</span></span>
+                                : file.status === 'empty' ? <span className="text-amber-800">Kỳ này chưa có chấm công — thư sẽ không có file đính kèm.</span>
+                                : <span className="text-rose-700">{file.error}</span>}
+                        </div>
+                    </section>
+
+                    <section className="space-y-2 pt-4 border-t border-slate-200">
+                        <h3 className="font-semibold">Gửi bằng</h3>
+                        {share && (
+                            <React.Fragment>
+                                <button id="tsMailShare" type="button" onClick={viaShare} disabled={!ready} className={`${btnPrimary} ${btnRow}`}>
+                                    <Icons.Mail/> Gửi kèm file Excel
+                                </button>
+                                <p className="text-xs text-slate-500 -mt-1">Mở bảng chia sẻ của máy với file đính kèm sẵn — chọn Gmail, Outlook… Địa chỉ giám sát được chép sẵn để dán vào ô Người nhận.</p>
+                            </React.Fragment>
+                        )}
+                        <button id="tsMailApp" type="button" onClick={viaMailto} className={`${share ? btnGhost : btnPrimary} ${btnRow}`}>
+                            <Icons.Mail/> Outlook / ứng dụng mail trên máy
+                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button id="tsMailGmail" type="button" onClick={() => viaWeb('gmail')} className={`${btnGhost} h-11`}>Gmail (web)</button>
+                            <button id="tsMailOwa" type="button" onClick={() => viaWeb('owa')} className={`${btnGhost} h-11`}>Outlook web</button>
+                        </div>
+                        <p className="text-xs text-slate-500">Với 3 cách này, thư đã điền sẵn người nhận, tiêu đề, nội dung; file Excel tự tải về máy —
+                            trình duyệt không cho tự đính kèm, hãy kéo / chọn file vào thư rồi bấm Gửi.</p>
+                        <button type="button" onClick={onCancel} className={`${btnGhost} w-full h-11 mt-2`}>Hủy</button>
+                    </section>
                 </div>
             );
         }

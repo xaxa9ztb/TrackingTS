@@ -220,6 +220,54 @@ const Icons = {
     x2: "18",
     y2: "18"
   })),
+  Mail: () => /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "2.5",
+    y: "4.5",
+    width: "19",
+    height: "15",
+    rx: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M3 6.5l9 6.5 9-6.5"
+  })),
+  Chart: () => /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M3 3v18h18"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "7",
+    y: "12",
+    width: "3",
+    height: "6",
+    rx: "1"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "12",
+    y: "8",
+    width: "3",
+    height: "10",
+    rx: "1"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "17",
+    y: "5",
+    width: "3",
+    height: "13",
+    rx: "1"
+  })),
   Alert: () => /*#__PURE__*/React.createElement("svg", {
     width: "20",
     height: "20",
@@ -544,6 +592,7 @@ const getTemplateBuffer = async () => {
   if (!res.ok) throw new Error('không tải được mẫu bảng chấm công (HTTP ' + res.status + ')');
   return res.arrayBuffer();
 };
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const cloneStyle = s => s ? JSON.parse(JSON.stringify(s)) : {};
 // Ngày ghi vào Excel PHẢI tạo theo UTC: ExcelJS đổi Date sang số ngày Excel theo giờ UTC.
 // new Date(y, m-1, d) là 0 giờ GIỜ MÁY — ở Việt Nam (UTC+7) = 17 giờ hôm TRƯỚC theo UTC → Excel lùi 1 ngày
@@ -672,6 +721,9 @@ function App() {
   // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
   const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
   const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
+  const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+  const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
+  const [supervisorName, setSupervisorName] = useState(''); // giám sát theo EE Data (nếu có trên máy)
   const [dayFilter, setDayFilter] = useState(null);
   const [toast, setToast] = useState(null);
   const [syncStatus, setSyncStatus] = useState('');
@@ -700,6 +752,13 @@ function App() {
       if (!n && !savedProjects) setNeedProjects(true);
     })();
   }, []);
+  useEffect(() => {
+    if (typeof DB === 'undefined' || !profile.empId) return;
+    DB.getAll('employees').then(list => {
+      const me = (list || []).find(e => String(e.empId).trim().toLowerCase() === String(profile.empId).trim().toLowerCase());
+      setSupervisorName(me && me.supervisor ? String(me.supervisor) : '');
+    }).catch(() => {});
+  }, [profile.empId, projSyncedAt]); // máy mới: EE Data có sau lần đồng bộ đầu
   useEffect(() => {
     localStorage.setItem('ts_entries_v28', JSON.stringify(entries));
   }, [entries]);
@@ -864,19 +923,14 @@ function App() {
       }
     }
   };
-  const handleExportExcel = async () => {
-    if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+
+  // Tạo file bảng chấm công Excel (mẫu Schindler) của kỳ đang xem → { blob, name }.
+  // Dùng cho Xuất Excel và để đính kèm khi Gửi mail. Lỗi tải thư viện / mẫu → throw.
+  const buildExcelFile = async () => {
     const sortedData = [...monthlyEntries].sort((a, b) => a.date.localeCompare(b.date));
-    setSyncStatus('Đang tạo file...');
-    let workbook;
-    try {
-      await ensureExcelJS();
-      workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(await getTemplateBuffer());
-    } catch (err) {
-      setSyncStatus('');
-      return alert('Không xuất được Excel: ' + err.message + (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.'));
-    }
+    await ensureExcelJS();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await getTemplateBuffer());
     const sheet = workbook.getWorksheet('New TS') || workbook.worksheets[0];
 
     // Snapshot template styles BEFORE editing: a data row (11), the total row (59),
@@ -1008,8 +1062,51 @@ function App() {
     const buffer = await workbook.xlsx.writeBuffer();
     const cleanName = removeAccents(profile.name || 'Timesheet');
     const [y, m] = currentMonth.split('-');
-    saveAs(new Blob([buffer]), `${cleanName}_Thang_${m}_${y}.xlsx`);
-    setSyncStatus('');
+    return {
+      blob: new Blob([buffer], {
+        type: XLSX_MIME
+      }),
+      name: `${cleanName}_Thang_${m}_${y}.xlsx`
+    };
+  };
+  const excelError = err => 'Không xuất được Excel: ' + err.message + (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
+  const handleExportExcel = async () => {
+    if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+    setSyncStatus('Đang tạo file...');
+    try {
+      const f = await buildExcelFile();
+      saveAs(f.blob, f.name);
+    } catch (err) {
+      alert(excelError(err));
+    } finally {
+      setSyncStatus('');
+    }
+  };
+  const openMail = async () => {
+    setDrawer({
+      type: 'mail',
+      key: Date.now()
+    });
+    if (!monthlyEntries.length) {
+      setMailFile({
+        status: 'empty'
+      });
+      return;
+    }
+    setMailFile({
+      status: 'loading'
+    });
+    try {
+      setMailFile({
+        status: 'ready',
+        ...(await buildExcelFile())
+      });
+    } catch (err) {
+      setMailFile({
+        status: 'error',
+        error: excelError(err)
+      });
+    }
   };
   const handleBackup = () => {
     const blob = new Blob([JSON.stringify({
@@ -1071,6 +1168,15 @@ function App() {
     onClick: () => openNewEntry(),
     className: `${btnPrimary} hidden md:inline-flex`
   }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Th\xEAm ch\u1EA5m c\xF4ng"), /*#__PURE__*/React.createElement("button", {
+    id: "tsReportBtn",
+    type: "button",
+    onClick: () => setReportOpen(true),
+    className: btnGhost,
+    title: "B\xE1o c\xE1o t\u1ED5ng quan c\u1EE7a k\u1EF3 (in / l\u01B0u PDF g\u1EEDi gi\xE1m s\xE1t)",
+    "aria-label": "B\xE1o c\xE1o t\u1ED5ng quan"
+  }, /*#__PURE__*/React.createElement(Icons.Chart, null), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline"
+  }, "B\xE1o c\xE1o")), /*#__PURE__*/React.createElement("button", {
     id: "tsExportBtn",
     type: "button",
     onClick: handleExportExcel,
@@ -1081,6 +1187,15 @@ function App() {
   }, /*#__PURE__*/React.createElement(Icons.Download, null), /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
   }, exporting ? 'Đang tạo file...' : 'Xuất Excel')), /*#__PURE__*/React.createElement("button", {
+    id: "tsMailBtn",
+    type: "button",
+    onClick: openMail,
+    className: btnGhost,
+    title: "G\u1EEDi b\u1EA3ng ch\u1EA5m c\xF4ng c\u1EE7a k\u1EF3 cho gi\xE1m s\xE1t / qu\u1EA3n l\xFD qua email",
+    "aria-label": "G\u1EEDi mail"
+  }, /*#__PURE__*/React.createElement(Icons.Mail, null), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline"
+  }, "G\u1EEDi mail")), /*#__PURE__*/React.createElement("button", {
     id: "tsSettingsBtn",
     type: "button",
     onClick: () => setDrawer({
@@ -1183,6 +1298,28 @@ function App() {
     entries: entries,
     projects: projects,
     sch: sch
+  })), drawer && drawer.type === 'mail' && /*#__PURE__*/React.createElement(Drawer, {
+    title: "G\u1EEDi b\u1EA3ng c\xF4ng cho gi\xE1m s\xE1t",
+    onClose: closeDrawer
+  }, /*#__PURE__*/React.createElement(MailPanel, {
+    key: drawer.key,
+    profile: profile,
+    setProfile: setProfile,
+    file: mailFile,
+    supervisorName: supervisorName,
+    mail: buildMailText(buildReport({
+      rows: monthlyEntries,
+      bdOf,
+      period,
+      sch,
+      holidays,
+      missing: stats.missing
+    }), profile, period, currentMonth, supervisorName),
+    onSent: msg => {
+      closeDrawer();
+      showToast(msg);
+    },
+    onCancel: closeDrawer
   })), drawer && drawer.type === 'settings' && /*#__PURE__*/React.createElement(Drawer, {
     title: "Sao l\u01B0u & kh\xF4i ph\u1EE5c",
     onClose: closeDrawer
@@ -1191,7 +1328,21 @@ function App() {
     onRestore: handleRestore,
     onReset: handleResetData,
     onDone: closeDrawer
-  })), toast && /*#__PURE__*/React.createElement(Toast, {
+  })), reportOpen && /*#__PURE__*/React.createElement(ReportView, {
+    onClose: () => setReportOpen(false),
+    data: buildReport({
+      rows: monthlyEntries,
+      bdOf,
+      period,
+      sch,
+      holidays,
+      missing: stats.missing
+    }),
+    profile: profile,
+    sch: sch,
+    period: period,
+    month: currentMonth
+  }), toast && /*#__PURE__*/React.createElement(Toast, {
     toast: toast,
     onClose: () => setToast(null)
   }));
@@ -1630,6 +1781,755 @@ function Drawer({
   }, /*#__PURE__*/React.createElement(Icons.X, null))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto"
   }, children)));
+}
+
+// ================================================================
+//   BÁO CÁO TỔNG QUAN (cho giám sát xem nhanh) — in / lưu PDF bằng trình duyệt
+// ================================================================
+const CAT_LABEL = {
+  NI: 'Lắp đặt mới (NI)',
+  MOD: 'Hiện đại hoá (MOD)',
+  EI: 'Bảo trì, sửa chữa (EI)',
+  TF: 'Kiểm định (TF)',
+  SAF: 'An toàn',
+  HR: 'Họp, đào tạo, hành chính',
+  Other: 'Khác'
+};
+const LEAVE_LABEL = {
+  '6010': 'Nghỉ hưởng lương (phép năm / lễ)',
+  '6020': 'Nghỉ ốm / tai nạn',
+  '6090': 'Nghỉ không lương'
+};
+const pct = (x, total) => total > 0 ? Math.round(x / total * 1000) / 10 : 0;
+const fmtPct = x => x.toLocaleString('vi-VN', {
+  maximumFractionDigits: 1
+}) + '%';
+
+// Tổng hợp số liệu của kỳ: giờ làm việc (không tính nghỉ), dự án, hoạt động, nghỉ, theo ngày
+function buildReport({
+  rows,
+  bdOf,
+  period,
+  sch,
+  holidays,
+  missing
+}) {
+  const isLeave = e => LaborVN.LEAVE_CODES.includes(String(e.activityCode));
+  const work = rows.filter(e => !isLeave(e)),
+    leaveRows = rows.filter(isLeave);
+  const byType = {};
+  let normal = 0,
+    ot = 0,
+    weighted = 0;
+  const projects = {},
+    activities = {},
+    cats = {},
+    leave = {};
+  const day = {};
+  work.forEach(e => {
+    const bd = bdOf(e),
+      h = sumBd(bd);
+    Object.keys(bd).forEach(k => {
+      byType[k] = (byType[k] || 0) + bd[k];
+      if (k === 'NORMAL') normal += bd[k];else ot += bd[k];
+      weighted += bd[k] * (LaborVN.OT_RATES[k] || 100) / 100;
+    });
+    const d = day[e.date] || (day[e.date] = {
+      normal: 0,
+      ot: 0,
+      leave: false
+    });
+    d.normal += bd.NORMAL || 0;
+    d.ot += h - (bd.NORMAL || 0);
+    const pk = (e.workNumber || '') + '|' + (e.projectName || '');
+    const p = projects[pk] || (projects[pk] = {
+      name: e.projectName || '(không ghi dự án)',
+      wbs: e.workNumber || '',
+      days: {},
+      normal: 0,
+      ot: 0
+    });
+    p.days[e.date] = true;
+    p.normal += bd.NORMAL || 0;
+    p.ot += h - (bd.NORMAL || 0);
+    const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
+    const ak = String(e.activityCode || '—');
+    const a = activities[ak] || (activities[ak] = {
+      code: ak,
+      desc: meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : 'Mã khác',
+      cat: meta ? meta.cat : 'Other',
+      hours: 0
+    });
+    a.hours += h;
+    cats[a.cat] = (cats[a.cat] || 0) + h;
+  });
+  leaveRows.forEach(e => {
+    const code = String(e.activityCode);
+    const l = leave[code] || (leave[code] = {
+      code,
+      label: LEAVE_LABEL[code] || code,
+      days: {},
+      hours: 0
+    });
+    l.days[e.date] = true;
+    l.hours += entryHours(e);
+    (day[e.date] || (day[e.date] = {
+      normal: 0,
+      ot: 0,
+      leave: false
+    })).leave = true;
+  });
+  const total = normal + ot;
+  const projectList = Object.values(projects).map(p => ({
+    ...p,
+    days: Object.keys(p.days).length,
+    total: p.normal + p.ot
+  })).sort((a, b) => b.total - a.total);
+  const activityList = Object.values(activities).sort((a, b) => b.hours - a.hours);
+  const catList = Object.keys(cats).map(c => ({
+    cat: c,
+    label: CAT_LABEL[c] || c,
+    hours: cats[c]
+  })).sort((a, b) => b.hours - a.hours);
+  const leaveList = Object.values(leave).map(l => ({
+    ...l,
+    dates: Object.keys(l.days).sort(),
+    days: Object.keys(l.days).length
+  }));
+  const workDays = Object.keys(day).filter(d => day[d].normal + day[d].ot > 0).length;
+  const days = daysBetween(period.start, period.end).map(d => ({
+    date: d,
+    ...(day[d] || {
+      normal: 0,
+      ot: 0,
+      leave: false
+    }),
+    holiday: holidayOf(d, sch),
+    rest: LaborVN.isRestDay(d, sch),
+    missing: missing.includes(d)
+  }));
+  return {
+    total,
+    normal,
+    ot,
+    weighted,
+    byType,
+    workDays,
+    projectList,
+    activityList,
+    catList,
+    leaveList,
+    leaveDays: new Set(leaveRows.map(e => e.date)).size,
+    leaveHours: leaveRows.reduce((s, e) => s + entryHours(e), 0),
+    days,
+    holidays,
+    missing,
+    entries: rows.length
+  };
+}
+
+// Giờ làm theo ngày: cột chồng giờ thường (xanh) + tăng ca (cam), vạch tham chiếu 8 giờ
+function DailyChart({
+  days
+}) {
+  const W = 720,
+    H = 190,
+    padL = 26,
+    padB = 30,
+    padT = 10;
+  const max = Math.max(12, ...days.map(d => d.normal + d.ot));
+  const top = Math.ceil(max / 4) * 4;
+  const cw = (W - padL) / days.length,
+    bw = Math.max(6, Math.min(16, cw - 4));
+  const y = h => padT + (H - padT - padB) * (1 - h / top);
+  const grid = [];
+  for (let g = 0; g <= top; g += 4) grid.push(g);
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: `0 0 ${W} ${H}`,
+    className: "rp-chart",
+    role: "img",
+    "aria-label": "Bi\u1EC3u \u0111\u1ED3 gi\u1EDD l\xE0m theo ng\xE0y trong k\u1EF3"
+  }, grid.map(g => /*#__PURE__*/React.createElement("g", {
+    key: g
+  }, /*#__PURE__*/React.createElement("line", {
+    x1: padL,
+    x2: W,
+    y1: y(g),
+    y2: y(g),
+    stroke: g === 0 ? '#94a3b8' : '#e2e8f0',
+    strokeWidth: "1"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: padL - 5,
+    y: y(g) + 3,
+    textAnchor: "end",
+    className: "rp-axis"
+  }, g))), /*#__PURE__*/React.createElement("line", {
+    x1: padL,
+    x2: W,
+    y1: y(8),
+    y2: y(8),
+    stroke: "#64748b",
+    strokeWidth: "1",
+    strokeDasharray: "3 3"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: W - 2,
+    y: y(8) - 3,
+    textAnchor: "end",
+    className: "rp-axis"
+  }, "8 gi\u1EDD"), days.map((d, i) => {
+    const x = padL + i * cw + (cw - bw) / 2,
+      cx = padL + i * cw + cw / 2;
+    const [, mm, dd] = d.date.split('-');
+    const total = d.normal + d.ot;
+    const label = `${WEEKDAYS_LONG[weekdayOf(d.date)]} ${fmtDMY(d.date)}: ${fmtH(d.normal)} giờ thường` + (d.ot ? `, ${fmtH(d.ot)} giờ tăng ca` : '') + (d.holiday ? ` — ${d.holiday.name}` : '') + (d.leave ? ' — có nghỉ' : '') + (d.missing ? ' — chưa chấm' : '');
+    const yN = y(d.normal),
+      yT = y(total),
+      gap = d.normal > 0 && d.ot > 0 ? 2 : 0;
+    return /*#__PURE__*/React.createElement("g", {
+      key: d.date
+    }, /*#__PURE__*/React.createElement("title", null, label), (d.holiday || d.rest) && /*#__PURE__*/React.createElement("rect", {
+      x: padL + i * cw,
+      y: padT,
+      width: cw,
+      height: H - padT - padB,
+      fill: d.holiday ? '#fef3c7' : '#f1f5f9'
+    }), /*#__PURE__*/React.createElement("rect", {
+      x: padL + i * cw,
+      y: padT,
+      width: cw,
+      height: H - padT - padB,
+      fill: "transparent"
+    }), d.normal > 0 && /*#__PURE__*/React.createElement("path", {
+      d: barPath(x, yN, bw, y(0) - yN, d.ot > 0 ? 0 : 3),
+      fill: "#1d4ed8"
+    }), d.ot > 0 && /*#__PURE__*/React.createElement("path", {
+      d: barPath(x, yT, bw, Math.max(1, yN - yT - gap), 3),
+      fill: "#ea580c"
+    }), /*#__PURE__*/React.createElement("text", {
+      x: cx,
+      y: H - padB + 12,
+      textAnchor: "middle",
+      className: `rp-axis ${d.holiday || weekdayOf(d.date) === 0 ? 'rp-red' : ''}`
+    }, dd === '01' || i === 0 ? `${parseInt(dd, 10)}/${parseInt(mm, 10)}` : parseInt(dd, 10)), d.leave && /*#__PURE__*/React.createElement("text", {
+      x: cx,
+      y: H - padB + 24,
+      textAnchor: "middle",
+      className: "rp-axis rp-leave"
+    }, "P"), d.missing && /*#__PURE__*/React.createElement("circle", {
+      cx: cx,
+      cy: H - padB + 21,
+      r: "2.5",
+      fill: "#e11d48"
+    }));
+  }));
+}
+// cột bo góc 4px ở đầu dữ liệu (phía trên), đáy vuông nằm trên trục
+const barPath = (x, y, w, h, r) => {
+  if (h <= 0) return '';
+  r = Math.min(r, w / 2, h);
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+};
+function Bar({
+  value,
+  max,
+  color
+}) {
+  return /*#__PURE__*/React.createElement("span", {
+    className: "rp-bar"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: `${max > 0 ? Math.max(1, value / max * 100) : 0}%`,
+      background: color || '#1d4ed8'
+    }
+  }));
+}
+function ReportView({
+  data,
+  profile,
+  sch,
+  period,
+  month,
+  onClose
+}) {
+  useEffect(() => {
+    document.body.classList.add('ts-report-open');
+    const onKey = e => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    const title = document.title;
+    const [y, m] = month.split('-');
+    document.title = `Bao_cao_tong_quan_${removeAccents(profile.name || 'Timesheet')}_Thang_${m}_${y}`; // tên file PDF gợi ý
+    return () => {
+      document.body.classList.remove('ts-report-open');
+      document.removeEventListener('keydown', onKey);
+      document.title = title;
+    };
+  }, []);
+  const [y, m] = month.split('-');
+  const d = data;
+  const otTypes = OT_TYPES.filter(t => d.byType[t.code] > 0);
+  const maxProj = d.projectList.length ? d.projectList[0].total : 0;
+  const maxAct = d.activityList.length ? d.activityList[0].hours : 0;
+  const leaveDates = l => l.dates.map(fmtDM).join(', ');
+  return /*#__PURE__*/React.createElement("div", {
+    className: "rp-overlay",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "rpTitle"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "rp-toolbar"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => window.print(),
+    className: btnPrimary
+  }, /*#__PURE__*/React.createElement(Icons.Download, null), " In / L\u01B0u PDF"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClose,
+    className: btnGhost
+  }, "\u0110\xF3ng"), /*#__PURE__*/React.createElement("span", {
+    className: "rp-hint"
+  }, "Ch\u1ECDn \u201CL\u01B0u d\u01B0\u1EDBi d\u1EA1ng PDF\u201D \u0111\u1EC3 g\u1EEDi gi\xE1m s\xE1t.")), /*#__PURE__*/React.createElement("article", {
+    className: "rp-page",
+    id: "tsReport"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "rp-head"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "rp-kicker"
+  }, "Schindler \xB7 Timesheet c\xE1 nh\xE2n"), /*#__PURE__*/React.createElement("h1", {
+    id: "rpTitle"
+  }, "B\xE1o c\xE1o t\u1ED5ng quan ch\u1EA5m c\xF4ng"), /*#__PURE__*/React.createElement("div", {
+    className: "rp-sub"
+  }, "K\u1EF3 l\u01B0\u01A1ng th\xE1ng ", parseInt(m, 10), "/", y, " \xB7 ", fmtDMY(period.start), " \u2013 ", fmtDMY(period.end))), /*#__PURE__*/React.createElement("dl", {
+    className: "rp-who"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "H\u1ECD t\xEAn"), /*#__PURE__*/React.createElement("dd", null, profile.name || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "M\xE3 NV"), /*#__PURE__*/React.createElement("dd", null, profile.empId || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "Ch\u1EE9c v\u1EE5"), /*#__PURE__*/React.createElement("dd", null, profile.position || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "Ph\xF2ng ban"), /*#__PURE__*/React.createElement("dd", null, profile.dept || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "L\u1ECBch l\xE0m vi\u1EC7c"), /*#__PURE__*/React.createElement("dd", null, LaborVN.SCHEDULES[sch].short)))), /*#__PURE__*/React.createElement("section", {
+    className: "rp-kpis",
+    "aria-label": "S\u1ED1 li\u1EC7u ch\xEDnh"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "T\u1ED5ng gi\u1EDD l\xE0m vi\u1EC7c"), /*#__PURE__*/React.createElement("b", null, fmtH(d.total), /*#__PURE__*/React.createElement("small", null, " gi\u1EDD")), /*#__PURE__*/React.createElement("em", null, d.workDays, " ng\xE0y c\xF3 l\xE0m vi\u1EC7c")), /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "Gi\u1EDD c\xF4ng th\u01B0\u1EDDng"), /*#__PURE__*/React.createElement("b", {
+    className: "rp-blue"
+  }, fmtH(d.normal), /*#__PURE__*/React.createElement("small", null, " gi\u1EDD")), /*#__PURE__*/React.createElement("em", null, fmtPct(pct(d.normal, d.total)), " t\u1ED5ng gi\u1EDD")), /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "T\u0103ng ca (OT)"), /*#__PURE__*/React.createElement("b", {
+    className: "rp-orange"
+  }, fmtH(d.ot), /*#__PURE__*/React.createElement("small", null, " gi\u1EDD")), /*#__PURE__*/React.createElement("em", null, fmtPct(pct(d.ot, d.total)), " t\u1ED5ng gi\u1EDD")), /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "Ngh\u1EC9"), /*#__PURE__*/React.createElement("b", null, d.leaveDays, /*#__PURE__*/React.createElement("small", null, " ng\xE0y")), /*#__PURE__*/React.createElement("em", null, d.leaveHours > 0 ? `${fmtH(d.leaveHours)} giờ` : 'không có')), /*#__PURE__*/React.createElement("div", {
+    className: `rp-kpi ${d.missing.length ? 'rp-warn' : ''}`
+  }, /*#__PURE__*/React.createElement("span", null, "Ng\xE0y ch\u01B0a ch\u1EA5m"), /*#__PURE__*/React.createElement("b", null, d.missing.length, /*#__PURE__*/React.createElement("small", null, " ng\xE0y")), /*#__PURE__*/React.createElement("em", null, d.missing.length ? '⚠ ' + d.missing.map(fmtDM).join(', ') : '✓ đủ ngày làm việc'))), /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Gi\u1EDD l\xE0m theo ng\xE0y"), /*#__PURE__*/React.createElement("div", {
+    className: "rp-chartwrap"
+  }, /*#__PURE__*/React.createElement(DailyChart, {
+    days: d.days
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "rp-legend"
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#1d4ed8'
+    }
+  }), "Gi\u1EDD th\u01B0\u1EDDng"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#ea580c'
+    }
+  }), "T\u0103ng ca"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#fef3c7',
+      border: '1px solid #fcd34d'
+    }
+  }), "Ng\xE0y l\u1EC5 / ngh\u1EC9 b\xF9"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#f1f5f9',
+      border: '1px solid #cbd5e1'
+    }
+  }), "Ng\xE0y ngh\u1EC9 h\u1EB1ng tu\u1EA7n"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", {
+    className: "rp-leave"
+  }, "P"), " Ngh\u1EC9 ph\xE9p / \u1ED1m"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    className: "rp-dot"
+  }), "Ch\u01B0a ch\u1EA5m"))), /*#__PURE__*/React.createElement("div", {
+    className: "rp-cols"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Theo d\u1EF1 \xE1n"), d.projectList.length ? /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "D\u1EF1 \xE1n / WBS"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Ng\xE0y"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Th\u01B0\u1EDDng"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "OT"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "T\u1ED5ng"), /*#__PURE__*/React.createElement("th", {
+    className: "rp-wbar"
+  }, "T\u1EF7 l\u1EC7"))), /*#__PURE__*/React.createElement("tbody", null, d.projectList.map(p => /*#__PURE__*/React.createElement("tr", {
+    key: p.wbs + p.name
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    className: "rp-name"
+  }, p.name), p.wbs && /*#__PURE__*/React.createElement("div", {
+    className: "rp-mono"
+  }, p.wbs)), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, p.days), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtH(p.normal)), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtH(p.ot)), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(p.total)), /*#__PURE__*/React.createElement("td", {
+    className: "rp-wbar"
+  }, /*#__PURE__*/React.createElement(Bar, {
+    value: p.total,
+    max: maxProj
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "rp-pct"
+  }, fmtPct(pct(p.total, d.total)))))))) : /*#__PURE__*/React.createElement("p", {
+    className: "rp-empty"
+  }, "Ch\u01B0a c\xF3 gi\u1EDD l\xE0m vi\u1EC7c trong k\u1EF3.")), /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Theo ho\u1EA1t \u0111\u1ED9ng"), d.activityList.length ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "M\xE3 \xB7 Ho\u1EA1t \u0111\u1ED9ng"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    className: "rp-wbar"
+  }, "T\u1EF7 l\u1EC7"))), /*#__PURE__*/React.createElement("tbody", null, d.activityList.map(a => /*#__PURE__*/React.createElement("tr", {
+    key: a.code
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+    className: "rp-mono"
+  }, a.code), " ", a.desc), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(a.hours)), /*#__PURE__*/React.createElement("td", {
+    className: "rp-wbar"
+  }, /*#__PURE__*/React.createElement(Bar, {
+    value: a.hours,
+    max: maxAct
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "rp-pct"
+  }, fmtPct(pct(a.hours, d.total)))))))), /*#__PURE__*/React.createElement("h3", null, "Theo nh\xF3m c\xF4ng vi\u1EC7c"), /*#__PURE__*/React.createElement("ul", {
+    className: "rp-cats"
+  }, d.catList.map(c => /*#__PURE__*/React.createElement("li", {
+    key: c.cat
+  }, /*#__PURE__*/React.createElement("span", null, c.label), /*#__PURE__*/React.createElement("b", null, fmtH(c.hours), " gi\u1EDD \xB7 ", fmtPct(pct(c.hours, d.total))))))) : /*#__PURE__*/React.createElement("p", {
+    className: "rp-empty"
+  }, "Ch\u01B0a c\xF3 ho\u1EA1t \u0111\u1ED9ng trong k\u1EF3."))), /*#__PURE__*/React.createElement("div", {
+    className: "rp-cols"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Gi\u1EDD c\xF4ng theo lo\u1EA1i"), /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Lo\u1EA1i gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "H\u1EC7 s\u1ED1"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "T\u1EF7 l\u1EC7"))), /*#__PURE__*/React.createElement("tbody", null, otTypes.length ? otTypes.map(t => /*#__PURE__*/React.createElement("tr", {
+    key: t.code
+  }, /*#__PURE__*/React.createElement("td", null, t.label.replace(/ \(\d+%\)$/, '')), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, LaborVN.OT_RATES[t.code], "%"), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(d.byType[t.code])), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtPct(pct(d.byType[t.code], d.total))))) : /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "4",
+    className: "rp-empty"
+  }, "Ch\u01B0a c\xF3 gi\u1EDD l\xE0m vi\u1EC7c."))), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, "T\u1ED5ng"), /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(d.total)), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, "100%")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "2"
+  }, "Gi\u1EDD quy \u0111\u1ED5i theo h\u1EC7 s\u1ED1"), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(d.weighted)), /*#__PURE__*/React.createElement("td", null))))), /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Ngh\u1EC9 & ng\xE0y l\u1EC5"), /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Lo\u1EA1i ngh\u1EC9"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Ng\xE0y"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Gi\u1EDD"))), /*#__PURE__*/React.createElement("tbody", null, d.leaveList.length ? d.leaveList.map(l => /*#__PURE__*/React.createElement("tr", {
+    key: l.code
+  }, /*#__PURE__*/React.createElement("td", null, l.label, /*#__PURE__*/React.createElement("div", {
+    className: "rp-muted"
+  }, leaveDates(l))), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, l.days), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtH(l.hours)))) : /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "3",
+    className: "rp-empty"
+  }, "Kh\xF4ng ngh\u1EC9 ph\xE9p / \u1ED1m / kh\xF4ng l\u01B0\u01A1ng trong k\u1EF3.")))), /*#__PURE__*/React.createElement("h3", null, "Ng\xE0y l\u1EC5 trong k\u1EF3"), d.holidays.length ? /*#__PURE__*/React.createElement("ul", {
+    className: "rp-list"
+  }, d.holidays.map(h => /*#__PURE__*/React.createElement("li", {
+    key: h.date
+  }, /*#__PURE__*/React.createElement("b", null, fmtDM(h.date)), " ", h.name))) : /*#__PURE__*/React.createElement("p", {
+    className: "rp-muted"
+  }, "Kh\xF4ng c\xF3 ng\xE0y l\u1EC5."))), /*#__PURE__*/React.createElement("footer", {
+    className: "rp-foot"
+  }, /*#__PURE__*/React.createElement("p", null, "Gi\u1EDD t\u0103ng ca t\xEDnh theo B\u1ED9 lu\u1EADt Lao \u0111\u1ED9ng 2019 (\u0110i\u1EC1u 98, 106) v\xE0 Ngh\u1ECB \u0111\u1ECBnh 145/2020 (\u0110i\u1EC1u 57). Chi ti\u1EBFt t\u1EEBng d\xF2ng xem file b\u1EA3ng ch\u1EA5m c\xF4ng Excel. L\u1EADp ng\xE0y ", fmtDMY(getTodayLocal()), " t\u1EEB Timesheet c\xE1 nh\xE2n (", d.entries, " d\xF2ng ch\u1EA5m c\xF4ng)."), /*#__PURE__*/React.createElement("div", {
+    className: "rp-sign"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Ng\u01B0\u1EDDi lao \u0111\u1ED9ng"), /*#__PURE__*/React.createElement("i", null), profile.name || ''), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Gi\xE1m s\xE1t (PM / PE) x\xE1c nh\u1EADn"), /*#__PURE__*/React.createElement("i", null))))));
+}
+
+// ================================================================
+//   GỬI MAIL CHO GIÁM SÁT
+//   Web tĩnh không tự gửi được thư → mở ứng dụng mail đã điền sẵn người nhận / tiêu đề / nội dung:
+//   - Chia sẻ (điện thoại, Windows, Mac): kèm luôn file Excel, chọn Gmail / Outlook trong bảng chia sẻ
+//   - mailto: (Outlook / ứng dụng mail mặc định), Gmail web, Outlook web: tải file Excel để đính kèm
+// ================================================================
+const EMAIL_RE = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
+const parseEmails = s => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+const MAILTO_MAX = 1900; // một số ứng dụng mail cắt / từ chối link mailto dài hơn ~2000 ký tự
+
+function buildMailText(d, profile, period, month, supervisorName) {
+  const [y, m] = month.split('-');
+  const kp = `kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDMY(period.start)} – ${fmtDMY(period.end)})`;
+  const name = profile.name || 'Nhân viên';
+  const subject = `[Timesheet] ${name}${profile.empId ? ` (${profile.empId})` : ''} – Kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDM(period.start)}–${fmtDM(period.end)}/${period.end.slice(0, 4)})`;
+  const ots = OT_TYPES.filter(t => t.code !== 'NORMAL' && d.byType[t.code] > 0).map(t => `${t.code}: ${fmtH(d.byType[t.code])}`).join(' · ');
+  const who = [`Nhân viên: ${name}`, profile.empId && `Mã NV: ${profile.empId}`, profile.position && `Chức vụ: ${profile.position}`, profile.dept && `Phòng ban: ${profile.dept}`].filter(Boolean).join(' – ');
+  const head = [`Kính gửi Anh/Chị${supervisorName ? ' ' + supervisorName : ''},`, '', `Tôi xin gửi bảng chấm công ${kp}.`, '', who, `Tổng giờ làm việc: ${fmtH(d.total)} giờ (${d.workDays} ngày)`, `- Giờ thường: ${fmtH(d.normal)} giờ`, `- Tăng ca: ${fmtH(d.ot)} giờ${ots ? ` (${ots})` : ''}`];
+  const leave = d.leaveDays ? `Nghỉ: ${d.leaveDays} ngày${d.leaveHours ? `, ${fmtH(d.leaveHours)} giờ` : ''} (${d.leaveList.map(l => `${l.label}: ${l.days} ngày`).join('; ')})` : 'Nghỉ: không';
+  const top = d.projectList.slice(0, 5);
+  const projects = top.length ? ['Dự án:', ...top.map(p => `- ${p.name}${p.wbs ? ` (${p.wbs})` : ''}: ${fmtH(p.total)} giờ`), ...(d.projectList.length > top.length ? [`- … và ${d.projectList.length - top.length} dự án khác`] : [])] : [];
+  const missing = d.missing.length ? [`Ngày chưa chấm: ${d.missing.map(fmtDM).join(', ')}`] : [];
+  const tail = ['', 'File bảng chấm công Excel đính kèm.', '', 'Trân trọng,', name];
+  const body = [...head, leave, ...projects, ...missing, ...tail].join('\n');
+  const shortBody = [...head, leave, ...missing, ...tail].join('\n'); // cho link mailto quá dài
+  return {
+    subject,
+    body,
+    shortBody
+  };
+}
+const canShareFiles = () => {
+  try {
+    return !!(navigator.canShare && navigator.share && navigator.canShare({
+      files: [new File(['x'], 'x.xlsx', {
+        type: XLSX_MIME
+      })]
+    }));
+  } catch (e) {
+    return false;
+  }
+};
+const qs = o => Object.keys(o).filter(k => o[k]).map(k => `${k}=${encodeURIComponent(o[k])}`).join('&');
+const crlf = t => t.replace(/\r?\n/g, '\r\n');
+const openLink = url => {
+  // mở mailto: bằng thẻ <a> (không rời trang)
+  const a = document.createElement('a');
+  a.href = url;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+function MailPanel({
+  profile,
+  setProfile,
+  file,
+  mail,
+  supervisorName,
+  onSent,
+  onCancel
+}) {
+  const [to, setTo] = useState(profile.mailTo || '');
+  const [cc, setCc] = useState(profile.mailCc || '');
+  const [subject, setSubject] = useState(mail.subject);
+  const [body, setBody] = useState(mail.body);
+  const [touched, setTouched] = useState(false);
+  const share = useMemo(canShareFiles, []);
+  const toList = parseEmails(to),
+    ccList = parseEmails(cc);
+  const badTo = !toList.length ? 'Nhập email giám sát / quản lý.' : toList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${toList.find(e => !EMAIL_RE.test(e))}` : '';
+  const badCc = ccList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${ccList.find(e => !EMAIL_RE.test(e))}` : '';
+  const invalid = !!(badTo || badCc);
+  const ready = file && file.status === 'ready';
+  const remember = () => setProfile({
+    ...profile,
+    mailTo: toList.join(', '),
+    mailCc: ccList.join(', ')
+  });
+  const guard = () => {
+    setTouched(true);
+    if (invalid) return false;
+    remember();
+    return true;
+  };
+  const download = () => {
+    if (ready) saveAs(file.blob, file.name);
+  };
+  const attachNote = ready ? ` — file ${file.name} đã tải về máy, hãy đính kèm vào thư trước khi gửi.` : '.';
+  const viaShare = () => {
+    if (!guard() || !ready) return;
+    const f = new File([file.blob], file.name, {
+      type: XLSX_MIME
+    });
+    try {
+      navigator.clipboard && navigator.clipboard.writeText(toList.join(', ')).catch(() => {});
+    } catch (e) {/* bỏ qua */}
+    navigator.share({
+      files: [f],
+      title: subject,
+      text: body
+    }).then(() => onSent(`Đã chuyển sang ứng dụng mail kèm file ${file.name}. Địa chỉ giám sát đã chép sẵn — dán vào ô Người nhận.`)).catch(err => {
+      if (err && err.name !== 'AbortError') alert('Không chia sẻ được: ' + err.message);
+    });
+  };
+  const viaMailto = () => {
+    if (!guard()) return;
+    download();
+    let url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({
+      cc: ccList.join(','),
+      subject,
+      body: crlf(body)
+    });
+    if (url.length > MAILTO_MAX) url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({
+      cc: ccList.join(','),
+      subject,
+      body: crlf(body === mail.body ? mail.shortBody : body.slice(0, 900) + '\n…')
+    });
+    openLink(url);
+    onSent('Đã mở ứng dụng mail (Outlook / mail mặc định)' + attachNote);
+  };
+  const viaWeb = kind => {
+    if (!guard()) return;
+    download();
+    const url = kind === 'gmail' ? 'https://mail.google.com/mail/?view=cm&fs=1&' + qs({
+      to: toList.join(','),
+      cc: ccList.join(','),
+      su: subject,
+      body
+    }) : 'https://outlook.office.com/mail/deeplink/compose?' + qs({
+      to: toList.join(','),
+      cc: ccList.join(','),
+      subject,
+      body
+    });
+    window.open(url, '_blank', 'noopener');
+    onSent(`Đã mở ${kind === 'gmail' ? 'Gmail' : 'Outlook web'}` + attachNote);
+  };
+  const btnRow = 'w-full justify-start h-11';
+  return /*#__PURE__*/React.createElement("div", {
+    className: "px-5 py-5 space-y-5"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "G\u1EEDi \u0111\u1EBFn (email gi\xE1m s\xE1t / qu\u1EA3n l\xFD)",
+    htmlFor: "tsMailTo",
+    hint: supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.'
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMailTo",
+    "data-autofocus": true,
+    type: "email",
+    multiple: true,
+    inputMode: "email",
+    autoComplete: "email",
+    className: inputCls,
+    value: to,
+    onChange: e => setTo(e.target.value),
+    onBlur: () => setTouched(true),
+    placeholder: "email@congty.com",
+    "aria-invalid": touched && !!badTo,
+    "aria-describedby": "tsMailErr"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "CC (kh\xF4ng b\u1EAFt bu\u1ED9c)",
+    htmlFor: "tsMailCc"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMailCc",
+    type: "email",
+    multiple: true,
+    inputMode: "email",
+    className: inputCls,
+    value: cc,
+    onChange: e => setCc(e.target.value),
+    placeholder: "email@congty.com"
+  })), /*#__PURE__*/React.createElement("p", {
+    id: "tsMailErr",
+    role: "alert",
+    className: "text-sm text-rose-700 empty:hidden"
+  }, touched ? badTo || badCc : ''), /*#__PURE__*/React.createElement(Field, {
+    label: "Ti\xEAu \u0111\u1EC1",
+    htmlFor: "tsMailSubject"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMailSubject",
+    type: "text",
+    className: inputCls,
+    value: subject,
+    onChange: e => setSubject(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "N\u1ED9i dung",
+    htmlFor: "tsMailBody"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    id: "tsMailBody",
+    rows: 11,
+    className: `${inputCls} h-auto py-2 leading-snug font-normal`,
+    value: body,
+    onChange: e => setBody(e.target.value)
+  }), (body !== mail.body || subject !== mail.subject) && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      setBody(mail.body);
+      setSubject(mail.subject);
+    },
+    className: "mt-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+  }, "So\u1EA1n l\u1EA1i theo s\u1ED1 li\u1EC7u k\u1EF3")), /*#__PURE__*/React.createElement("div", {
+    id: "tsMailFile",
+    className: "flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm",
+    "aria-live": "polite"
+  }, /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": "true"
+  }, "\uD83D\uDCCE"), !file || file.status === 'loading' ? /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-500"
+  }, "\u0110ang t\u1EA1o file b\u1EA3ng ch\u1EA5m c\xF4ng Excel\u2026") : file.status === 'ready' ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, file.name), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-500"
+  }, "\xB7 ", Math.max(1, Math.round(file.blob.size / 1024)), " KB")) : file.status === 'empty' ? /*#__PURE__*/React.createElement("span", {
+    className: "text-amber-800"
+  }, "K\u1EF3 n\xE0y ch\u01B0a c\xF3 ch\u1EA5m c\xF4ng \u2014 th\u01B0 s\u1EBD kh\xF4ng c\xF3 file \u0111\xEDnh k\xE8m.") : /*#__PURE__*/React.createElement("span", {
+    className: "text-rose-700"
+  }, file.error))), /*#__PURE__*/React.createElement("section", {
+    className: "space-y-2 pt-4 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold"
+  }, "G\u1EEDi b\u1EB1ng"), share && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    id: "tsMailShare",
+    type: "button",
+    onClick: viaShare,
+    disabled: !ready,
+    className: `${btnPrimary} ${btnRow}`
+  }, /*#__PURE__*/React.createElement(Icons.Mail, null), " G\u1EEDi k\xE8m file Excel"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500 -mt-1"
+  }, "M\u1EDF b\u1EA3ng chia s\u1EBB c\u1EE7a m\xE1y v\u1EDBi file \u0111\xEDnh k\xE8m s\u1EB5n \u2014 ch\u1ECDn Gmail, Outlook\u2026 \u0110\u1ECBa ch\u1EC9 gi\xE1m s\xE1t \u0111\u01B0\u1EE3c ch\xE9p s\u1EB5n \u0111\u1EC3 d\xE1n v\xE0o \xF4 Ng\u01B0\u1EDDi nh\u1EADn.")), /*#__PURE__*/React.createElement("button", {
+    id: "tsMailApp",
+    type: "button",
+    onClick: viaMailto,
+    className: `${share ? btnGhost : btnPrimary} ${btnRow}`
+  }, /*#__PURE__*/React.createElement(Icons.Mail, null), " Outlook / \u1EE9ng d\u1EE5ng mail tr\xEAn m\xE1y"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    id: "tsMailGmail",
+    type: "button",
+    onClick: () => viaWeb('gmail'),
+    className: `${btnGhost} h-11`
+  }, "Gmail (web)"), /*#__PURE__*/React.createElement("button", {
+    id: "tsMailOwa",
+    type: "button",
+    onClick: () => viaWeb('owa'),
+    className: `${btnGhost} h-11`
+  }, "Outlook web")), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500"
+  }, "V\u1EDBi 3 c\xE1ch n\xE0y, th\u01B0 \u0111\xE3 \u0111i\u1EC1n s\u1EB5n ng\u01B0\u1EDDi nh\u1EADn, ti\xEAu \u0111\u1EC1, n\u1ED9i dung; file Excel t\u1EF1 t\u1EA3i v\u1EC1 m\xE1y \u2014 tr\xECnh duy\u1EC7t kh\xF4ng cho t\u1EF1 \u0111\xEDnh k\xE8m, h\xE3y k\xE9o / ch\u1ECDn file v\xE0o th\u01B0 r\u1ED3i b\u1EA5m G\u1EEDi."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onCancel,
+    className: `${btnGhost} w-full h-11 mt-2`
+  }, "H\u1EE7y")));
 }
 function Toast({
   toast,
