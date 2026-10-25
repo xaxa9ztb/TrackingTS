@@ -97,18 +97,25 @@
         // chỉ gửi trường cần thiết — không gửi ngày sinh, giới tính, mã cá nhân; gửi từng đợt nhỏ (giới hạn của máy chủ miễn phí)
         const emps = localData.employees.map(e => ({ empId: e.empId, fullName: e.fullName, position: e.position, supervisor: e.supervisor }));
         const projs = localData.projects;
-        const EMP_BATCH = 200, PROJ_BATCH = 100;
+        // Đợt nhỏ để mỗi yêu cầu tốn ít thời gian xử lý (gói miễn phí giới hạn ~10 ms CPU mỗi yêu cầu). Ghi lại theo mã nên gửi lại an toàn.
+        const EMP_BATCH = 100, PROJ_BATCH = 40;
+        const send = async (body) => {
+          for (let attempt = 0; ; attempt++) {
+            try { return await api('POST', '/api/admin/import', body); }
+            catch (e) { if (attempt >= 2 || !(e.status === 0 || e.status >= 500)) throw e; await new Promise(r => setTimeout(r, 800 * (attempt + 1))); }
+          }
+        };
         const steps = Math.ceil(emps.length / EMP_BATCH) + Math.ceil(projs.length / PROJ_BATCH) + ($('deactivateMissing').checked ? 1 : 0);
         let done = 0, nEmp = 0, nProj = 0, deact = 0;
         const progress = () => { msg.textContent = `Đang đưa lên… ${Math.round(done / steps * 100)}% (${nEmp} nhân viên, ${nProj} dự án)`; };
         for (let i = 0; i < emps.length; i += EMP_BATCH) {
-          nEmp += (await api('POST', '/api/admin/import', { employees: emps.slice(i, i + EMP_BATCH) })).employees; done++; progress();
+          nEmp += (await send({ employees: emps.slice(i, i + EMP_BATCH) })).employees; done++; progress();
         }
         for (let i = 0; i < projs.length; i += PROJ_BATCH) {
-          nProj += (await api('POST', '/api/admin/import', { projects: projs.slice(i, i + PROJ_BATCH) })).projects; done++; progress();
+          nProj += (await send({ projects: projs.slice(i, i + PROJ_BATCH) })).projects; done++; progress();
         }
         if ($('deactivateMissing').checked) {
-          deact = (await api('POST', '/api/admin/import', { deactivateMissing: true, allEmpIds: emps.map(e => e.empId) })).deactivated; done++;
+          deact = (await send({ deactivateMissing: true, allEmpIds: emps.map(e => e.empId) })).deactivated; done++;
         }
         msg.className = 'ac-note ok';
         msg.textContent = `✓ Đã đưa lên ${nEmp} nhân viên, ${nProj} dự án` + (deact ? `, khoá ${deact} người không còn trong EE Data.` : '.');
