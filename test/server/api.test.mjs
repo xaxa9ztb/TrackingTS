@@ -71,7 +71,12 @@ const SAMPLE = {
 test('health: không cần đăng nhập, báo đã cấu hình', async () => {
   const r = await call('GET', '/api/health');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.data, { ok: true, db: true, auth: true });
+  assert.deepEqual(r.data, { ok: true, db: true, auth: true, config: { ACCESS_TEAM_DOMAIN: true, ACCESS_AUD: true, ADMIN_EMAILS: true } });
+  // thiếu cấu hình: báo đúng giá trị nào thiếu, không lộ giá trị
+  const miss = await call('GET', '/api/health', { envOver: { ACCESS_AUD: '', ADMIN_EMAILS: undefined } });
+  assert.deepEqual(miss.data.config, { ACCESS_TEAM_DOMAIN: true, ACCESS_AUD: false, ADMIN_EMAILS: false });
+  assert.equal(miss.data.auth, false);
+  assert.ok(!JSON.stringify(r.data).includes(AUD));
 });
 
 test('chưa cấu hình Access → 503, không mở cửa', async () => {

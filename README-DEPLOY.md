@@ -154,6 +154,9 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
    - Tab **Variables**: `ACCESS_TEAM_DOMAIN` = team name; `ACCESS_AUD` = AUD Tag vừa chép.
    - Tab **Secrets**: `ADMIN_EMAILS` = email của admin (nhiều email cách nhau dấu phẩy) — người được vào với quyền
      admin ngay cả khi chưa gắn với nhân viên nào.
+   - Ba giá trị này được `scripts/write-vars.mjs` ghi vào `wrangler.toml` của **lần triển khai** (không commit), nên
+     đổi giá trị thì chỉ cần **Run workflow** lại. Kiểm tra: `/api/health` (sau khi đăng nhập) trả `auth:true` và
+     mục `config` cho biết giá trị nào còn thiếu (chỉ báo true/false, không lộ giá trị).
 5. **Actions → Cloudflare → Run workflow** (nhánh `main`) để áp dụng. Mở địa chỉ Pages → đăng nhập bằng mã gửi qua email
    → vào `tools/accounts/` → chọn file sao lưu .json (Thống kê giờ công → Cập nhật Data → ⬇ Tải bản sao lưu) →
    **Đưa lên máy chủ** → gắn email cho từng người → phân công Site Sup / Quản lý dự án cho dự án.

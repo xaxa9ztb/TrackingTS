@@ -3,7 +3,7 @@
 // tìm nhân viên theo email rồi kiểm tra vai trò cho TỪNG yêu cầu. Mọi thao tác ghi đều vào nhật ký.
 
 import { verifyAccessJwt, teamHost } from './auth.mjs';
-import { effectiveRoles, rolesFromPosition } from './roles.mjs';
+import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -234,7 +234,12 @@ export async function handle(request, env, opts = {}) {
   const method = request.method.toUpperCase();
   try {
     if (path === '/api/health' && method === 'GET') {
-      return json({ ok: true, db: !!env.DB, auth: !!(teamHost(env.ACCESS_TEAM_DOMAIN) && env.ACCESS_AUD) });
+      // Chỉ báo "có / chưa có" từng giá trị cấu hình, không bao giờ trả giá trị — để biết thiếu gì khi cấu hình đăng nhập
+      const hasTeam = !!teamHost(env.ACCESS_TEAM_DOMAIN), hasAud = !!String(env.ACCESS_AUD || '').trim();
+      return json({
+        ok: true, db: !!env.DB, auth: hasTeam && hasAud,
+        config: { ACCESS_TEAM_DOMAIN: hasTeam, ACCESS_AUD: hasAud, ADMIN_EMAILS: adminEmails(env).length > 0 },
+      });
     }
     if (!env.DB) throw new HttpError(503, 'Máy chủ chưa gắn cơ sở dữ liệu');
     // Yêu cầu ghi bắt buộc là JSON: trang lạ không gửi được kiểu này sang (chặn giả mạo yêu cầu)
