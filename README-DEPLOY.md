@@ -138,7 +138,8 @@ Trong lúc chuyển, bản GitHub Pages + Google Drive **vẫn chạy như cũ**
 **Đã làm (người giữ tài khoản Cloudflare):** tài khoản + quản trị phụ, API token `trackingts-deploy`
 (Workers Scripts, D1, Cloudflare Pages, Workers R2 Storage — Edit), secret GitHub `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_ACCOUNT_ID`. Lần merge đầu tiên vào `main` sẽ tự tạo D1 `trackingts` và dự án Pages `trackingts`
-(địa chỉ dạng `https://trackingts.pages.dev` — xem đúng địa chỉ ở **Workers & Pages → trackingts**).
+(địa chỉ dạng `https://<tên>.pages.dev`; Cloudflare thêm hậu tố ngẫu nhiên nếu tên đã có người dùng, vd. `trackingts-90q` — xem đúng địa chỉ ở **Workers & Pages → dự án**, hoặc dòng *Deployment complete* trong log Actions).
+**Đổi tên / địa chỉ:** tên dự án Pages không đổi được sau khi tạo. Muốn tên khác: GitHub → Variables → thêm `PAGES_PROJECT` (vd. `comhanoi`) → Run workflow (tạo dự án mới, D1 và dữ liệu giữ nguyên) → sửa *Destinations* của ứng dụng Access sang địa chỉ mới → xoá dự án cũ.
 Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health` trả lời) — không lộ dữ liệu.
 
 ### Bật Cloudflare Access (bước 5)
@@ -146,7 +147,7 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
 2. **Settings → Authentication → Login methods**: *One-time PIN* có sẵn (mã gửi qua email). Tuỳ chọn thêm **Google**.
 3. **Access → Applications → Add an application → Self-hosted**:
    - *Application name*: `trackingts` · *Session Duration*: **1 month** (giữ đăng nhập 30 ngày).
-   - *Domain*: địa chỉ Pages ở trên (vd. `trackingts.pages.dev`).
+   - *Domain*: địa chỉ Pages ở trên (vd. `<tên>.pages.dev`).
    - *Policy*: tên `Team`, *Action* **Allow**, *Include* → **Emails** → nhập email admin (sau này dán danh sách từ trang
      **Tài khoản & phân quyền → Danh sách email cho Cloudflare Access**).
    - Lưu. Mở lại ứng dụng vừa tạo → chép **Application Audience (AUD) Tag**.
