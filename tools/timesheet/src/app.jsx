@@ -212,6 +212,14 @@
         // ngày phải chấm công: T2–T6 (thêm T7 nếu làm cả T7), trừ ngày lễ / nghỉ bù
         const isWorkday = (s, sch) => { const w = weekdayOf(s); return w >= 1 && (w <= 5 || (w === 6 && sch === 'mon-sat')) && !isVietnameseHoliday(s, sch); };
         const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
+        // Bản máy chủ (Cloudflare): Timesheet đồng bộ lên máy chủ theo kỳ lương (xem tssync.js); bản github.io: chỉ trên máy
+        const SERVER = typeof Session !== 'undefined' && !!Session.SERVER && typeof TsSync !== 'undefined';
+        const STATUS_LABEL = { draft: 'Đang chấm', rejected: 'Bị trả lại — cần sửa', submitted: 'Đã nộp — chờ giám sát', sitesup_ok: 'Giám sát đã duyệt — chờ quản lý', approved: 'Đã duyệt xong' };
+        const sameEntries = (a, b) => {
+            if (a.length !== b.length) return false;
+            const m = new Map(a.map(e => [String(e.id), JSON.stringify(e)]));
+            return b.every(e => m.get(String(e.id)) === JSON.stringify(e));
+        };
         const DEFAULT_PROFILE = { name: '', empId: '', position: '', dept: 'NI', sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I' };
 
         const inputCls = 'w-full h-11 rounded-lg border border-slate-300 bg-white px-3 text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50';
@@ -234,6 +242,10 @@
             const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
             const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
             const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+            const [syncInfo, setSyncInfo] = useState({ state: SERVER ? 'syncing' : 'off', at: '', error: '' });
+            const [docStatuses, setDocStatuses] = useState({});
+            const entriesRef = useRef([]);
+            const syncTimer = useRef(null);
             const [ganttOpen, setGanttOpenRaw] = useState(() => { try { return localStorage.getItem('ts_gantt_open') !== '0'; } catch (e) { return true; } });
             const setGanttOpen = (v) => { setGanttOpenRaw(v); try { localStorage.setItem('ts_gantt_open', v ? '1' : '0'); } catch (e) { /* bỏ qua */ } };
             const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
@@ -272,7 +284,41 @@
                 }).catch(() => {});
             }, [profile.empId, projSyncedAt]); // máy mới: EE Data có sau lần đồng bộ đầu
             useEffect(() => { localStorage.setItem('ts_entries_v28', JSON.stringify(entries)); }, [entries]);
+            useEffect(() => { entriesRef.current = entries; }, [entries]);
             useEffect(() => { localStorage.setItem('ts_profile_v28', JSON.stringify(profile)); }, [profile]);
+
+            // ----- đồng bộ máy chủ (chỉ bản Cloudflare) -----
+            const runSync = useCallback(async () => {
+                if (!SERVER) return;
+                setSyncInfo(i => ({ ...i, state: 'syncing' }));
+                const r = await TsSync.sync({
+                    getEntries: () => entriesRef.current,
+                    onMerged: (p, merged, startedAt) => setEntries(prev => {
+                        const next = TsSync.applyChanges(prev, p, merged, startedAt);
+                        if (sameEntries(prev, next)) return prev;
+                        entriesRef.current = next;
+                        return next;
+                    }),
+                });
+                if (r.statuses) setDocStatuses(prev => ({ ...prev, ...r.statuses }));
+                setSyncInfo(r.ok ? { state: 'ok', at: new Date().toISOString(), error: '' }
+                    : r.offline ? { state: 'offline', at: '', error: '' } : { state: 'error', at: '', error: r.error || 'Không đồng bộ được' });
+            }, []);
+            const scheduleSync = useCallback((ms = 2500) => {
+                if (!SERVER) return;
+                clearTimeout(syncTimer.current);
+                syncTimer.current = setTimeout(runSync, ms);
+            }, [runSync]);
+            useEffect(() => {
+                if (!SERVER) return;
+                runSync();
+                const onOnline = () => runSync();
+                const onVisible = () => { if (document.visibilityState === 'visible') runSync(); };
+                window.addEventListener('online', onOnline);
+                document.addEventListener('visibilitychange', onVisible);
+                const iv = setInterval(runSync, 90000);
+                return () => { window.removeEventListener('online', onOnline); document.removeEventListener('visibilitychange', onVisible); clearInterval(iv); clearTimeout(syncTimer.current); };
+            }, []);
             useEffect(() => { localStorage.setItem('ts_projects_v28', JSON.stringify(projects)); }, [projects]);
             useEffect(() => {
                 if (!toast) return;
@@ -287,6 +333,8 @@
                               .sort((a, b) => b.date.localeCompare(a.date) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
             }, [entries, period]);
 
+            const periodStatus = (SERVER && docStatuses[currentMonth]) || 'draft';
+            const locked = SERVER && TsSync.LOCKED.includes(periodStatus);
             const sch = scheduleOf(profile);
             // giờ thường / OT từng loại của mọi dòng (tính trên toàn bộ dữ liệu: OT7 cần biết các dòng cùng ngày)
             const bds = useMemo(() => breakdownsOf(entries, sch), [entries, sch]);
@@ -348,7 +396,9 @@
             const changeMonth = (m) => { setCurrentMonth(m); setDayFilter(null); };
             const closeDrawer = () => setDrawer(null);
 
+            const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên không sửa được. Cần sửa thì nhờ giám sát trả lại bảng công.');
             const openNewEntry = (date) => {
+                if (locked) return lockedMsg();
                 let d = date;
                 if (!d) { // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
                     d = getTodayLocal();
@@ -356,12 +406,14 @@
                 }
                 setDrawer({ type: 'form', entry: null, date: d, key: Date.now() });
             };
-            const openEdit = (entry) => setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() });
+            const openEdit = (entry) => { if (locked) return lockedMsg(); setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() }); };
 
             const handleSaveEntry = (data) => {
                 const editing = drawer && drawer.entry;
-                if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? { ...data, id: editing.id } : e));
-                else setEntries(prev => [...prev, { ...data, id: Date.now() }]);
+                const u = Date.now();      // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
+                if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? { ...data, id: editing.id, u } : e));
+                else setEntries(prev => [...prev, { ...data, id: Date.now(), u }]);
+                if (SERVER) { TsSync.markDirty(editing && editing.date !== data.date ? [data.date, editing.date] : data.date); scheduleSync(); }
                 setDrawer(null);
                 const pm = periodMonthOf(data.date); // ngày thuộc kỳ khác → chuyển sang kỳ đó để thấy ngay
                 if (pm !== currentMonth) changeMonth(pm);
@@ -369,22 +421,29 @@
             };
 
             const handleDelete = (entry) => {
+                if (locked) return lockedMsg();
                 setEntries(prev => prev.filter(e => e.id !== entry.id));
+                if (SERVER) { TsSync.markDeleted(entry); TsSync.markDirty(entry.date); scheduleSync(); }
                 if (drawer && drawer.entry && drawer.entry.id === entry.id) setDrawer(null);
-                showToast(`Đã xóa chấm công ${fmtDMY(entry.date)}.`, { label: 'Hoàn tác', run: () => setEntries(prev => [...prev, entry]) });
+                showToast(`Đã xóa chấm công ${fmtDMY(entry.date)}.`, { label: 'Hoàn tác', run: () => {
+                    setEntries(prev => [...prev, SERVER ? { ...entry, u: Date.now() } : entry]);
+                    if (SERVER) { TsSync.unmarkDeleted(entry); TsSync.markDirty(entry.date); scheduleSync(); }
+                } });
             };
 
             const handleResetData = () => {
-                if (confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
+                if (confirm(SERVER ? "Xóa dữ liệu Timesheet TRÊN MÁY NÀY? (Bản đã lưu trên máy chủ vẫn còn và sẽ được tải lại khi có mạng.)" : "CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
                     if(confirm("Xác nhận lần 2: Xóa tất cả dữ liệu?")) {
                         localStorage.removeItem('ts_entries_v28');
+                        if (SERVER) localStorage.removeItem('ts_sync_v1');
                         localStorage.removeItem('ts_profile_v28');
                         localStorage.removeItem('ts_projects_v28');
                         setEntries([]);
                         setProfile(DEFAULT_PROFILE);
                         setProjects([]);
                         setDrawer(null);
-                        showToast('Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
+                        showToast(SERVER ? 'Đã xóa dữ liệu Timesheet trên máy này (dữ liệu trên máy chủ vẫn còn và sẽ được tải lại).' : 'Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
+                        if (SERVER) scheduleSync(600);
                     }
                 }
             };
@@ -528,7 +587,11 @@
                 reader.onload = (ev) => {
                     try {
                         const data = JSON.parse(ev.target.result);
-                        if (data.entries) setEntries(data.entries);
+                        if (data.entries) {
+                            const stamped = SERVER ? data.entries.map(x => ({ ...x, u: Date.now() })) : data.entries;   // khôi phục chủ động → thắng khi gộp
+                            setEntries(stamped);
+                            if (SERVER) { TsSync.markDirty(stamped.map(x => x.date)); scheduleSync(); }
+                        }
                         if (data.profile) setProfile(data.profile);
                         if (data.projects) setProjects(data.projects);
                         showToast(`Đã khôi phục ${data.entries ? data.entries.length : 0} dòng chấm công từ bản sao lưu.`);
@@ -580,6 +643,12 @@
                             </div>
                         </div>
                     </header>
+
+                    {SERVER && (
+                        <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6">
+                            <SyncBar info={syncInfo} status={periodStatus} period={period} month={currentMonth} onRetry={runSync}/>
+                        </div>
+                    )}
 
                     {/* ---------- Thông tin nhân viên + Dữ liệu dự án: luôn hiện, không phải mở Cài đặt ---------- */}
                     <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 grid gap-4 lg:gap-6 md:grid-cols-2">
@@ -665,6 +734,31 @@
                             profile={profile} sch={sch} period={period} month={currentMonth}/>
                     )}
                     {toast && <Toast toast={toast} onClose={() => setToast(null)}/>}
+                </div>
+            );
+        }
+
+        // ---------- Bản máy chủ: trạng thái kỳ + đồng bộ ----------
+        function SyncBar({ info, status, month, onRetry }) {
+            const [y, m] = month.split('-');
+            const pending = Object.keys(TsSync.load().dirty || {}).length;
+            const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : status === 'rejected' ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : TsSync.LOCKED.includes(status) ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200';
+            const at = info.at ? new Date(info.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+            return (
+                <div id="tsSyncBar" className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" role="status">
+                    <span id="tsPeriodStatus" className={`inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`}>
+                        Kỳ {parseInt(m, 10)}/{y}: {STATUS_LABEL[status] || status}
+                    </span>
+                    {TsSync.LOCKED.includes(status) && <span className="text-sm text-slate-600">Không sửa được cho đến khi bảng công được trả lại.</span>}
+                    <span id="tsSyncText" className="ml-auto text-sm text-slate-600 inline-flex items-center gap-2">
+                        {info.state === 'syncing' && <span>⟳ Đang đồng bộ với máy chủ…</span>}
+                        {info.state === 'ok' && <span>✓ Đã lưu trên máy chủ{at ? ` lúc ${at}` : ''}{pending ? ` · còn ${pending} kỳ chưa gửi` : ''}</span>}
+                        {info.state === 'offline' && <span>📴 Mất mạng — dữ liệu an toàn trên máy, sẽ tự gửi khi có mạng{pending ? ` (${pending} kỳ chưa gửi)` : ''}</span>}
+                        {info.state === 'error' && <span className="text-rose-700">⚠ {info.error}</span>}
+                        {(info.state === 'offline' || info.state === 'error') && <button type="button" onClick={onRetry} className="font-semibold text-blue-700 hover:text-blue-900">Thử lại</button>}
+                    </span>
                 </div>
             );
         }
@@ -857,6 +951,7 @@
                                             <div className="truncate" title={e.projectName}>{e.projectName || '—'}</div>
                                             {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
                                             {e.remarks && <div className="text-xs text-slate-500 italic truncate" title={e.remarks}>{e.remarks}</div>}
+                                            {e.report && <div className="text-xs text-blue-800 truncate" title={e.report}>📝 {e.report}</div>}
                                         </td>
                                         <td className="px-4 py-2 align-top text-right whitespace-nowrap">
                                             <button type="button" aria-label={`Sửa chấm công ${fmtDMY(e.date)}`} onClick={(ev) => { ev.stopPropagation(); onEdit(e); }}
@@ -906,6 +1001,7 @@
                                                 <div className="mt-1 text-sm truncate"><span className="font-mono text-blue-700">[{e.activityCode}]</span> {e.projectName}</div>
                                                 {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
                                                 {e.remarks && <div className="text-xs text-slate-500 truncate">Ghi chú: {e.remarks}</div>}
+                                                {e.report && <div className="text-xs text-blue-800 truncate">📝 {e.report}</div>}
                                             </button>
                                             <button type="button" onClick={() => onDelete(e)} aria-label={`Xóa chấm công ${fmtDMY(e.date)}`}
                                                 className="w-12 grid place-items-center rounded-r-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-l border-slate-100"><Icons.Trash/></button>
@@ -1637,7 +1733,7 @@
         function EntryForm({ onSave, onCancel, onDelete, defaultDate, initialData, entries, projects, sch }) {
             const [formData, setFormData] = useState({
                 date: defaultDate, startTime: '08:00', endTime: '17:00', breakTime: '1', otMode: 'auto',
-                otType: 'NORMAL', projectName: '', workNumber: '', activityCode: '1110', dutyHour: '0', remarks: ''
+                otType: 'NORMAL', projectName: '', workNumber: '', activityCode: '1110', dutyHour: '0', remarks: '', report: ''
             });
             // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
             const [breakTouched, setBreakTouched] = useState(!!initialData);
@@ -1861,6 +1957,12 @@
 
                             <Field label="Ghi chú" htmlFor="tsRemarks">
                                 <input id="tsRemarks" type="text" value={formData.remarks || ''} onChange={set('remarks')} className={inputCls} placeholder="Ghi chú thêm..."/>
+                            </Field>
+
+                            <Field label="Báo cáo thi công trong ngày" htmlFor="tsReportText">
+                                <textarea id="tsReportText" rows="3" maxLength="600" value={formData.report || ''} onChange={set('report')}
+                                    className={`${inputCls} h-auto py-2`} placeholder="Hôm nay làm được gì, đến tầng nào, vướng mắc… (gửi giám sát & quản lý mỗi tối)"/>
+                                <span className="block mt-1 text-xs text-slate-500">{(formData.report || '').length}/600 ký tự</span>
                             </Field>
                         </section>
                     </div>

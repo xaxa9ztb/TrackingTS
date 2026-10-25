@@ -4,6 +4,7 @@
   "description": "Bộ công cụ dự án — máy chủ Cloudflare (Pages + Functions + D1). Giao diện vẫn là web tĩnh.",
   "scripts": {
     "test:server": "node --test test/server/*.test.mjs",
+    "test:client": "node --test test/client/*.test.mjs",
     "build:pages": "node scripts/build-pages.mjs"
   },
   "devDependencies": {

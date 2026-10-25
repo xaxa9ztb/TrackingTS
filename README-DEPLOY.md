@@ -177,6 +177,8 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
   160 dòng vào một "đợt" riêng và chỉ **chuyển sang dùng khi đủ dòng** (lỗi giữa chừng thì bản đang dùng không đổi). Có chặn ghi đè nhầm
   giống bản Drive (mất hơn 20% dòng / máy chủ có bản mới hơn → phải gõ `LUU`), và máy admin còn chỉnh sửa chưa lưu thì đồng bộ
   **không ghi đè**. Nhân viên + dự án quản lý ở trang *Tài khoản* nên mục nhập nhân viên / dự án bị ẩn ở bản này.
+- **Timesheet cá nhân** lưu online theo kỳ lương (bảng `ts_docs`, migration `0005`; `GET/PUT /api/ts/docs/:kỳ`): chấm công trên máy trước rồi tự đồng bộ,
+  gộp theo dòng khi sửa trên nhiều máy, có số phiên bản; chỉ chủ tài khoản đọc / ghi bảng công của mình; kỳ đã nộp / đã duyệt bị khoá (HTTP 423).
 - **Sửa / xoá dự án và Swat Hour Target** (tab Dự án, tab SWAT) ghi thẳng lên máy chủ (`PATCH /api/admin/projects/:wbs`, `POST /api/admin/projects/delete`,
   chỉ admin, có nhật ký). Ghi lên máy chủ **trước**, lỗi thì báo và không đổi gì trên máy — nên đồng bộ không làm mất. Chỉ gửi các trường vừa sửa
   nên không đè thay đổi của người khác.

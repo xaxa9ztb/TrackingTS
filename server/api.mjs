@@ -5,6 +5,7 @@
 import { verifyAccessJwt, teamHost } from './auth.mjs';
 import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
+import { PERIOD_RE, checkDoc } from './tsdoc.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -545,6 +546,62 @@ async function deleteProjects(env, me, request) {
   return json({ ok: true, deleted: have.length });
 }
 
+// ---------- Timesheet cá nhân: bảng công theo kỳ lương của chính người đăng nhập ----------
+const LOCKED_STATUSES = ['submitted', 'sitesup_ok', 'approved'];
+
+function needOwnEmp(me) {
+  if (!me.empId) throw new HttpError(403, 'Tài khoản chưa gắn với nhân viên nào nên chưa có Timesheet cá nhân');
+  return me.empId;
+}
+function periodParam(p) {
+  if (!PERIOD_RE.test(p)) throw new HttpError(400, 'Kỳ lương không hợp lệ (dạng YYYY-MM)');
+  return p;
+}
+
+async function listMyDocs(env, me) {
+  const emp = needOwnEmp(me);
+  const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
+  return json({ docs: results.map(r => ({ period: r.period, version: r.version, status: r.status, entries: r.entry_count, savedAt: r.saved_at })) });
+}
+
+async function getMyDoc(env, me, period) {
+  const emp = needOwnEmp(me);
+  periodParam(period);
+  const r = await env.DB.prepare('SELECT version, status, data, saved_at FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  // chuỗi JSON có sẵn được ghép thẳng vào kết quả (không parse lại) để tiết kiệm thời gian xử lý của gói miễn phí
+  const text = `{"period":${JSON.stringify(period)},"version":${r ? r.version : 0},"status":${JSON.stringify(r ? r.status : 'draft')},"savedAt":${JSON.stringify(r ? r.saved_at : '')},"data":${r ? r.data : '{"entries":[],"deleted":{}}'}}`;
+  return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+async function putMyDoc(env, me, period, request) {
+  const emp = needOwnEmp(me);
+  periodParam(period);
+  const body = await readJson(request);
+  const base = Number(body.baseVersion);
+  if (!Number.isInteger(base) || base < 0) throw new HttpError(400, 'Thiếu số phiên bản (baseVersion)');
+  let checked;
+  try { checked = checkDoc(period, body.data); } catch (e) { throw new HttpError(400, e.message); }
+  const t = now();
+  let changed;
+  if (base === 0) {
+    const r = await env.DB.prepare("INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by) VALUES (?, ?, 1, 'draft', ?, ?, ?, ?) ON CONFLICT(emp_id, period) DO NOTHING")
+      .bind(emp, period, checked.data, checked.count, t, me.email).run();
+    changed = r.meta && r.meta.changes === 1;
+  } else {
+    const r = await env.DB.prepare(`UPDATE ts_docs SET version = version + 1, data = ?, entry_count = ?, saved_at = ?, saved_by = ? WHERE emp_id = ? AND period = ? AND version = ? AND status NOT IN ('submitted', 'sitesup_ok', 'approved')`)
+      .bind(checked.data, checked.count, t, me.email, emp, period, base).run();
+    changed = r.meta && r.meta.changes === 1;
+  }
+  if (changed) return json({ ok: true, period, version: base + 1, savedAt: t });
+  // không ghi được: đã bị khoá (đã nộp / duyệt) hoặc có bản mới hơn → trả bản hiện có để máy khách gộp
+  const cur = await env.DB.prepare('SELECT version, status, data, saved_at FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  if (cur && LOCKED_STATUSES.includes(cur.status)) {
+    return json({ ok: false, locked: true, version: cur.version, status: cur.status, error: 'Bảng công kỳ này đã nộp / đã duyệt nên không sửa được nữa' }, 423);
+  }
+  return new Response(`{"ok":false,"conflict":true,"version":${cur ? cur.version : 0},"status":${JSON.stringify(cur ? cur.status : 'draft')},"data":${cur ? cur.data : '{"entries":[],"deleted":{}}'}}`,
+    { status: 409, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
 async function patchEmployee(env, me, empId, request) {
   need(me);
   const body = await readJson(request);
@@ -630,6 +687,9 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/admin\/employees\/([^/]+)$/)) && method === 'PATCH') return await patchEmployee(env, me, decodeURIComponent(m[1]), request);
     if ((m = path.match(/^\/api\/admin\/projects\/([^/]+)$/)) && method === 'PATCH') return await patchProject(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/projects/delete' && method === 'POST') return await deleteProjects(env, me, request);
+    if (path === '/api/ts/docs' && method === 'GET') return await listMyDocs(env, me);
+    if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'GET') return await getMyDoc(env, me, decodeURIComponent(m[1]));
+    if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'PUT') return await putMyDoc(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     throw new HttpError(404, 'Không có đường dẫn này');
   } catch (e) {

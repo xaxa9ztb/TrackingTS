@@ -79,6 +79,19 @@ Thẻ **Lộ trình kỳ lương (Gantt)** nằm ngay dưới thông tin nhân v
 - Điện thoại: biểu đồ cuộn ngang trong khung, trang không bị tràn.
 - Mã: `buildGantt()` + `GanttChart` trong `src/app.jsx` (dùng chung số liệu với `buildReport()`).
 
+## Bản máy chủ: Timesheet lưu online (giai đoạn 4a)
+Trên `*.pages.dev` (chế độ máy chủ) Timesheet **vẫn chấm công trên máy trước** (mất sóng ở công trường vẫn dùng được), rồi
+**tự đồng bộ lên máy chủ theo kỳ lương** (`tssync.js` ↔ `/api/ts/docs/:kỳ`, bảng `ts_docs`; mỗi người chỉ thấy bảng công của mình):
+- Sửa / xoá một dòng → sau ~2,5 giây (hoặc khi có mạng lại, khi mở lại tab, mỗi 90 giây) gửi lên. Thanh trạng thái phía trên cho biết
+  *Đã lưu trên máy chủ lúc …* / *Mất mạng — dữ liệu an toàn trên máy* / còn bao nhiêu kỳ chưa gửi.
+- Mở trên máy khác (điện thoại ↔ máy tính) cùng tài khoản → tải bảng công về. Hai máy cùng sửa → **gộp theo từng dòng** (dòng sửa sau thắng,
+  dòng đã xoá không sống lại); máy chủ có số phiên bản nên không ghi đè mất dữ liệu của máy kia.
+- Dữ liệu cũ đang có trên máy (từ trước khi có máy chủ) tự được đưa lên ở lần mở đầu tiên.
+- **Báo cáo thi công trong ngày**: ô mới trong form chấm công (≤ 600 ký tự), hiện 📝 trong danh sách; sẽ được gửi giám sát & quản lý mỗi tối (giai đoạn 4c).
+- Kỳ đã **nộp / đã duyệt** thì bị khoá (cả ở giao diện lẫn máy chủ) cho đến khi được trả lại (nộp & duyệt: giai đoạn 4b).
+- Xoá dữ liệu trong Cài đặt chỉ xoá bản trên máy; bản trên máy chủ vẫn còn và được tải lại.
+- Kiểm thử logic gộp / mất mạng / hai thiết bị: `npm run test:client` (máy chủ giả trong bộ nhớ).
+
 ## Gửi mail cho giám sát
 Nút **Gửi mail** (cạnh Xuất Excel) mở ngăn *Gửi bảng công cho giám sát*:
 - **Gửi đến / CC**: email giám sát, quản lý (nhớ cho lần sau); gợi ý tên giám sát theo EE Data.

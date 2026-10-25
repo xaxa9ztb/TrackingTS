@@ -688,6 +688,20 @@ const isWorkday = (s, sch) => {
   return w >= 1 && (w <= 5 || w === 6 && sch === 'mon-sat') && !isVietnameseHoliday(s, sch);
 };
 const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
+// Bản máy chủ (Cloudflare): Timesheet đồng bộ lên máy chủ theo kỳ lương (xem tssync.js); bản github.io: chỉ trên máy
+const SERVER = typeof Session !== 'undefined' && !!Session.SERVER && typeof TsSync !== 'undefined';
+const STATUS_LABEL = {
+  draft: 'Đang chấm',
+  rejected: 'Bị trả lại — cần sửa',
+  submitted: 'Đã nộp — chờ giám sát',
+  sitesup_ok: 'Giám sát đã duyệt — chờ quản lý',
+  approved: 'Đã duyệt xong'
+};
+const sameEntries = (a, b) => {
+  if (a.length !== b.length) return false;
+  const m = new Map(a.map(e => [String(e.id), JSON.stringify(e)]));
+  return b.every(e => m.get(String(e.id)) === JSON.stringify(e));
+};
 const DEFAULT_PROFILE = {
   name: '',
   empId: '',
@@ -722,6 +736,14 @@ function App() {
   const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
   const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
   const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+  const [syncInfo, setSyncInfo] = useState({
+    state: SERVER ? 'syncing' : 'off',
+    at: '',
+    error: ''
+  });
+  const [docStatuses, setDocStatuses] = useState({});
+  const entriesRef = useRef([]);
+  const syncTimer = useRef(null);
   const [ganttOpen, setGanttOpenRaw] = useState(() => {
     try {
       return localStorage.getItem('ts_gantt_open') !== '0';
@@ -776,8 +798,68 @@ function App() {
     localStorage.setItem('ts_entries_v28', JSON.stringify(entries));
   }, [entries]);
   useEffect(() => {
+    entriesRef.current = entries;
+  }, [entries]);
+  useEffect(() => {
     localStorage.setItem('ts_profile_v28', JSON.stringify(profile));
   }, [profile]);
+
+  // ----- đồng bộ máy chủ (chỉ bản Cloudflare) -----
+  const runSync = useCallback(async () => {
+    if (!SERVER) return;
+    setSyncInfo(i => ({
+      ...i,
+      state: 'syncing'
+    }));
+    const r = await TsSync.sync({
+      getEntries: () => entriesRef.current,
+      onMerged: (p, merged, startedAt) => setEntries(prev => {
+        const next = TsSync.applyChanges(prev, p, merged, startedAt);
+        if (sameEntries(prev, next)) return prev;
+        entriesRef.current = next;
+        return next;
+      })
+    });
+    if (r.statuses) setDocStatuses(prev => ({
+      ...prev,
+      ...r.statuses
+    }));
+    setSyncInfo(r.ok ? {
+      state: 'ok',
+      at: new Date().toISOString(),
+      error: ''
+    } : r.offline ? {
+      state: 'offline',
+      at: '',
+      error: ''
+    } : {
+      state: 'error',
+      at: '',
+      error: r.error || 'Không đồng bộ được'
+    });
+  }, []);
+  const scheduleSync = useCallback((ms = 2500) => {
+    if (!SERVER) return;
+    clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(runSync, ms);
+  }, [runSync]);
+  useEffect(() => {
+    if (!SERVER) return;
+    runSync();
+    const onOnline = () => runSync();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') runSync();
+    };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    const iv = setInterval(runSync, 90000);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(iv);
+      clearTimeout(syncTimer.current);
+    };
+  }, []);
   useEffect(() => {
     localStorage.setItem('ts_projects_v28', JSON.stringify(projects));
   }, [projects]);
@@ -791,6 +873,8 @@ function App() {
     // IMPORTANT: String comparison works correctly for YYYY-MM-DD
     return entries.filter(e => e.date >= period.start && e.date <= period.end).sort((a, b) => b.date.localeCompare(a.date) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
   }, [entries, period]);
+  const periodStatus = SERVER && docStatuses[currentMonth] || 'draft';
+  const locked = SERVER && TsSync.LOCKED.includes(periodStatus);
   const sch = scheduleOf(profile);
   // giờ thường / OT từng loại của mọi dòng (tính trên toàn bộ dữ liệu: OT7 cần biết các dòng cùng ngày)
   const bds = useMemo(() => breakdownsOf(entries, sch), [entries, sch]);
@@ -880,7 +964,9 @@ function App() {
     setDayFilter(null);
   };
   const closeDrawer = () => setDrawer(null);
+  const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên không sửa được. Cần sửa thì nhờ giám sát trả lại bảng công.');
   const openNewEntry = date => {
+    if (locked) return lockedMsg();
     let d = date;
     if (!d) {
       // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
@@ -894,45 +980,73 @@ function App() {
       key: Date.now()
     });
   };
-  const openEdit = entry => setDrawer({
-    type: 'form',
-    entry,
-    date: entry.date,
-    key: Date.now()
-  });
+  const openEdit = entry => {
+    if (locked) return lockedMsg();
+    setDrawer({
+      type: 'form',
+      entry,
+      date: entry.date,
+      key: Date.now()
+    });
+  };
   const handleSaveEntry = data => {
     const editing = drawer && drawer.entry;
+    const u = Date.now(); // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
     if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? {
       ...data,
-      id: editing.id
+      id: editing.id,
+      u
     } : e));else setEntries(prev => [...prev, {
       ...data,
-      id: Date.now()
+      id: Date.now(),
+      u
     }]);
+    if (SERVER) {
+      TsSync.markDirty(editing && editing.date !== data.date ? [data.date, editing.date] : data.date);
+      scheduleSync();
+    }
     setDrawer(null);
     const pm = periodMonthOf(data.date); // ngày thuộc kỳ khác → chuyển sang kỳ đó để thấy ngay
     if (pm !== currentMonth) changeMonth(pm);
     showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.`);
   };
   const handleDelete = entry => {
+    if (locked) return lockedMsg();
     setEntries(prev => prev.filter(e => e.id !== entry.id));
+    if (SERVER) {
+      TsSync.markDeleted(entry);
+      TsSync.markDirty(entry.date);
+      scheduleSync();
+    }
     if (drawer && drawer.entry && drawer.entry.id === entry.id) setDrawer(null);
     showToast(`Đã xóa chấm công ${fmtDMY(entry.date)}.`, {
       label: 'Hoàn tác',
-      run: () => setEntries(prev => [...prev, entry])
+      run: () => {
+        setEntries(prev => [...prev, SERVER ? {
+          ...entry,
+          u: Date.now()
+        } : entry]);
+        if (SERVER) {
+          TsSync.unmarkDeleted(entry);
+          TsSync.markDirty(entry.date);
+          scheduleSync();
+        }
+      }
     });
   };
   const handleResetData = () => {
-    if (confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
+    if (confirm(SERVER ? "Xóa dữ liệu Timesheet TRÊN MÁY NÀY? (Bản đã lưu trên máy chủ vẫn còn và sẽ được tải lại khi có mạng.)" : "CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
       if (confirm("Xác nhận lần 2: Xóa tất cả dữ liệu?")) {
         localStorage.removeItem('ts_entries_v28');
+        if (SERVER) localStorage.removeItem('ts_sync_v1');
         localStorage.removeItem('ts_profile_v28');
         localStorage.removeItem('ts_projects_v28');
         setEntries([]);
         setProfile(DEFAULT_PROFILE);
         setProjects([]);
         setDrawer(null);
-        showToast('Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
+        showToast(SERVER ? 'Đã xóa dữ liệu Timesheet trên máy này (dữ liệu trên máy chủ vẫn còn và sẽ được tải lại).' : 'Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
+        if (SERVER) scheduleSync(600);
       }
     }
   };
@@ -1138,7 +1252,17 @@ function App() {
     reader.onload = ev => {
       try {
         const data = JSON.parse(ev.target.result);
-        if (data.entries) setEntries(data.entries);
+        if (data.entries) {
+          const stamped = SERVER ? data.entries.map(x => ({
+            ...x,
+            u: Date.now()
+          })) : data.entries; // khôi phục chủ động → thắng khi gộp
+          setEntries(stamped);
+          if (SERVER) {
+            TsSync.markDirty(stamped.map(x => x.date));
+            scheduleSync();
+          }
+        }
         if (data.profile) setProfile(data.profile);
         if (data.projects) setProjects(data.projects);
         showToast(`Đã khôi phục ${data.entries ? data.entries.length : 0} dòng chấm công từ bản sao lưu.`);
@@ -1219,7 +1343,15 @@ function App() {
     title: "Sao l\u01B0u & kh\xF4i ph\u1EE5c"
   }, /*#__PURE__*/React.createElement(Icons.Settings, null), /*#__PURE__*/React.createElement("span", {
     className: "hidden xl:inline"
-  }, "Sao l\u01B0u"))))), /*#__PURE__*/React.createElement("div", {
+  }, "Sao l\u01B0u"))))), SERVER && /*#__PURE__*/React.createElement("div", {
+    className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6"
+  }, /*#__PURE__*/React.createElement(SyncBar, {
+    info: syncInfo,
+    status: periodStatus,
+    period: period,
+    month: currentMonth,
+    onRetry: runSync
+  })), /*#__PURE__*/React.createElement("div", {
     className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 grid gap-4 lg:gap-6 md:grid-cols-2"
   }, /*#__PURE__*/React.createElement(ProfileCard, {
     profile: profile,
@@ -1375,6 +1507,41 @@ function App() {
     toast: toast,
     onClose: () => setToast(null)
   }));
+}
+
+// ---------- Bản máy chủ: trạng thái kỳ + đồng bộ ----------
+function SyncBar({
+  info,
+  status,
+  month,
+  onRetry
+}) {
+  const [y, m] = month.split('-');
+  const pending = Object.keys(TsSync.load().dirty || {}).length;
+  const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : status === 'rejected' ? 'bg-rose-50 text-rose-800 border-rose-200' : TsSync.LOCKED.includes(status) ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200';
+  const at = info.at ? new Date(info.at).toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  }) : '';
+  return /*#__PURE__*/React.createElement("div", {
+    id: "tsSyncBar",
+    className: "bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2",
+    role: "status"
+  }, /*#__PURE__*/React.createElement("span", {
+    id: "tsPeriodStatus",
+    className: `inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`
+  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", STATUS_LABEL[status] || status), TsSync.LOCKED.includes(status) && /*#__PURE__*/React.createElement("span", {
+    className: "text-sm text-slate-600"
+  }, "Kh\xF4ng s\u1EEDa \u0111\u01B0\u1EE3c cho \u0111\u1EBFn khi b\u1EA3ng c\xF4ng \u0111\u01B0\u1EE3c tr\u1EA3 l\u1EA1i."), /*#__PURE__*/React.createElement("span", {
+    id: "tsSyncText",
+    className: "ml-auto text-sm text-slate-600 inline-flex items-center gap-2"
+  }, info.state === 'syncing' && /*#__PURE__*/React.createElement("span", null, "\u27F3 \u0110ang \u0111\u1ED3ng b\u1ED9 v\u1EDBi m\xE1y ch\u1EE7\u2026"), info.state === 'ok' && /*#__PURE__*/React.createElement("span", null, "\u2713 \u0110\xE3 l\u01B0u tr\xEAn m\xE1y ch\u1EE7", at ? ` lúc ${at}` : '', pending ? ` · còn ${pending} kỳ chưa gửi` : ''), info.state === 'offline' && /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCF4 M\u1EA5t m\u1EA1ng \u2014 d\u1EEF li\u1EC7u an to\xE0n tr\xEAn m\xE1y, s\u1EBD t\u1EF1 g\u1EEDi khi c\xF3 m\u1EA1ng", pending ? ` (${pending} kỳ chưa gửi)` : ''), info.state === 'error' && /*#__PURE__*/React.createElement("span", {
+    className: "text-rose-700"
+  }, "\u26A0 ", info.error), (info.state === 'offline' || info.state === 'error') && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onRetry,
+    className: "font-semibold text-blue-700 hover:text-blue-900"
+  }, "Th\u1EED l\u1EA1i")));
 }
 
 // ---------- Gantt: lộ trình cả kỳ lương (thu gọn được) ----------
@@ -1707,7 +1874,10 @@ function EntryTable({
     }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 italic truncate",
       title: e.remarks
-    }, e.remarks)), /*#__PURE__*/React.createElement("td", {
+    }, e.remarks), e.report && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-blue-800 truncate",
+      title: e.report
+    }, "\uD83D\uDCDD ", e.report)), /*#__PURE__*/React.createElement("td", {
       className: "px-4 py-2 align-top text-right whitespace-nowrap"
     }, /*#__PURE__*/React.createElement("button", {
       type: "button",
@@ -1791,7 +1961,9 @@ function EntryCards({
       className: "text-xs text-slate-500 font-mono truncate"
     }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 truncate"
-    }, "Ghi ch\xFA: ", e.remarks)), /*#__PURE__*/React.createElement("button", {
+    }, "Ghi ch\xFA: ", e.remarks), e.report && /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-blue-800 truncate"
+    }, "\uD83D\uDCDD ", e.report)), /*#__PURE__*/React.createElement("button", {
       type: "button",
       onClick: () => onDelete(e),
       "aria-label": `Xóa chấm công ${fmtDMY(e.date)}`,
@@ -3172,7 +3344,8 @@ function EntryForm({
     workNumber: '',
     activityCode: '1110',
     dutyHour: '0',
-    remarks: ''
+    remarks: '',
+    report: ''
   });
   // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
   const [breakTouched, setBreakTouched] = useState(!!initialData);
@@ -3549,7 +3722,20 @@ function EntryForm({
     onChange: set('remarks'),
     className: inputCls,
     placeholder: "Ghi ch\xFA th\xEAm..."
-  })))), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "B\xE1o c\xE1o thi c\xF4ng trong ng\xE0y",
+    htmlFor: "tsReportText"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    id: "tsReportText",
+    rows: "3",
+    maxLength: "600",
+    value: formData.report || '',
+    onChange: set('report'),
+    className: `${inputCls} h-auto py-2`,
+    placeholder: "H\xF4m nay l\xE0m \u0111\u01B0\u1EE3c g\xEC, \u0111\u1EBFn t\u1EA7ng n\xE0o, v\u01B0\u1EDBng m\u1EAFc\u2026 (g\u1EEDi gi\xE1m s\xE1t & qu\u1EA3n l\xFD m\u1ED7i t\u1ED1i)"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "block mt-1 text-xs text-slate-500"
+  }, (formData.report || '').length, "/600 k\xFD t\u1EF1")))), /*#__PURE__*/React.createElement("div", {
     className: "sticky bottom-0 bg-white border-t border-slate-200 px-5 py-3 flex items-center gap-3"
   }, onDelete && /*#__PURE__*/React.createElement("button", {
     type: "button",
