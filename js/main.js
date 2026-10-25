@@ -73,7 +73,22 @@ const Modal = (() => {
           </div>
         </div>
       </div>`;
-    const close = () => { root.innerHTML = ''; };
+    if (Cloud.SERVER) {
+    // Nhân viên + dự án do trang "Tài khoản" quản lý và đồng bộ từ máy chủ → ở đây chỉ nhập bảng công
+    ['full', 'projects', 'employees'].forEach(m => {
+      const opt = root.querySelector(`[data-mode="${m}"]`);
+      if (opt) opt.closest('.update-option').remove();
+    });
+    const ow = root.querySelector('.update-overwrite');
+    if (ow) ow.remove();
+    root.querySelectorAll('.update-option .update-info > b:first-child').forEach((b, i) => {
+      b.textContent = b.textContent.replace(/^\d+\./, (i + 1) + '.');
+    });
+    const h = root.querySelector('.update-modal h3');
+    if (h) h.insertAdjacentHTML('afterend', '<p style="margin:0 0 10px;font-size:13px;color:#4b5563">Nhân viên và dự án được quản lý ở trang <b>Tài khoản</b> và đồng bộ từ máy chủ. Ở đây chỉ nhập <b>bảng công</b> (sau đó bấm <b>Lưu lên máy chủ</b>).</p>');
+  }
+
+  const close = () => { root.innerHTML = ''; };
     root.querySelector('#modalCancel').addEventListener('click', close);
     root.querySelector('.modal-overlay').addEventListener('click', (e) => { if (e.target.classList.contains('modal-overlay')) close(); });
     root.querySelector('#modalSave').addEventListener('click', async () => {
@@ -83,6 +98,9 @@ const Modal = (() => {
   }
   return { open };
 })();
+
+// Chữ hiển thị: bản máy chủ nói "máy chủ", bản github.io nói "Drive"
+const SAVE_LABEL = () => Cloud.SERVER ? 'Lưu lên máy chủ' : 'Lưu lên Drive';
 
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -97,7 +115,8 @@ async function updateDataStatus() {
   } else {
     let txt = `${emp} nhân viên · ${proj} dự án · ${ts} dòng bảng công`;
     const upd = Cloud.getLastUpdatedAt();
-    if (upd) txt += ` · Drive: ${upd.slice(0, 16).replace('T', ' ')}`;
+    if (upd) txt += ` · ${Cloud.SERVER ? 'Máy chủ' : 'Drive'}: ${upd.slice(0, 16).replace('T', ' ')}`;
+    if (Cloud.SERVER && Cloud.hasUnsavedEdits() && Cloud.canWrite()) txt += ' · ⚠ Bảng công trên máy chưa lưu lên máy chủ';
     if (window.__driveWarn) txt += ` · ${window.__driveWarn}`;
     el.textContent = txt;
   }
@@ -158,7 +177,7 @@ function openUpdateModal() {
           <div class="update-info">
             <b>5. Khôi phục dữ liệu cũ</b>
             <p>Nếu bản cập nhật mới bị sai: quay về <b>bản sao lưu trên máy</b> (tự tạo trước mỗi
-            lần "Cập nhật toàn bộ" / xoá hàng loạt) hoặc <b>bản cũ của file trên Google Drive</b>.</p>
+            lần "Cập nhật toàn bộ" / xoá hàng loạt)${Cloud.SERVER ? '.' : ' hoặc <b>bản cũ của file trên Google Drive</b>.'}</p>
           </div>
           <button class="btn btn-secondary" id="updShowRestore">Xem bản sao lưu</button>
         </div>
@@ -167,9 +186,11 @@ function openUpdateModal() {
           <div class="update-info">
             <b>6. Sao lưu / phục hồi bằng file JSON (trên máy bạn)</b>
             <p>Tải <b>toàn bộ dữ liệu hiện tại</b> thành 1 file <b>.json</b> để lưu trên máy làm bản dự phòng;
-            hoặc <b>nạp lại</b> từ file .json đã lưu (thay thế toàn bộ dữ liệu trong app). Dùng khi Google Drive
-            tạm thời không tải được. <i>File sao lưu có cả thông tin cá nhân nhân viên (ngày sinh…) — chỉ lưu ở nơi an toàn,
-            không chia sẻ.</i> (File trên Google Drive thì <b>không</b> chứa các thông tin này.)</p>
+            hoặc <b>nạp lại</b> từ file .json đã lưu (thay thế toàn bộ dữ liệu trong app)${Cloud.SERVER
+              ? '. Dùng để đưa <b>bảng công từ bản sao lưu cũ</b> lên máy chủ: nạp file rồi bấm <b>"Lưu lên máy chủ"</b>.'
+              : '. Dùng khi Google Drive tạm thời không tải được.'}
+            <i>File sao lưu có cả thông tin cá nhân nhân viên (ngày sinh…) — chỉ lưu ở nơi an toàn,
+            không chia sẻ.</i>${Cloud.SERVER ? '' : ' (File trên Google Drive thì <b>không</b> chứa các thông tin này.)'}</p>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px">
             <button class="btn btn-primary" id="updBackupDownload">⬇ Tải bản sao lưu (.json)</button>
@@ -180,9 +201,9 @@ function openUpdateModal() {
         <div id="restorePanel" style="display:none">
           <h4>Bản sao lưu trên máy này</h4>
           <div id="localBackupList" class="backup-list">Đang tải...</div>
-          <h4>Bản cũ trên Google Drive</h4>
+          ${Cloud.SERVER ? '' : `<h4>Bản cũ trên Google Drive</h4>
           <button class="btn btn-secondary" id="btnLoadRevisions">Tải danh sách từ Drive (cần đăng nhập Google)</button>
-          <div id="driveRevList" class="backup-list"></div>
+          <div id="driveRevList" class="backup-list"></div>`}
         </div>
 
         <div id="updStatus" class="update-status"></div>
@@ -266,7 +287,7 @@ function openUpdateModal() {
         await refreshAllPages();
         await renderLocalBackups();
         statusEl.textContent = `✓ Đã khôi phục: ${r.employees} NV, ${r.projects} dự án, ${r.timesheets} dòng công.` +
-          (Cloud.canWrite() ? ' Kiểm tra lại số liệu rồi bấm "Lưu lên Drive" để xuất bản cho mọi người.' : '');
+          (Cloud.canWrite() ? ` Kiểm tra lại số liệu rồi bấm "${SAVE_LABEL()}" để xuất bản cho mọi người.` : '');
         statusEl.className = 'update-status ok';
       } catch (err) {
         console.error(err);
@@ -284,8 +305,8 @@ function openUpdateModal() {
   });
 
   const btnLoadRev = root.querySelector('#btnLoadRevisions');
-  if (!Cloud.canWrite()) btnLoadRev.disabled = true;
-  btnLoadRev.addEventListener('click', async () => {
+  if (btnLoadRev && !Cloud.canWrite()) btnLoadRev.disabled = true;
+  if (btnLoadRev) btnLoadRev.addEventListener('click', async () => {
     statusEl.textContent = 'Đang lấy danh sách phiên bản từ Drive...';
     statusEl.className = 'update-status';
     try {
@@ -413,34 +434,42 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('btnImport').addEventListener('click', openUpdateModal);
 
-  document.getElementById('btnSaveDrive').addEventListener('click', async () => {
-    if (!confirm('Xuất bản dữ liệu hiện tại lên Google Drive cho mọi người cùng xem?')) return;
+  const btnSave = document.getElementById('btnSaveDrive');
+  if (Cloud.SERVER) btnSave.textContent = SAVE_LABEL();
+  btnSave.addEventListener('click', async () => {
+    const where = Cloud.SERVER ? 'máy chủ' : 'Google Drive';
+    if (!confirm(Cloud.SERVER
+      ? 'Lưu bảng công trên máy này lên máy chủ cho mọi người cùng xem?'
+      : 'Xuất bản dữ liệu hiện tại lên Google Drive cho mọi người cùng xem?')) return;
     const el = document.getElementById('dataStatus');
-    el.textContent = 'Đang lưu lên Google Drive...';
+    el.textContent = 'Đang lưu lên ' + where + '...';
+    const onProgress = (done, total) => { el.textContent = `Đang lưu lên ${where}... ${done}/${total} dòng`; };
     try {
       let r;
       try {
-        r = await Cloud.saveToDrive();
+        r = await Cloud.saveData({ onProgress });
       } catch (err) {
         if (err.code !== 'NEEDS_CONFIRM') throw err;
         // Máy này thiếu dữ liệu / chưa tải bản mới → bắt gõ xác nhận, không để bấm OK theo thói quen
         const answer = prompt(
           '⚠ CẢNH BÁO: lưu lúc này có thể XOÁ dữ liệu chung của mọi người.\n\n' +
           err.warnings.map(w => '• ' + w).join('\n') +
-          '\n\nNên bấm Huỷ, tải lại trang (lấy bản mới nhất từ Drive) rồi làm lại.' +
+          '\n\nNên bấm Huỷ, tải lại trang (lấy bản mới nhất từ ' + where + ') rồi làm lại.' +
           '\nNếu bạn cố ý (vd. vừa khôi phục phiên bản cũ, hoặc đã xoá dữ liệu sai), gõ LUU để vẫn lưu đè.' +
-          '\n(Bản cũ vẫn khôi phục được ~30 ngày ở mục "Bản cũ trên Google Drive".)');
+          (Cloud.SERVER ? '' : '\n(Bản cũ vẫn khôi phục được ~30 ngày ở mục "Bản cũ trên Google Drive".)'));
         if (answer === null || !/^l[uư]u$/i.test(answer.trim())) {
-          alert('Đã huỷ, chưa lưu gì lên Drive.');
+          alert('Đã huỷ, chưa lưu gì lên ' + where + '.');
           await updateDataStatus();
           return;
         }
-        r = await Cloud.saveToDrive({ force: true });
+        r = await Cloud.saveData({ force: true, onProgress });
       }
-      alert(`Đã lưu lên Drive: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.\nMọi người tải lại trang sẽ thấy dữ liệu mới.`);
+      alert(Cloud.SERVER
+        ? `Đã lưu lên máy chủ: ${r.timesheets} dòng bảng công` + (r.skipped ? ` (bỏ qua ${r.skipped} dòng thiếu mã NV/ngày hoặc quá dài)` : '') + '.\nMọi người tải lại trang sẽ thấy dữ liệu mới.'
+        : `Đã lưu lên Drive: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.\nMọi người tải lại trang sẽ thấy dữ liệu mới.`);
     } catch (err) {
       console.error(err);
-      alert('Lỗi lưu lên Drive: ' + err.message);
+      alert('Lỗi lưu lên ' + where + ': ' + err.message);
     }
     await updateDataStatus();
   });
@@ -454,7 +483,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Nhờ vậy app luôn hiển thị được ngay, kể cả khi mất mạng hoặc Google Drive
   // không tải được. Sau đó mới thử đồng bộ từ Drive ở chế độ nền.
   try {
-    const removed = await Importer.removeDuplicateTimesheets();
+    const removed = await DB.quietly(() => Importer.removeDuplicateTimesheets());
     if (removed) console.info(`Đã loại bỏ ${removed} dòng bảng công trùng lặp.`);
   } catch (err) { console.error('Lỗi dọn dòng bảng công trùng lặp:', err); }
 
@@ -476,14 +505,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.__driveWarn = '📴 Chế độ ngoại tuyến — đang dùng dữ liệu trên máy.';
       await updateDataStatus();
     } else {
-      window.__driveWarn = '⏳ Đang đồng bộ từ Google Drive…';
+      window.__driveWarn = Cloud.SERVER ? '⏳ Đang đồng bộ từ máy chủ…' : '⏳ Đang đồng bộ từ Google Drive…';
       await updateDataStatus();
-      Cloud.loadFromDrive()
+      Cloud.loadFromDrive({ timesheets: true })
         .then(async () => { window.__driveWarn = ''; await refreshAllPages(); })
         .catch(async (err) => {
-          console.error('Drive load failed:', err);
+          console.error('Sync failed:', err);
           window.__driveWarn = /QUOTA/.test(err.message)
             ? '📴 Ngoại tuyến — Google Drive giới hạn lượt tải hôm nay; đang dùng dữ liệu trên máy.'
+            : Cloud.SERVER ? '📴 Không tải được từ máy chủ; đang dùng dữ liệu trên máy.'
             : '📴 Ngoại tuyến — không tải được từ Drive; đang dùng dữ liệu trên máy.';
           await updateDataStatus();
         });

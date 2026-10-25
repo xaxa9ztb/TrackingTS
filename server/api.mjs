@@ -398,6 +398,105 @@ async function pmStore(env, me, request) {
   return json({ ok: true, version: base + 1, updatedAt: t, updatedBy: me.name });
 }
 
+// ---------- bảng công cho Thống kê giờ công ----------
+const TS_KEY = 'timesheets_meta';
+const TS_ROWS_PER_REQUEST = 160;     // 5 tham số × 20 dòng = 100 tham số mỗi câu lệnh → tối đa 8 câu lệnh; đủ nhẹ cho giới hạn ~10 ms CPU của gói miễn phí
+const TS_PAGE = 1000;
+const TS_DATA_MAX = 3000;
+
+async function tsMetaRow(env) {
+  const row = await env.DB.prepare('SELECT version, data FROM kv_store WHERE key = ?').bind(TS_KEY).first();
+  const m = row && row.data ? JSON.parse(row.data) : {};
+  return { cas: row ? row.version : null, meta: { active: m.active || 0, next: m.next || 1, dataVersion: m.dataVersion || 0, count: m.count || 0, updatedAt: m.updatedAt || '', updatedBy: m.updatedBy || '' } };
+}
+// ghi meta có điều kiện (cas = số phiên bản của dòng kv_store lúc đọc); trả true nếu ghi được
+async function tsMetaWrite(env, cas, meta) {
+  const text = JSON.stringify(meta);
+  const res = cas === null
+    ? await env.DB.prepare("INSERT INTO kv_store (key, version, data, saved_at, saved_by) VALUES (?, 1, ?, ?, '') ON CONFLICT(key) DO NOTHING").bind(TS_KEY, text, now()).run()
+    : await env.DB.prepare('UPDATE kv_store SET version = version + 1, data = ?, saved_at = ? WHERE key = ? AND version = ?').bind(text, now(), TS_KEY, cas).run();
+  return !!(res.meta && res.meta.changes === 1);
+}
+
+async function tsMeta(env) {
+  const { meta } = await tsMetaRow(env);
+  return json({ version: meta.dataVersion, count: meta.count, updatedAt: meta.updatedAt, updatedBy: meta.updatedBy });
+}
+
+// Trang dữ liệu: ghép chuỗi JSON có sẵn, không parse từng dòng (tiết kiệm thời gian xử lý của gói miễn phí)
+async function tsList(env, url) {
+  const { meta } = await tsMetaRow(env);
+  const after = Math.max(0, parseInt(url.searchParams.get('after') || '0', 10) || 0);
+  const limit = Math.min(TS_PAGE, Math.max(1, parseInt(url.searchParams.get('limit') || String(TS_PAGE), 10) || TS_PAGE));
+  const { results } = meta.active
+    ? await env.DB.prepare('SELECT id, data FROM timesheets WHERE batch = ? AND id > ? ORDER BY id LIMIT ?').bind(meta.active, after, limit).all()
+    : { results: [] };
+  const next = results.length === limit ? results[results.length - 1].id : null;
+  const text = `{"version":${meta.dataVersion},"count":${meta.count},"next":${next === null ? 'null' : next},"rows":[${results.map(r => r.data).join(',')}]}`;
+  return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+// Bước 1: xin một đợt mới (và dọn các đợt dở dang trước đó)
+async function tsBegin(env, me) {
+  need(me);
+  for (let i = 0; i < 4; i++) {
+    const { cas, meta } = await tsMetaRow(env);
+    const batch = meta.next;
+    if (await tsMetaWrite(env, cas, { ...meta, next: batch + 1 })) {
+      await env.DB.prepare('DELETE FROM timesheets WHERE batch <> ?').bind(meta.active).run();
+      return json({ ok: true, batch, version: meta.dataVersion, active: meta.active });
+    }
+  }
+  throw new HttpError(409, 'Máy chủ đang bận, thử lại');
+}
+
+// Bước 2: ghi từng đợt nhỏ vào đợt vừa xin
+async function tsRows(env, me, request) {
+  need(me);
+  const body = await readJson(request);
+  const batch = parseInt(body.batch, 10);
+  const rows = Array.isArray(body.rows) ? body.rows : [];
+  const { meta } = await tsMetaRow(env);
+  if (!(batch > meta.active && batch < meta.next)) throw new HttpError(400, 'Đợt tải lên không hợp lệ — bắt đầu lại');
+  if (rows.length > TS_ROWS_PER_REQUEST) throw new HttpError(413, `Gửi tối đa ${TS_ROWS_PER_REQUEST} dòng mỗi lần`);
+  const vals = [];
+  for (const r of rows) {
+    if (!r || typeof r !== 'object') continue;
+    const empId = str(r.empId, 50), date = str(r.date, 20);
+    if (!empId || !date) continue;
+    const { id, ...rest } = r;
+    const data = JSON.stringify(rest);
+    if (data.length > TS_DATA_MAX) continue;
+    vals.push([batch, empId, date, str(r.wbs, 100), data]);
+  }
+  const parts = chunks(vals, 20).map(c => ({
+    sql: `INSERT INTO timesheets (batch, emp_id, date, wbs, data) VALUES ${c.map(() => '(?, ?, ?, ?, ?)').join(', ')}`,
+    params: c.flat(),
+  }));
+  if (parts.length) await env.DB.batch(parts.map(x => env.DB.prepare(x.sql).bind(...x.params)));
+  return json({ ok: true, inserted: vals.length, skipped: rows.length - vals.length });
+}
+
+// Bước 3: chuyển đợt mới sang "đang dùng" (nguyên tử); kiểm tra đủ số dòng và chưa có ai cập nhật trước
+async function tsCommit(env, me, request) {
+  need(me);
+  const body = await readJson(request);
+  const batch = parseInt(body.batch, 10);
+  const { cas, meta } = await tsMetaRow(env);
+  if (!(batch > meta.active && batch < meta.next)) throw new HttpError(400, 'Đợt tải lên không hợp lệ — bắt đầu lại');
+  if (Number(body.baseVersion) !== meta.dataVersion) {
+    return json({ ok: false, conflict: true, version: meta.dataVersion, error: 'Máy chủ có bảng công mới hơn bản bạn đang có — Đồng bộ lại trước khi lưu.' }, 409);
+  }
+  const have = (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
+  const want = Number(body.count);
+  if (have !== want) throw new HttpError(400, `Đợt tải lên chưa đủ dòng (có ${have}, cần ${want}) — thử lại`);
+  const next = { ...meta, active: batch, dataVersion: meta.dataVersion + 1, count: have, updatedAt: now(), updatedBy: me.name };
+  if (!(await tsMetaWrite(env, cas, next))) throw new HttpError(409, 'Có người vừa cập nhật bảng công — thử lại');
+  await env.DB.prepare('DELETE FROM timesheets WHERE batch <> ?').bind(batch).run();
+  await audit(env, me, 'timesheets_commit', 'timesheets', String(next.dataVersion), { count: meta.count, version: meta.dataVersion }, { count: have, version: next.dataVersion });
+  return json({ ok: true, version: next.dataVersion, count: have });
+}
+
 async function patchEmployee(env, me, empId, request) {
   need(me);
   const body = await readJson(request);
@@ -471,6 +570,11 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/projects\/([^/]+)\/staff$/)) && method === 'PUT') return await putProjectStaff(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/import' && method === 'POST') return await importData(env, me, request);
     if (path === '/api/admin/emails' && method === 'POST') return await setEmails(env, me, request);
+    if (path === '/api/timesheets/meta' && method === 'GET') return await tsMeta(env);
+    if (path === '/api/timesheets' && method === 'GET') return await tsList(env, url);
+    if (path === '/api/admin/timesheets/begin' && method === 'POST') return await tsBegin(env, me);
+    if (path === '/api/admin/timesheets/rows' && method === 'POST') return await tsRows(env, me, request);
+    if (path === '/api/admin/timesheets/commit' && method === 'POST') return await tsCommit(env, me, request);
     if (path === '/api/pm-store' && method === 'POST') return await pmStore(env, me, request);
     if (path === '/api/projects/pm' && method === 'POST') return await assignPmAll(env, me, request);
     if (path === '/api/supervisors' && method === 'GET') return await listSupervisors(env, me);

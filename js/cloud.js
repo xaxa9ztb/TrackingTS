@@ -11,7 +11,8 @@ const Cloud = (() => {
     return SERVER || !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_API_KEY);
   }
   function canWrite() {
-    return !SERVER && !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_CLIENT_ID);
+    if (SERVER) { const ss = typeof Session !== 'undefined' && Session.current && Session.current(); return !!(ss && ss.admin); } // quyền do máy chủ cấp
+    return !!(window.CONFIG && CONFIG.DRIVE_FILE_ID && CONFIG.GOOGLE_CLIENT_ID);
   }
 
   // Thông tin cá nhân trong EE Data mà người xem KHÔNG cần (app chỉ dùng khi admin Export Excel
@@ -157,8 +158,60 @@ const Cloud = (() => {
     return body;
   }
 
-  // Chỉ thay NHÂN VIÊN và DỰ ÁN (giống bản Drive); bảng công trên máy giữ nguyên.
-  async function loadFromServer() {
+  async function serverSend(path, body) {
+    let resp;
+    try {
+      resp = await fetch(path, {
+        method: 'POST', credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}),
+      });
+    } catch (e) { throw new Error('Không kết nối được máy chủ: ' + e.message); }
+    if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400) || resp.status === 401) {
+      throw new Error('Phiên đăng nhập đã hết hạn — tải lại trang (F5) để đăng nhập lại.');
+    }
+    let out = {};
+    try { out = await resp.json(); } catch (e) { /* không phải JSON */ }
+    if (!resp.ok) { const err = new Error(out.error || ('Máy chủ báo lỗi (HTTP ' + resp.status + ')')); err.status = resp.status; throw err; }
+    return out;
+  }
+  async function serverSendRetry(path, body, tries = 3) {
+    for (let i = 1; ; i++) {
+      try { return await serverSend(path, body); }
+      catch (e) { if (i >= tries || (e.status && e.status < 500)) throw e; await new Promise(r => setTimeout(r, 400 * i)); }
+    }
+  }
+
+  const tsStamp = () => { try { return localStorage.getItem('tsServerVersion') || ''; } catch (e) { return ''; } };
+  const tsEdited = () => { try { return localStorage.getItem('tsLocalEdits') === '1'; } catch (e) { return false; } };
+  const tsRemember = (version) => {
+    try { localStorage.setItem('tsServerVersion', String(version)); localStorage.removeItem('tsLocalEdits'); } catch (e) { /* ignore */ }
+  };
+
+  // Tải bảng công từ máy chủ về máy (theo trang 1000 dòng). Không ghi đè khi máy này (admin) có chỉnh sửa chưa lưu,
+  // và không xoá dữ liệu trên máy khi máy chủ chưa có bảng công nào.
+  async function loadTimesheetsFromServer() {
+    const meta = await serverGet('/api/timesheets/meta');
+    if (!meta.version) return { skipped: 'empty', updatedAt: '' };
+    if (tsEdited() && canWrite()) return { skipped: 'local-edits', updatedAt: meta.updatedAt };
+    if (String(meta.version) === tsStamp() && (await DB.count('timesheets')) === meta.count) return { skipped: 'same', updatedAt: meta.updatedAt };
+    const rows = [];
+    let after = 0;
+    for (;;) {
+      const page = await serverGet('/api/timesheets?limit=1000&after=' + after);
+      if (page.version !== meta.version) throw new Error('Bảng công trên máy chủ vừa được cập nhật — đang thử lại.');
+      for (const r of page.rows) rows.push(r);
+      if (page.next === null || page.next === undefined) break;
+      after = page.next;
+    }
+    normalizeLoaded({ timesheets: rows });
+    await DB.quietly(async () => { await DB.clear('timesheets'); await DB.bulkPut('timesheets', rows); });
+    tsRemember(meta.version);
+    return { rows: rows.length, version: meta.version, updatedAt: meta.updatedAt };
+  }
+
+  // Nhân viên + dự án + bảng công từ máy chủ.
+  // opts.timesheets: chỉ trang Thống kê giờ công cần bảng công; các công cụ khác chỉ cần nhân viên + dự án.
+  async function loadFromServer(opts = {}) {
     const [e, p] = await Promise.all([serverGet('/api/employees'), serverGet('/api/projects')]);
     const employees = (e.employees || []).map(x => ({
       empId: String(x.empId), fullName: x.name, position: x.position || '', supervisor: x.supervisor || '',
@@ -174,7 +227,47 @@ const Cloud = (() => {
       localStorage.setItem('driveSyncedAt', new Date().toISOString());
       localStorage.setItem('driveDataUpdatedAt', lastUpdatedAt || '');
     } catch (err) { /* ignore */ }
-    return { employees, projects };
+    if (!opts.timesheets) return { employees, projects };
+    let ts;
+    try { ts = await loadTimesheetsFromServer(); }
+    catch (err) { ts = await loadTimesheetsFromServer(); } // bị cập nhật giữa chừng → thử lại 1 lần
+    if (ts.updatedAt && (!lastUpdatedAt || ts.updatedAt > lastUpdatedAt)) lastUpdatedAt = ts.updatedAt;
+    return { employees, projects, timesheets: ts };
+  }
+
+  // ---- bản máy chủ: lưu bảng công của máy này lên máy chủ (chỉ admin) ----
+  // Nạp theo đợt nguyên tử: begin → rows (160 dòng/lần) → commit. Giữa chừng lỗi thì bản đang dùng không đổi.
+  // Nhân viên / dự án do trang "Tài khoản" quản lý, không lưu từ đây.
+  async function saveToServer({ force = false, onProgress } = {}) {
+    if (!canWrite()) throw new Error('Chỉ admin mới được lưu bảng công lên máy chủ.');
+    const rows = await DB.getAll('timesheets');
+    const meta = await serverGet('/api/timesheets/meta');
+    if (!force) {
+      const warnings = [];
+      const before = meta.count, after = rows.length;
+      const shrunk = before >= SHRINK_MIN_ROWS ? after < before * (1 - SHRINK_LIMIT) : (before > 0 && after === 0);
+      if (shrunk) warnings.push(`${STORE_LABELS.timesheets}: máy chủ đang có ${before}, máy này chỉ có ${after} (mất ${before - after}, ${Math.round((before - after) / before * 100)}%).`);
+      if (meta.version && String(meta.version) !== tsStamp()) {
+        warnings.push(`Bảng công trên máy chủ được lưu lúc ${fmtTime(meta.updatedAt)}${meta.updatedBy ? ' bởi ' + meta.updatedBy : ''}, khác với bản máy này đang có: máy này có thể chưa tải bản mới nhất.`);
+      }
+      if (warnings.length) {
+        const err = new Error('Dữ liệu trên máy này khác nhiều so với bản trên máy chủ.');
+        err.code = 'NEEDS_CONFIRM';
+        err.warnings = warnings;
+        throw err;
+      }
+    }
+    const begin = await serverSendRetry('/api/admin/timesheets/begin');
+    let inserted = 0, skipped = 0;
+    for (let i = 0; i < rows.length; i += 160) {
+      const r = await serverSendRetry('/api/admin/timesheets/rows', { batch: begin.batch, rows: rows.slice(i, i + 160) });
+      inserted += r.inserted; skipped += r.skipped;
+      if (onProgress) onProgress(Math.min(i + 160, rows.length), rows.length);
+    }
+    const done = await serverSendRetry('/api/admin/timesheets/commit', { batch: begin.batch, baseVersion: meta.version, count: inserted });
+    tsRemember(done.version);
+    lastUpdatedAt = new Date().toISOString();
+    return { timesheets: done.count, skipped };
   }
 
   // ---- write path (admin) ----
@@ -378,9 +471,10 @@ const Cloud = (() => {
   }
 
   const loadFromDrive = SERVER ? loadFromServer : loadFromDriveFile;
+  const saveData = SERVER ? saveToServer : saveToDrive; // tên dùng chung cho cả hai bản
 
   return {
-    configured, canWrite, loadFromDrive, saveToDrive, createDriveFile,
+    SERVER, configured, canWrite, loadFromDrive, saveToDrive, saveData, hasUnsavedEdits: tsEdited, createDriveFile,
     listDriveRevisions, restoreDriveRevision, exportLocalBackup, importLocalBackup, compareWithRemote,
     getLastUpdatedAt: () => lastUpdatedAt,
     getLastSyncedAt: () => { try { return localStorage.getItem('driveSyncedAt') || ''; } catch (e) { return ''; } },

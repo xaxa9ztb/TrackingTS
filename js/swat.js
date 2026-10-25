@@ -154,7 +154,7 @@ const SwatPage = (() => {
     await load();
     await Dashboard.reloadAndRefresh();
     alert('Đã lưu Swat Hour Target và thông số mục 1 & 2 (đã xác nhận Swat Hour). Kiểm tra lại trên Dashboard' +
-      (typeof Cloud !== 'undefined' && Cloud.canWrite && Cloud.canWrite() ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
+      (typeof Cloud !== 'undefined' && Cloud.canWrite && Cloud.canWrite() && !Cloud.SERVER ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
   }
 
   // Báo cáo tổng quan: công cụ xin dữ liệu giờ công (fitter + activities) của dự

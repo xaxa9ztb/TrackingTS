@@ -170,10 +170,16 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
 - `js/config.js` được **thay bằng bản tối giản** (`{ SERVER: true, PM_SYNC_URL: '/api/pm-store' }`): khoá Google, mã băm mật khẩu admin
   không được chép sang bản máy chủ.
 - `js/cloud.js`: nhân viên + dự án đọc từ `/api/employees`, `/api/projects` (nút **Đồng bộ ngay** vẫn dùng như cũ; tự đồng bộ khi dữ liệu
-  trên máy cũ quá 1 giờ). Bảng công trên máy giữ nguyên.
+  trên máy cũ quá 1 giờ).
+- **Bảng công của Thống kê giờ công** nằm trên máy chủ (bảng `timesheets` trong D1, migration `0004`). Trang Thống kê giờ công tự tải về
+  khi có bản mới (theo trang 1000 dòng; chỉ trang này tải, các chức năng khác chỉ lấy nhân viên + dự án). Admin nhập bảng công như cũ
+  (**Cập nhật Data** → mục *Bổ sung Bảng công*, hoặc *Nạp bản sao lưu .json*) rồi bấm **Lưu lên máy chủ**: máy chủ nhận từng đợt
+  160 dòng vào một "đợt" riêng và chỉ **chuyển sang dùng khi đủ dòng** (lỗi giữa chừng thì bản đang dùng không đổi). Có chặn ghi đè nhầm
+  giống bản Drive (mất hơn 20% dòng / máy chủ có bản mới hơn → phải gõ `LUU`), và máy admin còn chỉnh sửa chưa lưu thì đồng bộ
+  **không ghi đè**. Nhân viên + dự án quản lý ở trang *Tài khoản* nên mục nhập nhân viên / dự án bị ẩn ở bản này.
 - **Quản lý dự án**: kho dữ liệu chung lưu trong D1 (`/api/pm-store`, có số phiên bản + gộp khi hai người cùng sửa) thay cho Apps Script.
-- Thống kê giờ công: quyền admin theo máy chủ. **Chưa chuyển:** bảng công (Timesheet cá nhân lưu online, nhập Thống kê giờ công) — làm ở giai đoạn sau;
-  trong lúc đó dùng bản github.io cho phần này.
+- Thống kê giờ công: quyền admin theo máy chủ, không còn chữ "Drive". **Chưa chuyển:** Timesheet cá nhân lưu online + luồng duyệt
+  (giai đoạn 4).
 
 **Danh sách email ở 2 nơi:** Access (ai mở được trang) và trang Tài khoản (ai là ai, vai trò gì). Thêm / khoá người
 thì sửa cả hai — trang Tài khoản có sẵn danh sách để sao chép. Máy chủ luôn kiểm tra lại: email có trong Access mà
