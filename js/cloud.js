@@ -176,10 +176,62 @@ const Cloud = (() => {
     });
   }
 
-  async function saveToDrive() {
+  // ---- chặn ghi đè nhầm: trước khi lưu, so với bản đang có trên Drive ----
+  // Lưu = thay CẢ file cho mọi người, nên lưu từ một máy thiếu dữ liệu (máy mới, trình duyệt
+  // bị xoá dữ liệu, chưa tải bản mới) sẽ xoá mất dữ liệu chung. Phát hiện thì hỏi lại admin.
+  const SHRINK_LIMIT = 0.2;   // một loại dữ liệu mất hơn 20% số dòng → hỏi lại
+  const SHRINK_MIN_ROWS = 20; // bản trên Drive ít hơn số dòng này thì chỉ hỏi khi máy này trống hẳn
+  const STORE_LABELS = { employees: 'Nhân viên', projects: 'Dự án', timesheets: 'Dòng bảng công' };
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleString('vi-VN'); } catch (e) { return iso; } };
+
+  // Trả về danh sách cảnh báo; rỗng = an toàn để lưu.
+  function compareWithRemote(local, remote, knownUpdatedAt) {
+    const warnings = [];
+    for (const k of Object.keys(STORE_LABELS)) {
+      const before = Array.isArray(remote[k]) ? remote[k].length : 0;
+      const after = local[k].length;
+      const shrunk = before >= SHRINK_MIN_ROWS ? after < before * (1 - SHRINK_LIMIT) : (before > 0 && after === 0);
+      if (shrunk) {
+        warnings.push(`${STORE_LABELS[k]}: Drive đang có ${before}, máy này chỉ có ${after} (mất ${before - after}, ${Math.round((before - after) / before * 100)}%).`);
+      }
+    }
+    if (remote.updatedAt && knownUpdatedAt && remote.updatedAt > knownUpdatedAt) {
+      warnings.push(`Bản trên Drive lưu lúc ${fmtTime(remote.updatedAt)}, mới hơn bản máy này đang có (${fmtTime(knownUpdatedAt)}): máy này có thể chưa tải bản mới nhất.`);
+    }
+    return warnings;
+  }
+
+  async function checkBeforeSave(token, local) {
+    let remote;
+    try {
+      const resp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${CONFIG.DRIVE_FILE_ID}?alt=media`,
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      remote = JSON.parse(await decodeToText(await resp.arrayBuffer()));
+    } catch (e) {
+      return [`Không đọc được bản đang có trên Drive để so sánh (${e.message}).`];
+    }
+    if (!remote || typeof remote !== 'object') return [];
+    const known = lastUpdatedAt || (() => { try { return localStorage.getItem('driveDataUpdatedAt') || ''; } catch (e) { return ''; } })();
+    return compareWithRemote(local, remote, known);
+  }
+
+  // force = true: admin đã xem cảnh báo và vẫn muốn lưu đè.
+  async function saveToDrive({ force = false } = {}) {
     if (!canWrite()) throw new Error('Chưa cấu hình DRIVE_FILE_ID / GOOGLE_CLIENT_ID trong config.js');
     const token = await getToken();
     const data = await gatherAll({ forPublish: true }); // file công khai: không kèm thông tin cá nhân
+    if (!force) {
+      const warnings = await checkBeforeSave(token, data);
+      if (warnings.length) {
+        const err = new Error('Dữ liệu trên máy này khác nhiều so với bản trên Drive.');
+        err.code = 'NEEDS_CONFIRM';
+        err.warnings = warnings;
+        throw err;
+      }
+    }
     const json = JSON.stringify(data);
     const gz = await gzipBytes(json);            // nén nếu trình duyệt hỗ trợ
     const resp = await fetch(
@@ -192,6 +244,7 @@ const Cloud = (() => {
     );
     if (!resp.ok) throw new Error('Lưu lên Drive thất bại (HTTP ' + resp.status + '): ' + (await resp.text()).slice(0, 200));
     lastUpdatedAt = data.updatedAt;
+    try { localStorage.setItem('driveDataUpdatedAt', data.updatedAt); } catch (e) { /* ignore */ }
     return { employees: data.employees.length, projects: data.projects.length, timesheets: data.timesheets.length };
   }
 
@@ -274,7 +327,8 @@ const Cloud = (() => {
   }
 
   async function importLocalBackup(file) {
-    const text = await file.text();
+    // nhận cả file timesheet-data.json tải thẳng từ Google Drive (đã nén gzip)
+    const text = await decodeToText(await file.arrayBuffer());
     let data;
     try { data = JSON.parse(text); }
     catch (e) { throw new Error('File không phải JSON hợp lệ.'); }
@@ -287,7 +341,7 @@ const Cloud = (() => {
 
   return {
     configured, canWrite, loadFromDrive, saveToDrive, createDriveFile,
-    listDriveRevisions, restoreDriveRevision, exportLocalBackup, importLocalBackup,
+    listDriveRevisions, restoreDriveRevision, exportLocalBackup, importLocalBackup, compareWithRemote,
     getLastUpdatedAt: () => lastUpdatedAt,
     getLastSyncedAt: () => { try { return localStorage.getItem('driveSyncedAt') || ''; } catch (e) { return ''; } },
     getDataUpdatedAt: () => { try { return localStorage.getItem('driveDataUpdatedAt') || ''; } catch (e) { return ''; } },

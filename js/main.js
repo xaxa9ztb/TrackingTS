@@ -414,7 +414,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const el = document.getElementById('dataStatus');
     el.textContent = 'Đang lưu lên Google Drive...';
     try {
-      const r = await Cloud.saveToDrive();
+      let r;
+      try {
+        r = await Cloud.saveToDrive();
+      } catch (err) {
+        if (err.code !== 'NEEDS_CONFIRM') throw err;
+        // Máy này thiếu dữ liệu / chưa tải bản mới → bắt gõ xác nhận, không để bấm OK theo thói quen
+        const answer = prompt(
+          '⚠ CẢNH BÁO: lưu lúc này có thể XOÁ dữ liệu chung của mọi người.\n\n' +
+          err.warnings.map(w => '• ' + w).join('\n') +
+          '\n\nNên bấm Huỷ, tải lại trang (lấy bản mới nhất từ Drive) rồi làm lại.' +
+          '\nNếu bạn cố ý (vd. vừa khôi phục phiên bản cũ, hoặc đã xoá dữ liệu sai), gõ LUU để vẫn lưu đè.' +
+          '\n(Bản cũ vẫn khôi phục được ~30 ngày ở mục "Bản cũ trên Google Drive".)');
+        if (answer === null || !/^l[uư]u$/i.test(answer.trim())) {
+          alert('Đã huỷ, chưa lưu gì lên Drive.');
+          await updateDataStatus();
+          return;
+        }
+        r = await Cloud.saveToDrive({ force: true });
+      }
       alert(`Đã lưu lên Drive: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.\nMọi người tải lại trang sẽ thấy dữ liệu mới.`);
     } catch (err) {
       console.error(err);
