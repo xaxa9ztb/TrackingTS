@@ -315,7 +315,7 @@
 <script src="js/config.js?v=36"></script>
 <script src="js/db.js?v=36"></script>
 <script src="js/cloud.js?v=37"></script>
-<script src="js/session.js?v=39"></script>
+<script src="js/session.js?v=40"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -356,8 +356,8 @@
       scope: ['Tổng hợp tài liệu FF+ theo từng dự án', 'Công cụ kiểm tra hồ sơ đủ / thiếu', 'Cảnh báo tài liệu còn thiếu trước khi nộp'],
     },
     projectplan: {
-      desc: 'Kế hoạch điều phối nhân sự, kế hoạch lắp đặt, hàng về và bàn giao các dự án.',
-      scope: ['Kế hoạch điều phối nhân sự giữa các dự án', 'Kế hoạch lắp đặt', 'Kế hoạch hàng về', 'Kế hoạch bàn giao'],
+      desc: 'Điều phối fitter theo ngày và lịch trình các dự án: hàng về, bàn giao hố, nhận hố, lắp đặt, bàn giao. Nhập / xuất Excel theo mẫu đang dùng.',
+      meta: ['Bản demo', 'Lưu trên máy này · Excel'],
     },
     materials: {
       desc: 'Quản lý và điều phối công cụ dụng cụ, vật tư cho các dự án.',
@@ -367,7 +367,7 @@
   // Trang chủ chia theo nhóm; trong nhóm, chức năng dùng được xếp trước
   const GROUPS = [
     { title: 'Chức năng chung', ids: ['tracking', 'timesheet'] },
-    { title: 'Quản lý dự án & Giám sát dự án', ids: ['tiendotm', 'handover', 'ffplus', 'projectplan', 'materials'] },
+    { title: 'Quản lý dự án & Giám sát dự án', ids: ['tiendotm', 'projectplan', 'handover', 'ffplus', 'materials'] },
   ];
   const ORDER = GROUPS.flatMap(g => g.ids);
 

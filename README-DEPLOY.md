@@ -20,6 +20,7 @@ trong repo này. Người dùng **đăng nhập một lần ở trang chủ rồ
 | `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | chép từ `xaxa9ztb/swat-hour` |
 | `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
 | `tools/tiendotm/` | Hồ sơ chất lượng thang máy (hồ sơ quản lý chất lượng + bảng tiến độ thi công) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
+| `tools/projectplan/` | Quản lý dự án — **bản demo**: điều phối fitter + lịch trình dự án, nhập / xuất Excel | **Quản lý dự án, Site Sup** | — (xem `tools/projectplan/README.md`) |
 
 **Đang phát triển** — đã có chỗ ở trang chủ (nhóm *Quản lý dự án & Giám sát dự án*, dành cho
 Quản lý dự án và Site Sup); bấm vào chỉ hiện thông báo "đang phát triển" và phạm vi dự kiến:
@@ -28,7 +29,6 @@ Quản lý dự án và Site Sup); bấm vào chỉ hiện thông báo "đang ph
 |---|---|---|
 | `handover` | Hồ sơ bàn giao NI – EI | Tổng hợp tài liệu, kiểm tra đảm bảo quy trình bàn giao |
 | `ffplus` | Hồ sơ FF+ | Tổng hợp tài liệu + công cụ kiểm tra hồ sơ đầy đủ cho quy trình FF+ |
-| `projectplan` | Quản lý dự án | Kế hoạch điều phối nhân sự, lắp đặt, hàng về, bàn giao các dự án |
 | `materials` | Điều phối công cụ dụng cụ, vật tư | Quản lý, điều phối công cụ dụng cụ và vật tư |
 
 ### Đăng nhập & phân quyền (`js/session.js`)

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản lý dự án — Bộ công cụ dự án</title>
+<link rel="manifest" href="../../manifest.webmanifest">
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+<script src="../../js/pwa.js?v=36" defer></script>
+<script src="../../js/session.js?v=40"></script>
+<script>Session.guard('projectplan');</script>
+<script src="../../js/config.js?v=36"></script>
+<script src="../../js/db.js?v=36"></script>
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+<script src="../toolset-nav.js?v=36" data-tool="Quản lý dự án"></script>
+
+<header class="pp-top">
+  <div class="pp-wrap pp-top-in">
+    <div class="pp-title">
+      <h1>Quản lý dự án <span class="pp-demo" title="Bản thử nghiệm, chưa áp dụng chính thức">Bản demo</span></h1>
+      <p>Điều phối fitter và lịch trình lắp đặt các dự án</p>
+    </div>
+    <div class="pp-actions">
+      <label class="btn" id="btnImport" title="Nhập file Excel quản lý lắp đặt (sheet Nhân sự + Plan)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+        <span>Nhập Excel</span><input type="file" id="fileImport" accept=".xlsx,.xlsm,.xls" hidden>
+      </label>
+      <button type="button" class="btn" id="btnExport" title="Xuất Excel đúng mẫu đang dùng (Nhân sự + Plan)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+        <span>Xuất Excel</span>
+      </button>
+      <button type="button" class="btn btn-icon" id="btnMore" aria-haspopup="menu" aria-expanded="false" aria-label="Thêm">⋯</button>
+      <div class="pp-menu" id="moreMenu" role="menu" hidden>
+        <button type="button" role="menuitem" id="miSample">Tạo dữ liệu mẫu</button>
+        <button type="button" role="menuitem" id="miClear" class="danger">Xóa toàn bộ dữ liệu trên máy</button>
+      </div>
+    </div>
+  </div>
+  <div class="pp-wrap">
+    <p class="pp-note" id="demoNote">Bản demo: dữ liệu lưu trên trình duyệt của máy này. Chia sẻ cho người khác bằng <b>Xuất Excel</b> → gửi file → <b>Nhập Excel</b>.</p>
+    <nav class="pp-tabs" role="tablist">
+      <button type="button" role="tab" id="tabAlloc" aria-controls="viewAlloc" aria-selected="true">Điều phối nhân sự</button>
+      <button type="button" role="tab" id="tabPlan" aria-controls="viewPlan" aria-selected="false">Lịch trình dự án</button>
+    </nav>
+  </div>
+</header>
+
+<main class="pp-wrap">
+  <section id="viewEmpty" class="pp-empty" hidden>
+    <h2>Chưa có dữ liệu</h2>
+    <p>Nhập file Excel quản lý lắp đặt đang dùng (sheet <b>Nhân sự</b> và <b>Plan</b>), hoặc bắt đầu bằng cách thêm fitter và dự án.</p>
+    <div class="pp-empty-actions">
+      <button type="button" class="btn btn-primary" id="emptyImport">Nhập file Excel</button>
+      <button type="button" class="btn" id="emptyStart">Bắt đầu từ đầu</button>
+      <button type="button" class="btn" id="emptySample">Xem dữ liệu mẫu</button>
+    </div>
+  </section>
+
+  <!-- ===== Điều phối nhân sự ===== -->
+  <section id="viewAlloc" role="tabpanel" aria-labelledby="tabAlloc" hidden>
+    <div class="pp-toolbar">
+      <div class="pp-range">
+        <button type="button" class="btn btn-icon" id="prevWeek" aria-label="Tuần trước">‹</button>
+        <button type="button" class="btn" id="thisWeek">Tuần này</button>
+        <button type="button" class="btn btn-icon" id="nextWeek" aria-label="Tuần sau">›</button>
+        <span class="pp-range-label" id="rangeLabel"></span>
+      </div>
+      <label class="pp-field-inline">Hiển thị
+        <select id="weeks"><option value="2">2 tuần</option><option value="4">4 tuần</option><option value="6">6 tuần</option><option value="8">8 tuần</option></select>
+      </label>
+      <label class="pp-field-inline">Làm nổi
+        <select id="hiProject"><option value="">Tất cả dự án</option></select>
+      </label>
+      <button type="button" class="btn btn-primary" id="addFitter">+ Fitter</button>
+    </div>
+    <div class="pp-today" id="todayStats" aria-live="polite"></div>
+    <div class="al-scroll" id="alScroll"><table class="al" id="alTable"></table></div>
+    <p class="pp-hint">Bấm vào ô trống để phân công (kéo chuột qua nhiều ngày để chọn khoảng) · bấm vào dải màu để sửa · bấm tên fitter để sửa thông tin.
+      <span class="lg"><i class="lg-t"></i>Dự kiến</span> <span class="lg"><i class="lg-h"></i>Ngày lễ / CN</span></p>
+  </section>
+
+  <!-- ===== Lịch trình dự án ===== -->
+  <section id="viewPlan" role="tabpanel" aria-labelledby="tabPlan" hidden>
+    <div class="pp-toolbar">
+      <input type="search" id="planSearch" class="pp-search" placeholder="Tìm dự án, địa chỉ, giám sát…" aria-label="Tìm dự án">
+      <label class="pp-field-inline">Trạng thái
+        <select id="planStatus"><option value="open">Đang theo dõi</option><option value="done">Đã hoàn thành</option><option value="all">Tất cả</option></select>
+      </label>
+      <label class="pp-field-inline">Giám sát <select id="planSup"><option value="">Tất cả</option></select></label>
+      <button type="button" class="btn btn-primary" id="addProject">+ Dự án</button>
+    </div>
+    <div class="pp-upcoming" id="upcoming"></div>
+    <div id="planList"></div>
+  </section>
+</main>
+
+<!-- phân công -->
+<dialog class="dlg" id="dlgAssign" aria-labelledby="asTitle">
+  <form method="dialog" id="formAssign">
+    <h2 id="asTitle">Phân công</h2>
+    <label class="fld">Fitter <select id="asFitter" required></select></label>
+    <label class="fld">Dự án
+      <select id="asProject" required></select>
+    </label>
+    <label class="fld" id="asNewWrap" hidden>Tên dự án mới <input id="asNewName" type="text" autocomplete="off"></label>
+    <div class="fld-row">
+      <label class="fld">Từ ngày <input id="asFrom" type="date" required></label>
+      <label class="fld">Đến ngày <input id="asTo" type="date" required></label>
+    </div>
+    <fieldset class="fld seg"><legend>Trạng thái</legend>
+      <label><input type="radio" name="asStatus" value="0" checked> Chính thức</label>
+      <label><input type="radio" name="asStatus" value="1"> Dự kiến</label>
+    </fieldset>
+    <label class="chk"><input type="checkbox" id="asSkipSun"> Bỏ qua Chủ nhật và ngày lễ</label>
+    <p class="dlg-warn" id="asWarn" role="status"></p>
+    <div class="dlg-btns">
+      <button type="button" class="btn danger" id="asClear">Bỏ trống các ngày này</button>
+      <span class="sp"></span>
+      <button type="button" class="btn" value="cancel" id="asCancel">Hủy</button>
+      <button type="submit" class="btn btn-primary" id="asSave">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- fitter -->
+<dialog class="dlg" id="dlgFitter" aria-labelledby="ftTitle">
+  <form method="dialog" id="formFitter">
+    <h2 id="ftTitle">Fitter</h2>
+    <label class="fld">Tên hiển thị <input id="ftName" type="text" required autocomplete="off" list="eeNames"></label>
+    <label class="fld">Mã NV (không bắt buộc) <input id="ftEmp" type="text" autocomplete="off"></label>
+    <datalist id="eeNames"></datalist>
+    <p class="hint" id="ftStats"></p>
+    <div class="dlg-btns">
+      <button type="button" class="btn danger" id="ftDelete">Xóa fitter</button>
+      <button type="button" class="btn" id="ftUp" aria-label="Chuyển lên">↑</button>
+      <button type="button" class="btn" id="ftDown" aria-label="Chuyển xuống">↓</button>
+      <span class="sp"></span>
+      <button type="button" class="btn" id="ftCancel">Hủy</button>
+      <button type="submit" class="btn btn-primary">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- dự án -->
+<dialog class="dlg dlg-wide" id="dlgProject" aria-labelledby="pjTitle">
+  <form method="dialog" id="formProject">
+    <h2 id="pjTitle">Dự án</h2>
+    <div class="pj-grid">
+      <fieldset class="pj-sec"><legend>Thông tin dự án</legend>
+        <label class="fld">Tên dự án <input id="pj_name" type="text" required></label>
+        <label class="fld">Địa chỉ <input id="pj_address" type="text"></label>
+        <div class="fld-row">
+          <label class="fld">Dự án tỉnh <select id="pj_province"><option value="">—</option><option value="1">Có</option><option value="0">Không</option></select></label>
+          <label class="fld">WBS <input id="pj_wbs" type="text" list="wbsList" autocomplete="off"></label>
+          <label class="fld fld-color">Màu <input id="pj_color" type="color"></label>
+        </div>
+        <datalist id="wbsList"></datalist>
+      </fieldset>
+      <fieldset class="pj-sec"><legend>Thang máy</legend>
+        <div class="fld-row">
+          <label class="fld">Số lượng <input id="pj_liftCount" type="number" min="0" inputmode="numeric"></label>
+          <label class="fld">Loại thang <input id="pj_liftType" type="text" list="liftTypes"></label>
+          <label class="fld">Hành trình <input id="pj_travel" type="text" placeholder="vd. 24m"></label>
+        </div>
+        <div class="fld-row">
+          <label class="fld">Tải trọng (kg) <input id="pj_load" type="text" inputmode="numeric"></label>
+          <label class="fld">Số điểm dừng <input id="pj_stops" type="number" min="0" inputmode="numeric"></label>
+          <label class="fld">PT vận chuyển <input id="pj_transport" type="text" list="transports"></label>
+        </div>
+        <datalist id="liftTypes"><option>ES1</option><option>ES5.0</option><option>ES5.1</option><option>XJS</option></datalist>
+        <datalist id="transports"><option>Đi biển</option><option>Đi tàu hỏa</option><option>Đi xe tải</option></datalist>
+      </fieldset>
+      <fieldset class="pj-sec pj-ms"><legend>Tiến độ hàng &amp; lắp đặt</legend>
+        <div id="pjMilestones"></div>
+      </fieldset>
+      <fieldset class="pj-sec"><legend>Nhân sự &amp; giám sát</legend>
+        <label class="fld">Nhân sự (kế hoạch) <input id="pj_teamPlan" type="text" placeholder="vd. 2 fitter / Subcon"></label>
+        <p class="hint" id="pjAllocated"></p>
+        <label class="fld">Giám sát <input id="pj_supervisor" type="text" list="supList"></label>
+        <datalist id="supList"></datalist>
+        <label class="fld">Ghi chú <textarea id="pj_note" rows="3"></textarea></label>
+        <label class="chk"><input type="checkbox" id="pj_done"> Đã hoàn thành</label>
+      </fieldset>
+    </div>
+    <div class="pj-merge" id="pjMergeWrap">
+      <label class="fld">Gộp vào dự án khác (chuyển toàn bộ phân công sang dự án được chọn)
+        <span class="fld-row"><select id="pjMergeTo"><option value="">— chọn dự án —</option></select>
+        <button type="button" class="btn" id="pjMerge">Gộp</button></span>
+      </label>
+    </div>
+    <div class="dlg-btns">
+      <button type="button" class="btn danger" id="pjDelete">Xóa dự án</button>
+      <span class="sp"></span>
+      <button type="button" class="btn" id="pjCancel">Hủy</button>
+      <button type="submit" class="btn btn-primary">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- nhập Excel -->
+<dialog class="dlg dlg-wide" id="dlgImport" aria-labelledby="imTitle">
+  <form method="dialog">
+    <h2 id="imTitle">Nhập file Excel</h2>
+    <div id="imBody"></div>
+    <div class="dlg-btns">
+      <span class="sp"></span>
+      <button type="button" class="btn" id="imCancel">Hủy</button>
+      <button type="button" class="btn btn-primary" id="imApply">Nhập dữ liệu</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span><button type="button" id="toastAct" hidden></button><button type="button" id="toastX" aria-label="Đóng thông báo">✕</button></div>
+
+<script src="../../js/xlsx.full.min.js?v=36"></script>
+<script src="../timesheet/labor.js?v=40"></script>
+<script src="pmio.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
