@@ -363,10 +363,10 @@
   </div>
 </footer>
 
-<script src="js/config.js?v=36"></script>
+<script src="js/config.js?v=37"></script>
 <script src="js/db.js?v=36"></script>
 <script src="js/cloud.js?v=38"></script>
-<script src="js/session.js?v=40"></script>
+<script src="js/session.js?v=41"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -674,6 +674,8 @@
       const h = await sha256(pw);
       if (h !== hash) { msg.textContent = 'Sai mật khẩu.'; return; }
       try { sessionStorage.setItem('adminOk', h); } catch (e) { /* ignore */ } // app Thống kê nhận quyền admin
+      // khoá riêng cho kho dữ liệu Quản lý dự án: tính từ MẬT KHẨU (không suy ra được từ mã băm công khai trong config.js)
+      try { sessionStorage.setItem('pmStoreKey', await sha256(pw + '|pm-store')); } catch (e) { /* ignore */ }
     }
     Session.save({ admin: true, name: 'Quản trị viên' }, false);
     $('inPw').value = '';

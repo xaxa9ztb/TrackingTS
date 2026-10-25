@@ -19,7 +19,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pp-title p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .pp-demo { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--amber); background: var(--amber-bg); border: 1px solid #fcd34d; border-radius: 999px; padding: 2px 8px; }
 .pp-actions { display: flex; align-items: center; gap: 8px; position: relative; }
-.pp-note { margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
+.pp-status { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 8px; font-size: 12.5px; color: var(--ink-2); }
+.st { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.st .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; flex: none; }
+.st .dot.ok { background: #059669; } .st .dot.warn { background: #d97706; } .st .dot.err { background: var(--red); } .st .dot.busy { background: var(--blue); animation: pp-pulse 1s infinite; }
+@keyframes pp-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .st .dot.busy { animation: none; } }
+.st .lnk { border: 0; background: none; padding: 2px 4px; color: var(--blue); font-weight: 600; cursor: pointer; text-decoration: underline; font-size: 12.5px; }
+.st .lnk:disabled { color: var(--muted); cursor: not-allowed; }
+.st b { font-weight: 600; }
+.ee-list { max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
+.ee-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; font-size: 13.5px; }
+.ee-row:last-child { border-bottom: 0; }
+.ee-row:hover { background: #f9fafb; }
+.ee-row .sub { margin-left: auto; color: var(--muted); font-size: 12px; text-align: right; }
+.al .nd .warn { color: var(--red); font-weight: 600; }
 .pp-tabs { display: flex; gap: 4px; }
 .pp-tabs button { border: 0; background: none; padding: 10px 14px; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; }
 .pp-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--blue); }

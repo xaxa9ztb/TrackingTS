@@ -38,7 +38,150 @@
     data.updatedAt = new Date().toISOString();
     try { localStorage.setItem(KEY, JSON.stringify(data)); }
     catch (e) { toast('Không lưu được trên máy này (bộ nhớ trình duyệt đầy hoặc bị chặn). Hãy Xuất Excel để giữ dữ liệu.'); }
+    if (STORE_URL) scheduleSave();
   }
+
+  // ================= KHO DỮ LIỆU CHUNG (Google Drive qua Apps Script) =================
+  // Mọi Quản lý dự án / Site Sup cùng xem & sửa một bộ dữ liệu: tự tải khi mở, tự lưu sau mỗi thay đổi,
+  // có người lưu trước → gộp thay đổi (PMIO.merge) rồi lưu lại. Mất mạng → giữ trên máy, có mạng lại thì lưu.
+  const STORE_URL = (window.CONFIG && CONFIG.PM_SYNC_URL) || '';
+  const BASE_KEY = 'pm_base_v1', META_KEY = 'pm_store_meta_v1';
+  const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  let base = readJSON(BASE_KEY);                                   // bản chung lúc đồng bộ lần cuối
+  let meta = readJSON(META_KEY) || { version: null, updatedAt: '', updatedBy: '' };
+  let st = { phase: 'idle', msg: '' };
+  let saving = false, saveTimer = null, lastPull = 0;
+  const core = (d) => ({ fitters: d.fitters || [], projects: d.projects || [], alloc: d.alloc || {} });
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const dirty = () => !!STORE_URL && (!base ? !!(data.fitters.length || data.projects.length) : !P.same(core(data), core(base)));
+  const keepMeta = () => { try { localStorage.setItem(BASE_KEY, JSON.stringify(base)); localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* bỏ qua */ } };
+  function who() {
+    const s = typeof Session !== 'undefined' ? Session.current() : null;
+    if (!s) return null;
+    if (s.admin) { let k = ''; try { k = sessionStorage.getItem('pmStoreKey') || ''; } catch (e) { /* bỏ qua */ } return { admin: k || 'none' }; }
+    return { name: s.name, empId: s.empId };
+  }
+  async function call(action, extra) {
+    const res = await fetch(STORE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ action, user: who() }, extra || {})) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+  function scheduleSave(ms) { if (!STORE_URL) return; clearTimeout(saveTimer); saveTimer = setTimeout(() => push(), ms == null ? 1500 : ms); renderStore(); }
+  // nhận bản chung mới nhất
+  function applyRemote(r) {
+    const remote = r.data ? core(r.data) : core(P.emptyData());
+    let conflicts = 0;
+    if (meta.version === r.version && base) { /* không có gì mới */ }
+    else if (!dirty()) { data = Object.assign(P.emptyData(), clone(remote)); }
+    else {
+      const remoteEmpty = !remote.fitters.length && !remote.projects.length;
+      if (!(remoteEmpty && !base)) { const m = P.merge(base ? core(base) : null, core(data), remote); data = Object.assign(P.emptyData(), m.data); conflicts = m.conflicts; }
+    }
+    base = clone(remote); meta = { version: r.version, updatedAt: r.updatedAt || '', updatedBy: r.updatedBy || '' };
+    keepMeta();
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* bỏ qua */ }
+    if (conflicts) toast(`Đã gộp với thay đổi của ${meta.updatedBy || 'người khác'} — ${conflicts} mục cả hai cùng sửa, giữ bản của bạn.`);
+    if (dirty()) scheduleSave(300);
+  }
+  async function pull() {
+    if (!STORE_URL || saving) return;
+    if (navigator.onLine === false) { st = { phase: 'offline' }; renderStore(); return; }
+    st = { phase: 'loading' }; renderStore();
+    try {
+      const r = await call('load');
+      lastPull = Date.now();
+      if (r.denied) st = { phase: 'denied', msg: r.error };
+      else if (!r.ok) throw new Error(r.error || 'lỗi không rõ');
+      else { applyRemote(r); st = { phase: 'idle' }; }
+    } catch (e) { st = { phase: 'error', msg: e.message }; }
+    render();
+  }
+  async function push() {
+    if (!STORE_URL || saving || !dirty()) { renderStore(); return; }
+    if (navigator.onLine === false) { st = { phase: 'offline' }; renderStore(); return; }
+    if (meta.version === null) return pull(); // chưa tải bản chung lần nào → tải & gộp trước
+    saving = true; st = { phase: 'saving' }; renderStore();
+    try {
+      for (let i = 0; i < 4; i++) {
+        const sent = clone(core(data));
+        const r = await call('save', { baseVersion: meta.version || 0, data: sent });
+        if (r.ok) { base = sent; meta = { version: r.version, updatedAt: r.updatedAt, updatedBy: r.updatedBy }; keepMeta(); st = { phase: 'idle' }; break; }
+        if (r.denied) { st = { phase: 'denied', msg: r.error }; break; }
+        if (!r.conflict) throw new Error(r.error || 'lỗi không rõ');
+        // có người lưu trước: gộp rồi thử lại
+        const remote = r.data ? core(r.data) : core(P.emptyData());
+        const m = P.merge(base ? core(base) : null, core(data), remote);
+        data = Object.assign(P.emptyData(), m.data); base = clone(remote);
+        meta = { version: r.version, updatedAt: r.updatedAt || '', updatedBy: r.updatedBy || '' }; keepMeta();
+        try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* bỏ qua */ }
+        if (m.conflicts) toast(`${meta.updatedBy || 'Người khác'} vừa lưu — đã gộp, ${m.conflicts} mục cả hai cùng sửa: giữ bản của bạn.`);
+      }
+    } catch (e) { st = { phase: 'error', msg: e.message }; }
+    saving = false;
+    render();
+    if (st.phase === 'idle' && dirty()) scheduleSave(800); // có sửa thêm trong lúc đang lưu
+  }
+  const fmtWhen = (iso) => {
+    const d = new Date(iso); if (!iso || isNaN(d)) return '';
+    const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return d.toDateString() === new Date().toDateString() ? `${hm} hôm nay` : `${hm} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+  };
+  function renderStore() {
+    const bar = $('storeBar');
+    $('btnSave').hidden = !STORE_URL;
+    $('miReload').hidden = !STORE_URL;
+    $('miSample').hidden = !!STORE_URL;
+    $('miClear').textContent = STORE_URL ? 'Bỏ dữ liệu trên máy, tải lại từ Drive' : 'Xóa toàn bộ dữ liệu trên máy';
+    if (!STORE_URL) {
+      bar.innerHTML = '<span class="dot warn"></span><span><b>Chỉ lưu trên máy này</b> — chưa kết nối kho dữ liệu chung trên Drive (quản trị viên: xem hướng dẫn). Chia sẻ tạm bằng Xuất / Nhập Excel trong menu ⋯.</span>';
+      return;
+    }
+    const d = dirty(), ph = st.phase;
+    $('btnSave').disabled = saving || !d || ph === 'denied';
+    let dot = 'ok', txt, act = '';
+    if (ph === 'loading') { dot = 'busy'; txt = 'Đang tải dữ liệu chung…'; }
+    else if (ph === 'saving') { dot = 'busy'; txt = 'Đang lưu lên Drive…'; }
+    else if (ph === 'denied') { dot = 'err'; txt = `<b>Không dùng được kho dữ liệu chung:</b> ${esc(st.msg)}`; }
+    else if (ph === 'error') { dot = 'err'; txt = `<b>Chưa kết nối được kho dữ liệu chung</b> (${esc(st.msg)}) — thay đổi vẫn giữ trên máy.`; act = '<button type="button" class="lnk" data-act="retry">Thử lại</button>'; }
+    else if (ph === 'offline') { dot = 'warn'; txt = '<b>Ngoại tuyến</b> — thay đổi giữ trên máy, tự lưu lên Drive khi có mạng.'; }
+    else if (d) { dot = 'warn'; txt = '<b>Có thay đổi chưa lưu</b> — đang tự lưu lên Drive…'; }
+    else if (meta.version) { txt = `<b>Đã lưu trên Drive</b> · ${esc(fmtWhen(meta.updatedAt))}${meta.updatedBy ? ' · bởi ' + esc(meta.updatedBy) : ''} · phiên bản ${meta.version}`; act = '<button type="button" class="lnk" data-act="reload">Tải lại</button>'; }
+    else { txt = '<b>Kho dữ liệu chung đang trống</b> — dữ liệu bạn nhập sẽ được lưu lên Drive cho cả nhóm.'; }
+    bar.innerHTML = `<span class="dot ${dot}"></span><span>${txt}</span>${act}`;
+  }
+
+  // ================= DỮ LIỆU DÙNG CHUNG (EE Data + Dự án, như Thống kê giờ công) =================
+  let EE = [], SHARED = [];
+  const FITTER_RE = /fitter|lap dat|installer|technician|ky thuat|tho/;
+  async function loadShared() {
+    if (typeof DB === 'undefined') return;
+    try { [EE, SHARED] = await Promise.all([DB.getAll('employees'), DB.getAll('projects')]); EE = EE || []; SHARED = SHARED || []; } catch (e) { EE = []; SHARED = []; }
+    $('eeNames').innerHTML = EE.filter(e => FITTER_RE.test(P.plain(e.position)))
+      .map(e => `<option value="${esc(e.fullName + ' · ' + e.empId)}">${esc(e.position)}</option>`).join('');
+    $('sharedProjects').innerHTML = SHARED.slice(0, 3000).map(x => `<option value="${esc(x.wbs + ' — ' + x.projectName)}">`).join('');
+  }
+  const eeById = (id) => EE.find(e => P.plain(e.empId) === P.plain(id));
+  function renderShared() {
+    const ok = typeof Cloud !== 'undefined' && Cloud.configured();
+    const at = ok && Cloud.getLastSyncedAt ? Cloud.getLastSyncedAt() : '';
+    $('sharedBar').innerHTML = `<span class="dot ${at ? 'ok' : 'warn'}"></span><span>Dữ liệu dùng chung: <b>${EE.length}</b> nhân viên · <b>${SHARED.length}</b> dự án` +
+      (at ? ` · đồng bộ ${esc(fmtWhen(at))}` : ' · chưa đồng bộ trên máy này') + '</span>' +
+      (ok ? `<button type="button" class="lnk" id="btnShared"${navigator.onLine === false ? ' disabled' : ''}>Đồng bộ</button>` : '');
+  }
+  $('sharedBar').addEventListener('click', async (e) => {
+    const b = e.target.closest('#btnShared'); if (!b) return;
+    b.disabled = true; b.textContent = 'Đang đồng bộ…';
+    try { const d = await Cloud.loadFromDrive(); await loadShared(); toast(`Đã cập nhật dữ liệu chung: ${(d.employees || []).length} nhân viên, ${(d.projects || []).length} dự án.`); }
+    catch (err) { toast(/QUOTA/.test(err.message) ? 'Google Drive đang giới hạn lượt tải hôm nay — dùng dữ liệu đã có trên máy.' : 'Chưa đồng bộ được: ' + err.message); }
+    renderShared(); render();
+  });
+  $('storeBar').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act === 'retry') { if (meta.version === null || !dirty()) pull(); else push(); }
+    if (b.dataset.act === 'reload') pull();
+  });
+  $('btnSave').addEventListener('click', () => { clearTimeout(saveTimer); push(); });
   const byId = () => { const m = {}; data.projects.forEach(p => { m[p.id] = p; }); return m; };
   // thay đổi có Hoàn tác (lastSnap: để thông báo riêng sau đó vẫn hoàn tác được)
   let lastSnap = null;
@@ -76,8 +219,12 @@
 
   // ---------------- khung chung ----------------
   function render() {
+    renderStore(); renderShared();
     const empty = !data.fitters.length && !data.projects.length && !ui.started;
     $('viewEmpty').hidden = !empty;
+    const firstLoad = STORE_URL && meta.version === null && st.phase === 'loading';
+    $('viewEmpty').querySelector('h2').textContent = firstLoad ? 'Đang tải dữ liệu chung…' : 'Chưa có dữ liệu';
+    $('viewEmpty').querySelector('.pp-empty-actions').hidden = firstLoad;
     document.querySelector('.pp-tabs').hidden = empty;
     $('viewAlloc').hidden = empty || ui.tab !== 'alloc';
     $('viewPlan').hidden = empty || ui.tab !== 'plan';
@@ -119,7 +266,8 @@
       const m = data.alloc[f.id] || {};
       let work = 0, tent = 0;
       days.forEach((d, i) => { if (m[d] && pm[m[d].p]) { work++; if (m[d].t) tent++; } else if (!offDay(d)) idle[i]++; });
-      h += `<tr><td class="name" data-f="${esc(f.id)}" tabindex="0" role="button" aria-label="${esc('Sửa fitter ' + f.name)}"><span class="nm">${esc(f.name)}</span><span class="nd">${work} ngày có việc${tent ? ` · ${tent} dự kiến` : ''}</span></td>`;
+      const link = !f.empId ? '' : (EE.length && !eeById(f.empId) ? ` · <span class="warn" title="Mã NV không còn trong dữ liệu nhân sự">${esc(f.empId)} ⚠</span>` : ` · ${esc(f.empId)}`);
+      h += `<tr><td class="name" data-f="${esc(f.id)}" tabindex="0" role="button" aria-label="${esc('Sửa fitter ' + f.name)}"><span class="nm">${esc(f.name)}</span><span class="nd">${work} ngày có việc${tent ? ` · ${tent} dự kiến` : ''}${link}</span></td>`;
       for (let i = 0; i < days.length;) {
         const d = days[i], v = m[d];
         if (!v || !pm[v.p]) { h += `<td class="cell ${dayCls(d)}" data-f="${esc(f.id)}" data-d="${d}"></td>`; i++; continue; }
@@ -271,30 +419,76 @@
 
   // ---------- fitter ----------
   let ftId = null;
-  async function fillEENames() {
-    if (typeof DB === 'undefined' || $('eeNames').childElementCount) return;
-    try {
-      const list = await DB.getAll('employees');
-      $('eeNames').innerHTML = (list || []).filter(e => /fitter|lap dat|lắp đặt|technician|ky thuat/i.test(String(e.position || '')))
-        .map(e => `<option value="${esc(e.fullName)}">${esc(e.empId)} · ${esc(e.position)}</option>`).join('');
-    } catch (e) { /* chưa có EE Data */ }
+  function linkText() {
+    const id = $('ftEmp').value, e = id ? eeById(id) : null;
+    if (e) return `Đã liên kết: ${e.fullName} · ${e.empId} · ${e.position}`;
+    if (id) return EE.length ? `Mã ${id} không còn trong dữ liệu nhân sự (đã nghỉ / đổi mã?).` : `Mã NV ${id}.`;
+    const n = P.plain($('ftName').value);
+    const cand = n ? EE.filter(x => FITTER_RE.test(P.plain(x.position)) && (' ' + P.plain(x.fullName) + ' ').endsWith(' ' + n + ' ')) : [];
+    return cand.length === 1 ? `SUGGEST:${cand[0].empId}` : 'Chưa liên kết với dữ liệu nhân sự (không bắt buộc).';
+  }
+  function showLink() {
+    const t = linkText();
+    if (t.startsWith('SUGGEST:')) {
+      const e = eeById(t.slice(8));
+      $('ftLink').innerHTML = `Có thể là <b>${esc(e.fullName)}</b> (${esc(e.empId)}) — <button type="button" class="lnk" id="ftUse">Liên kết</button>`;
+    } else $('ftLink').textContent = t;
   }
   function openFitter(id) {
     ftId = id;
     const f = data.fitters.find(x => x.id === id);
     $('ftTitle').textContent = f ? 'Sửa fitter' : 'Thêm fitter';
     $('ftName').value = f ? f.name : ''; $('ftEmp').value = f ? f.empId || '' : '';
+    const e = f && f.empId ? eeById(f.empId) : null;
+    $('ftEE').value = e ? `${e.fullName} · ${e.empId}` : (f && f.empId ? f.empId : '');
     $('ftDelete').hidden = $('ftUp').hidden = $('ftDown').hidden = !f;
     const n = f ? Object.keys(data.alloc[f.id] || {}).length : 0;
-    $('ftStats').textContent = f ? `${n} ngày đã phân công.` : 'Gợi ý tên lấy từ dữ liệu nhân sự (nếu máy đã có).';
-    fillEENames();
+    $('ftStats').textContent = f ? `${n} ngày đã phân công.` : '';
+    showLink();
     $('dlgFitter').showModal(); $('ftName').focus();
   }
+  $('ftEE').addEventListener('input', () => {
+    const v = $('ftEE').value.trim(), m = v.match(/·\s*([^·]+)$/);
+    const e = m ? eeById(m[1].trim()) : (eeById(v) || null);
+    $('ftEmp').value = e ? e.empId : (v ? v : '');
+    if (e && !$('ftName').value.trim()) $('ftName').value = e.fullName;
+    showLink();
+  });
+  $('ftName').addEventListener('input', showLink);
+  $('ftLink').addEventListener('click', (ev) => {
+    if (!ev.target.closest('#ftUse')) return;
+    const e = eeById(linkText().slice(8)); if (!e) return;
+    $('ftEmp').value = e.empId; $('ftEE').value = `${e.fullName} · ${e.empId}`; showLink();
+  });
+
+  // ---------- thêm fitter từ dữ liệu nhân sự ----------
+  function renderEEList() {
+    const q = P.plain($('eeSearch').value), all = $('eeAll').checked;
+    const used = new Set(data.fitters.map(f => P.plain(f.empId)).filter(Boolean));
+    const list = EE.filter(e => (all || FITTER_RE.test(P.plain(e.position))) && !used.has(P.plain(e.empId)) &&
+      (!q || P.plain(`${e.fullName} ${e.empId} ${e.position} ${e.supervisor || ''}`).includes(q)))
+      .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), 'vi')).slice(0, 300);
+    $('eeList').innerHTML = list.length ? list.map(e => `<label class="ee-row"><input type="checkbox" value="${esc(e.empId)}"><span>${esc(e.fullName)}</span><span class="sub">${esc(e.empId)} · ${esc(e.position)}</span></label>`).join('')
+      : `<p class="hint" style="padding:10px">${EE.length ? 'Không có nhân viên phù hợp (hoặc đã có trong danh sách).' : 'Máy chưa có dữ liệu nhân sự — bấm “Đồng bộ” ở dòng Dữ liệu dùng chung.'}</p>`;
+    $('eeHint').textContent = `${list.length} nhân viên${list.length === 300 ? ' (gõ để lọc thêm)' : ''}.`;
+  }
+  $('addFromEE').addEventListener('click', () => { $('eeSearch').value = ''; renderEEList(); $('dlgEE').showModal(); $('eeSearch').focus(); });
+  ['eeSearch', 'eeAll'].forEach(id => $(id).addEventListener('input', renderEEList));
+  $('eeCancel').addEventListener('click', () => $('dlgEE').close());
+  $('formEE').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const ids = [...document.querySelectorAll('#eeList input:checked')].map(x => x.value);
+    if (!ids.length) { $('eeHint').textContent = 'Chọn ít nhất một nhân viên.'; return; }
+    commit(`Đã thêm ${ids.length} fitter từ dữ liệu nhân sự.`, () => {
+      ids.forEach(id => { const e = eeById(id); if (!e) return; const nf = { id: P.uid('f'), name: e.fullName, empId: e.empId }; data.fitters.push(nf); data.alloc[nf.id] = {}; });
+    });
+    $('dlgEE').close();
+  });
   $('ftCancel').addEventListener('click', () => $('dlgFitter').close());
   $('formFitter').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('ftName').value.trim(); if (!name) return;
-    const emp = $('ftEmp').value.trim();
+    const emp = $('ftEE').value.trim() ? $('ftEmp').value.trim() : '';
     commit(ftId ? 'Đã lưu fitter.' : `Đã thêm fitter ${name}.`, () => {
       const f = data.fitters.find(x => x.id === ftId);
       if (f) { f.name = name; f.empId = emp; } else { const nf = { id: P.uid('f'), name, empId: emp }; data.fitters.push(nf); data.alloc[nf.id] = {}; }
@@ -381,7 +575,7 @@
     list.forEach((p, i) => {
       if (p.fromGrid && (i === 0 || !list[i - 1].fromGrid)) h += grpRow;
       h += `<tr class="row" data-p="${esc(p.id)}" tabindex="0">
-        <td><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i>${esc(p.name)}</div><div class="sub">${esc(p.address)}</div>${badges(p)}</td>
+        <td><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i>${esc(p.name)}</div><div class="sub">${esc(p.address)}${p.wbs ? ` · <span class="${SHARED.length && !sharedByWbs(p.wbs) ? 'badge warn' : ''}" title="${SHARED.length && !sharedByWbs(p.wbs) ? 'WBS không có trong danh sách dự án chung' : 'WBS'}">${esc(p.wbs)}</span>` : ''}</div>${badges(p)}</td>
         <td>${p.liftCount ? `<b>${esc(p.liftCount)} × ${esc(p.liftType)}</b>` : esc(p.liftType)}<div class="sub">${esc(liftInfo(p))}</div></td>
         <td>${msDl(p, ['factory', 'port', 'arrival'], t)}${p.transport ? `<div class="sub">${esc(p.transport)}</div>` : ''}</td>
         <td>${msDl(p, ['shaftReady', 'ownerStart', 'teamStart', 'handover'], t)}</td>
@@ -433,14 +627,26 @@
     $('pjMergeTo').innerHTML = '<option value="">— chọn dự án —</option>' + data.projects.filter(x => x.id !== id).sort((a, b) => a.name.localeCompare(b.name, 'vi')).map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
     const sups = [...new Set(data.projects.map(x => x.supervisor).filter(Boolean))];
     $('supList').innerHTML = sups.map(s => `<option value="${esc(s)}">`).join('');
-    fillWbs();
+    $('pjShared').value = ''; sharedHint(p.wbs);
     $('dlgProject').showModal();
     $('pj_name').focus();
   }
-  async function fillWbs() {
-    if (typeof DB === 'undefined' || $('wbsList').childElementCount) return;
-    try { const ps = await DB.getAll('projects'); $('wbsList').innerHTML = (ps || []).slice(0, 2000).map(x => `<option value="${esc(x.wbs)}">${esc(x.projectName)}</option>`).join(''); } catch (e) { /* chưa có */ }
+  const sharedByWbs = (w) => SHARED.find(x => P.plain(x.wbs) === P.plain(w));
+  function sharedHint(w) {
+    const x = w ? sharedByWbs(w) : null;
+    $('pjSharedHint').textContent = !w ? (SHARED.length ? 'Liên kết với dự án trong dữ liệu chung để điền sẵn tên, WBS, loại thang.' : '')
+      : x ? `Đã liên kết: ${x.wbs} — ${x.projectName}${x.customer ? ' · ' + x.customer : ''}` : (SHARED.length ? `WBS ${w} không có trong danh sách dự án chung.` : '');
   }
+  $('pjShared').addEventListener('change', () => {
+    const v = $('pjShared').value, w = v.split(' — ')[0].trim(), x = sharedByWbs(w);
+    if (!x) return;
+    $('pj_wbs').value = x.wbs;
+    if (!$('pj_name').value.trim() || (data.projects.find(p => p.id === pjId) || {}).fromGrid) $('pj_name').value = x.projectName;
+    if (!$('pj_liftType').value.trim() && x.productLine) $('pj_liftType').value = x.productLine;
+    if (!$('pj_supervisor').value.trim() && x.supervisor) $('pj_supervisor').value = x.supervisor;
+    sharedHint(x.wbs);
+  });
+  $('pj_wbs').addEventListener('input', () => sharedHint($('pj_wbs').value.trim()));
   $('pjMilestones').addEventListener('click', (e) => {
     const use = e.target.closest('[data-use]'), keep = e.target.closest('[data-keep]');
     if (!use && !keep) return;
@@ -518,7 +724,7 @@
       </div>
       ${w.length ? `<p><b>${w.length} điểm cần kiểm tra</b> (đã nhập, có thể sửa trong ứng dụng):</p><ul class="im-warn">${w.map(x => `<li>${esc(x.msg)}</li>`).join('')}</ul>` : '<p>Không có cảnh báo.</p>'}
       <p class="sub">Ô màu xám trong sheet Nhân sự được hiểu là <b>dự kiến</b>. Tên ngắn trong lưới được khớp với dự án trong Plan khi chắc chắn.</p>
-      ${has ? '<p class="im-replace">Dữ liệu hiện có trên máy sẽ được <b>thay toàn bộ</b> bằng dữ liệu trong file (có thể Hoàn tác ngay sau khi nhập).</p>' : ''}`;
+      ${has ? `<p class="im-replace">${STORE_URL ? 'Dữ liệu <b>chung của cả nhóm trên Drive</b>' : 'Dữ liệu hiện có trên máy'} sẽ được <b>thay toàn bộ</b> bằng dữ liệu trong file (có thể Hoàn tác ngay sau khi nhập).</p>` : ''}`;
     $('dlgImport').showModal();
   });
   $('imCancel').addEventListener('click', () => { pending = null; $('dlgImport').close(); });
@@ -541,6 +747,7 @@
     return excelLoading;
   };
   $('btnExport').addEventListener('click', async () => {
+    closeMenu();
     const b = $('btnExport'); b.disabled = true;
     try {
       await ensureExcelJS();
@@ -596,6 +803,8 @@
   $('addFitter').addEventListener('click', () => openFitter(null));
   $('addProject').addEventListener('click', () => openProject(null));
   $('emptyImport').addEventListener('click', () => $('fileImport').click());
+  $('miImport').addEventListener('click', () => { closeMenu(); $('fileImport').click(); });
+  $('miReload').addEventListener('click', () => { closeMenu(); pull(); });
   $('emptyStart').addEventListener('click', () => { ui.started = true; saveUI(); render(); openFitter(null); });
   const loadSample = () => {
     if ((data.fitters.length || data.projects.length) && !confirm('Thay dữ liệu hiện có bằng dữ liệu mẫu?')) return;
@@ -605,6 +814,12 @@
   $('miSample').addEventListener('click', () => { closeMenu(); loadSample(); });
   $('miClear').addEventListener('click', () => {
     closeMenu();
+    if (STORE_URL) { // không xoá dữ liệu chung — chỉ bỏ bản trên máy và tải lại
+      if (dirty() && !confirm('Bỏ các thay đổi chưa lưu lên Drive và tải lại dữ liệu chung?')) return;
+      clearTimeout(saveTimer); base = null; meta = { version: null, updatedAt: '', updatedBy: '' }; keepMeta();
+      data = P.emptyData(); try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* bỏ qua */ }
+      pull(); return;
+    }
     if (!confirm('Xóa toàn bộ dữ liệu Quản lý dự án trên máy này? (Nên Xuất Excel trước.)')) return;
     ui.started = false; saveUI();
     commit('Đã xóa dữ liệu.', () => { data = P.emptyData(); });
@@ -616,7 +831,19 @@
   // bấm ra ngoài hộp thoại để đóng
   document.querySelectorAll('dialog').forEach(d => d.addEventListener('click', (e) => { if (e.target === d) d.close(); }));
   // tab khác vừa sửa dữ liệu
-  window.addEventListener('storage', (e) => { if (e.key === KEY) { data = load(); render(); } });
+  window.addEventListener('storage', (e) => {
+    if (e.key === KEY) { data = load(); render(); }
+    if (e.key === META_KEY || e.key === BASE_KEY) { base = readJSON(BASE_KEY); meta = readJSON(META_KEY) || meta; renderStore(); }
+  });
+  // kho chung: có mạng lại → lưu; quay lại tab / định kỳ → lấy thay đổi của người khác
+  window.addEventListener('online', () => { if (dirty()) push(); else pull(); renderShared(); });
+  window.addEventListener('offline', () => { if (STORE_URL) { st = { phase: 'offline' }; renderStore(); } renderShared(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastPull > 20000) { if (dirty()) push(); else pull(); } });
+  if (STORE_URL) setInterval(() => { if (document.visibilityState === 'visible' && !saving && !document.querySelector('dialog[open]')) { if (dirty()) push(); else pull(); } }, 90000);
+  // rời trang khi còn thay đổi chưa lên Drive → hỏi lại
+  window.addEventListener('beforeunload', (e) => { if (dirty() && st.phase !== 'denied') { e.preventDefault(); e.returnValue = ''; } });
 
   render();
+  loadShared().then(render);
+  if (STORE_URL) pull();
 })();

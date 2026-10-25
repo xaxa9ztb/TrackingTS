@@ -23,7 +23,7 @@ trong repo này. Người dùng **đăng nhập một lần ở trang chủ rồ
 | `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | chép từ `xaxa9ztb/swat-hour` |
 | `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
 | `tools/tiendotm/` | Hồ sơ chất lượng thang máy (hồ sơ quản lý chất lượng + bảng tiến độ thi công) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
-| `tools/projectplan/` | Quản lý dự án — **bản demo**: điều phối fitter + lịch trình dự án, nhập / xuất Excel | **Quản lý dự án, Site Sup** | — (xem `tools/projectplan/README.md`) |
+| `tools/projectplan/` | Quản lý dự án — **bản demo**: điều phối fitter + lịch trình dự án; lưu chung trên Drive qua Apps Script (`PM_SYNC_URL`), Excel nhập / xuất dự phòng | **Quản lý dự án, Site Sup** | — (xem `tools/projectplan/README.md`, `apps-script/HUONG-DAN.md`) |
 
 **Đang phát triển** — đã có chỗ ở trang chủ (nhóm *Quản lý dự án & Giám sát dự án*, dành cho
 Quản lý dự án và Site Sup); bấm vào chỉ hiện thông báo "đang phát triển" và phạm vi dự kiến:
