@@ -6,7 +6,7 @@
 <title>Tài khoản & phân quyền — Bộ công cụ dự án</title>
 <meta name="theme-color" content="#111827">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <!-- Dữ liệu trên máy (IndexedDB) — để đưa EE Data + Dự án hiện có lên máy chủ -->
 <script src="../../js/db.js?v=36"></script>
 </head>
@@ -64,6 +64,14 @@
   <section class="ac-card" id="secStaff" hidden>
     <h2>3. Phân công dự án (dùng cho luồng duyệt chấm công)</h2>
     <p class="ac-help">Bảng công của fitter ở dự án nào sẽ đi đến đúng Site Sup và Quản lý dự án của dự án đó. Giữ Ctrl (hoặc ⌘) để chọn nhiều người.</p>
+    <div class="ac-auto" id="autoBox">
+      <h3>Tự động theo cột "Giám sát" của dự án</h3>
+      <p class="ac-help">Dự án đã có tên giám sát (từ Yan_COM). Bấm <b>Gợi ý phân công</b>: hệ thống gom các dự án theo tên giám sát, tự khớp với nhân viên
+        (không phân biệt dấu, thứ tự họ tên) và để bạn chỉnh các dòng chưa chắc chắn. Lựa chọn được ghi nhớ cho các lần nhập dữ liệu sau.</p>
+      <div class="ac-row"><button class="btn primary" id="btnAutoLoad">Gợi ý phân công</button>
+        <label class="ac-check"><input type="checkbox" id="autoOnlyEmpty" checked> Chỉ dự án chưa có Site Sup</label></div>
+      <div id="autoOut"></div>
+    </div>
     <div class="ac-row"><input type="search" id="qp" placeholder="Tìm WBS, tên dự án…" aria-label="Tìm dự án"></div>
     <div class="ac-scroll"><table class="ac-table" id="staff">
       <thead><tr><th>WBS</th><th>Dự án</th><th>Site Sup</th><th>Quản lý dự án</th><th></th></tr></thead>
@@ -81,6 +89,6 @@
 </main>
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

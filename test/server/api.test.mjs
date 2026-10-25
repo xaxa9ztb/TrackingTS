@@ -2,7 +2,7 @@
 // Chạy: npm run test:server   — không cần mạng, không cần tài khoản Cloudflare.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getPlatformProxy } from 'wrangler';
@@ -46,9 +46,10 @@ async function call(method, p, { email, token, body, contentType, envOver } = {}
 
 before(async () => {
   proxy = await getPlatformProxy({ configPath: path.join(ROOT, 'wrangler.toml'), persist: false });
-  const sql = readFileSync(path.join(ROOT, 'migrations/0001_init.sql'), 'utf8')
-    .split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
-  for (const stmt of sql.split(';').map(s => s.trim()).filter(Boolean)) await proxy.env.DB.prepare(stmt).run();
+  for (const f of readdirSync(path.join(ROOT, 'migrations')).filter(n => n.endsWith('.sql')).sort()) {
+    const sql = readFileSync(path.join(ROOT, 'migrations', f), 'utf8').split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+    for (const stmt of sql.split(';').map(x => x.trim()).filter(Boolean)) await proxy.env.DB.prepare(stmt).run();
+  }
   env = { DB: proxy.env.DB, ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, ADMIN_EMAILS: 'boss@example.com' };
   keys = await makeKeys('k1');
   otherKeys = await makeKeys('k1'); // cùng kid nhưng khoá khác → chữ ký sai
@@ -300,4 +301,107 @@ test('gắn email hàng loạt: chỉ admin; tối đa 40 dòng; không tự đ�
   await call('PATCH', '/api/admin/employees/P01', { email: 'boss@example.com', body: { roleOverride: 'admin' } });
   const own = await call('POST', '/api/admin/emails', { email: 'pm@example.com', body: { items: [{ empId: 'P01', email: 'moi@example.com' }] } });
   assert.match(own.data.results[0].error, /chính mình/);
+});
+
+// ---------- tự phân công Site Sup theo cột "Giám sát" của dự án ----------
+test('tự phân công: khớp tên khác thứ tự / thiếu tên đệm, nhận biết trùng tên và không khớp', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: {
+    employees: [
+      { empId: 'SV01', fullName: 'Nguyễn Văn An', position: 'Site Supervisor' },
+      { empId: 'SV02', fullName: 'Trần Thị Bình', position: 'NI Site Supervisor' },
+      { empId: 'SV03', fullName: 'Lê Văn Cường', position: 'Fitter' },
+      { empId: 'SV05', fullName: 'Phạm Minh Đức', position: 'Fitter' },
+      { empId: 'SV06', fullName: 'Phạm Minh Đức', position: 'Technician' },
+      { empId: 'SV07', fullName: 'Hoàng Văn Em', position: 'Fitter' },
+      { empId: 'SV08', fullName: 'Hoàng Văn Em', position: 'Site Supervisor' },
+    ],
+    projects: [
+      { wbs: 'SP1', projectName: 'A1', supervisor: 'An Nguyễn Văn' },        // khác thứ tự
+      { wbs: 'SP2', projectName: 'A2', supervisor: 'An nguyen van' },        // không dấu, chữ thường
+      { wbs: 'SP3', projectName: 'A3', supervisor: 'Trần Thị Bình' },        // khớp đúng
+      { wbs: 'SP4', projectName: 'A4', supervisor: 'Phạm Minh Đức' },        // 2 người trùng tên, không ai là Site Sup → không tự chọn
+      { wbs: 'SP5', projectName: 'A5', supervisor: 'Văn Cường' },            // thiếu tên đệm / họ
+      { wbs: 'SP6', projectName: 'A6', supervisor: '' },                      // không có giám sát
+      { wbs: 'SP7', projectName: 'A7', supervisor: 'Không Ai Cả' },          // không khớp
+      { wbs: 'SP8', projectName: 'A8', supervisor: 'Hoàng Văn Em' },         // trùng tên, ưu tiên người có chức danh Site Sup
+    ] } });
+  const r = await call('GET', '/api/supervisors', { email: 'boss@example.com' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const g = Object.fromEntries(r.data.groups.map(x => [x.label, x]));
+  assert.equal(g['An Nguyễn Văn'].match.empId, 'SV01');
+  assert.equal(g['An Nguyễn Văn'].match.how, 'words');
+  assert.equal(g['An Nguyễn Văn'].projects, 2, '"An Nguyễn Văn" và "An nguyen van" là cùng một nhóm (bỏ dấu, chữ thường)');
+  assert.ok(!g['An nguyen van']);
+  assert.equal(g['Trần Thị Bình'].match.how, 'exact');
+  assert.equal(g['Phạm Minh Đức'].match, null);
+  assert.deepEqual(g['Phạm Minh Đức'].candidates.map(c => c.empId).sort(), ['SV05', 'SV06']);
+  assert.equal(g['Văn Cường'].match.empId, 'SV03'); assert.equal(g['Văn Cường'].match.how, 'subset');
+  assert.equal(g['Không Ai Cả'].match, null); assert.deepEqual(g['Không Ai Cả'].candidates, []);
+  assert.equal(g['Hoàng Văn Em'].match.empId, 'SV08');
+  assert.ok(!('' in g), 'dự án không có giám sát không thành nhóm');
+});
+
+test('tự phân công: chỉ Admin / Quản lý dự án; fitter bị chặn', async () => {
+  assert.equal((await call('GET', '/api/supervisors', { email: 'tho@example.com' })).status, 403);
+  assert.equal((await call('POST', '/api/supervisors/apply', { email: 'tho@example.com', body: { items: [{ key: 'x', empId: 'SV01' }] } })).status, 403);
+  assert.equal((await call('GET', '/api/supervisors', { email: 'pm@example.com' })).status, 200);
+});
+
+test('tự phân công: áp dụng nhiều nhóm, nhớ lựa chọn, không đè dự án đã có Site Sup', async () => {
+  // SP2 đã được gán tay cho SV02 trước đó
+  assert.equal((await call('PUT', '/api/projects/SP2/staff', { email: 'boss@example.com', body: { sitesup: ['SV02'], pm: [] } })).status, 200);
+  const list = (await call('GET', '/api/supervisors', { email: 'boss@example.com' })).data.groups;
+  const key = (label) => list.find(x => x.label === label).key;
+  const r = await call('POST', '/api/supervisors/apply', { email: 'boss@example.com', body: { items: [
+    { key: key('An Nguyễn Văn'), empId: 'SV01' },
+    { key: key('Trần Thị Bình'), empId: 'SV02' },
+    { key: key('Phạm Minh Đức'), empId: 'SV05' },               // admin tự chọn trong 2 người trùng tên
+    { key: key('Không Ai Cả'), empId: 'KHONGCO' },               // sai mã → lỗi riêng, không hỏng nhóm khác
+  ] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.assigned, 3);   // SP1, SP3, SP4 (SP2 đã có Site Sup → bỏ qua)
+  assert.match(r.data.results[3].error, /Không có nhân viên/);
+  const staff = (await env.DB.prepare("SELECT wbs, emp_id FROM project_staff WHERE role = 'sitesup' AND wbs LIKE 'SP%' ORDER BY wbs").all()).results;
+  assert.deepEqual(staff, [{ wbs: 'SP1', emp_id: 'SV01' }, { wbs: 'SP2', emp_id: 'SV02' }, { wbs: 'SP3', emp_id: 'SV02' }, { wbs: 'SP4', emp_id: 'SV05' }]);
+  // lựa chọn được nhớ: lần sau nhóm "Phạm Minh Đức" tự khớp (alias)
+  const again = (await call('GET', '/api/supervisors', { email: 'boss@example.com' })).data.groups.find(x => x.label === 'Phạm Minh Đức');
+  assert.equal(again.match.empId, 'SV05'); assert.equal(again.match.how, 'alias');
+  assert.equal(again.withSitesup, 1);
+  // nhật ký
+  const log = (await call('GET', '/api/admin/audit?limit=5', { email: 'boss@example.com' })).data.entries.find(e => e.action === 'auto_staff');
+  assert.ok(log && log.after.assigned === 3);
+});
+
+test('tự phân công: bỏ chế độ "chỉ dự án chưa có" thì thay Site Sup cũ', async () => {
+  const key = (await call('GET', '/api/supervisors', { email: 'boss@example.com' })).data.groups.find(x => x.label === 'An Nguyễn Văn').key;
+  const r = await call('POST', '/api/supervisors/apply', { email: 'boss@example.com', body: { onlyEmpty: false, items: [{ key, empId: 'SV01' }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.assigned, 2);   // SP1 và SP2
+  const sp2 = (await env.DB.prepare("SELECT emp_id FROM project_staff WHERE wbs = 'SP2' AND role = 'sitesup'").all()).results;
+  assert.deepEqual(sp2, [{ emp_id: 'SV01' }]);
+});
+
+test('tự phân công: nhân viên bị khoá không được chọn; quá 30 nhóm bị từ chối', async () => {
+  await call('PATCH', '/api/admin/employees/SV03', { email: 'boss@example.com', body: { active: false } });
+  const key = (await call('GET', '/api/supervisors', { email: 'boss@example.com' })).data.groups.find(x => x.label === 'Văn Cường').key;
+  const r = await call('POST', '/api/supervisors/apply', { email: 'boss@example.com', body: { items: [{ key, empId: 'SV03' }] } });
+  assert.match(r.data.results[0].error, /bị khoá/);
+  assert.equal(r.data.assigned, 0);
+  const many = Array.from({ length: 31 }, (_, i) => ({ key: 'k' + i, empId: 'SV01' }));
+  assert.equal((await call('POST', '/api/supervisors/apply', { email: 'boss@example.com', body: { items: many } })).status, 413);
+});
+
+test('tự phân công: dữ liệu 312 dự án / 9 giám sát — áp dụng một lần, đúng số dự án', async () => {
+  const names = ['Giám Sát Một', 'Giám Sát Hai', 'Giám Sát Ba'];
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: names.map((n, i) => ({ empId: 'GS' + i, fullName: n, position: 'Site Supervisor' })) } });
+  const projects = Array.from({ length: 312 }, (_, i) => ({ wbs: 'GP-' + i, projectName: 'P' + i, supervisor: names[i % 3].split(' ').reverse().join(' ') }));
+  for (let i = 0; i < projects.length; i += 40) await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { projects: projects.slice(i, i + 40) } });
+  const labels = new Set(projects.slice(0, 3).map(p => p.supervisor));
+  const groups = (await call('GET', '/api/supervisors', { email: 'boss@example.com' })).data.groups.filter(x => labels.has(x.label));
+  assert.equal(groups.length, 3);
+  assert.ok(groups.every(x => x.match && x.projects === 104));
+  const r = await call('POST', '/api/supervisors/apply', { email: 'boss@example.com', body: { items: groups.map(x => ({ key: x.key, empId: x.match.empId })) } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.assigned, 312);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM project_staff WHERE role = 'sitesup' AND wbs LIKE 'GP-%'").first()).c, 312);
 });
