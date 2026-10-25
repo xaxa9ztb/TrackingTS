@@ -176,44 +176,69 @@
     return e.roleOverride ? r + ' (chỉnh tay)' : r;
   }
 
-  function renderPeople() {
-    const q = plain($('q').value.trim());
-    const rows = employees.filter(e => !q || plain(`${e.empId} ${e.name} ${e.email} ${e.position}`).includes(q));
-    $('peopleCount').textContent = `${rows.length} / ${employees.length} người · ${employees.filter(e => e.email && e.active).length} người có email đăng nhập`;
-    $('people').tBodies[0].innerHTML = rows.map(e => `
+  const ASSIGN_MAX = 30;   // mục 2 chỉ liệt kê tối đa số người khớp này (danh sách đầy đủ ở mục 3)
+
+  // full = false: dòng ở mục 2 (chỉ gắn email); full = true: dòng ở mục 3 (email, vai trò, khoá tài khoản)
+  function personRow(e, full) {
+    return `
       <tr data-id="${esc(e.empId)}" class="${e.active ? '' : 'off'}">
         <td class="mono">${esc(e.empId)}</td>
         <td>${esc(e.name)}${me.empId === e.empId ? ' <i>(bạn)</i>' : ''}</td>
         <td>${esc(e.position)}</td>
         <td><input type="email" value="${esc(e.email)}" placeholder="email@…" aria-label="Email của ${esc(e.name)}" data-f="email"></td>
-        <td><select data-f="roleOverride" aria-label="Vai trò của ${esc(e.name)}" title="${esc(rolesText(e))}">
+        ${full ? `<td><select data-f="roleOverride" aria-label="Vai trò của ${esc(e.name)}" title="${esc(rolesText(e))}">
           <option value="">Theo chức danh${!e.roleOverride ? ' — ' + esc(rolesText(e)) : ''}</option>
           ${['admin', 'pm', 'sitesup', 'staff'].map(r => `<option value="${r}"${e.roleOverride === r ? ' selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
         </select></td>
-        <td><input type="checkbox" data-f="active"${e.active ? ' checked' : ''} aria-label="${esc(e.name)} đang làm"></td>
+        <td><input type="checkbox" data-f="active"${e.active ? ' checked' : ''} aria-label="${esc(e.name)} đang làm"></td>` : ''}
         <td><button class="btn small" data-save disabled>Lưu</button></td>
-      </tr>`).join('');
-    const active = employees.filter(e => e.active && e.email).map(e => e.email);
-    $('accessList').value = active.join(', ');
+      </tr>`;
   }
+
+  // Mục 2: ẩn danh sách, chỉ hiện người khớp ô tìm kiếm
+  function renderAssign() {
+    const q = plain($('q').value.trim());
+    const wrap = $('peopleWrap'), count = $('peopleCount');
+    if (!q) {
+      wrap.hidden = true; $('people').tBodies[0].innerHTML = '';
+      count.textContent = `${employees.length} nhân viên · ${employees.filter(e => e.email).length} người đã có email · ${employees.filter(e => !e.email && e.active).length} người chưa có email`;
+      return;
+    }
+    const all = employees.filter(e => plain(`${e.empId} ${e.name} ${e.position}`).includes(q));
+    const rows = all.slice(0, ASSIGN_MAX);
+    wrap.hidden = false;
+    count.textContent = all.length > rows.length ? `${all.length} người khớp — hiện ${rows.length} đầu, gõ thêm để thu hẹp` : `${all.length} người khớp`;
+    $('people').tBodies[0].innerHTML = rows.map(e => personRow(e, false)).join('')
+      || '<tr><td colspan="5" class="ac-note">Không có nhân viên nào khớp.</td></tr>';
+  }
+
+  // Mục 3: tất cả tài khoản (người đã có email, kể cả đã khoá)
+  function renderAccounts() {
+    const q = plain($('qa').value.trim());
+    const accounts = employees.filter(e => e.email);
+    const rows = accounts.filter(e => !q || plain(`${e.empId} ${e.name} ${e.email} ${e.position}`).includes(q));
+    $('accountsCount').textContent = `${rows.length} / ${accounts.length} tài khoản · ${accounts.filter(e => e.active).length} đang làm`;
+    $('accounts').tBodies[0].innerHTML = rows.map(e => personRow(e, true)).join('')
+      || `<tr><td colspan="7" class="ac-note">${accounts.length ? 'Không có tài khoản nào khớp.' : 'Chưa có tài khoản nào — gắn email ở mục 2.'}</td></tr>`;
+    $('accessList').value = accounts.filter(e => e.active).map(e => e.email).join(', ');
+  }
+
+  function renderPeople() { renderAssign(); renderAccounts(); }
 
   function rowChanges(tr) {
     const e = employees.find(x => x.empId === tr.dataset.id);
-    const email = tr.querySelector('[data-f=email]').value.trim().toLowerCase();
-    const roleOverride = tr.querySelector('[data-f=roleOverride]').value;
-    const active = tr.querySelector('[data-f=active]').checked;
+    const field = (f) => tr.querySelector(`[data-f=${f}]`);
     const out = {};
+    const email = field('email').value.trim().toLowerCase();
     if (email !== (e.email || '')) out.email = email;
-    if (roleOverride !== (e.roleOverride || '')) out.roleOverride = roleOverride;
-    if (active !== !!e.active) out.active = active;
+    if (field('roleOverride') && field('roleOverride').value !== (e.roleOverride || '')) out.roleOverride = field('roleOverride').value;
+    if (field('active') && field('active').checked !== !!e.active) out.active = field('active').checked;
     return out;
   }
 
-  function wirePeople() {
-    $('q').addEventListener('input', renderPeople);
-    const tbody = $('people').tBodies[0];
+  function wirePersonTable(tbody) {
     tbody.addEventListener('input', (ev) => {
-      const tr = ev.target.closest('tr'); if (!tr) return;
+      const tr = ev.target.closest('tr'); if (!tr || !tr.dataset.id) return;
       const dirty = Object.keys(rowChanges(tr)).length > 0;
       tr.classList.toggle('dirty', dirty);
       tr.querySelector('[data-save]').disabled = !dirty;
@@ -236,13 +261,20 @@
         toast('✗ ' + e.message);
       }
     });
+  }
+
+  function wirePeople() {
+    $('q').addEventListener('input', renderAssign);
+    $('qa').addEventListener('input', renderAccounts);
+    wirePersonTable($('people').tBodies[0]);
+    wirePersonTable($('accounts').tBodies[0]);
     $('btnCopy').addEventListener('click', async () => {
       try { await navigator.clipboard.writeText($('accessList').value); toast('Đã sao chép danh sách email'); }
       catch (e) { $('accessList').select(); toast('Bấm Ctrl+C để sao chép'); }
     });
   }
 
-  // ---------- 3. phân công dự án ----------
+  // ---------- 4. phân công dự án ----------
   function optionList(role, selected) {
     const cands = employees.filter(e => e.active && ((e.roles || []).includes(role) || (e.roles || []).includes('admin')) || selected.includes(e.empId));
     return cands.map(e => `<option value="${esc(e.empId)}"${selected.includes(e.empId) ? ' selected' : ''}>${esc(e.name)} (${esc(e.empId)})</option>`).join('');
@@ -307,7 +339,7 @@
     const total = autoGroups.reduce((n, g) => n + g.projects, 0);
     const matched = autoGroups.filter(g => g.match);
     out.innerHTML = `<p class="ac-note"><b>${autoGroups.length}</b> tên giám sát cho <b>${total}</b> dự án — tự khớp được <b>${matched.length}</b> tên (${matched.reduce((n, g) => n + g.projects, 0)} dự án).</p>
-      <div class="ac-scroll"><table class="ac-table"><thead><tr><th>Tên giám sát trong dự án</th><th>Dự án</th><th>Phân cho</th></tr></thead><tbody>
+      <div class="ac-scroll ac-tall"><table class="ac-table"><thead><tr><th>Tên giám sát trong dự án</th><th>Dự án</th><th>Phân cho</th></tr></thead><tbody>
       ${autoGroups.map((g, i) => `<tr data-i="${i}" class="${g.match ? '' : 'nomatch'}">
         <td>${esc(g.label)}${g.match ? `<div class="how">${esc(HOW[g.match.how] || '')}</div>` : '<div class="how">chưa khớp — chọn tay</div>'}</td>
         <td>${g.projects}${g.withSitesup ? `<div class="how">${g.withSitesup} đã có Site Sup</div>` : ''}</td>
@@ -372,7 +404,7 @@
     });
   }
 
-  // ---------- 4. nhật ký ----------
+  // ---------- 5. nhật ký ----------
   const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt', auto_staff: 'Tự phân công Site Sup', assign_pm: 'Gán Quản lý dự án' };
   const FIELD = { email: 'email', roleOverride: 'vai trò chỉnh tay', active: 'đang làm', sitesup: 'Site Sup', pm: 'QLDA',
     employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá', changes: 'thay đổi', assigned: 'số dự án', groups: 'nhóm', onlyEmpty: 'chỉ dự án chưa có' };
@@ -426,7 +458,7 @@
     wireAuto();
     wirePm();
     if (me.isAdmin) {
-      ['secImport', 'secPeople', 'secAudit'].forEach(id => { $(id).hidden = false; });
+      ['secImport', 'secPeople', 'secAccounts', 'secAudit'].forEach(id => { $(id).hidden = false; });
       wirePeople();
       wirePaste();
       initImport();

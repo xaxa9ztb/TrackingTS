@@ -73,22 +73,7 @@ const Modal = (() => {
           </div>
         </div>
       </div>`;
-    if (Cloud.SERVER) {
-    // Nhân viên + dự án do trang "Tài khoản" quản lý và đồng bộ từ máy chủ → ở đây chỉ nhập bảng công
-    ['full', 'projects', 'employees'].forEach(m => {
-      const opt = root.querySelector(`[data-mode="${m}"]`);
-      if (opt) opt.closest('.update-option').remove();
-    });
-    const ow = root.querySelector('.update-overwrite');
-    if (ow) ow.remove();
-    root.querySelectorAll('.update-option .update-info > b:first-child').forEach((b, i) => {
-      b.textContent = b.textContent.replace(/^\d+\./, (i + 1) + '.');
-    });
-    const h = root.querySelector('.update-modal h3');
-    if (h) h.insertAdjacentHTML('afterend', '<p style="margin:0 0 10px;font-size:13px;color:#4b5563">Nhân viên và dự án được quản lý ở trang <b>Tài khoản</b> và đồng bộ từ máy chủ. Ở đây chỉ nhập <b>bảng công</b> (sau đó bấm <b>Lưu lên máy chủ</b>).</p>');
-  }
-
-  const close = () => { root.innerHTML = ''; };
+    const close = () => { root.innerHTML = ''; };
     root.querySelector('#modalCancel').addEventListener('click', close);
     root.querySelector('.modal-overlay').addEventListener('click', (e) => { if (e.target.classList.contains('modal-overlay')) close(); });
     root.querySelector('#modalSave').addEventListener('click', async () => {
@@ -212,6 +197,21 @@ function openUpdateModal() {
         </div>
       </div>
     </div>`;
+
+  if (Cloud.SERVER) {
+    // Nhân viên + dự án do trang "Tài khoản" quản lý và đồng bộ từ máy chủ → ở đây chỉ nhập bảng công
+    ['full', 'projects', 'employees'].forEach(m => {
+      const opt = root.querySelector(`[data-mode="${m}"]`);
+      if (opt) opt.closest('.update-option').remove();
+    });
+    const ow = root.querySelector('.update-overwrite');
+    if (ow) ow.remove();
+    root.querySelectorAll('.update-option .update-info > b:first-child').forEach((b, i) => {
+      b.textContent = b.textContent.replace(/^\d+\./, (i + 1) + '.');
+    });
+    const h = root.querySelector('.update-modal h3');
+    if (h) h.insertAdjacentHTML('afterend', '<p style="margin:0 0 10px;font-size:13px;color:#4b5563">Nhân viên và dự án được quản lý ở trang <b>Tài khoản</b> và đồng bộ từ máy chủ. Ở đây chỉ nhập <b>bảng công</b> (sau đó bấm <b>Lưu lên máy chủ</b>).</p>');
+  }
 
   const close = () => { root.innerHTML = ''; };
   root.querySelector('#updClose').addEventListener('click', close);

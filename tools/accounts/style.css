@@ -42,6 +42,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ac-table .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
 .ac-table .dirty input, .ac-table .dirty select { border-color: #f59e0b; }
 .ac-table .detail { color: var(--ink-2); font-size: 12.5px; max-width: 420px; }
+.ac-tall { max-height: 380px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ac-tall.ac-short { max-height: 240px; }
+.ac-tall .ac-table th { position: sticky; top: 0; z-index: 1; background: #f9fafb; }
+.ac-auto .ac-tall { max-height: 300px; }
 .ac-access { margin-top: 12px; }
 .ac-access summary { cursor: pointer; font-weight: 600; }
 .ac-access textarea { width: 100%; margin: 6px 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font: 13px ui-monospace, Menlo, Consolas, monospace; }

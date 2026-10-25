@@ -11,12 +11,12 @@
     <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
     <script src="../../js/pwa.js?v=36" defer></script>
     <!-- Bộ công cụ: phải đăng nhập ở trang chủ trước khi vào -->
-    <script src="../../js/session.js?v=42"></script>
+    <script src="../../js/session.js?v=43"></script>
     <script>Session.guard('timesheet');</script>
     <!-- Dữ liệu Dự án dùng CHUNG với "Thống kê giờ công dự án" (cùng IndexedDB, nguồn Google Drive) -->
     <script src="../../js/config.js?v=37"></script>
     <script src="../../js/db.js?v=37"></script>
-    <script src="../../js/cloud.js?v=41"></script>
+    <script src="../../js/cloud.js?v=42"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- FileSaver (nhỏ) dùng cho Backup & Xuất Excel. ExcelJS và mẫu bảng chấm công (ts-template.xlsx)
@@ -69,7 +69,7 @@
         .rp-kpi.rp-warn { border-color: #fda4af; background: #fff1f2; }
         .rp-kpi.rp-warn em { color: #be123c; font-weight: 600; }
         .rp-blue { color: #1d4ed8; } .rp-orange { color: #c2410c; }
-        .rp-sec { margin-top: 12px; min-width: 0; break-inside: avoid; }
+        .rp-sec { margin-top: 10px; min-width: 0; break-inside: avoid; }
         .rp-sec h2 { margin: 0 0 6px; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #0f172a; }
         .rp-sec h3 { margin: 8px 0 4px; font-size: 11.5px; font-weight: 700; color: #334155; }
         .rp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -77,6 +77,11 @@
         .rp-chart { width: 100%; height: auto; display: block; }
         .rp-axis { font-size: 9px; fill: #64748b; font-variant-numeric: tabular-nums; }
         .rp-red { fill: #e11d48; }
+        .rp-gname { font-size: 10px; font-weight: 600; fill: #0f172a; }
+        .rp-gtxt { font-size: 8.5px; font-weight: 600; fill: #fff; font-variant-numeric: tabular-nums; pointer-events: none; }
+        .rp-gcell { cursor: pointer; }
+        .rp-gcell:hover rect:first-of-type { opacity: .85; }
+        .rp-gantt { min-width: 640px; }
         .rp-leave { fill: #7c3aed; color: #7c3aed; font-weight: 700; }
         .rp-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 10.5px; color: #334155; }
         .rp-legend span { display: inline-flex; align-items: center; gap: 5px; }
@@ -100,11 +105,11 @@
         .rp-cats li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dotted #e2e8f0; padding: 2px 0; }
         .rp-list li { padding: 1px 0; }
         .rp-list b { display: inline-block; width: 38px; color: #e11d48; }
-        .rp-foot { margin-top: 14px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 10px; color: #475569; break-inside: avoid; }
+        .rp-foot { margin-top: 10px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 10px; color: #475569; break-inside: avoid; }
         .rp-foot p { margin: 0; }
         .rp-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; text-align: center; font-size: 11px; color: #0f172a; }
         .rp-sign span { display: block; font-weight: 600; }
-        .rp-sign i { display: block; height: 42px; }
+        .rp-sign i { display: block; height: 28px; }
         @media (max-width: 720px) {
             .rp-page { margin: 0; padding: 14px 12px; box-shadow: none; }
             .rp-kpis { grid-template-columns: repeat(2, 1fr); }
@@ -129,7 +134,7 @@
         }
     </style>
     <!-- CSS Tailwind đã biên dịch sẵn (npm run build), đặt sau <style> như bản play CDN trước đây -->
-    <link rel="stylesheet" href="tailwind.css?v=42">
+    <link rel="stylesheet" href="tailwind.css?v=47">
 </head>
 <body class="bg-slate-100">
     <script src="../toolset-nav.js?v=36" data-tool="Timesheet cá nhân"></script>
@@ -137,6 +142,7 @@
 
     <!-- Mã ứng dụng đã biên dịch sẵn từ src/app.jsx (npm run build) — sửa src/app.jsx, không sửa app.js -->
     <script src="labor.js?v=40"></script>
-    <script src="app.js?v=42"></script>
+    <script src="tssync.js?v=2"></script>
+    <script src="app.js?v=47"></script>
 </body>
 </html>

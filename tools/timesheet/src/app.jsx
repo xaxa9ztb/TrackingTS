@@ -212,6 +212,14 @@
         // ngày phải chấm công: T2–T6 (thêm T7 nếu làm cả T7), trừ ngày lễ / nghỉ bù
         const isWorkday = (s, sch) => { const w = weekdayOf(s); return w >= 1 && (w <= 5 || (w === 6 && sch === 'mon-sat')) && !isVietnameseHoliday(s, sch); };
         const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
+        // Bản máy chủ (Cloudflare): Timesheet đồng bộ lên máy chủ theo kỳ lương (xem tssync.js); bản github.io: chỉ trên máy
+        const SERVER = typeof Session !== 'undefined' && !!Session.SERVER && typeof TsSync !== 'undefined';
+        const STATUS_LABEL = { draft: 'Đang chấm', rejected: 'Bị trả lại — cần sửa', submitted: 'Đã nộp — chờ giám sát', sitesup_ok: 'Giám sát đã duyệt — chờ quản lý', approved: 'Đã duyệt xong' };
+        const sameEntries = (a, b) => {
+            if (a.length !== b.length) return false;
+            const m = new Map(a.map(e => [String(e.id), JSON.stringify(e)]));
+            return b.every(e => m.get(String(e.id)) === JSON.stringify(e));
+        };
         const DEFAULT_PROFILE = { name: '', empId: '', position: '', dept: 'NI', sheetId: '1OuwcTThIkpC_871JIv_D5fd29-jPsoqwsyP55AFAd_I' };
 
         const inputCls = 'w-full h-11 rounded-lg border border-slate-300 bg-white px-3 text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50';
@@ -234,6 +242,15 @@
             const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
             const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
             const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+            const [syncInfo, setSyncInfo] = useState({ state: SERVER ? 'syncing' : 'off', at: '', error: '' });
+            const [docStatuses, setDocStatuses] = useState({});
+            const [docNotes, setDocNotes] = useState({});
+            const [submitting, setSubmitting] = useState(false);
+            const entriesRef = useRef([]);
+            const scheduleRef = useRef('');
+            const syncTimer = useRef(null);
+            const [ganttOpen, setGanttOpenRaw] = useState(() => { try { return localStorage.getItem('ts_gantt_open') !== '0'; } catch (e) { return true; } });
+            const setGanttOpen = (v) => { setGanttOpenRaw(v); try { localStorage.setItem('ts_gantt_open', v ? '1' : '0'); } catch (e) { /* bỏ qua */ } };
             const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
             const [supervisorName, setSupervisorName] = useState(''); // giám sát theo EE Data (nếu có trên máy)
             const [dayFilter, setDayFilter] = useState(null);
@@ -270,7 +287,43 @@
                 }).catch(() => {});
             }, [profile.empId, projSyncedAt]); // máy mới: EE Data có sau lần đồng bộ đầu
             useEffect(() => { localStorage.setItem('ts_entries_v28', JSON.stringify(entries)); }, [entries]);
+            useEffect(() => { entriesRef.current = entries; }, [entries]);
             useEffect(() => { localStorage.setItem('ts_profile_v28', JSON.stringify(profile)); }, [profile]);
+
+            // ----- đồng bộ máy chủ (chỉ bản Cloudflare) -----
+            const runSync = useCallback(async () => {
+                if (!SERVER) return;
+                setSyncInfo(i => ({ ...i, state: 'syncing' }));
+                const r = await TsSync.sync({
+                    getSch: () => scheduleRef.current,
+                    getEntries: () => entriesRef.current,
+                    onMerged: (p, merged, startedAt) => setEntries(prev => {
+                        const next = TsSync.applyChanges(prev, p, merged, startedAt);
+                        if (sameEntries(prev, next)) return prev;
+                        entriesRef.current = next;
+                        return next;
+                    }),
+                });
+                if (r.statuses) setDocStatuses(prev => ({ ...prev, ...r.statuses }));
+                if (r.notes) setDocNotes(prev => ({ ...prev, ...r.notes }));
+                setSyncInfo(r.ok ? { state: 'ok', at: new Date().toISOString(), error: '' }
+                    : r.offline ? { state: 'offline', at: '', error: '' } : { state: 'error', at: '', error: r.error || 'Không đồng bộ được' });
+            }, []);
+            const scheduleSync = useCallback((ms = 2500) => {
+                if (!SERVER) return;
+                clearTimeout(syncTimer.current);
+                syncTimer.current = setTimeout(runSync, ms);
+            }, [runSync]);
+            useEffect(() => {
+                if (!SERVER) return;
+                runSync();
+                const onOnline = () => runSync();
+                const onVisible = () => { if (document.visibilityState === 'visible') runSync(); };
+                window.addEventListener('online', onOnline);
+                document.addEventListener('visibilitychange', onVisible);
+                const iv = setInterval(runSync, 90000);
+                return () => { window.removeEventListener('online', onOnline); document.removeEventListener('visibilitychange', onVisible); clearInterval(iv); clearTimeout(syncTimer.current); };
+            }, []);
             useEffect(() => { localStorage.setItem('ts_projects_v28', JSON.stringify(projects)); }, [projects]);
             useEffect(() => {
                 if (!toast) return;
@@ -285,6 +338,9 @@
                               .sort((a, b) => b.date.localeCompare(a.date) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
             }, [entries, period]);
 
+            scheduleRef.current = scheduleOf(profile);
+            const periodStatus = (SERVER && docStatuses[currentMonth]) || 'draft';
+            const locked = SERVER && TsSync.LOCKED.includes(periodStatus);
             const sch = scheduleOf(profile);
             // giờ thường / OT từng loại của mọi dòng (tính trên toàn bộ dữ liệu: OT7 cần biết các dòng cùng ngày)
             const bds = useMemo(() => breakdownsOf(entries, sch), [entries, sch]);
@@ -346,7 +402,9 @@
             const changeMonth = (m) => { setCurrentMonth(m); setDayFilter(null); };
             const closeDrawer = () => setDrawer(null);
 
+            const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên không sửa được. Cần sửa thì nhờ giám sát trả lại bảng công.');
             const openNewEntry = (date) => {
+                if (locked) return lockedMsg();
                 let d = date;
                 if (!d) { // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
                     d = getTodayLocal();
@@ -354,12 +412,15 @@
                 }
                 setDrawer({ type: 'form', entry: null, date: d, key: Date.now() });
             };
-            const openEdit = (entry) => setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() });
+            const openEdit = (entry) => { if (locked) return lockedMsg(); setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() }); };
 
-            const handleSaveEntry = (data) => {
+            const handleSaveEntry = (formData) => {
                 const editing = drawer && drawer.entry;
-                if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? { ...data, id: editing.id } : e));
-                else setEntries(prev => [...prev, { ...data, id: Date.now() }]);
+                const u = Date.now();      // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
+                const { bd: _bd, cat: _cat, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+                if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? { ...data, id: editing.id, u } : e));
+                else setEntries(prev => [...prev, { ...data, id: Date.now(), u }]);
+                if (SERVER) { TsSync.markDirty(editing && editing.date !== data.date ? [data.date, editing.date] : data.date); scheduleSync(); }
                 setDrawer(null);
                 const pm = periodMonthOf(data.date); // ngày thuộc kỳ khác → chuyển sang kỳ đó để thấy ngay
                 if (pm !== currentMonth) changeMonth(pm);
@@ -367,22 +428,71 @@
             };
 
             const handleDelete = (entry) => {
+                if (locked) return lockedMsg();
                 setEntries(prev => prev.filter(e => e.id !== entry.id));
+                if (SERVER) { TsSync.markDeleted(entry); TsSync.markDirty(entry.date); scheduleSync(); }
                 if (drawer && drawer.entry && drawer.entry.id === entry.id) setDrawer(null);
-                showToast(`Đã xóa chấm công ${fmtDMY(entry.date)}.`, { label: 'Hoàn tác', run: () => setEntries(prev => [...prev, entry]) });
+                showToast(`Đã xóa chấm công ${fmtDMY(entry.date)}.`, { label: 'Hoàn tác', run: () => {
+                    setEntries(prev => [...prev, SERVER ? { ...entry, u: Date.now() } : entry]);
+                    if (SERVER) { TsSync.unmarkDeleted(entry); TsSync.markDirty(entry.date); scheduleSync(); }
+                } });
+            };
+
+            // ----- nộp / thu hồi bảng công của kỳ đang xem (bản máy chủ) -----
+            const catOf = (code) => (ACTIVITY_META.find(a => a.id === code || a.code === code) || { cat: 'Other' }).cat;
+            const settleSync = async () => {      // đẩy hết thay đổi của kỳ lên máy chủ (có thể phải qua vài lượt nếu đang có lượt khác chạy)
+                for (let i = 0; i < 4; i++) {
+                    await runSync();
+                    if (!TsSync.load().dirty[currentMonth]) return true;
+                }
+                return false;
+            };
+            const handleSubmit = async () => {
+                if (!SERVER || submitting) return;
+                if (!monthlyEntries.length) return showToast('Kỳ này chưa có dòng chấm công nào để nộp.');
+                const [ym, mm] = [currentMonth.slice(0, 4), parseInt(currentMonth.slice(5), 10)];
+                const miss = stats.missing;
+                const msg = `Nộp bảng công kỳ ${mm}/${ym} cho giám sát?\n\n• ${monthlyEntries.length} dòng · ${stats.days} ngày · ${fmtH(stats.total)} giờ (tăng ca ${fmtH(stats.ot)})` +
+                    (miss.length ? `\n⚠ Còn ${miss.length} ngày làm việc chưa chấm: ${miss.slice(0, 8).map(fmtDM).join(', ')}${miss.length > 8 ? '…' : ''}` : '') +
+                    `\n\nNộp xong bạn không sửa được nữa, trừ khi giám sát trả lại hoặc bạn thu hồi trước khi giám sát duyệt.`;
+                if (!confirm(msg)) return;
+                setSubmitting(true);
+                try {
+                    const u = Date.now();
+                    const stamped = entriesRef.current.map(e => periodMonthOf(e.date) === currentMonth ? { ...e, bd: bdOf(e), cat: catOf(e.activityCode), u } : e);
+                    entriesRef.current = stamped; setEntries(stamped);
+                    TsSync.markDirty(monthlyEntries.map(e => e.date));
+                    if (!(await settleSync())) { showToast('Chưa gửi được bảng công lên máy chủ (mất mạng?). Thử nộp lại khi có mạng.'); return; }
+                    const r = await TsSync.submit(currentMonth);
+                    if (r.status === 200) { setDocStatuses(prev => ({ ...prev, [currentMonth]: 'submitted' })); setDocNotes(prev => ({ ...prev, [currentMonth]: '' })); showToast('Đã nộp bảng công cho giám sát.'); }
+                    else if (r.status === 409) showToast(r.data.error || 'Bảng công vừa thay đổi — thử nộp lại.');
+                    else alert('Không nộp được: ' + (r.data.error || ('lỗi máy chủ ' + r.status)));
+                } catch (err) {
+                    showToast(err && err.offline ? 'Mất mạng — chưa nộp được. Thử lại khi có mạng.' : ('Không nộp được: ' + (err.message || err)));
+                } finally { setSubmitting(false); }
+            };
+            const handleWithdraw = async () => {
+                if (!confirm('Thu hồi bảng công về để sửa tiếp? (Giám sát sẽ không còn thấy bảng công này cho đến khi bạn nộp lại.)')) return;
+                try {
+                    const r = await TsSync.withdraw(currentMonth);
+                    if (r.status === 200) { setDocStatuses(prev => ({ ...prev, [currentMonth]: 'draft' })); showToast('Đã thu hồi bảng công — sửa xong nhớ nộp lại.'); }
+                    else showToast(r.data.error || 'Không thu hồi được.');
+                } catch (err) { showToast('Không thu hồi được: ' + (err.message || err)); }
             };
 
             const handleResetData = () => {
-                if (confirm("CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
+                if (confirm(SERVER ? "Xóa dữ liệu Timesheet TRÊN MÁY NÀY? (Bản đã lưu trên máy chủ vẫn còn và sẽ được tải lại khi có mạng.)" : "CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
                     if(confirm("Xác nhận lần 2: Xóa tất cả dữ liệu?")) {
                         localStorage.removeItem('ts_entries_v28');
+                        if (SERVER) localStorage.removeItem('ts_sync_v1');
                         localStorage.removeItem('ts_profile_v28');
                         localStorage.removeItem('ts_projects_v28');
                         setEntries([]);
                         setProfile(DEFAULT_PROFILE);
                         setProjects([]);
                         setDrawer(null);
-                        showToast('Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
+                        showToast(SERVER ? 'Đã xóa dữ liệu Timesheet trên máy này (dữ liệu trên máy chủ vẫn còn và sẽ được tải lại).' : 'Đã xóa toàn bộ dữ liệu Timesheet trên máy này.');
+                        if (SERVER) scheduleSync(600);
                     }
                 }
             };
@@ -526,7 +636,11 @@
                 reader.onload = (ev) => {
                     try {
                         const data = JSON.parse(ev.target.result);
-                        if (data.entries) setEntries(data.entries);
+                        if (data.entries) {
+                            const stamped = SERVER ? data.entries.map(x => ({ ...x, u: Date.now() })) : data.entries;   // khôi phục chủ động → thắng khi gộp
+                            setEntries(stamped);
+                            if (SERVER) { TsSync.markDirty(stamped.map(x => x.date)); scheduleSync(); }
+                        }
                         if (data.profile) setProfile(data.profile);
                         if (data.projects) setProjects(data.projects);
                         showToast(`Đã khôi phục ${data.entries ? data.entries.length : 0} dòng chấm công từ bản sao lưu.`);
@@ -579,11 +693,25 @@
                         </div>
                     </header>
 
+                    {SERVER && (
+                        <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6">
+                            <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth} period={period}
+                                onRetry={runSync} onSubmit={handleSubmit} onWithdraw={handleWithdraw}/>
+                        </div>
+                    )}
+
                     {/* ---------- Thông tin nhân viên + Dữ liệu dự án: luôn hiện, không phải mở Cài đặt ---------- */}
                     <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 grid gap-4 lg:gap-6 md:grid-cols-2">
                         <ProfileCard profile={profile} setProfile={setProfile}/>
                         <ProjectSyncCard count={projects.length} syncing={projSyncing} status={projStatus} syncedAt={projSyncedAt}
                             missing={needProjects && projects.length === 0} onSync={handleSyncProjects}/>
+                    </div>
+
+                    {/* ---------- Gantt: lộ trình cả kỳ lương ---------- */}
+                    <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6">
+                        <GanttCard open={ganttOpen} onToggle={() => setGanttOpen(!ganttOpen)} period={period} month={currentMonth}
+                            data={ganttOpen ? buildReport({ rows: monthlyEntries, bdOf, period, sch, holidays, missing: stats.missing }) : null}
+                            onPickDay={(d) => setDayFilter(dayFilter === d ? null : d)}/>
                     </div>
 
                     <main className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 pb-28 md:pb-10 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] items-start">
@@ -602,8 +730,11 @@
                                         {WEEKDAYS[weekdayOf(dayFilter)]}, {fmtDMY(dayFilter)} <span aria-hidden="true">✕</span><span className="sr-only">Bỏ lọc ngày</span>
                                     </button>
                                 )}
+                                <button id="tsDailyMailBtn" type="button" onClick={() => setDrawer({ type: 'dailyMail', date: dayFilter || getTodayLocal(), key: Date.now() })}
+                                    className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                    title="Gửi giám sát báo cáo thi công của một ngày (tự mở ứng dụng mail)"><Icons.Mail/> Báo cáo ngày</button>
                                 {dayFilter && (
-                                    <button type="button" onClick={() => openNewEntry(dayFilter)} className="ml-auto text-sm font-semibold text-blue-700 hover:text-blue-900">
+                                    <button type="button" onClick={() => openNewEntry(dayFilter)} className="text-sm font-semibold text-blue-700 hover:text-blue-900">
                                         + Thêm cho ngày {fmtDM(dayFilter)}
                                     </button>
                                 )}
@@ -645,6 +776,12 @@
                                 onSent={(msg) => { closeDrawer(); showToast(msg); }} onCancel={closeDrawer}/>
                         </Drawer>
                     )}
+                    {drawer && drawer.type === 'dailyMail' && (
+                        <Drawer title="Gửi báo cáo thi công trong ngày" onClose={closeDrawer}>
+                            <DailyMailPanel key={drawer.key} profile={profile} setProfile={setProfile} entries={entries} bdOf={bdOf}
+                                defaultDate={drawer.date} onSent={(msg) => { closeDrawer(); showToast(msg); }} onCancel={closeDrawer}/>
+                        </Drawer>
+                    )}
                     {drawer && drawer.type === 'settings' && (
                         <Drawer title="Sao lưu & khôi phục" onClose={closeDrawer}>
                             <SettingsPanel onBackup={handleBackup} onRestore={handleRestore} onReset={handleResetData} onDone={closeDrawer}/>
@@ -657,6 +794,67 @@
                     )}
                     {toast && <Toast toast={toast} onClose={() => setToast(null)}/>}
                 </div>
+            );
+        }
+
+        // ---------- Bản máy chủ: trạng thái kỳ + đồng bộ ----------
+        function SyncBar({ info, status, note, submitting, month, period, onRetry, onSubmit, onWithdraw }) {
+            const [y, m] = month.split('-');
+            const pending = Object.keys(TsSync.load().dirty || {}).length;
+            const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : status === 'rejected' ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : TsSync.LOCKED.includes(status) ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200';
+            // nhắc hạn: bảng công phải nộp trước ngày 12 của tháng kết thúc kỳ (từ ngày 9 bắt đầu nhắc)
+            const today = getTodayLocal(), deadline = `${month}-12`;
+            const daysLeft = Math.round((parseLocal(deadline) - parseLocal(today)) / 864e5);
+            const open = status === 'draft' || status === 'rejected';
+            const remind = open && today >= period.start && daysLeft <= 3
+                ? (daysLeft < 0 ? { tone: 'rose', text: `⚠ Đã quá hạn nộp bảng công (hạn ${fmtDM(deadline)}). Nộp ngay để giám sát kịp duyệt.` }
+                    : { tone: daysLeft <= 1 ? 'rose' : 'amber', text: `⏰ Hạn nộp bảng công kỳ này là ${fmtDM(deadline)} (${daysLeft === 0 ? 'hôm nay' : `còn ${daysLeft} ngày`}). Chấm trước cả các ngày còn lại của kỳ rồi bấm Nộp.` }) : null;
+            const at = info.at ? new Date(info.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+            return (
+                <div id="tsSyncBar" className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" role="status">
+                    <span id="tsPeriodStatus" className={`inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`}>
+                        Kỳ {parseInt(m, 10)}/{y}: {STATUS_LABEL[status] || status}
+                    </span>
+                    {status === 'submitted' && <button id="tsWithdrawBtn" type="button" onClick={onWithdraw} className={btnGhost}>Thu hồi để sửa</button>}
+                    {(status === 'draft' || status === 'rejected') && (
+                        <button id="tsSubmitBtn" type="button" onClick={onSubmit} disabled={submitting || info.state === 'offline'} className={btnPrimary}
+                            title={info.state === 'offline' ? 'Cần có mạng để nộp' : 'Nộp bảng công của kỳ này cho giám sát duyệt'}>{submitting ? 'Đang nộp…' : 'Nộp bảng công'}</button>
+                    )}
+                    {TsSync.LOCKED.includes(status) && <span className="text-sm text-slate-600">{status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : 'Không sửa được trong lúc chờ duyệt.'}</span>}
+                    {status === 'rejected' && note && <span id="tsRejectNote" className="text-sm text-rose-700 font-medium">Lý do trả lại — {note}</span>}
+                    {remind && <span id="tsDeadline" className={`text-sm font-medium ${remind.tone === 'rose' ? 'text-rose-700' : 'text-amber-800'}`}>{remind.text}</span>}
+                    <span id="tsSyncText" className="ml-auto text-sm text-slate-600 inline-flex items-center gap-2">
+                        {info.state === 'syncing' && <span>⟳ Đang đồng bộ với máy chủ…</span>}
+                        {info.state === 'ok' && <span>✓ Đã lưu trên máy chủ{at ? ` lúc ${at}` : ''}{pending ? ` · còn ${pending} kỳ chưa gửi` : ''}</span>}
+                        {info.state === 'offline' && <span>📴 Mất mạng — dữ liệu an toàn trên máy, sẽ tự gửi khi có mạng{pending ? ` (${pending} kỳ chưa gửi)` : ''}</span>}
+                        {info.state === 'error' && <span className="text-rose-700">⚠ {info.error}</span>}
+                        {(info.state === 'offline' || info.state === 'error') && <button type="button" onClick={onRetry} className="font-semibold text-blue-700 hover:text-blue-900">Thử lại</button>}
+                    </span>
+                </div>
+            );
+        }
+
+        // ---------- Gantt: lộ trình cả kỳ lương (thu gọn được) ----------
+        function GanttCard({ open, onToggle, data, period, month, onPickDay }) {
+            const [y, m] = month.split('-');
+            return (
+                <section id="tsGantt" className="bg-white rounded-2xl border border-slate-200 min-w-0" aria-labelledby="tsGanttTitle">
+                    <button type="button" id="tsGanttToggle" onClick={onToggle} aria-expanded={open}
+                        className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left rounded-2xl hover:bg-slate-50">
+                        <h2 id="tsGanttTitle" className="font-semibold">Lộ trình kỳ lương (Gantt)</h2>
+                        <span className="text-sm text-slate-500">Tháng {parseInt(m, 10)}/{y} · {fmtDMY(period.start)} – {fmtDMY(period.end)}</span>
+                        <span className="ml-auto text-sm font-medium text-blue-700">{open ? 'Thu gọn ▴' : 'Mở ▾'}</span>
+                    </button>
+                    {open && data && (
+                        <div className="px-4 pb-4">
+                            <div className="rp-chartwrap"><GanttChart days={data.days} gantt={data.gantt} onPickDay={onPickDay}/></div>
+                            <GanttLegend/>
+                            <p className="mt-1 text-xs text-slate-500">Bấm một ô để lọc danh sách chấm công theo ngày đó. Bảng này cũng nằm trong <b>Báo cáo</b> nộp cuối kỳ.</p>
+                        </div>
+                    )}
+                </section>
             );
         }
 
@@ -826,6 +1024,7 @@
                                             <div className="truncate" title={e.projectName}>{e.projectName || '—'}</div>
                                             {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
                                             {e.remarks && <div className="text-xs text-slate-500 italic truncate" title={e.remarks}>{e.remarks}</div>}
+                                            {e.report && <div className="text-xs text-blue-800 truncate" title={e.report}>📝 {e.report}</div>}
                                         </td>
                                         <td className="px-4 py-2 align-top text-right whitespace-nowrap">
                                             <button type="button" aria-label={`Sửa chấm công ${fmtDMY(e.date)}`} onClick={(ev) => { ev.stopPropagation(); onEdit(e); }}
@@ -875,6 +1074,7 @@
                                                 <div className="mt-1 text-sm truncate"><span className="font-mono text-blue-700">[{e.activityCode}]</span> {e.projectName}</div>
                                                 {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
                                                 {e.remarks && <div className="text-xs text-slate-500 truncate">Ghi chú: {e.remarks}</div>}
+                                                {e.report && <div className="text-xs text-blue-800 truncate">📝 {e.report}</div>}
                                             </button>
                                             <button type="button" onClick={() => onDelete(e)} aria-label={`Xóa chấm công ${fmtDMY(e.date)}`}
                                                 className="w-12 grid place-items-center rounded-r-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-l border-slate-100"><Icons.Trash/></button>
@@ -948,8 +1148,10 @@
                 const d = day[e.date] || (day[e.date] = { normal: 0, ot: 0, leave: false });
                 d.normal += bd.NORMAL || 0; d.ot += h - (bd.NORMAL || 0);
                 const pk = (e.workNumber || '') + '|' + (e.projectName || '');
-                const p = projects[pk] || (projects[pk] = { name: e.projectName || '(không ghi dự án)', wbs: e.workNumber || '', days: {}, normal: 0, ot: 0 });
+                const p = projects[pk] || (projects[pk] = { name: e.projectName || '(không ghi dự án)', wbs: e.workNumber || '', days: {}, dayHours: {}, normal: 0, ot: 0 });
                 p.days[e.date] = true; p.normal += bd.NORMAL || 0; p.ot += h - (bd.NORMAL || 0);
+                const pd = p.dayHours[e.date] || (p.dayHours[e.date] = { normal: 0, ot: 0 });
+                pd.normal += bd.NORMAL || 0; pd.ot += h - (bd.NORMAL || 0);
                 const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
                 const ak = String(e.activityCode || '—');
                 const a = activities[ak] || (activities[ak] = { code: ak, desc: meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : 'Mã khác', cat: meta ? meta.cat : 'Other', hours: 0 });
@@ -971,14 +1173,15 @@
             const workDays = Object.keys(day).filter(d => day[d].normal + day[d].ot > 0).length;
             const days = daysBetween(period.start, period.end).map(d => ({ date: d, ...(day[d] || { normal: 0, ot: 0, leave: false }),
                 holiday: holidayOf(d, sch), rest: LaborVN.isRestDay(d, sch), missing: missing.includes(d) }));
-            return { total, normal, ot, weighted, byType, workDays, projectList, activityList, catList, leaveList,
+            const gantt = buildGantt(Object.values(projects), leave, days);
+            return { total, normal, ot, weighted, byType, workDays, projectList, activityList, catList, leaveList, gantt,
                 leaveDays: new Set(leaveRows.map(e => e.date)).size, leaveHours: leaveRows.reduce((s, e) => s + entryHours(e), 0),
                 days, holidays, missing, entries: rows.length };
         }
 
         // Giờ làm theo ngày: cột chồng giờ thường (xanh) + tăng ca (cam), vạch tham chiếu 8 giờ
-        function DailyChart({ days }) {
-            const W = 720, H = 190, padL = 26, padB = 30, padT = 10;
+        function DailyChart({ days, h = 190 }) {
+            const W = 720, H = h, padL = 26, padB = 30, padT = 10;
             const max = Math.max(12, ...days.map(d => d.normal + d.ot));
             const top = Math.ceil(max / 4) * 4;
             const cw = (W - padL) / days.length, bw = Math.max(6, Math.min(16, cw - 4));
@@ -1025,6 +1228,128 @@
             r = Math.min(r, w / 2, h);
             return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
         };
+
+        // ---------- Gantt: lộ trình cả kỳ lương — mỗi dự án một hàng, mỗi ngày làm một ô ----------
+        const GANTT_COLORS = ['#2563eb', '#0d9488', '#e11d48', '#65a30d', '#c026d3', '#475569', '#0891b2', '#9333ea'];
+        const GANTT_MAX_ROWS = 10;
+        function buildGantt(projectRaw, leave, days) {
+            const dayInfo = {}; days.forEach(d => { dayInfo[d.date] = d; });
+            const order = days.map(d => d.date);
+            const rows = projectRaw.map(p => {
+                const dates = Object.keys(p.dayHours).sort();
+                return { key: p.wbs + '|' + p.name, name: p.name, wbs: p.wbs, dayHours: p.dayHours, dates,
+                    total: p.normal + p.ot, first: dates[0] };
+            }).sort((a, b) => (a.first < b.first ? -1 : a.first > b.first ? 1 : b.total - a.total));
+            let list = rows;
+            if (rows.length > GANTT_MAX_ROWS) {      // quá nhiều dự án: gộp phần còn lại để báo cáo vẫn gọn
+                const rest = rows.slice(GANTT_MAX_ROWS - 1), dayHours = {};
+                rest.forEach(r => Object.keys(r.dayHours).forEach(dt => {
+                    const x = dayHours[dt] || (dayHours[dt] = { normal: 0, ot: 0 });
+                    x.normal += r.dayHours[dt].normal; x.ot += r.dayHours[dt].ot;
+                }));
+                list = rows.slice(0, GANTT_MAX_ROWS - 1).concat([{ key: '_rest', name: `${rest.length} dự án khác`, wbs: '', dayHours,
+                    dates: Object.keys(dayHours).sort(), total: rest.reduce((t, r) => t + r.total, 0), first: '', merged: true }]);
+            }
+            list.forEach((r, i) => {
+                r.color = r.merged ? '#64748b' : GANTT_COLORS[i % GANTT_COLORS.length];
+                // nối các ngày làm cách nhau chỉ bằng ngày nghỉ hằng tuần / lễ thành một đoạn liền
+                r.links = [];
+                for (let k = 1; k < r.dates.length; k++) {
+                    const a = order.indexOf(r.dates[k - 1]), b = order.indexOf(r.dates[k]);
+                    if (b - a > 1 && order.slice(a + 1, b).every(dt => dayInfo[dt].holiday || dayInfo[dt].rest)) r.links.push([a, b]);
+                }
+            });
+            const leaveDates = {}; Object.values(leave).forEach(l => Object.keys(l.days).forEach(dt => { leaveDates[dt] = l.label; }));
+            return { rows: list, leaveDates, hasLeave: Object.keys(leaveDates).length > 0 };
+        }
+
+        function GanttChart({ days, gantt, onPickDay, compact }) {
+            const W = 720, LBL = 150, padT = 28, rowH = compact ? 18 : 24, padB = 14;
+            const rows = gantt.rows, nRows = rows.length + (gantt.hasLeave ? 1 : 0);
+            const H = padT + Math.max(1, nRows) * rowH + padB;
+            const cw = (W - LBL) / days.length, x = (i) => LBL + i * cw;
+            const clip = (t, n) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+            const cellLabel = (r, d, hrs) => `${r.name}${r.wbs ? ' (' + r.wbs + ')' : ''} — ${WEEKDAYS_LONG[weekdayOf(d.date)]} ${fmtDMY(d.date)}: ${fmtH(hrs.normal)} giờ thường` + (hrs.ot ? `, ${fmtH(hrs.ot)} giờ tăng ca` : '');
+            return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="rp-chart rp-gantt" role="img" aria-label="Biểu đồ Gantt: các dự án đã làm theo từng ngày trong kỳ">
+                    {days.map((d, i) => (d.holiday || d.rest) && (
+                        <rect key={'bg' + d.date} x={x(i)} y={padT - 4} width={cw} height={H - padT - padB + 4} fill={d.holiday ? '#fef3c7' : '#f1f5f9'}/>
+                    ))}
+                    {days.map((d, i) => {
+                        const dd = parseInt(d.date.split('-')[2], 10), red = d.holiday || weekdayOf(d.date) === 0;
+                        return (
+                            <g key={'h' + d.date}>
+                                <text x={x(i) + cw / 2} y={11} textAnchor="middle" className={`rp-axis ${red ? 'rp-red' : ''}`}>{WEEKDAYS[weekdayOf(d.date)]}</text>
+                                <text x={x(i) + cw / 2} y={22} textAnchor="middle" className={`rp-axis ${red ? 'rp-red' : ''}`}>{dd === 1 || i === 0 ? `${dd}/${parseInt(d.date.split('-')[1], 10)}` : dd}</text>
+                                {d.missing && <circle cx={x(i) + cw / 2} cy={H - padB + 6} r="2.5" fill="#e11d48"><title>{`Chưa chấm ${fmtDMY(d.date)}`}</title></circle>}
+                            </g>
+                        );
+                    })}
+                    <line x1={LBL} x2={W} y1={padT - 4} y2={padT - 4} stroke="#94a3b8" strokeWidth="1"/>
+                    {rows.map((r, ri) => {
+                        const y = padT + ri * rowH, by = y + 4, bh = rowH - 8;
+                        return (
+                            <g key={r.key}>
+                                <line x1={0} x2={W} y1={y + rowH} y2={y + rowH} stroke="#e2e8f0" strokeWidth="1"/>
+                                <title>{`${r.name}${r.wbs ? ' (' + r.wbs + ')' : ''} — ${fmtH(r.total)} giờ, ${r.dates.length} ngày`}</title>
+                                <rect x={0} y={y + 6} width="4" height={rowH - 12} rx="2" fill={r.color}/>
+                                {compact
+                                    ? <text x={9} y={y + rowH / 2 + 3} className="rp-gname">{clip(r.name, 21)}<tspan className="rp-axis"> · {fmtH(r.total)} giờ</tspan></text>
+                                    : <React.Fragment>
+                                        <text x={9} y={y + rowH * 0.46} className="rp-gname">{clip(r.name, 26)}</text>
+                                        <text x={9} y={y + rowH * 0.85} className="rp-axis">{(r.wbs ? clip(r.wbs, 14) + ' · ' : '') + fmtH(r.total) + ' giờ'}</text>
+                                    </React.Fragment>}
+                                {r.links.map(([a, b]) => <rect key={'l' + a} x={x(a) + cw - 1} y={by + bh / 2 - 1.5} width={x(b) - x(a) - cw + 2} height="3" fill={r.color} opacity=".35"/>)}
+                                {days.map((d, i) => {
+                                    const hrs = r.dayHours[d.date]; if (!hrs) return null;
+                                    const tot = hrs.normal + hrs.ot, label = fmtH(tot);
+                                    return (
+                                        <g key={d.date} className={onPickDay ? 'rp-gcell' : undefined} onClick={onPickDay ? () => onPickDay(d.date) : undefined}>
+                                            <title>{cellLabel(r, d, hrs)}</title>
+                                            <rect x={x(i) + 0.5} y={by} width={cw - 1} height={bh} rx="2.5" fill={r.color}/>
+                                            {hrs.ot > 0 && <rect x={x(i) + 0.5} y={by + bh - 3} width={cw - 1} height="3" fill="#ea580c"/>}
+                                            {cw >= 15 && label.length * 4.6 < cw - 1 && <text x={x(i) + cw / 2} y={by + bh / 2 + 3} textAnchor="middle" className="rp-gtxt">{label}</text>}
+                                        </g>
+                                    );
+                                })}
+                            </g>
+                        );
+                    })}
+                    {gantt.hasLeave && (() => {
+                        const y = padT + rows.length * rowH, by = y + 4, bh = rowH - 8;
+                        return (
+                            <g>
+                                <rect x={0} y={y + 6} width="4" height={rowH - 12} rx="2" fill="#7c3aed"/>
+                                {compact
+                                    ? <text x={9} y={y + rowH / 2 + 3} className="rp-gname">Nghỉ phép / ốm<tspan className="rp-axis"> · không tính giờ</tspan></text>
+                                    : <React.Fragment>
+                                        <text x={9} y={y + rowH * 0.46} className="rp-gname">Nghỉ phép / ốm</text>
+                                        <text x={9} y={y + rowH * 0.85} className="rp-axis">P · không tính giờ làm</text>
+                                    </React.Fragment>}
+                                {days.map((d, i) => gantt.leaveDates[d.date] ? (
+                                    <g key={d.date}><title>{`${gantt.leaveDates[d.date]} — ${fmtDMY(d.date)}`}</title>
+                                        <rect x={x(i) + 0.5} y={by} width={cw - 1} height={bh} rx="2.5" fill="#ede9fe" stroke="#7c3aed" strokeWidth="1"/>
+                                        {cw >= 12 && <text x={x(i) + cw / 2} y={by + bh / 2 + 3} textAnchor="middle" className="rp-gtxt" fill="#6d28d9">P</text>}
+                                    </g>) : null)}
+                            </g>
+                        );
+                    })()}
+                    {nRows === 0 && <text x={LBL + 8} y={padT + 16} className="rp-axis">Chưa có giờ làm việc trong kỳ.</text>}
+                </svg>
+            );
+        }
+
+        function GanttLegend({ short }) {
+            return (
+                <div className="rp-legend">
+                    <span><i style={{ background: '#2563eb' }}/>Ngày làm việc (số giờ trong ô; mỗi dự án một màu)</span>
+                    <span><i style={{ background: '#ea580c', height: 4 }}/>Có tăng ca</span>
+                    {!short && <span><i style={{ background: '#fef3c7', border: '1px solid #fcd34d' }}/>Ngày lễ / nghỉ bù</span>}
+                    {!short && <span><i style={{ background: '#f1f5f9', border: '1px solid #cbd5e1' }}/>Ngày nghỉ hằng tuần</span>}
+                    {!short && <span><i className="rp-dot"/>Chưa chấm</span>}
+                </div>
+            );
+        }
 
         function Bar({ value, max, color }) {
             return <span className="rp-bar"><span style={{ width: `${max > 0 ? Math.max(1, value / max * 100) : 0}%`, background: color || '#1d4ed8' }}/></span>;
@@ -1080,7 +1405,7 @@
 
                         <section className="rp-sec">
                             <h2>Giờ làm theo ngày</h2>
-                            <div className="rp-chartwrap"><DailyChart days={d.days}/></div>
+                            <div className="rp-chartwrap"><DailyChart days={d.days} h={120}/></div>
                             <div className="rp-legend">
                                 <span><i style={{ background: '#1d4ed8' }}/>Giờ thường</span>
                                 <span><i style={{ background: '#ea580c' }}/>Tăng ca</span>
@@ -1089,6 +1414,12 @@
                                 <span><b className="rp-leave">P</b> Nghỉ phép / ốm</span>
                                 <span><i className="rp-dot"/>Chưa chấm</span>
                             </div>
+                        </section>
+
+                        <section className="rp-sec">
+                            <h2>Lộ trình trong kỳ (Gantt)</h2>
+                            <div className="rp-chartwrap"><GanttChart days={d.days} gantt={d.gantt} compact/></div>
+                            <GanttLegend short/>
                         </section>
 
                         <div className="rp-cols">
@@ -1221,6 +1552,26 @@
             return { subject, body, shortBody };
         }
 
+        // Thư báo cáo thi công trong ngày (fitter tự gửi giám sát / quản lý)
+        function buildDailyMail(profile, date, rows, bdOf) {
+            const name = profile.name || 'Nhân viên';
+            const subject = `[Báo cáo thi công] ${name}${profile.empId ? ` (${profile.empId})` : ''} – ${WEEKDAYS[weekdayOf(date)]} ${fmtDMY(date)}`;
+            const list = rows.filter(e => e.date === date).sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+            const total = list.reduce((t, e) => t + sumBd(bdOf(e)), 0);
+            const normal = list.reduce((t, e) => t + (bdOf(e).NORMAL || 0), 0);
+            const lines = list.map((e, i) => {
+                const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
+                const ots = Object.keys(bdOf(e)).filter(k => k !== 'NORMAL' && bdOf(e)[k] > 0).map(k => `${k} ${fmtH(bdOf(e)[k])}`).join(', ');
+                return [`${i + 1}) ${e.projectName || '(không ghi dự án)'}${e.workNumber ? ` (${e.workNumber})` : ''}`,
+                    `   ${e.startTime}–${e.endTime} · ${fmtH(sumBd(bdOf(e)))} giờ${ots ? ` (tăng ca: ${ots})` : ''} · ${meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : e.activityCode}`,
+                    e.report ? `   Báo cáo: ${e.report}` : (e.remarks ? `   Ghi chú: ${e.remarks}` : '')].filter(Boolean).join('\n');
+            });
+            const head = ['Kính gửi Anh/Chị,', '', `Báo cáo thi công ngày ${WEEKDAYS_LONG[weekdayOf(date)]} ${fmtDMY(date)} của ${name}${profile.empId ? ` (${profile.empId})` : ''}:`, ''];
+            const tail = ['', list.length ? `Tổng: ${fmtH(total)} giờ (thường ${fmtH(normal)}, tăng ca ${fmtH(total - normal)}).` : 'Hôm nay chưa có dòng chấm công.', '', 'Trân trọng,', name];
+            const body = [...head, ...(lines.length ? lines.join('\n\n').split('\n') : []), ...tail].join('\n');
+            return { subject, body, shortBody: body.length > 1500 ? body.slice(0, 1400) + '\n…' : body };
+        }
+
         const canShareFiles = () => {
             try { return !!(navigator.canShare && navigator.share && navigator.canShare({ files: [new File(['x'], 'x.xlsx', { type: XLSX_MIME })] })); }
             catch (e) { return false; }
@@ -1232,19 +1583,19 @@
             document.body.appendChild(a); a.click(); a.remove();
         };
 
-        function MailPanel({ profile, setProfile, file, mail, supervisorName, onSent, onCancel }) {
-            const [to, setTo] = useState(profile.mailTo || '');
-            const [cc, setCc] = useState(profile.mailCc || '');
+        function MailPanel({ profile, setProfile, file, mail, supervisorName, onSent, onCancel, noFile, initTo, initCc, toLabel, toHint }) {
+            const [to, setTo] = useState(initTo !== undefined ? initTo : (profile.mailTo || ''));
+            const [cc, setCc] = useState(initCc !== undefined ? initCc : (profile.mailCc || ''));
             const [subject, setSubject] = useState(mail.subject);
             const [body, setBody] = useState(mail.body);
             const [touched, setTouched] = useState(false);
-            const share = useMemo(canShareFiles, []);
+            const share = useMemo(canShareFiles, []) && !noFile;
             const toList = parseEmails(to), ccList = parseEmails(cc);
             const badTo = !toList.length ? 'Nhập email giám sát / quản lý.' : toList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${toList.find(e => !EMAIL_RE.test(e))}` : '';
             const badCc = ccList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${ccList.find(e => !EMAIL_RE.test(e))}` : '';
             const invalid = !!(badTo || badCc);
-            const ready = file && file.status === 'ready';
-            const remember = () => setProfile({ ...profile, mailTo: toList.join(', '), mailCc: ccList.join(', ') });
+            const ready = !noFile && file && file.status === 'ready';
+            const remember = () => { if (!noFile) setProfile({ ...profile, mailTo: toList.join(', '), mailCc: ccList.join(', ') }); };   // thư báo cáo ngày: người nhận theo dự án, không ghi đè địa chỉ đã nhớ của thư cuối kỳ
             const guard = () => { setTouched(true); if (invalid) return false; remember(); return true; };
             const download = () => { if (ready) saveAs(file.blob, file.name); };
             const attachNote = ready ? ` — file ${file.name} đã tải về máy, hãy đính kèm vào thư trước khi gửi.` : '.';
@@ -1279,8 +1630,8 @@
             return (
                 <div className="px-5 py-5 space-y-5">
                     <section className="space-y-3">
-                        <Field label="Gửi đến (email giám sát / quản lý)" htmlFor="tsMailTo"
-                            hint={supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.'}>
+                        <Field label={toLabel || 'Gửi đến (email giám sát / quản lý)'} htmlFor="tsMailTo"
+                            hint={toHint || (supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.')}>
                             <input id="tsMailTo" data-autofocus type="email" multiple inputMode="email" autoComplete="email" className={inputCls}
                                 value={to} onChange={e => setTo(e.target.value)} onBlur={() => setTouched(true)} placeholder="email@congty.com"
                                 aria-invalid={touched && !!badTo} aria-describedby="tsMailErr"/>
@@ -1298,13 +1649,13 @@
                                 <button type="button" onClick={() => { setBody(mail.body); setSubject(mail.subject); }} className="mt-1 text-sm font-medium text-blue-700 hover:text-blue-900">Soạn lại theo số liệu kỳ</button>
                             )}
                         </Field>
-                        <div id="tsMailFile" className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
+                        {!noFile && <div id="tsMailFile" className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
                             <span aria-hidden="true">📎</span>
                             {!file || file.status === 'loading' ? <span className="text-slate-500">Đang tạo file bảng chấm công Excel…</span>
                                 : file.status === 'ready' ? <span><b>{file.name}</b> <span className="text-slate-500">· {Math.max(1, Math.round(file.blob.size / 1024))} KB</span></span>
                                 : file.status === 'empty' ? <span className="text-amber-800">Kỳ này chưa có chấm công — thư sẽ không có file đính kèm.</span>
                                 : <span className="text-rose-700">{file.error}</span>}
-                        </div>
+                        </div>}
                     </section>
 
                     <section className="space-y-2 pt-4 border-t border-slate-200">
@@ -1324,10 +1675,44 @@
                             <button id="tsMailGmail" type="button" onClick={() => viaWeb('gmail')} className={`${btnGhost} h-11`}>Gmail (web)</button>
                             <button id="tsMailOwa" type="button" onClick={() => viaWeb('owa')} className={`${btnGhost} h-11`}>Outlook web</button>
                         </div>
-                        <p className="text-xs text-slate-500">Với 3 cách này, thư đã điền sẵn người nhận, tiêu đề, nội dung; file Excel tự tải về máy —
-                            trình duyệt không cho tự đính kèm, hãy kéo / chọn file vào thư rồi bấm Gửi.</p>
+                        <p className="text-xs text-slate-500">{noFile ? 'Thư đã điền sẵn người nhận, tiêu đề, nội dung — kiểm tra lại rồi bấm Gửi trong ứng dụng mail.'
+                            : 'Với 3 cách này, thư đã điền sẵn người nhận, tiêu đề, nội dung; file Excel tự tải về máy — trình duyệt không cho tự đính kèm, hãy kéo / chọn file vào thư rồi bấm Gửi.'}</p>
                         <button type="button" onClick={onCancel} className={`${btnGhost} w-full h-11 mt-2`}>Hủy</button>
                     </section>
+                </div>
+            );
+        }
+
+        function DailyMailPanel({ profile, setProfile, entries, bdOf, defaultDate, onSent, onCancel }) {
+            const [date, setDate] = useState(defaultDate);
+            const wbsKey = [...new Set(entries.filter(e => e.date === date).map(e => String(e.workNumber || '').trim()).filter(Boolean))].join(',');
+            const [people, setPeople] = useState(null);     // gợi ý người nhận từ máy chủ (null = đang hỏi / không có)
+            useEffect(() => {
+                setPeople(null);
+                if (!SERVER || !wbsKey) return;
+                let live = true;
+                fetch('/api/ts/approvers?wbs=' + encodeURIComponent(wbsKey), { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' })
+                    .then(r => (r.ok ? r.json() : { approvers: [] })).then(j => { if (live) setPeople(j.approvers || []); }).catch(() => { if (live) setPeople([]); });
+                return () => { live = false; };
+            }, [wbsKey]);
+            const waiting = SERVER && wbsKey && people === null;
+            const sup = (people || []).filter(p => p.level === 'sitesup').map(p => p.email), pms = (people || []).filter(p => p.level === 'pm').map(p => p.email);
+            const initTo = sup.length ? sup.join(', ') : (pms.length ? pms.join(', ') : (profile.mailTo || ''));
+            const initCc = sup.length ? pms.join(', ') : (profile.mailCc || '');
+            const names = (people || []).map(p => `${p.name} (${p.level === 'pm' ? 'QLDA' : 'Site Sup'})`).join(', ');
+            return (
+                <div>
+                    <div className="px-5 pt-5">
+                        <Field label="Ngày báo cáo" htmlFor="tsDailyDate">
+                            <input id="tsDailyDate" type="date" className={inputCls} value={date} max={getTodayLocal()} onChange={e => e.target.value && setDate(e.target.value)}/>
+                        </Field>
+                    </div>
+                    {waiting ? <p className="px-5 py-8 text-sm text-slate-500">Đang tìm người phụ trách các dự án trong ngày…</p>
+                        : <MailPanel key={date + '|' + (people ? people.map(p => p.empId).join(',') : '-')} noFile profile={profile} setProfile={setProfile}
+                            mail={buildDailyMail(profile, date, entries, bdOf)} initTo={initTo} initCc={initCc}
+                            toLabel="Gửi đến (Site Sup của dự án)"
+                            toHint={names ? `Tự điền theo phân công dự án: ${names}. Sửa được.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy.'}
+                            onSent={onSent} onCancel={onCancel}/>}
                 </div>
             );
         }
@@ -1475,7 +1860,7 @@
         function EntryForm({ onSave, onCancel, onDelete, defaultDate, initialData, entries, projects, sch }) {
             const [formData, setFormData] = useState({
                 date: defaultDate, startTime: '08:00', endTime: '17:00', breakTime: '1', otMode: 'auto',
-                otType: 'NORMAL', projectName: '', workNumber: '', activityCode: '1110', dutyHour: '0', remarks: ''
+                otType: 'NORMAL', projectName: '', workNumber: '', activityCode: '1110', dutyHour: '0', remarks: '', report: ''
             });
             // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
             const [breakTouched, setBreakTouched] = useState(!!initialData);
@@ -1699,6 +2084,12 @@
 
                             <Field label="Ghi chú" htmlFor="tsRemarks">
                                 <input id="tsRemarks" type="text" value={formData.remarks || ''} onChange={set('remarks')} className={inputCls} placeholder="Ghi chú thêm..."/>
+                            </Field>
+
+                            <Field label="Báo cáo thi công trong ngày" htmlFor="tsReportText">
+                                <textarea id="tsReportText" rows="3" maxLength="600" value={formData.report || ''} onChange={set('report')}
+                                    className={`${inputCls} h-auto py-2`} placeholder="Hôm nay làm được gì, đến tầng nào, vướng mắc… (gửi giám sát & quản lý mỗi tối)"/>
+                                <span className="block mt-1 text-xs text-slate-500">{(formData.report || '').length}/600 ký tự</span>
                             </Field>
                         </section>
                     </div>

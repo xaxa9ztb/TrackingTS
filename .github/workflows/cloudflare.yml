@@ -31,6 +31,8 @@ jobs:
       - run: npm ci
       - name: Kiểm thử máy chủ (phân quyền, đăng nhập, nhật ký)
         run: npm run test:server
+      - name: Kiểm thử đồng bộ Timesheet trên trình duyệt (logic gộp, mất mạng, hai thiết bị)
+        run: npm run test:client
       - name: Thử đóng gói giao diện
         run: npm run build:pages
 

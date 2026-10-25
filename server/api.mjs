@@ -5,6 +5,7 @@
 import { verifyAccessJwt, teamHost } from './auth.mjs';
 import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
+import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, trackingRow } from './tsdoc.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -487,14 +488,297 @@ async function tsCommit(env, me, request) {
   if (Number(body.baseVersion) !== meta.dataVersion) {
     return json({ ok: false, conflict: true, version: meta.dataVersion, error: 'Máy chủ có bảng công mới hơn bản bạn đang có — Đồng bộ lại trước khi lưu.' }, 409);
   }
-  const have = (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
+  let have = (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
   const want = Number(body.count);
   if (have !== want) throw new HttpError(400, `Đợt tải lên chưa đủ dòng (có ${have}, cần ${want}) — thử lại`);
+  // Dòng do duyệt bảng công đẩy sang (src khác rỗng) không bị mất khi nạp lại từ Excel: giữ lại những ngày mà bản nạp mới chưa có dòng của người đó
+  if (meta.active) {
+    const kept = await env.DB.prepare(`INSERT INTO timesheets (batch, emp_id, date, wbs, data, src) SELECT ?, o.emp_id, o.date, o.wbs, o.data, o.src FROM timesheets o
+      WHERE o.batch = ? AND o.src <> '' AND NOT EXISTS (SELECT 1 FROM timesheets n WHERE n.batch = ? AND n.emp_id = o.emp_id AND n.date = o.date)`).bind(batch, meta.active, batch).run();
+    if (kept.meta && kept.meta.changes) have += kept.meta.changes;
+  }
   const next = { ...meta, active: batch, dataVersion: meta.dataVersion + 1, count: have, updatedAt: now(), updatedBy: me.name };
   if (!(await tsMetaWrite(env, cas, next))) throw new HttpError(409, 'Có người vừa cập nhật bảng công — thử lại');
   await env.DB.prepare('DELETE FROM timesheets WHERE batch <> ?').bind(batch).run();
   await audit(env, me, 'timesheets_commit', 'timesheets', String(next.dataVersion), { count: meta.count, version: meta.dataVersion }, { count: have, version: next.dataVersion });
   return json({ ok: true, version: next.dataVersion, count: have });
+}
+
+// ---------- sửa / xoá từng dự án (tab Dự án, Swat Hour Target) ----------
+const PROJECT_SKIP = { wbs: 1, staff: 1, updatedAt: 1 };
+const PROJECT_EXTRA_MAX = 20000;
+
+// Gộp các trường gửi lên vào dự án (chưa có thì tạo mới). Chỉ ghi các trường được gửi nên không đè lên
+// những trường người khác vừa đổi (vd. Swat do admin khác lưu).
+async function patchProject(env, me, wbs, request) {
+  need(me);
+  const body = await readJson(request);
+  const fields = body && typeof body.fields === 'object' && body.fields && !Array.isArray(body.fields) ? body.fields : null;
+  if (!fields) throw new HttpError(400, 'Thiếu dữ liệu dự án');
+  wbs = str(wbs, 100);
+  if (!wbs) throw new HttpError(400, 'Thiếu mã WBS');
+  const row = await env.DB.prepare('SELECT * FROM projects WHERE wbs = ?').bind(wbs).first();
+  const cur = row || { project_name: '', project_number: '', product_line: '', customer: '', supervisor: '', extra: '{}' };
+  let extra = {};
+  try { extra = JSON.parse(cur.extra || '{}'); } catch (e) { /* bỏ qua */ }
+  const col = { projectName: cur.project_name, projectNumber: cur.project_number, productLine: cur.product_line, customer: cur.customer, supervisor: cur.supervisor };
+  const changed = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (PROJECT_SKIP[k] || v === undefined) continue;
+    if (k in col) { col[k] = str(v, k === 'projectName' || k === 'customer' ? 300 : 200); changed[k] = col[k]; }
+    else { extra[k] = v; changed[k] = v; }
+  }
+  const extraText = JSON.stringify(extra);
+  if (extraText.length > PROJECT_EXTRA_MAX) throw new HttpError(413, 'Dữ liệu dự án quá lớn');
+  const t = now();
+  await env.DB.prepare('INSERT INTO projects (wbs, project_name, project_number, product_line, customer, supervisor, extra, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ' +
+    'ON CONFLICT(wbs) DO UPDATE SET project_name = excluded.project_name, project_number = excluded.project_number, product_line = excluded.product_line, ' +
+    'customer = excluded.customer, supervisor = excluded.supervisor, extra = excluded.extra, updated_at = excluded.updated_at')
+    .bind(wbs, col.projectName, col.projectNumber, col.productLine, col.customer, col.supervisor, extraText, t).run();
+  await audit(env, me, row ? 'project_update' : 'project_create', 'project', wbs, undefined, changed);
+  return json({ ok: true, wbs, updatedAt: t, created: !row });
+}
+
+async function deleteProjects(env, me, request) {
+  need(me);
+  const body = await readJson(request);
+  const list = (Array.isArray(body.wbs) ? body.wbs : []).map(w => str(w, 100)).filter(Boolean);
+  if (!list.length) throw new HttpError(400, 'Chưa chọn dự án nào');
+  if (list.length > 60) throw new HttpError(413, 'Xoá tối đa 60 dự án mỗi lần');
+  const ph = list.map(() => '?').join(', ');
+  const have = (await env.DB.prepare(`SELECT wbs FROM projects WHERE wbs IN (${ph})`).bind(...list).all()).results.map(r => r.wbs);
+  if (have.length) await env.DB.prepare(`DELETE FROM projects WHERE wbs IN (${ph})`).bind(...list).run();
+  await audit(env, me, 'project_delete', 'project', have.join(',').slice(0, 400), { wbs: have }, undefined);
+  return json({ ok: true, deleted: have.length });
+}
+
+// ---------- Timesheet cá nhân: bảng công theo kỳ lương của chính người đăng nhập ----------
+const LOCKED_STATUSES = ['submitted', 'sitesup_ok', 'approved'];
+
+function needOwnEmp(me) {
+  if (!me.empId) throw new HttpError(403, 'Tài khoản chưa gắn với nhân viên nào nên chưa có Timesheet cá nhân');
+  return me.empId;
+}
+function periodParam(p) {
+  if (!PERIOD_RE.test(p)) throw new HttpError(400, 'Kỳ lương không hợp lệ (dạng YYYY-MM)');
+  return p;
+}
+
+async function listMyDocs(env, me) {
+  const emp = needOwnEmp(me);
+  const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at, submitted_at, sitesup_by, sitesup_at, pm_by, pm_at, note FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
+  return json({ docs: results.map(r => ({ period: r.period, version: r.version, status: r.status, entries: r.entry_count, savedAt: r.saved_at,
+    submittedAt: r.submitted_at, sitesupBy: r.sitesup_by, sitesupAt: r.sitesup_at, pmBy: r.pm_by, pmAt: r.pm_at, note: r.note })) });
+}
+
+async function getMyDoc(env, me, period) {
+  const emp = needOwnEmp(me);
+  periodParam(period);
+  const r = await env.DB.prepare('SELECT version, status, data, saved_at FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  // chuỗi JSON có sẵn được ghép thẳng vào kết quả (không parse lại) để tiết kiệm thời gian xử lý của gói miễn phí
+  const text = `{"period":${JSON.stringify(period)},"version":${r ? r.version : 0},"status":${JSON.stringify(r ? r.status : 'draft')},"savedAt":${JSON.stringify(r ? r.saved_at : '')},"data":${r ? r.data : '{"entries":[],"deleted":{}}'}}`;
+  return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+async function putMyDoc(env, me, period, request) {
+  const emp = needOwnEmp(me);
+  periodParam(period);
+  const body = await readJson(request);
+  const base = Number(body.baseVersion);
+  if (!Number.isInteger(base) || base < 0) throw new HttpError(400, 'Thiếu số phiên bản (baseVersion)');
+  let checked;
+  try { checked = checkDoc(period, body.data); } catch (e) { throw new HttpError(400, e.message); }
+  const t = now();
+  let changed;
+  if (base === 0) {
+    const r = await env.DB.prepare("INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by) VALUES (?, ?, 1, 'draft', ?, ?, ?, ?) ON CONFLICT(emp_id, period) DO NOTHING")
+      .bind(emp, period, checked.data, checked.count, t, me.email).run();
+    changed = r.meta && r.meta.changes === 1;
+  } else {
+    const r = await env.DB.prepare(`UPDATE ts_docs SET version = version + 1, data = ?, entry_count = ?, saved_at = ?, saved_by = ? WHERE emp_id = ? AND period = ? AND version = ? AND status NOT IN ('submitted', 'sitesup_ok', 'approved')`)
+      .bind(checked.data, checked.count, t, me.email, emp, period, base).run();
+    changed = r.meta && r.meta.changes === 1;
+  }
+  if (changed) return json({ ok: true, period, version: base + 1, savedAt: t });
+  // không ghi được: đã bị khoá (đã nộp / duyệt) hoặc có bản mới hơn → trả bản hiện có để máy khách gộp
+  const cur = await env.DB.prepare('SELECT version, status, data, saved_at FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  if (cur && LOCKED_STATUSES.includes(cur.status)) {
+    return json({ ok: false, locked: true, version: cur.version, status: cur.status, error: 'Bảng công kỳ này đã nộp / đã duyệt nên không sửa được nữa' }, 423);
+  }
+  return new Response(`{"ok":false,"conflict":true,"version":${cur ? cur.version : 0},"status":${JSON.stringify(cur ? cur.status : 'draft')},"data":${cur ? cur.data : '{"entries":[],"deleted":{}}'}}`,
+    { status: 409, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+// Gợi ý người nhận khi fitter tự gửi mail báo cáo thi công: Site Sup / Quản lý dự án được gán cho các dự án (WBS) của ngày đó.
+// Chỉ trả tên + email của đúng những người phụ trách các dự án mà người hỏi đang làm.
+async function tsApprovers(env, me, url) {
+  needOwnEmp(me);
+  const list = [...new Set((url.searchParams.get('wbs') || '').split(',').map(x => str(x, 100)).filter(Boolean))].slice(0, 20);
+  if (!list.length) return json({ approvers: [] });
+  const { results } = await env.DB.prepare(`SELECT s.wbs, s.role, e.emp_id, e.full_name, e.email FROM project_staff s JOIN employees e ON e.emp_id = s.emp_id
+    WHERE s.wbs IN (${list.map(() => '?').join(', ')}) AND e.active = 1 AND e.email <> '' ORDER BY s.role, e.full_name`).bind(...list).all();
+  const by = new Map();
+  for (const r of results) {
+    const k = r.emp_id + '|' + r.role;
+    if (!by.has(k)) by.set(k, { empId: r.emp_id, name: r.full_name, email: r.email, level: r.role, wbs: [] });
+    by.get(k).wbs.push(r.wbs);
+  }
+  return json({ approvers: [...by.values()] });
+}
+
+// ---------- nộp bảng công và duyệt hai cấp (Site Sup → Quản lý dự án) ----------
+const DOC_JSON_HEAD = (r) => `{"ok":true,"period":${JSON.stringify(r.period)},"emp":${JSON.stringify(r.emp_id)},"version":${r.version},"status":${JSON.stringify(r.status)}`;
+
+// Chủ bảng công bấm Nộp: máy khách đã gửi bản mới nhất (có phân loại giờ bd cho từng dòng) rồi gọi đây với đúng số phiên bản.
+async function submitMyDoc(env, me, period, request) {
+  const emp = needOwnEmp(me);
+  periodParam(period);
+  const body = await readJson(request);
+  const row = await env.DB.prepare('SELECT version, status, data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  if (!row) throw new HttpError(404, 'Chưa có bảng công kỳ này');
+  if (!['draft', 'rejected'].includes(row.status)) throw new HttpError(409, 'Bảng công kỳ này đã nộp rồi');
+  if (Number(body.baseVersion) !== row.version) return json({ ok: false, conflict: true, version: row.version, error: 'Bản trên máy chủ khác bản bạn đang xem — chờ đồng bộ xong rồi nộp lại' }, 409);
+  const data = JSON.parse(row.data);
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const bad = checkSubmitEntries(entries);
+  if (bad) throw new HttpError(400, bad);
+  const wbsList = [...new Set(entries.map(e => String(e.workNumber || '').trim()).filter(Boolean))].slice(0, 40);
+  const t = now();
+  const r = await env.DB.prepare(`UPDATE ts_docs SET status = 'submitted', submitted_at = ?, sitesup_by = '', sitesup_at = '', pm_by = '', pm_at = '', note = '' WHERE emp_id = ? AND period = ? AND version = ? AND status IN ('draft', 'rejected')`)
+    .bind(t, emp, period, row.version).run();
+  if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — thử lại');
+  const stmts = [env.DB.prepare('DELETE FROM ts_doc_wbs WHERE emp_id = ? AND period = ?').bind(emp, period)];
+  if (wbsList.length) stmts.push(env.DB.prepare(`INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbsList.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbsList.flatMap(w => [emp, period, w])));
+  await env.DB.batch(stmts);
+  await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length });
+  return json({ ok: true, status: 'submitted', version: row.version, submittedAt: t });
+}
+
+async function withdrawMyDoc(env, me, period) {
+  const emp = needOwnEmp(me);
+  periodParam(period);
+  const r = await env.DB.prepare("UPDATE ts_docs SET status = 'draft', submitted_at = '' WHERE emp_id = ? AND period = ? AND status = 'submitted'").bind(emp, period).run();
+  if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Chỉ thu hồi được khi giám sát chưa duyệt');
+  await audit(env, me, 'ts_withdraw', 'ts_doc', `${emp}:${period}`);
+  return json({ ok: true, status: 'draft' });
+}
+
+const LEVEL_OF = { submitted: 'sitesup', sitesup_ok: 'pm' };
+const supKey = (s) => keyOf(s);
+
+// Người này có quyền duyệt bảng công đang chờ ở cấp `level` không?
+// Site Sup: được gán cho một dự án (WBS) trong bảng công, hoặc là "Quản lý trực tiếp" của người nộp. Quản lý dự án: được gán QLDA cho một dự án trong bảng công.
+// Admin duyệt thay được mọi bảng công. (Một bảng công nhiều dự án: chỉ cần một người phụ trách ở cấp đó duyệt.)
+function canAct(me, level, wbsList, staff, ownerSupervisor) {
+  if (me.isAdmin) return true;
+  if (!me.empId) return false;
+  if (level === 'sitesup' && !me.roles.includes('sitesup')) return false;
+  if (level === 'pm' && !me.roles.includes('pm')) return false;
+  if (wbsList.some(w => (staff.get(w) || { sitesup: [], pm: [] })[level].includes(me.empId))) return true;
+  return level === 'sitesup' && !!ownerSupervisor && supKey(ownerSupervisor) === supKey(me.name);
+}
+
+async function pendingDocs(env) {
+  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.version, d.status, d.entry_count, d.submitted_at, d.sitesup_by, d.sitesup_at, d.note,
+      e.full_name, e.position, e.supervisor
+    FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id WHERE d.status IN ('submitted', 'sitesup_ok') ORDER BY d.submitted_at LIMIT 300`).all();
+  if (!results.length) return { docs: [], wbs: new Map() };
+  const w = (await env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status IN ('submitted', 'sitesup_ok')`).all()).results;
+  const wbs = new Map();
+  for (const x of w) { const k = x.emp_id + '|' + x.period; if (!wbs.has(k)) wbs.set(k, []); wbs.get(k).push(x.wbs); }
+  return { docs: results, wbs };
+}
+
+// Hộp thư duyệt: các bảng công đang chờ người này duyệt
+async function tsInbox(env, me) {
+  need(me, 'sitesup', 'pm');
+  const { docs, wbs } = await pendingDocs(env);
+  const staff = await projectStaff(env);
+  const out = [];
+  for (const d of docs) {
+    const level = LEVEL_OF[d.status], list = wbs.get(d.emp_id + '|' + d.period) || [];
+    if (!canAct(me, level, list, staff, d.supervisor)) continue;
+    out.push({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, version: d.version, status: d.status, level, entries: d.entry_count,
+      submittedAt: d.submitted_at, sitesupBy: d.sitesup_by, sitesupAt: d.sitesup_at, wbs: list });
+  }
+  return json({ items: out });
+}
+
+async function loadDocForReview(env, me, emp, period) {
+  periodParam(period);
+  const row = await env.DB.prepare('SELECT d.*, e.full_name, e.position, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id WHERE d.emp_id = ? AND d.period = ?').bind(emp, period).first();
+  if (!row) throw new HttpError(404, 'Không có bảng công này');
+  const wbs = (await env.DB.prepare('SELECT wbs FROM ts_doc_wbs WHERE emp_id = ? AND period = ?').bind(emp, period).all()).results.map(x => x.wbs);
+  return { row, wbs };
+}
+
+async function reviewDoc(env, me, emp, period) {
+  need(me, 'sitesup', 'pm');
+  const { row, wbs } = await loadDocForReview(env, me, emp, period);
+  const level = LEVEL_OF[row.status];
+  const staff = await projectStaff(env);
+  const mine = level && canAct(me, level, wbs, staff, row.supervisor);
+  if (!mine && !me.isAdmin) throw new HttpError(403, 'Bạn không phải người duyệt bảng công này');
+  const text = DOC_JSON_HEAD(row) + `,"name":${JSON.stringify(row.full_name)},"position":${JSON.stringify(row.position)},"level":${JSON.stringify(level || '')},"canAct":${!!mine},` +
+    `"submittedAt":${JSON.stringify(row.submitted_at)},"sitesupBy":${JSON.stringify(row.sitesup_by)},"sitesupAt":${JSON.stringify(row.sitesup_at)},"note":${JSON.stringify(row.note)},"data":${row.data}}`;
+  return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+// Đẩy các dòng của bảng công đã duyệt xong sang bảng Theo dõi giờ công (thay các dòng cũ của người đó trong cùng kỳ)
+async function pushApprovedRows(env, me, row, period) {
+  const emp = row.emp_id;
+  const entries = (JSON.parse(row.data).entries || []);
+  const owner = { empId: emp, name: row.full_name, isSiteSup: rolesFromPosition(row.position).includes('sitesup'), isFitter: rolesFromPosition(row.position).length === 0 };
+  const rows = entries.map(e => trackingRow(e, owner, period)).filter(r => JSON.stringify(r).length <= TS_DATA_MAX);
+  const { start, end } = periodRange(period);
+  const src = `ts:${emp}:${period}`;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { cas, meta } = await tsMetaRow(env);
+    const batch = meta.active || meta.next;
+    await env.DB.prepare('DELETE FROM timesheets WHERE batch = ? AND emp_id = ? AND date >= ? AND date <= ?').bind(batch, emp, start, end).run();
+    const parts = chunks(rows, 14).map(c => env.DB.prepare(`INSERT INTO timesheets (batch, emp_id, date, wbs, data, src) VALUES ${c.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`)
+      .bind(...c.flatMap(r => [batch, emp, r.date, r.wbs, JSON.stringify(r), src])));
+    if (parts.length) await env.DB.batch(parts);
+    const count = (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
+    const next = { ...meta, active: batch, next: Math.max(meta.next, batch + 1), dataVersion: meta.dataVersion + 1, count, updatedAt: now(), updatedBy: 'Duyệt bảng công · ' + me.name };
+    if (await tsMetaWrite(env, cas, next)) return rows.length;
+  }
+  throw new HttpError(409, 'Máy chủ đang bận khi cập nhật bảng Theo dõi giờ công — bấm Duyệt lại');
+}
+
+async function decideDoc(env, me, emp, period, action, request) {
+  need(me, 'sitesup', 'pm');
+  const body = await readJson(request);
+  const { row, wbs } = await loadDocForReview(env, me, emp, period);
+  const level = LEVEL_OF[row.status];
+  if (!level) throw new HttpError(409, 'Bảng công này không ở trạng thái chờ duyệt');
+  const staff = await projectStaff(env);
+  if (!canAct(me, level, wbs, staff, row.supervisor)) throw new HttpError(403, 'Bạn không phải người duyệt bảng công này ở cấp hiện tại');
+  const t = now();
+  if (action === 'reject') {
+    const note = str(body.note, 500);
+    if (note.length < 3) throw new HttpError(400, 'Cần ghi lý do trả lại (để người chấm công biết sửa gì)');
+    const r = await env.DB.prepare("UPDATE ts_docs SET status = 'rejected', note = ?, submitted_at = '' WHERE emp_id = ? AND period = ? AND status = ?").bind(`${me.name}: ${note}`, emp, period, row.status).run();
+    if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
+    await audit(env, me, 'ts_reject', 'ts_doc', `${emp}:${period}`, { status: row.status }, { note });
+    return json({ ok: true, status: 'rejected' });
+  }
+  if (level === 'sitesup') {
+    const r = await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok', sitesup_by = ?, sitesup_at = ? WHERE emp_id = ? AND period = ? AND status = 'submitted'").bind(me.name, t, emp, period).run();
+    if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
+    await audit(env, me, 'ts_sitesup_ok', 'ts_doc', `${emp}:${period}`);
+    return json({ ok: true, status: 'sitesup_ok' });
+  }
+  const r = await env.DB.prepare("UPDATE ts_docs SET status = 'approved', pm_by = ?, pm_at = ? WHERE emp_id = ? AND period = ? AND status = 'sitesup_ok'").bind(me.name, t, emp, period).run();
+  if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
+  let pushed;
+  try { pushed = await pushApprovedRows(env, me, row, period); }
+  catch (e) {   // chưa đẩy được → trả về cấp trước để duyệt lại, không để trạng thái "đã duyệt" mà dữ liệu chưa sang
+    await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok', pm_by = '', pm_at = '' WHERE emp_id = ? AND period = ? AND status = 'approved'").bind(emp, period).run();
+    throw e;
+  }
+  await audit(env, me, 'ts_approved', 'ts_doc', `${emp}:${period}`, undefined, { rows: pushed });
+  return json({ ok: true, status: 'approved', pushed });
 }
 
 async function patchEmployee(env, me, empId, request) {
@@ -580,6 +864,17 @@ export async function handle(request, env, opts = {}) {
     if (path === '/api/supervisors' && method === 'GET') return await listSupervisors(env, me);
     if (path === '/api/supervisors/apply' && method === 'POST') return await applySupervisors(env, me, request);
     if ((m = path.match(/^\/api\/admin\/employees\/([^/]+)$/)) && method === 'PATCH') return await patchEmployee(env, me, decodeURIComponent(m[1]), request);
+    if ((m = path.match(/^\/api\/admin\/projects\/([^/]+)$/)) && method === 'PATCH') return await patchProject(env, me, decodeURIComponent(m[1]), request);
+    if (path === '/api/admin/projects/delete' && method === 'POST') return await deleteProjects(env, me, request);
+    if (path === '/api/ts/docs' && method === 'GET') return await listMyDocs(env, me);
+    if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'GET') return await getMyDoc(env, me, decodeURIComponent(m[1]));
+    if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'PUT') return await putMyDoc(env, me, decodeURIComponent(m[1]), request);
+    if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/submit$/)) && method === 'POST') return await submitMyDoc(env, me, decodeURIComponent(m[1]), request);
+    if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/withdraw$/)) && method === 'POST') return await withdrawMyDoc(env, me, decodeURIComponent(m[1]));
+    if (path === '/api/ts/approvers' && method === 'GET') return await tsApprovers(env, me, url);
+    if (path === '/api/ts/inbox' && method === 'GET') return await tsInbox(env, me);
+    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
+    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     throw new HttpError(404, 'Không có đường dẫn này');
   } catch (e) {

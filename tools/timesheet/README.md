@@ -57,7 +57,7 @@ Lịch hiện các ngày lễ của kỳ lương.
 
 ## Báo cáo tổng quan (cho giám sát)
 Nút **Báo cáo** trên thanh trên → trang A4 của kỳ lương đang xem; **In / Lưu PDF** (in của trình duyệt, dùng được
-ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc; tên file PDF gợi ý `Bao_cao_tong_quan_<tên>_Thang_MM_YYYY`.
+ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc (kỳ có nhiều hơn khoảng 4 dự án thì phần ký tên có thể sang trang 2); tên file PDF gợi ý `Bao_cao_tong_quan_<tên>_Thang_MM_YYYY`.
 - Số liệu chính: tổng giờ làm việc (không tính nghỉ) và số ngày làm việc, giờ thường, tăng ca (% tổng),
   số ngày / giờ nghỉ, ngày T2–T6 chưa chấm.
 - Biểu đồ giờ theo ngày (giờ thường xanh, tăng ca cam, vạch 8 giờ; nền ngày lễ / ngày nghỉ hằng tuần; P = nghỉ;
@@ -66,6 +66,41 @@ ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc; tên file PDF g
 - Giờ công theo loại (hệ số, giờ, tỷ lệ, **giờ quy đổi** theo hệ số) · nghỉ theo loại (6010 / 6020 / 6090, ngày nào)
   · ngày lễ trong kỳ · ô ký *Người lao động* / *Giám sát (PM / PE) xác nhận*.
 - Mã nghỉ phép / ốm / không lương **không** tính vào giờ làm việc và tỷ lệ hoạt động.
+
+## Lộ trình kỳ lương (Gantt)
+Thẻ **Lộ trình kỳ lương (Gantt)** nằm ngay dưới thông tin nhân viên (thu gọn / mở, nhớ lựa chọn trên máy) và cũng là mục
+**Lộ trình trong kỳ** trong **Báo cáo** nộp cuối kỳ — để người chấm công và giám sát nhìn cả kỳ 16 → 15 trong một hình.
+- Mỗi **dự án** một hàng (sắp theo ngày bắt đầu, mỗi dự án một màu), mỗi **ngày làm** một ô ghi số giờ; vạch cam dưới ô = có tăng ca.
+- Các ngày làm cách nhau chỉ bằng ngày nghỉ hằng tuần / lễ được **nối liền** thành một đoạn; ngày chưa chấm (chấm đỏ) thì không nối.
+- Hàng **Nghỉ phép / ốm** riêng (mã 6010 / 6020 / 6090, không tính vào giờ làm).
+- Trong **Báo cáo** biểu đồ thu gọn (mỗi dự án một dòng chữ) để vẫn vừa trang A4.
+- Hơn 10 dự án trong kỳ: 9 dự án đầu hiện riêng, phần còn lại gộp thành hàng "N dự án khác" để báo cáo vẫn gọn.
+- Trên trang chính, bấm một ô để lọc danh sách chấm công theo ngày đó. Rê chuột / chạm giữ để xem giờ thường, giờ tăng ca.
+- Điện thoại: biểu đồ cuộn ngang trong khung, trang không bị tràn.
+- Mã: `buildGantt()` + `GanttChart` trong `src/app.jsx` (dùng chung số liệu với `buildReport()`).
+
+## Bản máy chủ: Timesheet lưu online (giai đoạn 4a)
+Trên `*.pages.dev` (chế độ máy chủ) Timesheet **vẫn chấm công trên máy trước** (mất sóng ở công trường vẫn dùng được), rồi
+**tự đồng bộ lên máy chủ theo kỳ lương** (`tssync.js` ↔ `/api/ts/docs/:kỳ`, bảng `ts_docs`; mỗi người chỉ thấy bảng công của mình):
+- Sửa / xoá một dòng → sau ~2,5 giây (hoặc khi có mạng lại, khi mở lại tab, mỗi 90 giây) gửi lên. Thanh trạng thái phía trên cho biết
+  *Đã lưu trên máy chủ lúc …* / *Mất mạng — dữ liệu an toàn trên máy* / còn bao nhiêu kỳ chưa gửi.
+- Mở trên máy khác (điện thoại ↔ máy tính) cùng tài khoản → tải bảng công về. Hai máy cùng sửa → **gộp theo từng dòng** (dòng sửa sau thắng,
+  dòng đã xoá không sống lại); máy chủ có số phiên bản nên không ghi đè mất dữ liệu của máy kia.
+- Dữ liệu cũ đang có trên máy (từ trước khi có máy chủ) tự được đưa lên ở lần mở đầu tiên.
+- **Báo cáo thi công trong ngày**: ô mới trong form chấm công (≤ 600 ký tự), hiện 📝 trong danh sách; sẽ được gửi giám sát & quản lý mỗi tối (giai đoạn 4c).
+- Kỳ đã **nộp / đã duyệt** thì bị khoá (cả ở giao diện lẫn máy chủ) cho đến khi được trả lại (nộp & duyệt: giai đoạn 4b).
+- Xoá dữ liệu trong Cài đặt chỉ xoá bản trên máy; bản trên máy chủ vẫn còn và được tải lại.
+- **Nộp bảng công (giai đoạn 4b)**: nút **Nộp bảng công** trên thanh trạng thái (cần có mạng). Trước khi nộp app gắn **phân loại giờ**
+  (thường / OT1…OT7) và nhóm công việc vào từng dòng, đồng bộ xong mới nộp; máy chủ kiểm tra tổng giờ phân loại khớp giờ vào – ra – nghỉ.
+  Luồng: *Đang chấm → Đã nộp (chờ Site Sup) → Site Sup đã duyệt (chờ Quản lý dự án) → Đã duyệt xong*. Giám sát / quản lý có thể **Trả lại** kèm lý do
+  (hiện trên thanh trạng thái, kỳ mở lại để sửa rồi nộp lại); chưa ai duyệt thì người nộp **Thu hồi để sửa**.
+  Duyệt xong, các dòng **tự sang bảng Theo dõi giờ công** (Thống kê giờ công).
+- **Gửi báo cáo thi công hằng ngày (thủ công)**: nút **Báo cáo ngày** ở đầu danh sách chấm công → chọn ngày → thư soạn sẵn (dự án, giờ, việc làm,
+  báo cáo thi công). Bản máy chủ **tự điền người nhận**: Site Sup của các dự án trong ngày (To) và Quản lý dự án (CC) theo phân công dự án
+  (`GET /api/ts/approvers`); sửa được. Gửi bằng Outlook / ứng dụng mail, Gmail web hoặc Outlook web — fitter tự bấm Gửi, không có máy chủ gửi mail.
+- **Nhắc hạn**: từ ngày 9 hằng tháng thanh trạng thái nhắc *hạn nộp bảng công là ngày 12* (còn N ngày); quá hạn thì báo đỏ. Site Sup / Quản lý dự án
+  thấy huy hiệu **N chờ duyệt** trên thẻ *Duyệt bảng công* ở trang chủ. (Không gửi email / thông báo đẩy tự động.)
+- Kiểm thử logic gộp / mất mạng / hai thiết bị: `npm run test:client` (máy chủ giả trong bộ nhớ).
 
 ## Gửi mail cho giám sát
 Nút **Gửi mail** (cạnh Xuất Excel) mở ngăn *Gửi bảng công cho giám sát*:
