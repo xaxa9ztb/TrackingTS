@@ -95,7 +95,7 @@
       $('btnImport').disabled = true;
       try {
         // chỉ gửi trường cần thiết — không gửi ngày sinh, giới tính, mã cá nhân; gửi từng đợt nhỏ (giới hạn của máy chủ miễn phí)
-        const emps = localData.employees.map(e => ({ empId: e.empId, fullName: e.fullName, position: e.position, supervisor: e.supervisor }));
+        const emps = localData.employees.map(e => ({ empId: e.empId, fullName: e.fullName, position: e.position, supervisor: e.supervisor, hireDate: e.hireDate, startDate: e.startDate }));
         const projs = localData.projects;
         // Đợt nhỏ để mỗi yêu cầu tốn ít thời gian xử lý (gói miễn phí giới hạn ~10 ms CPU mỗi yêu cầu). Ghi lại theo mã nên gửi lại an toàn.
         const EMP_BATCH = 100, PROJ_BATCH = 40;

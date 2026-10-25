@@ -442,3 +442,66 @@ test('gán Quản lý dự án: chỉ chọn được người có vai trò QLDA
   await call('PATCH', '/api/admin/employees/PM2', { email: 'boss@example.com', body: { active: false } });
   assert.equal((await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: { empId: 'PM2' } })).status, 400);
 });
+
+// ---------- ngày vào làm + kho dữ liệu Quản lý dự án ----------
+test('nhân viên: ai đăng nhập cũng thấy chức danh / giám sát / ngày vào làm; không thấy email', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [
+    { empId: 'DT1', fullName: 'Có Ngày', position: 'Fitter', supervisor: 'Sếp', hireDate: '2015-03-01', startDate: '2016-04-02', dob: '1990-01-01' }] } });
+  const r = await call('GET', '/api/employees', { email: 'tho@example.com' });
+  const e = r.data.employees.find(x => x.empId === 'DT1');
+  assert.equal(e.supervisor, 'Sếp'); assert.equal(e.hireDate, '2015-03-01'); assert.equal(e.startDate, '2016-04-02');
+  assert.ok(!('email' in e) && !('dob' in e));
+  const row = await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind('DT1').first();
+  assert.ok(!('dob' in row));
+});
+
+const PM_DATA = (n = 1) => ({ fitters: Array.from({ length: n }, (_, i) => ({ id: 'f' + i, name: 'Fitter ' + i })), projects: [{ id: 'p1', name: 'P1' }], alloc: { 'f0|2026-10-26': { pid: 'p1' } } });
+
+test('kho Quản lý dự án: tải lần đầu rỗng, lưu v1, lưu v2, đọc lại đúng', async () => {
+  assert.equal((await call('PATCH', '/api/admin/employees/SV01', { email: 'boss@example.com', body: { email: 'sv01@example.com' } })).status, 200);
+  const load0 = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'load' } });
+  assert.equal(load0.status, 200);
+  assert.deepEqual([load0.data.ok, load0.data.version, load0.data.data], [true, 0, null]);
+  const s1 = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 0, data: PM_DATA(2) } });
+  assert.deepEqual([s1.data.ok, s1.data.version], [true, 1], JSON.stringify(s1.data));
+  const s2 = await call('POST', '/api/pm-store', { email: 'sv01@example.com', body: { action: 'save', baseVersion: 1, data: PM_DATA(3) } });
+  assert.deepEqual([s2.data.ok, s2.data.version], [true, 2], JSON.stringify(s2.data));
+  const load = await call('POST', '/api/pm-store', { email: 'boss@example.com', body: { action: 'load' } });
+  assert.equal(load.data.version, 2);
+  assert.equal(load.data.data.fitters.length, 3);
+  assert.ok(load.data.updatedBy && load.data.updatedAt);
+});
+
+test('kho Quản lý dự án: lưu trên bản cũ → xung đột, trả bản mới nhất để gộp; không ghi đè', async () => {
+  const stale = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 1, data: PM_DATA(9) } });
+  assert.equal(stale.data.ok, false); assert.equal(stale.data.conflict, true); assert.equal(stale.data.version, 2);
+  assert.equal(stale.data.data.fitters.length, 3, 'trả đúng bản đang lưu');
+  const zero = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 0, data: PM_DATA(9) } });
+  assert.equal(zero.data.conflict, true, 'baseVersion 0 khi đã có dữ liệu cũng là xung đột');
+  assert.equal((await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'load' } })).data.data.fitters.length, 3);
+});
+
+test('kho Quản lý dự án: fitter bị từ chối (denied), dữ liệu sai / quá lớn bị từ chối', async () => {
+  const denied = await call('POST', '/api/pm-store', { email: 'tho@example.com', body: { action: 'load' } });
+  assert.equal(denied.status, 200); assert.equal(denied.data.denied, true);
+  assert.equal((await call('POST', '/api/pm-store', { email: 'tho@example.com', body: { action: 'save', baseVersion: 2, data: PM_DATA() } })).data.denied, true);
+  const bad = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 2, data: { fitters: 1 } } });
+  assert.equal(bad.data.ok, false); assert.match(bad.data.error, /không hợp lệ/);
+  const arr = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 2, data: { fitters: [], projects: [], alloc: [] } } });
+  assert.equal(arr.data.ok, false);
+  const huge = { fitters: [{ blob: 'x'.repeat(1600000) }], projects: [], alloc: {} };
+  const big = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 2, data: huge } });
+  assert.equal(big.data.ok, false); assert.match(big.data.error, /quá lớn/);
+  assert.equal((await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'xoa' } })).data.ok, false);
+  assert.equal((await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'load' } })).data.version, 2, 'dữ liệu không bị đổi');
+});
+
+test('kho Quản lý dự án: hai người lưu cùng lúc — đúng một người thành công', async () => {
+  const [a, b] = await Promise.all([
+    call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 2, data: PM_DATA(4) } }),
+    call('POST', '/api/pm-store', { email: 'sv01@example.com', body: { action: 'save', baseVersion: 2, data: PM_DATA(5) } }),
+  ]);
+  assert.equal([a, b].filter(x => x.data.ok).length, 1, JSON.stringify([a.data.ok, b.data.ok]));
+  assert.equal([a, b].filter(x => x.data.conflict).length, 1);
+  assert.equal((await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'load' } })).data.version, 3);
+});
