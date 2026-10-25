@@ -55,8 +55,8 @@ const EmployeesPage = (() => {
     }));
     updateSelectionUI();
 
-    document.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openForm(b.dataset.edit)));
-    document.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => remove(b.dataset.del)));
+    document.querySelectorAll('#employeesTable [data-edit]').forEach(b => b.addEventListener('click', () => openForm(b.dataset.edit)));
+    document.querySelectorAll('#employeesTable [data-del]').forEach(b => b.addEventListener('click', () => remove(b.dataset.del)));
   }
 
   function openForm(empId) {

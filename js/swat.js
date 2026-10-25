@@ -146,15 +146,22 @@ const SwatPage = (() => {
     if (!p) { alert('Không tìm thấy dự án tương ứng WBS ' + currentWbs + ' trong tab Dự án.'); return; }
     if (!confirm(`Ghi Swat Hour Target cho "${p.projectName}" (WBS ${p.wbs}) = ${fmtVN(target)} giờ?\nToàn bộ thông số mục 1 & 2 hiện tại sẽ được lưu cho dự án này.`)) return;
     // lưu Swat Hour Target riêng (KHÔNG ghi đè INS Time Total / targetHour) + thông số mục 1&2
+    let state = p.swatState;
+    try { const api = swatApi(); if (api && api.getState) state = api.getState(); } catch (e) { /* ignore */ }
+    // bản máy chủ: lưu lên máy chủ TRƯỚC (lỗi thì dừng, không giả vờ đã lưu); bản github.io: không làm gì
+    try { await Cloud.saveProject(p.wbs, { swatTargetHour: target, targetSwat: true, swatState: state }); }
+    catch (err) { console.error(err); alert('Không lưu được lên máy chủ: ' + err.message + '\nChưa lưu gì — thử lại sau.'); return; }
     p.swatTargetHour = target;
     p.targetSwat = true;
-    try { const api = swatApi(); if (api && api.getState) p.swatState = api.getState(); } catch (e) { /* ignore */ }
+    p.swatState = state;
     await DB.put('projects', p);
     try { const api = swatApi(); if (api && api.setConfirmed) api.setConfirmed(true); } catch (e) { /* ignore */ }
     await load();
     await Dashboard.reloadAndRefresh();
-    alert('Đã lưu Swat Hour Target và thông số mục 1 & 2 (đã xác nhận Swat Hour). Kiểm tra lại trên Dashboard' +
-      (typeof Cloud !== 'undefined' && Cloud.canWrite && Cloud.canWrite() && !Cloud.SERVER ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
+    alert(Cloud.SERVER
+      ? 'Đã lưu Swat Hour Target và thông số mục 1 & 2 (đã xác nhận Swat Hour) lên máy chủ — mọi người thấy ngay. Kiểm tra lại trên Dashboard.'
+      : 'Đã lưu Swat Hour Target và thông số mục 1 & 2 (đã xác nhận Swat Hour). Kiểm tra lại trên Dashboard' +
+        (Cloud.canWrite && Cloud.canWrite() ? ' rồi bấm "Lưu lên Drive" để xuất bản.' : '.'));
   }
 
   // Báo cáo tổng quan: công cụ xin dữ liệu giờ công (fitter + activities) của dự

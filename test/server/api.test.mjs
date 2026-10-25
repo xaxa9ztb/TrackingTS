@@ -592,3 +592,48 @@ test('bảng công: dòng thiếu mã NV / ngày hoặc quá lớn bị bỏ qua
   assert.equal((await call('POST', '/api/admin/timesheets/rows', { email: 'boss@example.com', body: { batch: b.data.batch, rows: Array.from({ length: 161 }, (_, i) => tsRow(i)) } })).status, 413);
   assert.equal((await readTs('tho@example.com')).rows.length, 3, 'đợt dở dang không ảnh hưởng người xem');
 });
+
+// ---------- sửa / xoá dự án (Swat Hour Target, tab Dự án) ----------
+const swatFields = { swatTargetHour: 812.5, targetSwat: true, swatState: { inputs: { stops: 12, load: 1000 }, confirmed: true } };
+const getProject = async (wbs) => (await call('GET', '/api/projects', { email: 'tho@example.com' })).data.projects.find(p => p.wbs === wbs);
+
+test('dự án: admin lưu Swat → mọi người thấy; các trường khác và người phụ trách giữ nguyên', async () => {
+  await call('PUT', '/api/projects/BW-5/staff', { email: 'boss@example.com', body: { sitesup: [], pm: [] } });
+  const before = await getProject('BW-5');
+  const r = await call('PATCH', '/api/admin/projects/BW-5', { email: 'boss@example.com', body: { fields: swatFields } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.created, false);
+  const after = await getProject('BW-5');
+  assert.equal(after.targetSwat, true); assert.equal(after.swatTargetHour, 812.5); assert.deepEqual(after.swatState, swatFields.swatState);
+  assert.equal(after.projectName, before.projectName); assert.deepEqual(after.specs, before.specs, 'thông số thang không mất');
+  assert.deepEqual(after.staff, before.staff, 'người phụ trách không bị xoá');
+});
+
+test('dự án: sửa từng trường (tên, giám sát, target) và thêm dự án mới', async () => {
+  const r = await call('PATCH', '/api/admin/projects/BW-6', { email: 'boss@example.com', body: { fields: { projectName: 'Tên mới', supervisor: 'Giám sát X', targetHour: 99, targetHourManual: true } } });
+  assert.equal(r.status, 200);
+  const p = await getProject('BW-6');
+  assert.equal(p.projectName, 'Tên mới'); assert.equal(p.supervisor, 'Giám sát X'); assert.equal(p.targetHour, 99); assert.equal(p.customer, 'KH ' + (5 % 7));
+  const c = await call('PATCH', '/api/admin/projects/NEW-1', { email: 'boss@example.com', body: { fields: { projectName: 'Mới tinh', source: 'manual', targetHour: 10 } } });
+  assert.equal(c.status, 200); assert.equal(c.data.created, true);
+  assert.equal((await getProject('NEW-1')).projectName, 'Mới tinh');
+  const log = await call('GET', '/api/admin/audit', { email: 'boss@example.com' });
+  assert.ok(log.data.entries.some(e => e.action === 'project_create' && e.entity_id === 'NEW-1' && e.after.projectName === 'Mới tinh'));
+});
+
+test('dự án: chỉ admin được sửa / xoá; dữ liệu sai bị từ chối', async () => {
+  for (const email of ['tho@example.com', 'sv01@example.com']) {
+    assert.equal((await call('PATCH', '/api/admin/projects/BW-5', { email, body: { fields: { projectName: 'x' } } })).status, 403);
+    assert.equal((await call('POST', '/api/admin/projects/delete', { email, body: { wbs: ['BW-5'] } })).status, 403);
+  }
+  assert.equal((await call('PATCH', '/api/admin/projects/BW-5', { email: 'boss@example.com', body: {} })).status, 400);
+  assert.equal((await call('PATCH', '/api/admin/projects/BW-5', { email: 'boss@example.com', body: { fields: { swatState: 'y'.repeat(25000) } } })).status, 413);
+  assert.equal((await getProject('BW-5')).swatTargetHour, 812.5, 'bản cũ còn nguyên sau khi bị từ chối');
+});
+
+test('dự án: xoá hàng loạt (kèm người phụ trách), bỏ qua mã không tồn tại', async () => {
+  const r = await call('POST', '/api/admin/projects/delete', { email: 'boss@example.com', body: { wbs: ['NEW-1', 'BW-7', 'KHONG-CO'] } });
+  assert.equal(r.status, 200); assert.equal(r.data.deleted, 2);
+  assert.equal(await getProject('NEW-1'), undefined); assert.equal(await getProject('BW-7'), undefined);
+  assert.ok(await getProject('BW-5'));
+  assert.equal((await call('POST', '/api/admin/projects/delete', { email: 'boss@example.com', body: { wbs: [] } })).status, 400);
+});

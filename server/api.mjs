@@ -497,6 +497,54 @@ async function tsCommit(env, me, request) {
   return json({ ok: true, version: next.dataVersion, count: have });
 }
 
+// ---------- sửa / xoá từng dự án (tab Dự án, Swat Hour Target) ----------
+const PROJECT_SKIP = { wbs: 1, staff: 1, updatedAt: 1 };
+const PROJECT_EXTRA_MAX = 20000;
+
+// Gộp các trường gửi lên vào dự án (chưa có thì tạo mới). Chỉ ghi các trường được gửi nên không đè lên
+// những trường người khác vừa đổi (vd. Swat do admin khác lưu).
+async function patchProject(env, me, wbs, request) {
+  need(me);
+  const body = await readJson(request);
+  const fields = body && typeof body.fields === 'object' && body.fields && !Array.isArray(body.fields) ? body.fields : null;
+  if (!fields) throw new HttpError(400, 'Thiếu dữ liệu dự án');
+  wbs = str(wbs, 100);
+  if (!wbs) throw new HttpError(400, 'Thiếu mã WBS');
+  const row = await env.DB.prepare('SELECT * FROM projects WHERE wbs = ?').bind(wbs).first();
+  const cur = row || { project_name: '', project_number: '', product_line: '', customer: '', supervisor: '', extra: '{}' };
+  let extra = {};
+  try { extra = JSON.parse(cur.extra || '{}'); } catch (e) { /* bỏ qua */ }
+  const col = { projectName: cur.project_name, projectNumber: cur.project_number, productLine: cur.product_line, customer: cur.customer, supervisor: cur.supervisor };
+  const changed = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (PROJECT_SKIP[k] || v === undefined) continue;
+    if (k in col) { col[k] = str(v, k === 'projectName' || k === 'customer' ? 300 : 200); changed[k] = col[k]; }
+    else { extra[k] = v; changed[k] = v; }
+  }
+  const extraText = JSON.stringify(extra);
+  if (extraText.length > PROJECT_EXTRA_MAX) throw new HttpError(413, 'Dữ liệu dự án quá lớn');
+  const t = now();
+  await env.DB.prepare('INSERT INTO projects (wbs, project_name, project_number, product_line, customer, supervisor, extra, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ' +
+    'ON CONFLICT(wbs) DO UPDATE SET project_name = excluded.project_name, project_number = excluded.project_number, product_line = excluded.product_line, ' +
+    'customer = excluded.customer, supervisor = excluded.supervisor, extra = excluded.extra, updated_at = excluded.updated_at')
+    .bind(wbs, col.projectName, col.projectNumber, col.productLine, col.customer, col.supervisor, extraText, t).run();
+  await audit(env, me, row ? 'project_update' : 'project_create', 'project', wbs, undefined, changed);
+  return json({ ok: true, wbs, updatedAt: t, created: !row });
+}
+
+async function deleteProjects(env, me, request) {
+  need(me);
+  const body = await readJson(request);
+  const list = (Array.isArray(body.wbs) ? body.wbs : []).map(w => str(w, 100)).filter(Boolean);
+  if (!list.length) throw new HttpError(400, 'Chưa chọn dự án nào');
+  if (list.length > 60) throw new HttpError(413, 'Xoá tối đa 60 dự án mỗi lần');
+  const ph = list.map(() => '?').join(', ');
+  const have = (await env.DB.prepare(`SELECT wbs FROM projects WHERE wbs IN (${ph})`).bind(...list).all()).results.map(r => r.wbs);
+  if (have.length) await env.DB.prepare(`DELETE FROM projects WHERE wbs IN (${ph})`).bind(...list).run();
+  await audit(env, me, 'project_delete', 'project', have.join(',').slice(0, 400), { wbs: have }, undefined);
+  return json({ ok: true, deleted: have.length });
+}
+
 async function patchEmployee(env, me, empId, request) {
   need(me);
   const body = await readJson(request);
@@ -580,6 +628,8 @@ export async function handle(request, env, opts = {}) {
     if (path === '/api/supervisors' && method === 'GET') return await listSupervisors(env, me);
     if (path === '/api/supervisors/apply' && method === 'POST') return await applySupervisors(env, me, request);
     if ((m = path.match(/^\/api\/admin\/employees\/([^/]+)$/)) && method === 'PATCH') return await patchEmployee(env, me, decodeURIComponent(m[1]), request);
+    if ((m = path.match(/^\/api\/admin\/projects\/([^/]+)$/)) && method === 'PATCH') return await patchProject(env, me, decodeURIComponent(m[1]), request);
+    if (path === '/api/admin/projects/delete' && method === 'POST') return await deleteProjects(env, me, request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     throw new HttpError(404, 'Không có đường dẫn này');
   } catch (e) {

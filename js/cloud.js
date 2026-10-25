@@ -158,11 +158,11 @@ const Cloud = (() => {
     return body;
   }
 
-  async function serverSend(path, body) {
+  async function serverSend(path, body, method = 'POST') {
     let resp;
     try {
       resp = await fetch(path, {
-        method: 'POST', credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
+        method, credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
         headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}),
       });
     } catch (e) { throw new Error('Không kết nối được máy chủ: ' + e.message); }
@@ -174,9 +174,9 @@ const Cloud = (() => {
     if (!resp.ok) { const err = new Error(out.error || ('Máy chủ báo lỗi (HTTP ' + resp.status + ')')); err.status = resp.status; throw err; }
     return out;
   }
-  async function serverSendRetry(path, body, tries = 3) {
+  async function serverSendRetry(path, body, tries = 3, method = 'POST') {
     for (let i = 1; ; i++) {
-      try { return await serverSend(path, body); }
+      try { return await serverSend(path, body, method); }
       catch (e) { if (i >= tries || (e.status && e.status < 500)) throw e; await new Promise(r => setTimeout(r, 400 * i)); }
     }
   }
@@ -233,6 +233,19 @@ const Cloud = (() => {
     catch (err) { ts = await loadTimesheetsFromServer(); } // bị cập nhật giữa chừng → thử lại 1 lần
     if (ts.updatedAt && (!lastUpdatedAt || ts.updatedAt > lastUpdatedAt)) lastUpdatedAt = ts.updatedAt;
     return { employees, projects, timesheets: ts };
+  }
+
+  // ---- bản máy chủ: sửa / xoá dự án (tab Dự án, Swat Hour Target) ghi thẳng lên máy chủ ----
+  // Gọi TRƯỚC khi ghi vào máy; lỗi thì ném ra để giao diện không báo "đã lưu" khi chưa lưu. Bản github.io: không làm gì.
+  // Chỉ gửi các trường được sửa để không đè lên thay đổi của người khác.
+  async function saveProject(wbs, fields) {
+    if (!SERVER) return;
+    await serverSendRetry('/api/admin/projects/' + encodeURIComponent(wbs), { fields }, 3, 'PATCH');
+  }
+  async function deleteProjects(list) {
+    if (!SERVER) return;
+    const all = [...list];
+    for (let i = 0; i < all.length; i += 60) await serverSendRetry('/api/admin/projects/delete', { wbs: all.slice(i, i + 60) });
   }
 
   // ---- bản máy chủ: lưu bảng công của máy này lên máy chủ (chỉ admin) ----
@@ -474,7 +487,7 @@ const Cloud = (() => {
   const saveData = SERVER ? saveToServer : saveToDrive; // tên dùng chung cho cả hai bản
 
   return {
-    SERVER, configured, canWrite, loadFromDrive, saveToDrive, saveData, hasUnsavedEdits: tsEdited, createDriveFile,
+    SERVER, saveProject, deleteProjects, configured, canWrite, loadFromDrive, saveToDrive, saveData, hasUnsavedEdits: tsEdited, createDriveFile,
     listDriveRevisions, restoreDriveRevision, exportLocalBackup, importLocalBackup, compareWithRemote,
     getLastUpdatedAt: () => lastUpdatedAt,
     getLastSyncedAt: () => { try { return localStorage.getItem('driveSyncedAt') || ''; } catch (e) { return ''; } },

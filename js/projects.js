@@ -125,6 +125,8 @@ const ProjectsPage = (() => {
     if (!selected.size) return;
     if (!confirm(`Xoá ${selected.size} dự án đã chọn?`)) return;
     await Backup.snapshot(`Trước khi xoá ${selected.size} dự án (tự động)`);
+    try { await Cloud.deleteProjects([...selected]); }
+    catch (err) { console.error(err); alert('Không xoá được trên máy chủ: ' + err.message + '\nChưa xoá gì.'); return; }
     for (const id of selected) await DB.remove('projects', id);
     await load();
     await Dashboard.reloadAndRefresh();
@@ -169,6 +171,13 @@ const ProjectsPage = (() => {
         targetHour: parseFloat(document.getElementById('f_target').value) || 0,
         targetHourManual: true,
       };
+      try {
+        await Cloud.saveProject(wbsVal, {
+          projectNumber: record.projectNumber, projectName: record.projectName, customer: record.customer,
+          productLine: record.productLine, supervisor: record.supervisor, targetHour: record.targetHour,
+          targetHourManual: true, ...(p ? {} : { source: record.source }),
+        });
+      } catch (err) { console.error(err); alert('Không lưu được lên máy chủ: ' + err.message); return false; }
       await DB.put('projects', record);
       await load();
       await Dashboard.reloadAndRefresh();
@@ -178,6 +187,8 @@ const ProjectsPage = (() => {
 
   async function remove(wbs) {
     if (!confirm(`Xoá dự án ${wbs}?`)) return;
+    try { await Cloud.deleteProjects([wbs]); }
+    catch (err) { console.error(err); alert('Không xoá được trên máy chủ: ' + err.message); return; }
     await DB.remove('projects', wbs);
     await load();
     await Dashboard.reloadAndRefresh();
