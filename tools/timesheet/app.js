@@ -742,7 +742,10 @@ function App() {
     error: ''
   });
   const [docStatuses, setDocStatuses] = useState({});
+  const [docNotes, setDocNotes] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const entriesRef = useRef([]);
+  const scheduleRef = useRef('');
   const syncTimer = useRef(null);
   const [ganttOpen, setGanttOpenRaw] = useState(() => {
     try {
@@ -812,6 +815,7 @@ function App() {
       state: 'syncing'
     }));
     const r = await TsSync.sync({
+      getSch: () => scheduleRef.current,
       getEntries: () => entriesRef.current,
       onMerged: (p, merged, startedAt) => setEntries(prev => {
         const next = TsSync.applyChanges(prev, p, merged, startedAt);
@@ -823,6 +827,10 @@ function App() {
     if (r.statuses) setDocStatuses(prev => ({
       ...prev,
       ...r.statuses
+    }));
+    if (r.notes) setDocNotes(prev => ({
+      ...prev,
+      ...r.notes
     }));
     setSyncInfo(r.ok ? {
       state: 'ok',
@@ -873,6 +881,7 @@ function App() {
     // IMPORTANT: String comparison works correctly for YYYY-MM-DD
     return entries.filter(e => e.date >= period.start && e.date <= period.end).sort((a, b) => b.date.localeCompare(a.date) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
   }, [entries, period]);
+  scheduleRef.current = scheduleOf(profile);
   const periodStatus = SERVER && docStatuses[currentMonth] || 'draft';
   const locked = SERVER && TsSync.LOCKED.includes(periodStatus);
   const sch = scheduleOf(profile);
@@ -989,9 +998,14 @@ function App() {
       key: Date.now()
     });
   };
-  const handleSaveEntry = data => {
+  const handleSaveEntry = formData => {
     const editing = drawer && drawer.entry;
     const u = Date.now(); // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
+    const {
+      bd: _bd,
+      cat: _cat,
+      ...data
+    } = formData; // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
     if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? {
       ...data,
       id: editing.id,
@@ -1033,6 +1047,75 @@ function App() {
         }
       }
     });
+  };
+
+  // ----- nộp / thu hồi bảng công của kỳ đang xem (bản máy chủ) -----
+  const catOf = code => (ACTIVITY_META.find(a => a.id === code || a.code === code) || {
+    cat: 'Other'
+  }).cat;
+  const settleSync = async () => {
+    // đẩy hết thay đổi của kỳ lên máy chủ (có thể phải qua vài lượt nếu đang có lượt khác chạy)
+    for (let i = 0; i < 4; i++) {
+      await runSync();
+      if (!TsSync.load().dirty[currentMonth]) return true;
+    }
+    return false;
+  };
+  const handleSubmit = async () => {
+    if (!SERVER || submitting) return;
+    if (!monthlyEntries.length) return showToast('Kỳ này chưa có dòng chấm công nào để nộp.');
+    const [ym, mm] = [currentMonth.slice(0, 4), parseInt(currentMonth.slice(5), 10)];
+    const miss = stats.missing;
+    const msg = `Nộp bảng công kỳ ${mm}/${ym} cho giám sát?\n\n• ${monthlyEntries.length} dòng · ${stats.days} ngày · ${fmtH(stats.total)} giờ (tăng ca ${fmtH(stats.ot)})` + (miss.length ? `\n⚠ Còn ${miss.length} ngày làm việc chưa chấm: ${miss.slice(0, 8).map(fmtDM).join(', ')}${miss.length > 8 ? '…' : ''}` : '') + `\n\nNộp xong bạn không sửa được nữa, trừ khi giám sát trả lại hoặc bạn thu hồi trước khi giám sát duyệt.`;
+    if (!confirm(msg)) return;
+    setSubmitting(true);
+    try {
+      const u = Date.now();
+      const stamped = entriesRef.current.map(e => periodMonthOf(e.date) === currentMonth ? {
+        ...e,
+        bd: bdOf(e),
+        cat: catOf(e.activityCode),
+        u
+      } : e);
+      entriesRef.current = stamped;
+      setEntries(stamped);
+      TsSync.markDirty(monthlyEntries.map(e => e.date));
+      if (!(await settleSync())) {
+        showToast('Chưa gửi được bảng công lên máy chủ (mất mạng?). Thử nộp lại khi có mạng.');
+        return;
+      }
+      const r = await TsSync.submit(currentMonth);
+      if (r.status === 200) {
+        setDocStatuses(prev => ({
+          ...prev,
+          [currentMonth]: 'submitted'
+        }));
+        setDocNotes(prev => ({
+          ...prev,
+          [currentMonth]: ''
+        }));
+        showToast('Đã nộp bảng công cho giám sát.');
+      } else if (r.status === 409) showToast(r.data.error || 'Bảng công vừa thay đổi — thử nộp lại.');else alert('Không nộp được: ' + (r.data.error || 'lỗi máy chủ ' + r.status));
+    } catch (err) {
+      showToast(err && err.offline ? 'Mất mạng — chưa nộp được. Thử lại khi có mạng.' : 'Không nộp được: ' + (err.message || err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const handleWithdraw = async () => {
+    if (!confirm('Thu hồi bảng công về để sửa tiếp? (Giám sát sẽ không còn thấy bảng công này cho đến khi bạn nộp lại.)')) return;
+    try {
+      const r = await TsSync.withdraw(currentMonth);
+      if (r.status === 200) {
+        setDocStatuses(prev => ({
+          ...prev,
+          [currentMonth]: 'draft'
+        }));
+        showToast('Đã thu hồi bảng công — sửa xong nhớ nộp lại.');
+      } else showToast(r.data.error || 'Không thu hồi được.');
+    } catch (err) {
+      showToast('Không thu hồi được: ' + (err.message || err));
+    }
   };
   const handleResetData = () => {
     if (confirm(SERVER ? "Xóa dữ liệu Timesheet TRÊN MÁY NÀY? (Bản đã lưu trên máy chủ vẫn còn và sẽ được tải lại khi có mạng.)" : "CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu? Hành động này sẽ xóa sạch lịch sử chấm công và thông tin cá nhân. Không thể hoàn tác!")) {
@@ -1348,9 +1431,12 @@ function App() {
   }, /*#__PURE__*/React.createElement(SyncBar, {
     info: syncInfo,
     status: periodStatus,
-    period: period,
+    note: docNotes[currentMonth] || '',
+    submitting: submitting,
     month: currentMonth,
-    onRetry: runSync
+    onRetry: runSync,
+    onSubmit: handleSubmit,
+    onWithdraw: handleWithdraw
   })), /*#__PURE__*/React.createElement("div", {
     className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 grid gap-4 lg:gap-6 md:grid-cols-2"
   }, /*#__PURE__*/React.createElement(ProfileCard, {
@@ -1513,8 +1599,12 @@ function App() {
 function SyncBar({
   info,
   status,
+  note,
+  submitting,
   month,
-  onRetry
+  onRetry,
+  onSubmit,
+  onWithdraw
 }) {
   const [y, m] = month.split('-');
   const pending = Object.keys(TsSync.load().dirty || {}).length;
@@ -1530,9 +1620,24 @@ function SyncBar({
   }, /*#__PURE__*/React.createElement("span", {
     id: "tsPeriodStatus",
     className: `inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`
-  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", STATUS_LABEL[status] || status), TsSync.LOCKED.includes(status) && /*#__PURE__*/React.createElement("span", {
+  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", STATUS_LABEL[status] || status), status === 'submitted' && /*#__PURE__*/React.createElement("button", {
+    id: "tsWithdrawBtn",
+    type: "button",
+    onClick: onWithdraw,
+    className: btnGhost
+  }, "Thu h\u1ED3i \u0111\u1EC3 s\u1EEDa"), (status === 'draft' || status === 'rejected') && /*#__PURE__*/React.createElement("button", {
+    id: "tsSubmitBtn",
+    type: "button",
+    onClick: onSubmit,
+    disabled: submitting || info.state === 'offline',
+    className: btnPrimary,
+    title: info.state === 'offline' ? 'Cần có mạng để nộp' : 'Nộp bảng công của kỳ này cho giám sát duyệt'
+  }, submitting ? 'Đang nộp…' : 'Nộp bảng công'), TsSync.LOCKED.includes(status) && /*#__PURE__*/React.createElement("span", {
     className: "text-sm text-slate-600"
-  }, "Kh\xF4ng s\u1EEDa \u0111\u01B0\u1EE3c cho \u0111\u1EBFn khi b\u1EA3ng c\xF4ng \u0111\u01B0\u1EE3c tr\u1EA3 l\u1EA1i."), /*#__PURE__*/React.createElement("span", {
+  }, status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : 'Không sửa được trong lúc chờ duyệt.'), status === 'rejected' && note && /*#__PURE__*/React.createElement("span", {
+    id: "tsRejectNote",
+    className: "text-sm text-rose-700 font-medium"
+  }, "L\xFD do tr\u1EA3 l\u1EA1i \u2014 ", note), /*#__PURE__*/React.createElement("span", {
     id: "tsSyncText",
     className: "ml-auto text-sm text-slate-600 inline-flex items-center gap-2"
   }, info.state === 'syncing' && /*#__PURE__*/React.createElement("span", null, "\u27F3 \u0110ang \u0111\u1ED3ng b\u1ED9 v\u1EDBi m\xE1y ch\u1EE7\u2026"), info.state === 'ok' && /*#__PURE__*/React.createElement("span", null, "\u2713 \u0110\xE3 l\u01B0u tr\xEAn m\xE1y ch\u1EE7", at ? ` lúc ${at}` : '', pending ? ` · còn ${pending} kỳ chưa gửi` : ''), info.state === 'offline' && /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCF4 M\u1EA5t m\u1EA1ng \u2014 d\u1EEF li\u1EC7u an to\xE0n tr\xEAn m\xE1y, s\u1EBD t\u1EF1 g\u1EEDi khi c\xF3 m\u1EA1ng", pending ? ` (${pending} kỳ chưa gửi)` : ''), info.state === 'error' && /*#__PURE__*/React.createElement("span", {

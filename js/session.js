@@ -33,6 +33,7 @@ const Session = (() => {
     handover: { name: 'Hồ sơ bàn giao NI – EI', soon: true, ...PM_TEAM },
     ffplus: { name: 'Hồ sơ FF+', soon: true, ...PM_TEAM },
     projectplan: { name: 'Quản lý dự án', path: 'tools/projectplan/', demo: true, ...PM_TEAM }, // bản demo
+    approvals: { name: 'Duyệt bảng công', path: 'tools/approvals/', serverOnly: true, ...PM_TEAM },       // chỉ có ở bản máy chủ
     materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
   };
   // chức năng đã có trang để mở

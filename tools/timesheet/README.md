@@ -90,6 +90,11 @@ Trên `*.pages.dev` (chế độ máy chủ) Timesheet **vẫn chấm công trê
 - **Báo cáo thi công trong ngày**: ô mới trong form chấm công (≤ 600 ký tự), hiện 📝 trong danh sách; sẽ được gửi giám sát & quản lý mỗi tối (giai đoạn 4c).
 - Kỳ đã **nộp / đã duyệt** thì bị khoá (cả ở giao diện lẫn máy chủ) cho đến khi được trả lại (nộp & duyệt: giai đoạn 4b).
 - Xoá dữ liệu trong Cài đặt chỉ xoá bản trên máy; bản trên máy chủ vẫn còn và được tải lại.
+- **Nộp bảng công (giai đoạn 4b)**: nút **Nộp bảng công** trên thanh trạng thái (cần có mạng). Trước khi nộp app gắn **phân loại giờ**
+  (thường / OT1…OT7) và nhóm công việc vào từng dòng, đồng bộ xong mới nộp; máy chủ kiểm tra tổng giờ phân loại khớp giờ vào – ra – nghỉ.
+  Luồng: *Đang chấm → Đã nộp (chờ Site Sup) → Site Sup đã duyệt (chờ Quản lý dự án) → Đã duyệt xong*. Giám sát / quản lý có thể **Trả lại** kèm lý do
+  (hiện trên thanh trạng thái, kỳ mở lại để sửa rồi nộp lại); chưa ai duyệt thì người nộp **Thu hồi để sửa**.
+  Duyệt xong, các dòng **tự sang bảng Theo dõi giờ công** (Thống kê giờ công).
 - Kiểm thử logic gộp / mất mạng / hai thiết bị: `npm run test:client` (máy chủ giả trong bộ nhớ).
 
 ## Gửi mail cho giám sát

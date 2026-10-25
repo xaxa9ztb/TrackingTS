@@ -108,14 +108,14 @@
   // Đồng bộ toàn bộ: lấy danh sách kỳ trên máy chủ, tải kỳ mới hơn, gộp, gửi kỳ có thay đổi.
   // getEntries(): mảng dòng hiện tại; onMerged(period, mergedEntries, startedAt): cập nhật giao diện;
   // trả { ok, statuses:{period:status}, error?, offline?, pushed, pulled }
-  function sync({ getEntries, onMerged }) {
+  function sync({ getEntries, onMerged, getSch }) {
     if (running) return running;
     running = (async () => {
-      const result = { ok: false, statuses: {}, pushed: 0, pulled: 0 };
+      const result = { ok: false, statuses: {}, notes: {}, pushed: 0, pulled: 0 };
       try {
         const listing = await call('GET', '/api/ts/docs');
         if (listing.status !== 200) throw new Error(listing.data.error || ('Máy chủ báo lỗi (HTTP ' + listing.status + ')'));
-        const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; });
+        const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; });
         let st = load();
         // lần đầu trên máy này: các kỳ đã có dòng mà máy chủ chưa có → gửi lên
         const localPeriods = new Set(getEntries().map(e => periodOf(e.date)));
@@ -150,7 +150,7 @@
             if (LOCKED.includes(status) || (!seq && !merged.differs)) {
               st = load(); st.versions[p] = version; st.status[p] = status; save(st); break;
             }
-            const put = await call('PUT', '/api/ts/docs/' + p, { baseVersion: version, data: { entries: merged.entries, deleted: merged.tomb } });
+            const put = await call('PUT', '/api/ts/docs/' + p, { baseVersion: version, data: { entries: merged.entries, deleted: merged.tomb, sch: getSch ? getSch() : undefined } });
             if (put.status === 200) {
               result.pushed++;
               st = load(); st.versions[p] = put.data.version; st.status[p] = status;
@@ -174,7 +174,20 @@
     return running;
   }
 
+  // Nộp bảng công kỳ `period`: máy khách đã gắn phân loại giờ (bd) vào từng dòng và đồng bộ xong; baseVersion = phiên bản đã đồng bộ
+  async function submit(period) {
+    const st = load();
+    const r = await call('POST', '/api/ts/docs/' + period + '/submit', { baseVersion: st.versions[period] || 0 });
+    if (r.status === 200) { st.status[period] = 'submitted'; save(st); }
+    return r;
+  }
+  async function withdraw(period) {
+    const r = await call('POST', '/api/ts/docs/' + period + '/withdraw', {});
+    if (r.status === 200) { const st = load(); st.status[period] = 'draft'; save(st); }
+    return r;
+  }
+
   const LOCKED = ['submitted', 'sitesup_ok', 'approved'];
-  const api = { periodOf, mergeDoc, applyChanges, markDirty, markDeleted, unmarkDeleted, sync, load, LOCKED };
+  const api = { periodOf, mergeDoc, applyChanges, markDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsSync = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Duyệt bảng công — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="stylesheet" href="../accounts/style.css?v=5">
+<link rel="stylesheet" href="style.css?v=1">
+<script src="../../js/session.js?v=43"></script>
+<script>Session.guard('approvals');</script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=36" data-tool="Duyệt bảng công"></script>
+
+<header class="ac-top">
+  <div class="ac-wrap">
+    <h1>Duyệt bảng công <span class="ac-badge">Máy chủ mới</span></h1>
+    <p class="ac-sub">Bảng công fitter đã nộp cuối kỳ. <b>Site Sup</b> duyệt trước, rồi <b>Quản lý dự án</b> duyệt; duyệt xong dữ liệu tự sang bảng <i>Theo dõi giờ công các công trình</i>.
+      Thấy có chỗ chưa đúng thì <b>Trả lại</b> kèm lý do để người chấm công sửa và nộp lại.</p>
+    <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
+  </div>
+</header>
+
+<main class="ac-wrap">
+  <div class="ac-msg" id="gate" hidden></div>
+
+  <section class="ac-card" id="secInbox" hidden>
+    <div class="ap-head"><h2>Chờ bạn duyệt</h2><button class="btn small" id="btnReload">Tải lại</button></div>
+    <div class="ac-scroll ac-tall ac-short"><table class="ac-table" id="inbox">
+      <thead><tr><th>Người nộp</th><th>Kỳ lương</th><th>Cấp duyệt</th><th>Dự án</th><th class="r">Số dòng</th><th>Nộp lúc</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="ac-note" id="inboxNote"></p>
+  </section>
+
+  <section class="ac-card" id="secDetail" hidden aria-live="polite">
+    <div class="ap-head"><h2 id="dTitle">Chi tiết</h2><button class="btn small" id="btnClose">Đóng</button></div>
+    <div id="dMeta" class="ap-meta"></div>
+    <div id="dFlags"></div>
+    <div class="ap-kpis" id="dKpis"></div>
+    <h3>Theo dự án</h3>
+    <div class="ac-scroll"><table class="ac-table" id="dProjects"><thead><tr><th>Dự án</th><th>WBS</th><th class="r">Ngày</th><th class="r">Thường</th><th class="r">OT</th><th class="r">Tổng</th></tr></thead><tbody></tbody></table></div>
+    <h3>Từng ngày</h3>
+    <div class="ac-scroll ac-tall"><table class="ac-table" id="dDays"><thead><tr><th>Ngày</th><th>Giờ</th><th class="r">Tổng</th><th>Loại giờ</th><th>Mã CV</th><th>Dự án / báo cáo thi công</th></tr></thead><tbody></tbody></table></div>
+    <div class="ap-actions" id="dActions">
+      <button class="btn primary" id="btnApprove">Duyệt</button>
+      <button class="btn danger" id="btnRejectOpen">Trả lại…</button>
+      <span id="dMsg" class="ac-note"></span>
+    </div>
+    <div class="ap-reject" id="rejectBox" hidden>
+      <label for="rejectNote">Lý do trả lại (người chấm công sẽ thấy)</label>
+      <textarea id="rejectNote" rows="3" maxlength="500" placeholder="Ví dụ: Thiếu ngày 20/11, dự án sai ở ngày 22/11…"></textarea>
+      <div class="ac-row"><button class="btn danger" id="btnReject">Trả lại bảng công</button><button class="btn" id="btnRejectCancel">Huỷ</button></div>
+    </div>
+  </section>
+</main>
+
+<div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="../timesheet/labor.js?v=40"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

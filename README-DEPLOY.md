@@ -179,6 +179,14 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
   **không ghi đè**. Nhân viên + dự án quản lý ở trang *Tài khoản* nên mục nhập nhân viên / dự án bị ẩn ở bản này.
 - **Timesheet cá nhân** lưu online theo kỳ lương (bảng `ts_docs`, migration `0005`; `GET/PUT /api/ts/docs/:kỳ`): chấm công trên máy trước rồi tự đồng bộ,
   gộp theo dòng khi sửa trên nhiều máy, có số phiên bản; chỉ chủ tài khoản đọc / ghi bảng công của mình; kỳ đã nộp / đã duyệt bị khoá (HTTP 423).
+- **Nộp & duyệt bảng công hai cấp** (migration `0006`; trang `tools/approvals/` — chức năng **Duyệt bảng công** trên trang chủ cho Site Sup / Quản lý dự án / Admin):
+  `POST /api/ts/docs/:kỳ/submit|withdraw`, `GET /api/ts/inbox`, `GET /api/ts/review/:mã NV/:kỳ`, `POST …/approve|reject`.
+  Ai duyệt được: ở cấp **Site Sup** — Site Sup được gán cho một dự án (WBS) có trong bảng công (trang Tài khoản → Phân công dự án) hoặc là *Quản lý trực tiếp*
+  của người nộp; ở cấp **Quản lý dự án** — người được gán Quản lý dự án cho một dự án trong bảng công; Admin duyệt thay được. (Bảng công nhiều dự án:
+  một người phụ trách ở cấp đó duyệt là đủ.) Duyệt xong cấp cuối, dòng được **đẩy sang bảng `timesheets`** (cột `src = ts:<mã NV>:<kỳ>`), thay các dòng cũ của
+  người đó trong kỳ (duyệt lại không nhân đôi); admin nạp lại bảng công từ Excel thì dòng đã duyệt **được giữ** ở những ngày bản nạp mới chưa có dòng của người đó.
+  Phân loại giờ (thường / OT) do trình duyệt tính bằng `labor.js` (chạy trên máy chủ gói miễn phí quá giới hạn CPU) và máy chủ kiểm tra tổng; người duyệt thấy
+  cảnh báo nếu phân loại khác kết quả tính lại.
 - **Sửa / xoá dự án và Swat Hour Target** (tab Dự án, tab SWAT) ghi thẳng lên máy chủ (`PATCH /api/admin/projects/:wbs`, `POST /api/admin/projects/delete`,
   chỉ admin, có nhật ký). Ghi lên máy chủ **trước**, lỗi thì báo và không đổi gì trên máy — nên đồng bộ không làm mất. Chỉ gửi các trường vừa sửa
   nên không đè thay đổi của người khác.
