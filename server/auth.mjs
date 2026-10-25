@@ -5,6 +5,7 @@
 
 const KEY_TTL_MS = 10 * 60 * 1000;
 let keyCache = { url: '', at: 0, keys: [] };
+const keyObjects = new Map();
 
 // "trackingts-team" | "trackingts-team.cloudflareaccess.com" | "https://…" → "trackingts-team.cloudflareaccess.com"
 export function teamHost(teamDomain) {
@@ -56,7 +57,14 @@ export async function verifyAccessJwt(token, env, opts = {}) {
   if (!jwk) jwk = (await getKeys(true)).find(k => k.kid === header.kid); // khoá vừa được xoay vòng
   if (!jwk) throw new AuthError(401, 'Phiên đăng nhập không hợp lệ');
 
-  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+  // Nạp khoá một lần cho mỗi khoá công khai (tiết kiệm thời gian xử lý mỗi yêu cầu — gói miễn phí giới hạn ~10 ms CPU)
+  const fp = jwk.kid + '|' + jwk.n;
+  let key = keyObjects.get(fp);
+  if (!key) {
+    key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+    if (keyObjects.size > 20) keyObjects.clear();
+    keyObjects.set(fp, key);
+  }
   const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlBytes(parts[2]),
     new TextEncoder().encode(parts[0] + '.' + parts[1]));
   if (!ok) throw new AuthError(401, 'Phiên đăng nhập không hợp lệ');
