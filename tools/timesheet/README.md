@@ -55,6 +55,18 @@ Lịch hiện các ngày lễ của kỳ lương.
 - Doanh nghiệp chọn phương án nghỉ Tết khác (ví dụ 2 ngày trước + 3 ngày sau Tết): sửa `statutoryHolidays()` trong `labor.js`.
 - Kiểm thử quy tắc: `node` chạy trực tiếp được `labor.js` (`module.exports`).
 
+## Báo cáo tổng quan (cho giám sát)
+Nút **Báo cáo** trên thanh trên → trang A4 của kỳ lương đang xem; **In / Lưu PDF** (in của trình duyệt, dùng được
+ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc; tên file PDF gợi ý `Bao_cao_tong_quan_<tên>_Thang_MM_YYYY`.
+- Số liệu chính: tổng giờ làm việc (không tính nghỉ) và số ngày làm việc, giờ thường, tăng ca (% tổng),
+  số ngày / giờ nghỉ, ngày T2–T6 chưa chấm.
+- Biểu đồ giờ theo ngày (giờ thường xanh, tăng ca cam, vạch 8 giờ; nền ngày lễ / ngày nghỉ hằng tuần; P = nghỉ;
+  chấm đỏ = chưa chấm; rê chuột để xem số giờ).
+- Theo dự án (ngày, giờ thường, OT, tổng, tỷ lệ) · theo hoạt động (mã công việc, tỷ lệ) và theo nhóm (NI, MOD, EI…).
+- Giờ công theo loại (hệ số, giờ, tỷ lệ, **giờ quy đổi** theo hệ số) · nghỉ theo loại (6010 / 6020 / 6090, ngày nào)
+  · ngày lễ trong kỳ · ô ký *Người lao động* / *Giám sát (PM / PE) xác nhận*.
+- Mã nghỉ phép / ốm / không lương **không** tính vào giờ làm việc và tỷ lệ hoạt động.
+
 ## Ngày trong file Excel
 Ngày ghi vào Excel phải tạo bằng `excelDate(y, m, d)` (= `Date.UTC`), **không** dùng `new Date(y, m-1, d)`:
 ExcelJS đổi Date sang số ngày Excel theo UTC, nên 0 giờ giờ Việt Nam (UTC+7) thành 17:00 hôm trước → Excel lùi 1 ngày

@@ -15,6 +15,7 @@
             ChevronLeft: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
             ChevronRight: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
             X: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Chart: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="5" width="3" height="13" rx="1"/></svg>,
             Alert: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         };
 
@@ -230,6 +231,7 @@
             // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
             const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
             const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
+            const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
             const [dayFilter, setDayFilter] = useState(null);
             const [toast, setToast] = useState(null);
             const [syncStatus, setSyncStatus] = useState('');
@@ -534,6 +536,10 @@
                                 <button id="tsAddBtn" type="button" onClick={() => openNewEntry()} className={`${btnPrimary} hidden md:inline-flex`}>
                                     <Icons.Plus/> Thêm chấm công
                                 </button>
+                                <button id="tsReportBtn" type="button" onClick={() => setReportOpen(true)} className={btnGhost}
+                                    title="Báo cáo tổng quan của kỳ (in / lưu PDF gửi giám sát)" aria-label="Báo cáo tổng quan">
+                                    <Icons.Chart/><span className="hidden sm:inline">Báo cáo</span>
+                                </button>
                                 <button id="tsExportBtn" type="button" onClick={handleExportExcel} disabled={exporting}
                                     className={btnGhost} title="Xuất bảng chấm công của kỳ ra Excel (mẫu Schindler)" aria-label="Xuất Excel">
                                     <Icons.Download/><span className="hidden sm:inline">{exporting ? 'Đang tạo file...' : 'Xuất Excel'}</span>
@@ -608,6 +614,11 @@
                         <Drawer title="Sao lưu & khôi phục" onClose={closeDrawer}>
                             <SettingsPanel onBackup={handleBackup} onRestore={handleRestore} onReset={handleResetData} onDone={closeDrawer}/>
                         </Drawer>
+                    )}
+                    {reportOpen && (
+                        <ReportView onClose={() => setReportOpen(false)}
+                            data={buildReport({ rows: monthlyEntries, bdOf, period, sch, holidays, missing: stats.missing })}
+                            profile={profile} sch={sch} period={period} month={currentMonth}/>
                     )}
                     {toast && <Toast toast={toast} onClose={() => setToast(null)}/>}
                 </div>
@@ -871,6 +882,267 @@
                         </div>
                         <div className="flex-1 overflow-y-auto">{children}</div>
                     </div>
+                </div>
+            );
+        }
+
+
+        // ================================================================
+        //   BÁO CÁO TỔNG QUAN (cho giám sát xem nhanh) — in / lưu PDF bằng trình duyệt
+        // ================================================================
+        const CAT_LABEL = { NI: 'Lắp đặt mới (NI)', MOD: 'Hiện đại hoá (MOD)', EI: 'Bảo trì, sửa chữa (EI)', TF: 'Kiểm định (TF)',
+            SAF: 'An toàn', HR: 'Họp, đào tạo, hành chính', Other: 'Khác' };
+        const LEAVE_LABEL = { '6010': 'Nghỉ hưởng lương (phép năm / lễ)', '6020': 'Nghỉ ốm / tai nạn', '6090': 'Nghỉ không lương' };
+        const pct = (x, total) => (total > 0 ? Math.round(x / total * 1000) / 10 : 0);
+        const fmtPct = (x) => x.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + '%';
+
+        // Tổng hợp số liệu của kỳ: giờ làm việc (không tính nghỉ), dự án, hoạt động, nghỉ, theo ngày
+        function buildReport({ rows, bdOf, period, sch, holidays, missing }) {
+            const isLeave = (e) => LaborVN.LEAVE_CODES.includes(String(e.activityCode));
+            const work = rows.filter(e => !isLeave(e)), leaveRows = rows.filter(isLeave);
+            const byType = {}; let normal = 0, ot = 0, weighted = 0;
+            const projects = {}, activities = {}, cats = {}, leave = {};
+            const day = {};
+            work.forEach(e => {
+                const bd = bdOf(e), h = sumBd(bd);
+                Object.keys(bd).forEach(k => {
+                    byType[k] = (byType[k] || 0) + bd[k];
+                    if (k === 'NORMAL') normal += bd[k]; else ot += bd[k];
+                    weighted += bd[k] * (LaborVN.OT_RATES[k] || 100) / 100;
+                });
+                const d = day[e.date] || (day[e.date] = { normal: 0, ot: 0, leave: false });
+                d.normal += bd.NORMAL || 0; d.ot += h - (bd.NORMAL || 0);
+                const pk = (e.workNumber || '') + '|' + (e.projectName || '');
+                const p = projects[pk] || (projects[pk] = { name: e.projectName || '(không ghi dự án)', wbs: e.workNumber || '', days: {}, normal: 0, ot: 0 });
+                p.days[e.date] = true; p.normal += bd.NORMAL || 0; p.ot += h - (bd.NORMAL || 0);
+                const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
+                const ak = String(e.activityCode || '—');
+                const a = activities[ak] || (activities[ak] = { code: ak, desc: meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : 'Mã khác', cat: meta ? meta.cat : 'Other', hours: 0 });
+                a.hours += h;
+                cats[a.cat] = (cats[a.cat] || 0) + h;
+            });
+            leaveRows.forEach(e => {
+                const code = String(e.activityCode);
+                const l = leave[code] || (leave[code] = { code, label: LEAVE_LABEL[code] || code, days: {}, hours: 0 });
+                l.days[e.date] = true; l.hours += entryHours(e);
+                (day[e.date] || (day[e.date] = { normal: 0, ot: 0, leave: false })).leave = true;
+            });
+            const total = normal + ot;
+            const projectList = Object.values(projects).map(p => ({ ...p, days: Object.keys(p.days).length, total: p.normal + p.ot }))
+                .sort((a, b) => b.total - a.total);
+            const activityList = Object.values(activities).sort((a, b) => b.hours - a.hours);
+            const catList = Object.keys(cats).map(c => ({ cat: c, label: CAT_LABEL[c] || c, hours: cats[c] })).sort((a, b) => b.hours - a.hours);
+            const leaveList = Object.values(leave).map(l => ({ ...l, dates: Object.keys(l.days).sort(), days: Object.keys(l.days).length }));
+            const workDays = Object.keys(day).filter(d => day[d].normal + day[d].ot > 0).length;
+            const days = daysBetween(period.start, period.end).map(d => ({ date: d, ...(day[d] || { normal: 0, ot: 0, leave: false }),
+                holiday: holidayOf(d, sch), rest: LaborVN.isRestDay(d, sch), missing: missing.includes(d) }));
+            return { total, normal, ot, weighted, byType, workDays, projectList, activityList, catList, leaveList,
+                leaveDays: new Set(leaveRows.map(e => e.date)).size, leaveHours: leaveRows.reduce((s, e) => s + entryHours(e), 0),
+                days, holidays, missing, entries: rows.length };
+        }
+
+        // Giờ làm theo ngày: cột chồng giờ thường (xanh) + tăng ca (cam), vạch tham chiếu 8 giờ
+        function DailyChart({ days }) {
+            const W = 720, H = 190, padL = 26, padB = 30, padT = 10;
+            const max = Math.max(12, ...days.map(d => d.normal + d.ot));
+            const top = Math.ceil(max / 4) * 4;
+            const cw = (W - padL) / days.length, bw = Math.max(6, Math.min(16, cw - 4));
+            const y = (h) => padT + (H - padT - padB) * (1 - h / top);
+            const grid = []; for (let g = 0; g <= top; g += 4) grid.push(g);
+            return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="rp-chart" role="img" aria-label="Biểu đồ giờ làm theo ngày trong kỳ">
+                    {grid.map(g => (
+                        <g key={g}>
+                            <line x1={padL} x2={W} y1={y(g)} y2={y(g)} stroke={g === 0 ? '#94a3b8' : '#e2e8f0'} strokeWidth="1"/>
+                            <text x={padL - 5} y={y(g) + 3} textAnchor="end" className="rp-axis">{g}</text>
+                        </g>
+                    ))}
+                    <line x1={padL} x2={W} y1={y(8)} y2={y(8)} stroke="#64748b" strokeWidth="1" strokeDasharray="3 3"/>
+                    <text x={W - 2} y={y(8) - 3} textAnchor="end" className="rp-axis">8 giờ</text>
+                    {days.map((d, i) => {
+                        const x = padL + i * cw + (cw - bw) / 2, cx = padL + i * cw + cw / 2;
+                        const [, mm, dd] = d.date.split('-');
+                        const total = d.normal + d.ot;
+                        const label = `${WEEKDAYS_LONG[weekdayOf(d.date)]} ${fmtDMY(d.date)}: ${fmtH(d.normal)} giờ thường` +
+                            (d.ot ? `, ${fmtH(d.ot)} giờ tăng ca` : '') + (d.holiday ? ` — ${d.holiday.name}` : '') + (d.leave ? ' — có nghỉ' : '') + (d.missing ? ' — chưa chấm' : '');
+                        const yN = y(d.normal), yT = y(total), gap = d.normal > 0 && d.ot > 0 ? 2 : 0;
+                        return (
+                            <g key={d.date}>
+                                <title>{label}</title>
+                                {(d.holiday || d.rest) && <rect x={padL + i * cw} y={padT} width={cw} height={H - padT - padB} fill={d.holiday ? '#fef3c7' : '#f1f5f9'}/>}
+                                <rect x={padL + i * cw} y={padT} width={cw} height={H - padT - padB} fill="transparent"/>
+                                {d.normal > 0 && <path d={barPath(x, yN, bw, y(0) - yN, d.ot > 0 ? 0 : 3)} fill="#1d4ed8"/>}
+                                {d.ot > 0 && <path d={barPath(x, yT, bw, Math.max(1, yN - yT - gap), 3)} fill="#ea580c"/>}
+                                <text x={cx} y={H - padB + 12} textAnchor="middle" className={`rp-axis ${d.holiday || weekdayOf(d.date) === 0 ? 'rp-red' : ''}`}>
+                                    {dd === '01' || i === 0 ? `${parseInt(dd, 10)}/${parseInt(mm, 10)}` : parseInt(dd, 10)}
+                                </text>
+                                {d.leave && <text x={cx} y={H - padB + 24} textAnchor="middle" className="rp-axis rp-leave">P</text>}
+                                {d.missing && <circle cx={cx} cy={H - padB + 21} r="2.5" fill="#e11d48"/>}
+                            </g>
+                        );
+                    })}
+                </svg>
+            );
+        }
+        // cột bo góc 4px ở đầu dữ liệu (phía trên), đáy vuông nằm trên trục
+        const barPath = (x, y, w, h, r) => {
+            if (h <= 0) return '';
+            r = Math.min(r, w / 2, h);
+            return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+        };
+
+        function Bar({ value, max, color }) {
+            return <span className="rp-bar"><span style={{ width: `${max > 0 ? Math.max(1, value / max * 100) : 0}%`, background: color || '#1d4ed8' }}/></span>;
+        }
+
+        function ReportView({ data, profile, sch, period, month, onClose }) {
+            useEffect(() => {
+                document.body.classList.add('ts-report-open');
+                const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+                document.addEventListener('keydown', onKey);
+                const title = document.title;
+                const [y, m] = month.split('-');
+                document.title = `Bao_cao_tong_quan_${removeAccents(profile.name || 'Timesheet')}_Thang_${m}_${y}`; // tên file PDF gợi ý
+                return () => { document.body.classList.remove('ts-report-open'); document.removeEventListener('keydown', onKey); document.title = title; };
+            }, []);
+            const [y, m] = month.split('-');
+            const d = data;
+            const otTypes = OT_TYPES.filter(t => d.byType[t.code] > 0);
+            const maxProj = d.projectList.length ? d.projectList[0].total : 0;
+            const maxAct = d.activityList.length ? d.activityList[0].hours : 0;
+            const leaveDates = (l) => l.dates.map(fmtDM).join(', ');
+            return (
+                <div className="rp-overlay" role="dialog" aria-modal="true" aria-labelledby="rpTitle">
+                    <div className="rp-toolbar">
+                        <button type="button" onClick={() => window.print()} className={btnPrimary}><Icons.Download/> In / Lưu PDF</button>
+                        <button type="button" onClick={onClose} className={btnGhost}>Đóng</button>
+                        <span className="rp-hint">Chọn “Lưu dưới dạng PDF” để gửi giám sát.</span>
+                    </div>
+                    <article className="rp-page" id="tsReport">
+                        <header className="rp-head">
+                            <div>
+                                <div className="rp-kicker">Schindler · Timesheet cá nhân</div>
+                                <h1 id="rpTitle">Báo cáo tổng quan chấm công</h1>
+                                <div className="rp-sub">Kỳ lương tháng {parseInt(m, 10)}/{y} · {fmtDMY(period.start)} – {fmtDMY(period.end)}</div>
+                            </div>
+                            <dl className="rp-who">
+                                <div><dt>Họ tên</dt><dd>{profile.name || '—'}</dd></div>
+                                <div><dt>Mã NV</dt><dd>{profile.empId || '—'}</dd></div>
+                                <div><dt>Chức vụ</dt><dd>{profile.position || '—'}</dd></div>
+                                <div><dt>Phòng ban</dt><dd>{profile.dept || '—'}</dd></div>
+                                <div><dt>Lịch làm việc</dt><dd>{LaborVN.SCHEDULES[sch].short}</dd></div>
+                            </dl>
+                        </header>
+
+                        <section className="rp-kpis" aria-label="Số liệu chính">
+                            <div className="rp-kpi"><span>Tổng giờ làm việc</span><b>{fmtH(d.total)}<small> giờ</small></b><em>{d.workDays} ngày có làm việc</em></div>
+                            <div className="rp-kpi"><span>Giờ công thường</span><b className="rp-blue">{fmtH(d.normal)}<small> giờ</small></b><em>{fmtPct(pct(d.normal, d.total))} tổng giờ</em></div>
+                            <div className="rp-kpi"><span>Tăng ca (OT)</span><b className="rp-orange">{fmtH(d.ot)}<small> giờ</small></b><em>{fmtPct(pct(d.ot, d.total))} tổng giờ</em></div>
+                            <div className="rp-kpi"><span>Nghỉ</span><b>{d.leaveDays}<small> ngày</small></b><em>{d.leaveHours > 0 ? `${fmtH(d.leaveHours)} giờ` : 'không có'}</em></div>
+                            <div className={`rp-kpi ${d.missing.length ? 'rp-warn' : ''}`}><span>Ngày chưa chấm</span><b>{d.missing.length}<small> ngày</small></b>
+                                <em>{d.missing.length ? '⚠ ' + d.missing.map(fmtDM).join(', ') : '✓ đủ ngày làm việc'}</em></div>
+                        </section>
+
+                        <section className="rp-sec">
+                            <h2>Giờ làm theo ngày</h2>
+                            <div className="rp-chartwrap"><DailyChart days={d.days}/></div>
+                            <div className="rp-legend">
+                                <span><i style={{ background: '#1d4ed8' }}/>Giờ thường</span>
+                                <span><i style={{ background: '#ea580c' }}/>Tăng ca</span>
+                                <span><i style={{ background: '#fef3c7', border: '1px solid #fcd34d' }}/>Ngày lễ / nghỉ bù</span>
+                                <span><i style={{ background: '#f1f5f9', border: '1px solid #cbd5e1' }}/>Ngày nghỉ hằng tuần</span>
+                                <span><b className="rp-leave">P</b> Nghỉ phép / ốm</span>
+                                <span><i className="rp-dot"/>Chưa chấm</span>
+                            </div>
+                        </section>
+
+                        <div className="rp-cols">
+                            <section className="rp-sec">
+                                <h2>Theo dự án</h2>
+                                {d.projectList.length ? (
+                                    <table className="rp-table">
+                                        <thead><tr><th>Dự án / WBS</th><th className="r">Ngày</th><th className="r">Thường</th><th className="r">OT</th><th className="r">Tổng</th><th className="rp-wbar">Tỷ lệ</th></tr></thead>
+                                        <tbody>
+                                            {d.projectList.map(p => (
+                                                <tr key={p.wbs + p.name}>
+                                                    <td><div className="rp-name">{p.name}</div>{p.wbs && <div className="rp-mono">{p.wbs}</div>}</td>
+                                                    <td className="r">{p.days}</td><td className="r">{fmtH(p.normal)}</td><td className="r">{fmtH(p.ot)}</td>
+                                                    <td className="r b">{fmtH(p.total)}</td>
+                                                    <td className="rp-wbar"><Bar value={p.total} max={maxProj}/><span className="rp-pct">{fmtPct(pct(p.total, d.total))}</span></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : <p className="rp-empty">Chưa có giờ làm việc trong kỳ.</p>}
+                            </section>
+
+                            <section className="rp-sec">
+                                <h2>Theo hoạt động</h2>
+                                {d.activityList.length ? (
+                                    <React.Fragment>
+                                        <table className="rp-table">
+                                            <thead><tr><th>Mã · Hoạt động</th><th className="r">Giờ</th><th className="rp-wbar">Tỷ lệ</th></tr></thead>
+                                            <tbody>
+                                                {d.activityList.map(a => (
+                                                    <tr key={a.code}>
+                                                        <td><span className="rp-mono">{a.code}</span> {a.desc}</td>
+                                                        <td className="r b">{fmtH(a.hours)}</td>
+                                                        <td className="rp-wbar"><Bar value={a.hours} max={maxAct}/><span className="rp-pct">{fmtPct(pct(a.hours, d.total))}</span></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        <h3>Theo nhóm công việc</h3>
+                                        <ul className="rp-cats">
+                                            {d.catList.map(c => <li key={c.cat}><span>{c.label}</span><b>{fmtH(c.hours)} giờ · {fmtPct(pct(c.hours, d.total))}</b></li>)}
+                                        </ul>
+                                    </React.Fragment>
+                                ) : <p className="rp-empty">Chưa có hoạt động trong kỳ.</p>}
+                            </section>
+                        </div>
+
+                        <div className="rp-cols">
+                            <section className="rp-sec">
+                                <h2>Giờ công theo loại</h2>
+                                <table className="rp-table">
+                                    <thead><tr><th>Loại giờ</th><th className="r">Hệ số</th><th className="r">Giờ</th><th className="r">Tỷ lệ</th></tr></thead>
+                                    <tbody>
+                                        {otTypes.length ? otTypes.map(t => (
+                                            <tr key={t.code}><td>{t.label.replace(/ \(\d+%\)$/, '')}</td><td className="r">{LaborVN.OT_RATES[t.code]}%</td>
+                                                <td className="r b">{fmtH(d.byType[t.code])}</td><td className="r">{fmtPct(pct(d.byType[t.code], d.total))}</td></tr>
+                                        )) : <tr><td colSpan="4" className="rp-empty">Chưa có giờ làm việc.</td></tr>}
+                                    </tbody>
+                                    <tfoot><tr><td>Tổng</td><td/><td className="r b">{fmtH(d.total)}</td><td className="r">100%</td></tr>
+                                        <tr><td colSpan="2">Giờ quy đổi theo hệ số</td><td className="r b">{fmtH(d.weighted)}</td><td/></tr></tfoot>
+                                </table>
+                            </section>
+
+                            <section className="rp-sec">
+                                <h2>Nghỉ & ngày lễ</h2>
+                                <table className="rp-table">
+                                    <thead><tr><th>Loại nghỉ</th><th className="r">Ngày</th><th className="r">Giờ</th></tr></thead>
+                                    <tbody>
+                                        {d.leaveList.length ? d.leaveList.map(l => (
+                                            <tr key={l.code}><td>{l.label}<div className="rp-muted">{leaveDates(l)}</div></td><td className="r b">{l.days}</td><td className="r">{fmtH(l.hours)}</td></tr>
+                                        )) : <tr><td colSpan="3" className="rp-empty">Không nghỉ phép / ốm / không lương trong kỳ.</td></tr>}
+                                    </tbody>
+                                </table>
+                                <h3>Ngày lễ trong kỳ</h3>
+                                {d.holidays.length
+                                    ? <ul className="rp-list">{d.holidays.map(h => <li key={h.date}><b>{fmtDM(h.date)}</b> {h.name}</li>)}</ul>
+                                    : <p className="rp-muted">Không có ngày lễ.</p>}
+                            </section>
+                        </div>
+
+                        <footer className="rp-foot">
+                            <p>Giờ tăng ca tính theo Bộ luật Lao động 2019 (Điều 98, 106) và Nghị định 145/2020 (Điều 57). Chi tiết từng dòng xem file bảng chấm công Excel.
+                                Lập ngày {fmtDMY(getTodayLocal())} từ Timesheet cá nhân ({d.entries} dòng chấm công).</p>
+                            <div className="rp-sign">
+                                <div><span>Người lao động</span><i/>{profile.name || ''}</div>
+                                <div><span>Giám sát (PM / PE) xác nhận</span><i/></div>
+                            </div>
+                        </footer>
+                    </article>
                 </div>
             );
         }

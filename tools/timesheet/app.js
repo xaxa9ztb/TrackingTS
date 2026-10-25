@@ -220,6 +220,36 @@ const Icons = {
     x2: "18",
     y2: "18"
   })),
+  Chart: () => /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M3 3v18h18"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "7",
+    y: "12",
+    width: "3",
+    height: "6",
+    rx: "1"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "12",
+    y: "8",
+    width: "3",
+    height: "10",
+    rx: "1"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "17",
+    y: "5",
+    width: "3",
+    height: "13",
+    rx: "1"
+  })),
   Alert: () => /*#__PURE__*/React.createElement("svg", {
     width: "20",
     height: "20",
@@ -672,6 +702,7 @@ function App() {
   // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
   const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
   const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
+  const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
   const [dayFilter, setDayFilter] = useState(null);
   const [toast, setToast] = useState(null);
   const [syncStatus, setSyncStatus] = useState('');
@@ -1071,6 +1102,15 @@ function App() {
     onClick: () => openNewEntry(),
     className: `${btnPrimary} hidden md:inline-flex`
   }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Th\xEAm ch\u1EA5m c\xF4ng"), /*#__PURE__*/React.createElement("button", {
+    id: "tsReportBtn",
+    type: "button",
+    onClick: () => setReportOpen(true),
+    className: btnGhost,
+    title: "B\xE1o c\xE1o t\u1ED5ng quan c\u1EE7a k\u1EF3 (in / l\u01B0u PDF g\u1EEDi gi\xE1m s\xE1t)",
+    "aria-label": "B\xE1o c\xE1o t\u1ED5ng quan"
+  }, /*#__PURE__*/React.createElement(Icons.Chart, null), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline"
+  }, "B\xE1o c\xE1o")), /*#__PURE__*/React.createElement("button", {
     id: "tsExportBtn",
     type: "button",
     onClick: handleExportExcel,
@@ -1191,7 +1231,21 @@ function App() {
     onRestore: handleRestore,
     onReset: handleResetData,
     onDone: closeDrawer
-  })), toast && /*#__PURE__*/React.createElement(Toast, {
+  })), reportOpen && /*#__PURE__*/React.createElement(ReportView, {
+    onClose: () => setReportOpen(false),
+    data: buildReport({
+      rows: monthlyEntries,
+      bdOf,
+      period,
+      sch,
+      holidays,
+      missing: stats.missing
+    }),
+    profile: profile,
+    sch: sch,
+    period: period,
+    month: currentMonth
+  }), toast && /*#__PURE__*/React.createElement(Toast, {
     toast: toast,
     onClose: () => setToast(null)
   }));
@@ -1630,6 +1684,501 @@ function Drawer({
   }, /*#__PURE__*/React.createElement(Icons.X, null))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto"
   }, children)));
+}
+
+// ================================================================
+//   BÁO CÁO TỔNG QUAN (cho giám sát xem nhanh) — in / lưu PDF bằng trình duyệt
+// ================================================================
+const CAT_LABEL = {
+  NI: 'Lắp đặt mới (NI)',
+  MOD: 'Hiện đại hoá (MOD)',
+  EI: 'Bảo trì, sửa chữa (EI)',
+  TF: 'Kiểm định (TF)',
+  SAF: 'An toàn',
+  HR: 'Họp, đào tạo, hành chính',
+  Other: 'Khác'
+};
+const LEAVE_LABEL = {
+  '6010': 'Nghỉ hưởng lương (phép năm / lễ)',
+  '6020': 'Nghỉ ốm / tai nạn',
+  '6090': 'Nghỉ không lương'
+};
+const pct = (x, total) => total > 0 ? Math.round(x / total * 1000) / 10 : 0;
+const fmtPct = x => x.toLocaleString('vi-VN', {
+  maximumFractionDigits: 1
+}) + '%';
+
+// Tổng hợp số liệu của kỳ: giờ làm việc (không tính nghỉ), dự án, hoạt động, nghỉ, theo ngày
+function buildReport({
+  rows,
+  bdOf,
+  period,
+  sch,
+  holidays,
+  missing
+}) {
+  const isLeave = e => LaborVN.LEAVE_CODES.includes(String(e.activityCode));
+  const work = rows.filter(e => !isLeave(e)),
+    leaveRows = rows.filter(isLeave);
+  const byType = {};
+  let normal = 0,
+    ot = 0,
+    weighted = 0;
+  const projects = {},
+    activities = {},
+    cats = {},
+    leave = {};
+  const day = {};
+  work.forEach(e => {
+    const bd = bdOf(e),
+      h = sumBd(bd);
+    Object.keys(bd).forEach(k => {
+      byType[k] = (byType[k] || 0) + bd[k];
+      if (k === 'NORMAL') normal += bd[k];else ot += bd[k];
+      weighted += bd[k] * (LaborVN.OT_RATES[k] || 100) / 100;
+    });
+    const d = day[e.date] || (day[e.date] = {
+      normal: 0,
+      ot: 0,
+      leave: false
+    });
+    d.normal += bd.NORMAL || 0;
+    d.ot += h - (bd.NORMAL || 0);
+    const pk = (e.workNumber || '') + '|' + (e.projectName || '');
+    const p = projects[pk] || (projects[pk] = {
+      name: e.projectName || '(không ghi dự án)',
+      wbs: e.workNumber || '',
+      days: {},
+      normal: 0,
+      ot: 0
+    });
+    p.days[e.date] = true;
+    p.normal += bd.NORMAL || 0;
+    p.ot += h - (bd.NORMAL || 0);
+    const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
+    const ak = String(e.activityCode || '—');
+    const a = activities[ak] || (activities[ak] = {
+      code: ak,
+      desc: meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : 'Mã khác',
+      cat: meta ? meta.cat : 'Other',
+      hours: 0
+    });
+    a.hours += h;
+    cats[a.cat] = (cats[a.cat] || 0) + h;
+  });
+  leaveRows.forEach(e => {
+    const code = String(e.activityCode);
+    const l = leave[code] || (leave[code] = {
+      code,
+      label: LEAVE_LABEL[code] || code,
+      days: {},
+      hours: 0
+    });
+    l.days[e.date] = true;
+    l.hours += entryHours(e);
+    (day[e.date] || (day[e.date] = {
+      normal: 0,
+      ot: 0,
+      leave: false
+    })).leave = true;
+  });
+  const total = normal + ot;
+  const projectList = Object.values(projects).map(p => ({
+    ...p,
+    days: Object.keys(p.days).length,
+    total: p.normal + p.ot
+  })).sort((a, b) => b.total - a.total);
+  const activityList = Object.values(activities).sort((a, b) => b.hours - a.hours);
+  const catList = Object.keys(cats).map(c => ({
+    cat: c,
+    label: CAT_LABEL[c] || c,
+    hours: cats[c]
+  })).sort((a, b) => b.hours - a.hours);
+  const leaveList = Object.values(leave).map(l => ({
+    ...l,
+    dates: Object.keys(l.days).sort(),
+    days: Object.keys(l.days).length
+  }));
+  const workDays = Object.keys(day).filter(d => day[d].normal + day[d].ot > 0).length;
+  const days = daysBetween(period.start, period.end).map(d => ({
+    date: d,
+    ...(day[d] || {
+      normal: 0,
+      ot: 0,
+      leave: false
+    }),
+    holiday: holidayOf(d, sch),
+    rest: LaborVN.isRestDay(d, sch),
+    missing: missing.includes(d)
+  }));
+  return {
+    total,
+    normal,
+    ot,
+    weighted,
+    byType,
+    workDays,
+    projectList,
+    activityList,
+    catList,
+    leaveList,
+    leaveDays: new Set(leaveRows.map(e => e.date)).size,
+    leaveHours: leaveRows.reduce((s, e) => s + entryHours(e), 0),
+    days,
+    holidays,
+    missing,
+    entries: rows.length
+  };
+}
+
+// Giờ làm theo ngày: cột chồng giờ thường (xanh) + tăng ca (cam), vạch tham chiếu 8 giờ
+function DailyChart({
+  days
+}) {
+  const W = 720,
+    H = 190,
+    padL = 26,
+    padB = 30,
+    padT = 10;
+  const max = Math.max(12, ...days.map(d => d.normal + d.ot));
+  const top = Math.ceil(max / 4) * 4;
+  const cw = (W - padL) / days.length,
+    bw = Math.max(6, Math.min(16, cw - 4));
+  const y = h => padT + (H - padT - padB) * (1 - h / top);
+  const grid = [];
+  for (let g = 0; g <= top; g += 4) grid.push(g);
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: `0 0 ${W} ${H}`,
+    className: "rp-chart",
+    role: "img",
+    "aria-label": "Bi\u1EC3u \u0111\u1ED3 gi\u1EDD l\xE0m theo ng\xE0y trong k\u1EF3"
+  }, grid.map(g => /*#__PURE__*/React.createElement("g", {
+    key: g
+  }, /*#__PURE__*/React.createElement("line", {
+    x1: padL,
+    x2: W,
+    y1: y(g),
+    y2: y(g),
+    stroke: g === 0 ? '#94a3b8' : '#e2e8f0',
+    strokeWidth: "1"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: padL - 5,
+    y: y(g) + 3,
+    textAnchor: "end",
+    className: "rp-axis"
+  }, g))), /*#__PURE__*/React.createElement("line", {
+    x1: padL,
+    x2: W,
+    y1: y(8),
+    y2: y(8),
+    stroke: "#64748b",
+    strokeWidth: "1",
+    strokeDasharray: "3 3"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: W - 2,
+    y: y(8) - 3,
+    textAnchor: "end",
+    className: "rp-axis"
+  }, "8 gi\u1EDD"), days.map((d, i) => {
+    const x = padL + i * cw + (cw - bw) / 2,
+      cx = padL + i * cw + cw / 2;
+    const [, mm, dd] = d.date.split('-');
+    const total = d.normal + d.ot;
+    const label = `${WEEKDAYS_LONG[weekdayOf(d.date)]} ${fmtDMY(d.date)}: ${fmtH(d.normal)} giờ thường` + (d.ot ? `, ${fmtH(d.ot)} giờ tăng ca` : '') + (d.holiday ? ` — ${d.holiday.name}` : '') + (d.leave ? ' — có nghỉ' : '') + (d.missing ? ' — chưa chấm' : '');
+    const yN = y(d.normal),
+      yT = y(total),
+      gap = d.normal > 0 && d.ot > 0 ? 2 : 0;
+    return /*#__PURE__*/React.createElement("g", {
+      key: d.date
+    }, /*#__PURE__*/React.createElement("title", null, label), (d.holiday || d.rest) && /*#__PURE__*/React.createElement("rect", {
+      x: padL + i * cw,
+      y: padT,
+      width: cw,
+      height: H - padT - padB,
+      fill: d.holiday ? '#fef3c7' : '#f1f5f9'
+    }), /*#__PURE__*/React.createElement("rect", {
+      x: padL + i * cw,
+      y: padT,
+      width: cw,
+      height: H - padT - padB,
+      fill: "transparent"
+    }), d.normal > 0 && /*#__PURE__*/React.createElement("path", {
+      d: barPath(x, yN, bw, y(0) - yN, d.ot > 0 ? 0 : 3),
+      fill: "#1d4ed8"
+    }), d.ot > 0 && /*#__PURE__*/React.createElement("path", {
+      d: barPath(x, yT, bw, Math.max(1, yN - yT - gap), 3),
+      fill: "#ea580c"
+    }), /*#__PURE__*/React.createElement("text", {
+      x: cx,
+      y: H - padB + 12,
+      textAnchor: "middle",
+      className: `rp-axis ${d.holiday || weekdayOf(d.date) === 0 ? 'rp-red' : ''}`
+    }, dd === '01' || i === 0 ? `${parseInt(dd, 10)}/${parseInt(mm, 10)}` : parseInt(dd, 10)), d.leave && /*#__PURE__*/React.createElement("text", {
+      x: cx,
+      y: H - padB + 24,
+      textAnchor: "middle",
+      className: "rp-axis rp-leave"
+    }, "P"), d.missing && /*#__PURE__*/React.createElement("circle", {
+      cx: cx,
+      cy: H - padB + 21,
+      r: "2.5",
+      fill: "#e11d48"
+    }));
+  }));
+}
+// cột bo góc 4px ở đầu dữ liệu (phía trên), đáy vuông nằm trên trục
+const barPath = (x, y, w, h, r) => {
+  if (h <= 0) return '';
+  r = Math.min(r, w / 2, h);
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+};
+function Bar({
+  value,
+  max,
+  color
+}) {
+  return /*#__PURE__*/React.createElement("span", {
+    className: "rp-bar"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: `${max > 0 ? Math.max(1, value / max * 100) : 0}%`,
+      background: color || '#1d4ed8'
+    }
+  }));
+}
+function ReportView({
+  data,
+  profile,
+  sch,
+  period,
+  month,
+  onClose
+}) {
+  useEffect(() => {
+    document.body.classList.add('ts-report-open');
+    const onKey = e => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    const title = document.title;
+    const [y, m] = month.split('-');
+    document.title = `Bao_cao_tong_quan_${removeAccents(profile.name || 'Timesheet')}_Thang_${m}_${y}`; // tên file PDF gợi ý
+    return () => {
+      document.body.classList.remove('ts-report-open');
+      document.removeEventListener('keydown', onKey);
+      document.title = title;
+    };
+  }, []);
+  const [y, m] = month.split('-');
+  const d = data;
+  const otTypes = OT_TYPES.filter(t => d.byType[t.code] > 0);
+  const maxProj = d.projectList.length ? d.projectList[0].total : 0;
+  const maxAct = d.activityList.length ? d.activityList[0].hours : 0;
+  const leaveDates = l => l.dates.map(fmtDM).join(', ');
+  return /*#__PURE__*/React.createElement("div", {
+    className: "rp-overlay",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "rpTitle"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "rp-toolbar"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => window.print(),
+    className: btnPrimary
+  }, /*#__PURE__*/React.createElement(Icons.Download, null), " In / L\u01B0u PDF"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClose,
+    className: btnGhost
+  }, "\u0110\xF3ng"), /*#__PURE__*/React.createElement("span", {
+    className: "rp-hint"
+  }, "Ch\u1ECDn \u201CL\u01B0u d\u01B0\u1EDBi d\u1EA1ng PDF\u201D \u0111\u1EC3 g\u1EEDi gi\xE1m s\xE1t.")), /*#__PURE__*/React.createElement("article", {
+    className: "rp-page",
+    id: "tsReport"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "rp-head"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "rp-kicker"
+  }, "Schindler \xB7 Timesheet c\xE1 nh\xE2n"), /*#__PURE__*/React.createElement("h1", {
+    id: "rpTitle"
+  }, "B\xE1o c\xE1o t\u1ED5ng quan ch\u1EA5m c\xF4ng"), /*#__PURE__*/React.createElement("div", {
+    className: "rp-sub"
+  }, "K\u1EF3 l\u01B0\u01A1ng th\xE1ng ", parseInt(m, 10), "/", y, " \xB7 ", fmtDMY(period.start), " \u2013 ", fmtDMY(period.end))), /*#__PURE__*/React.createElement("dl", {
+    className: "rp-who"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "H\u1ECD t\xEAn"), /*#__PURE__*/React.createElement("dd", null, profile.name || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "M\xE3 NV"), /*#__PURE__*/React.createElement("dd", null, profile.empId || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "Ch\u1EE9c v\u1EE5"), /*#__PURE__*/React.createElement("dd", null, profile.position || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "Ph\xF2ng ban"), /*#__PURE__*/React.createElement("dd", null, profile.dept || '—')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("dt", null, "L\u1ECBch l\xE0m vi\u1EC7c"), /*#__PURE__*/React.createElement("dd", null, LaborVN.SCHEDULES[sch].short)))), /*#__PURE__*/React.createElement("section", {
+    className: "rp-kpis",
+    "aria-label": "S\u1ED1 li\u1EC7u ch\xEDnh"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "T\u1ED5ng gi\u1EDD l\xE0m vi\u1EC7c"), /*#__PURE__*/React.createElement("b", null, fmtH(d.total), /*#__PURE__*/React.createElement("small", null, " gi\u1EDD")), /*#__PURE__*/React.createElement("em", null, d.workDays, " ng\xE0y c\xF3 l\xE0m vi\u1EC7c")), /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "Gi\u1EDD c\xF4ng th\u01B0\u1EDDng"), /*#__PURE__*/React.createElement("b", {
+    className: "rp-blue"
+  }, fmtH(d.normal), /*#__PURE__*/React.createElement("small", null, " gi\u1EDD")), /*#__PURE__*/React.createElement("em", null, fmtPct(pct(d.normal, d.total)), " t\u1ED5ng gi\u1EDD")), /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "T\u0103ng ca (OT)"), /*#__PURE__*/React.createElement("b", {
+    className: "rp-orange"
+  }, fmtH(d.ot), /*#__PURE__*/React.createElement("small", null, " gi\u1EDD")), /*#__PURE__*/React.createElement("em", null, fmtPct(pct(d.ot, d.total)), " t\u1ED5ng gi\u1EDD")), /*#__PURE__*/React.createElement("div", {
+    className: "rp-kpi"
+  }, /*#__PURE__*/React.createElement("span", null, "Ngh\u1EC9"), /*#__PURE__*/React.createElement("b", null, d.leaveDays, /*#__PURE__*/React.createElement("small", null, " ng\xE0y")), /*#__PURE__*/React.createElement("em", null, d.leaveHours > 0 ? `${fmtH(d.leaveHours)} giờ` : 'không có')), /*#__PURE__*/React.createElement("div", {
+    className: `rp-kpi ${d.missing.length ? 'rp-warn' : ''}`
+  }, /*#__PURE__*/React.createElement("span", null, "Ng\xE0y ch\u01B0a ch\u1EA5m"), /*#__PURE__*/React.createElement("b", null, d.missing.length, /*#__PURE__*/React.createElement("small", null, " ng\xE0y")), /*#__PURE__*/React.createElement("em", null, d.missing.length ? '⚠ ' + d.missing.map(fmtDM).join(', ') : '✓ đủ ngày làm việc'))), /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Gi\u1EDD l\xE0m theo ng\xE0y"), /*#__PURE__*/React.createElement("div", {
+    className: "rp-chartwrap"
+  }, /*#__PURE__*/React.createElement(DailyChart, {
+    days: d.days
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "rp-legend"
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#1d4ed8'
+    }
+  }), "Gi\u1EDD th\u01B0\u1EDDng"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#ea580c'
+    }
+  }), "T\u0103ng ca"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#fef3c7',
+      border: '1px solid #fcd34d'
+    }
+  }), "Ng\xE0y l\u1EC5 / ngh\u1EC9 b\xF9"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    style: {
+      background: '#f1f5f9',
+      border: '1px solid #cbd5e1'
+    }
+  }), "Ng\xE0y ngh\u1EC9 h\u1EB1ng tu\u1EA7n"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", {
+    className: "rp-leave"
+  }, "P"), " Ngh\u1EC9 ph\xE9p / \u1ED1m"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("i", {
+    className: "rp-dot"
+  }), "Ch\u01B0a ch\u1EA5m"))), /*#__PURE__*/React.createElement("div", {
+    className: "rp-cols"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Theo d\u1EF1 \xE1n"), d.projectList.length ? /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "D\u1EF1 \xE1n / WBS"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Ng\xE0y"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Th\u01B0\u1EDDng"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "OT"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "T\u1ED5ng"), /*#__PURE__*/React.createElement("th", {
+    className: "rp-wbar"
+  }, "T\u1EF7 l\u1EC7"))), /*#__PURE__*/React.createElement("tbody", null, d.projectList.map(p => /*#__PURE__*/React.createElement("tr", {
+    key: p.wbs + p.name
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    className: "rp-name"
+  }, p.name), p.wbs && /*#__PURE__*/React.createElement("div", {
+    className: "rp-mono"
+  }, p.wbs)), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, p.days), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtH(p.normal)), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtH(p.ot)), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(p.total)), /*#__PURE__*/React.createElement("td", {
+    className: "rp-wbar"
+  }, /*#__PURE__*/React.createElement(Bar, {
+    value: p.total,
+    max: maxProj
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "rp-pct"
+  }, fmtPct(pct(p.total, d.total)))))))) : /*#__PURE__*/React.createElement("p", {
+    className: "rp-empty"
+  }, "Ch\u01B0a c\xF3 gi\u1EDD l\xE0m vi\u1EC7c trong k\u1EF3.")), /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Theo ho\u1EA1t \u0111\u1ED9ng"), d.activityList.length ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "M\xE3 \xB7 Ho\u1EA1t \u0111\u1ED9ng"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    className: "rp-wbar"
+  }, "T\u1EF7 l\u1EC7"))), /*#__PURE__*/React.createElement("tbody", null, d.activityList.map(a => /*#__PURE__*/React.createElement("tr", {
+    key: a.code
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+    className: "rp-mono"
+  }, a.code), " ", a.desc), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(a.hours)), /*#__PURE__*/React.createElement("td", {
+    className: "rp-wbar"
+  }, /*#__PURE__*/React.createElement(Bar, {
+    value: a.hours,
+    max: maxAct
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "rp-pct"
+  }, fmtPct(pct(a.hours, d.total)))))))), /*#__PURE__*/React.createElement("h3", null, "Theo nh\xF3m c\xF4ng vi\u1EC7c"), /*#__PURE__*/React.createElement("ul", {
+    className: "rp-cats"
+  }, d.catList.map(c => /*#__PURE__*/React.createElement("li", {
+    key: c.cat
+  }, /*#__PURE__*/React.createElement("span", null, c.label), /*#__PURE__*/React.createElement("b", null, fmtH(c.hours), " gi\u1EDD \xB7 ", fmtPct(pct(c.hours, d.total))))))) : /*#__PURE__*/React.createElement("p", {
+    className: "rp-empty"
+  }, "Ch\u01B0a c\xF3 ho\u1EA1t \u0111\u1ED9ng trong k\u1EF3."))), /*#__PURE__*/React.createElement("div", {
+    className: "rp-cols"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Gi\u1EDD c\xF4ng theo lo\u1EA1i"), /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Lo\u1EA1i gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "H\u1EC7 s\u1ED1"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Gi\u1EDD"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "T\u1EF7 l\u1EC7"))), /*#__PURE__*/React.createElement("tbody", null, otTypes.length ? otTypes.map(t => /*#__PURE__*/React.createElement("tr", {
+    key: t.code
+  }, /*#__PURE__*/React.createElement("td", null, t.label.replace(/ \(\d+%\)$/, '')), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, LaborVN.OT_RATES[t.code], "%"), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(d.byType[t.code])), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtPct(pct(d.byType[t.code], d.total))))) : /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "4",
+    className: "rp-empty"
+  }, "Ch\u01B0a c\xF3 gi\u1EDD l\xE0m vi\u1EC7c."))), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, "T\u1ED5ng"), /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(d.total)), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, "100%")), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "2"
+  }, "Gi\u1EDD quy \u0111\u1ED5i theo h\u1EC7 s\u1ED1"), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, fmtH(d.weighted)), /*#__PURE__*/React.createElement("td", null))))), /*#__PURE__*/React.createElement("section", {
+    className: "rp-sec"
+  }, /*#__PURE__*/React.createElement("h2", null, "Ngh\u1EC9 & ng\xE0y l\u1EC5"), /*#__PURE__*/React.createElement("table", {
+    className: "rp-table"
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Lo\u1EA1i ngh\u1EC9"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Ng\xE0y"), /*#__PURE__*/React.createElement("th", {
+    className: "r"
+  }, "Gi\u1EDD"))), /*#__PURE__*/React.createElement("tbody", null, d.leaveList.length ? d.leaveList.map(l => /*#__PURE__*/React.createElement("tr", {
+    key: l.code
+  }, /*#__PURE__*/React.createElement("td", null, l.label, /*#__PURE__*/React.createElement("div", {
+    className: "rp-muted"
+  }, leaveDates(l))), /*#__PURE__*/React.createElement("td", {
+    className: "r b"
+  }, l.days), /*#__PURE__*/React.createElement("td", {
+    className: "r"
+  }, fmtH(l.hours)))) : /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "3",
+    className: "rp-empty"
+  }, "Kh\xF4ng ngh\u1EC9 ph\xE9p / \u1ED1m / kh\xF4ng l\u01B0\u01A1ng trong k\u1EF3.")))), /*#__PURE__*/React.createElement("h3", null, "Ng\xE0y l\u1EC5 trong k\u1EF3"), d.holidays.length ? /*#__PURE__*/React.createElement("ul", {
+    className: "rp-list"
+  }, d.holidays.map(h => /*#__PURE__*/React.createElement("li", {
+    key: h.date
+  }, /*#__PURE__*/React.createElement("b", null, fmtDM(h.date)), " ", h.name))) : /*#__PURE__*/React.createElement("p", {
+    className: "rp-muted"
+  }, "Kh\xF4ng c\xF3 ng\xE0y l\u1EC5."))), /*#__PURE__*/React.createElement("footer", {
+    className: "rp-foot"
+  }, /*#__PURE__*/React.createElement("p", null, "Gi\u1EDD t\u0103ng ca t\xEDnh theo B\u1ED9 lu\u1EADt Lao \u0111\u1ED9ng 2019 (\u0110i\u1EC1u 98, 106) v\xE0 Ngh\u1ECB \u0111\u1ECBnh 145/2020 (\u0110i\u1EC1u 57). Chi ti\u1EBFt t\u1EEBng d\xF2ng xem file b\u1EA3ng ch\u1EA5m c\xF4ng Excel. L\u1EADp ng\xE0y ", fmtDMY(getTodayLocal()), " t\u1EEB Timesheet c\xE1 nh\xE2n (", d.entries, " d\xF2ng ch\u1EA5m c\xF4ng)."), /*#__PURE__*/React.createElement("div", {
+    className: "rp-sign"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Ng\u01B0\u1EDDi lao \u0111\u1ED9ng"), /*#__PURE__*/React.createElement("i", null), profile.name || ''), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Gi\xE1m s\xE1t (PM / PE) x\xE1c nh\u1EADn"), /*#__PURE__*/React.createElement("i", null))))));
 }
 function Toast({
   toast,
