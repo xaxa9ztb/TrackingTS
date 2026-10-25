@@ -7,7 +7,7 @@
 //  - Google Drive / đăng nhập Google: KHÔNG lưu đệm (dữ liệu đã có IndexedDB lo).
 //
 // Khi đổi danh sách file bên dưới hoặc cách lưu đệm: tăng VERSION.
-const VERSION = 'v48';
+const VERSION = 'v49';
 const SHELL = `toolset-shell-${VERSION}`;
 const CDN = 'toolset-cdn-v1';
 const HTML_TIMEOUT = 4000;
@@ -125,6 +125,8 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin === self.location.origin) {
     if (!req.url.startsWith(self.registration.scope)) return; // trang khác cùng tên miền (repo khác)
+    // Dữ liệu máy chủ (/api) và trang đăng nhập Cloudflare Access (/cdn-cgi/): luôn lấy mới, không lưu đệm
+    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/cdn-cgi/')) return;
     const isPage = req.mode === 'navigate' || req.destination === 'document' || req.destination === 'iframe';
     event.respondWith(isPage ? pageFirstNetwork(event, req) : staleWhileRevalidate(event, req));
     return;

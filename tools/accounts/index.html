@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tài khoản & phân quyền — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="stylesheet" href="style.css?v=1">
+<!-- Dữ liệu trên máy (IndexedDB) — để đưa EE Data + Dự án hiện có lên máy chủ -->
+<script src="../../js/db.js?v=36"></script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=36" data-tool="Tài khoản & phân quyền"></script>
+
+<header class="ac-top">
+  <div class="ac-wrap">
+    <h1>Tài khoản & phân quyền <span class="ac-badge">Máy chủ mới</span></h1>
+    <p class="ac-sub">Gắn email đăng nhập cho từng nhân viên, chỉnh vai trò, phân công Site Sup / Quản lý dự án cho dự án.
+      Dữ liệu lưu trên máy chủ Cloudflare, mọi thay đổi có nhật ký.</p>
+    <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
+  </div>
+</header>
+
+<main class="ac-wrap">
+  <div class="ac-msg" id="gate" hidden></div>
+
+  <section class="ac-card" id="secImport" hidden>
+    <h2>1. Đưa dữ liệu từ máy này lên máy chủ</h2>
+    <p class="ac-help">Lấy <b>EE Data</b> và <b>danh sách dự án</b> đang có trên máy này (đã đồng bộ từ Google Drive) đưa lên máy chủ.
+      Làm lại bao nhiêu lần cũng được: email, vai trò, khoá tài khoản đã đặt trên máy chủ <b>không bị ghi đè</b>.
+      Không đưa ngày sinh, giới tính, mã cá nhân lên.</p>
+    <p id="localCounts" class="ac-counts">Đang đọc dữ liệu trên máy…</p>
+    <label class="ac-check"><input type="checkbox" id="deactivateMissing"> Khoá tài khoản của người không còn trong EE Data (nghỉ việc)</label>
+    <div class="ac-row"><button class="btn primary" id="btnImport" disabled>Đưa lên máy chủ</button><span id="importMsg" class="ac-note"></span></div>
+  </section>
+
+  <section class="ac-card" id="secPeople" hidden>
+    <h2>2. Nhân viên & email đăng nhập</h2>
+    <p class="ac-help">Mỗi người một email (Gmail cá nhân cũng được). <b>Vai trò</b> lấy theo chức danh; chỉ chỉnh tay khi cần.
+      Bỏ dấu <i>Đang làm</i> = khoá tài khoản ngay.</p>
+    <div class="ac-row"><input type="search" id="q" placeholder="Tìm tên, mã NV, email…" aria-label="Tìm nhân viên"><span id="peopleCount" class="ac-note"></span></div>
+    <div class="ac-scroll"><table class="ac-table" id="people">
+      <thead><tr><th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Email đăng nhập</th><th>Vai trò</th><th>Đang làm</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <details class="ac-access">
+      <summary>Danh sách email cho Cloudflare Access</summary>
+      <p class="ac-help">Dán vào chính sách <b>Allow</b> của ứng dụng trong Zero Trust (Access → Applications → trackingts → Policies → Include: Emails),
+        để chỉ những người này mở được trang. Khi thêm / khoá người, nhớ cập nhật lại ở đó.</p>
+      <textarea id="accessList" rows="3" readonly></textarea>
+      <button class="btn" id="btnCopy">Sao chép</button>
+    </details>
+  </section>
+
+  <section class="ac-card" id="secStaff" hidden>
+    <h2>3. Phân công dự án (dùng cho luồng duyệt chấm công)</h2>
+    <p class="ac-help">Bảng công của fitter ở dự án nào sẽ đi đến đúng Site Sup và Quản lý dự án của dự án đó. Giữ Ctrl (hoặc ⌘) để chọn nhiều người.</p>
+    <div class="ac-row"><input type="search" id="qp" placeholder="Tìm WBS, tên dự án…" aria-label="Tìm dự án"></div>
+    <div class="ac-scroll"><table class="ac-table" id="staff">
+      <thead><tr><th>WBS</th><th>Dự án</th><th>Site Sup</th><th>Quản lý dự án</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section class="ac-card" id="secAudit" hidden>
+    <h2>4. Nhật ký thay đổi</h2>
+    <div class="ac-scroll"><table class="ac-table" id="audit">
+      <thead><tr><th>Lúc</th><th>Ai</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+</main>
+
+<div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="app.js?v=1"></script>
+</body>
+</html>

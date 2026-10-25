@@ -550,7 +550,8 @@
     try { [emp, proj] = (await Promise.all([DB.getAll('employees'), DB.getAll('projects')])).map(x => (x || []).length); } catch (e) { /* chưa có dữ liệu */ }
     const s = Session.current();
     $('syncCounts').innerHTML = `${emp} nhân viên · ${proj} dự án trên máy này — dùng cho Thống kê giờ công, Timesheet, Hồ sơ chất lượng, Quản lý dự án.` +
-      (s && s.admin ? ` <a class="sync-admin" href="tracking.html">Cập nhật dữ liệu lên Drive (admin) →</a>` : '');
+      (s && s.admin ? ` <a class="sync-admin" href="tracking.html">Cập nhật dữ liệu lên Drive (admin) →</a>` +
+        ` <a class="sync-admin" href="tools/accounts/">Tài khoản máy chủ mới (admin) →</a>` : '');
   }
   $('btnSync').addEventListener('click', async () => {
     const btn = $('btnSync');
