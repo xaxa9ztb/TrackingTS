@@ -234,6 +234,8 @@
             const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
             const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
             const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+            const [ganttOpen, setGanttOpenRaw] = useState(() => { try { return localStorage.getItem('ts_gantt_open') !== '0'; } catch (e) { return true; } });
+            const setGanttOpen = (v) => { setGanttOpenRaw(v); try { localStorage.setItem('ts_gantt_open', v ? '1' : '0'); } catch (e) { /* bỏ qua */ } };
             const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
             const [supervisorName, setSupervisorName] = useState(''); // giám sát theo EE Data (nếu có trên máy)
             const [dayFilter, setDayFilter] = useState(null);
@@ -586,6 +588,13 @@
                             missing={needProjects && projects.length === 0} onSync={handleSyncProjects}/>
                     </div>
 
+                    {/* ---------- Gantt: lộ trình cả kỳ lương ---------- */}
+                    <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6">
+                        <GanttCard open={ganttOpen} onToggle={() => setGanttOpen(!ganttOpen)} period={period} month={currentMonth}
+                            data={ganttOpen ? buildReport({ rows: monthlyEntries, bdOf, period, sch, holidays, missing: stats.missing }) : null}
+                            onPickDay={(d) => setDayFilter(dayFilter === d ? null : d)}/>
+                    </div>
+
                     <main className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6 pb-28 md:pb-10 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(300px,360px)_1fr] items-start">
                         <aside className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 md:items-start lg:block lg:space-y-4 lg:sticky lg:top-24">
                             <StatsPanel stats={stats}/>
@@ -657,6 +666,28 @@
                     )}
                     {toast && <Toast toast={toast} onClose={() => setToast(null)}/>}
                 </div>
+            );
+        }
+
+        // ---------- Gantt: lộ trình cả kỳ lương (thu gọn được) ----------
+        function GanttCard({ open, onToggle, data, period, month, onPickDay }) {
+            const [y, m] = month.split('-');
+            return (
+                <section id="tsGantt" className="bg-white rounded-2xl border border-slate-200 min-w-0" aria-labelledby="tsGanttTitle">
+                    <button type="button" id="tsGanttToggle" onClick={onToggle} aria-expanded={open}
+                        className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left rounded-2xl hover:bg-slate-50">
+                        <h2 id="tsGanttTitle" className="font-semibold">Lộ trình kỳ lương (Gantt)</h2>
+                        <span className="text-sm text-slate-500">Tháng {parseInt(m, 10)}/{y} · {fmtDMY(period.start)} – {fmtDMY(period.end)}</span>
+                        <span className="ml-auto text-sm font-medium text-blue-700">{open ? 'Thu gọn ▴' : 'Mở ▾'}</span>
+                    </button>
+                    {open && data && (
+                        <div className="px-4 pb-4">
+                            <div className="rp-chartwrap"><GanttChart days={data.days} gantt={data.gantt} onPickDay={onPickDay}/></div>
+                            <GanttLegend/>
+                            <p className="mt-1 text-xs text-slate-500">Bấm một ô để lọc danh sách chấm công theo ngày đó. Bảng này cũng nằm trong <b>Báo cáo</b> nộp cuối kỳ.</p>
+                        </div>
+                    )}
+                </section>
             );
         }
 
@@ -948,8 +979,10 @@
                 const d = day[e.date] || (day[e.date] = { normal: 0, ot: 0, leave: false });
                 d.normal += bd.NORMAL || 0; d.ot += h - (bd.NORMAL || 0);
                 const pk = (e.workNumber || '') + '|' + (e.projectName || '');
-                const p = projects[pk] || (projects[pk] = { name: e.projectName || '(không ghi dự án)', wbs: e.workNumber || '', days: {}, normal: 0, ot: 0 });
+                const p = projects[pk] || (projects[pk] = { name: e.projectName || '(không ghi dự án)', wbs: e.workNumber || '', days: {}, dayHours: {}, normal: 0, ot: 0 });
                 p.days[e.date] = true; p.normal += bd.NORMAL || 0; p.ot += h - (bd.NORMAL || 0);
+                const pd = p.dayHours[e.date] || (p.dayHours[e.date] = { normal: 0, ot: 0 });
+                pd.normal += bd.NORMAL || 0; pd.ot += h - (bd.NORMAL || 0);
                 const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
                 const ak = String(e.activityCode || '—');
                 const a = activities[ak] || (activities[ak] = { code: ak, desc: meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : 'Mã khác', cat: meta ? meta.cat : 'Other', hours: 0 });
@@ -971,14 +1004,15 @@
             const workDays = Object.keys(day).filter(d => day[d].normal + day[d].ot > 0).length;
             const days = daysBetween(period.start, period.end).map(d => ({ date: d, ...(day[d] || { normal: 0, ot: 0, leave: false }),
                 holiday: holidayOf(d, sch), rest: LaborVN.isRestDay(d, sch), missing: missing.includes(d) }));
-            return { total, normal, ot, weighted, byType, workDays, projectList, activityList, catList, leaveList,
+            const gantt = buildGantt(Object.values(projects), leave, days);
+            return { total, normal, ot, weighted, byType, workDays, projectList, activityList, catList, leaveList, gantt,
                 leaveDays: new Set(leaveRows.map(e => e.date)).size, leaveHours: leaveRows.reduce((s, e) => s + entryHours(e), 0),
                 days, holidays, missing, entries: rows.length };
         }
 
         // Giờ làm theo ngày: cột chồng giờ thường (xanh) + tăng ca (cam), vạch tham chiếu 8 giờ
-        function DailyChart({ days }) {
-            const W = 720, H = 190, padL = 26, padB = 30, padT = 10;
+        function DailyChart({ days, h = 190 }) {
+            const W = 720, H = h, padL = 26, padB = 30, padT = 10;
             const max = Math.max(12, ...days.map(d => d.normal + d.ot));
             const top = Math.ceil(max / 4) * 4;
             const cw = (W - padL) / days.length, bw = Math.max(6, Math.min(16, cw - 4));
@@ -1025,6 +1059,128 @@
             r = Math.min(r, w / 2, h);
             return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
         };
+
+        // ---------- Gantt: lộ trình cả kỳ lương — mỗi dự án một hàng, mỗi ngày làm một ô ----------
+        const GANTT_COLORS = ['#2563eb', '#0d9488', '#e11d48', '#65a30d', '#c026d3', '#475569', '#0891b2', '#9333ea'];
+        const GANTT_MAX_ROWS = 10;
+        function buildGantt(projectRaw, leave, days) {
+            const dayInfo = {}; days.forEach(d => { dayInfo[d.date] = d; });
+            const order = days.map(d => d.date);
+            const rows = projectRaw.map(p => {
+                const dates = Object.keys(p.dayHours).sort();
+                return { key: p.wbs + '|' + p.name, name: p.name, wbs: p.wbs, dayHours: p.dayHours, dates,
+                    total: p.normal + p.ot, first: dates[0] };
+            }).sort((a, b) => (a.first < b.first ? -1 : a.first > b.first ? 1 : b.total - a.total));
+            let list = rows;
+            if (rows.length > GANTT_MAX_ROWS) {      // quá nhiều dự án: gộp phần còn lại để báo cáo vẫn gọn
+                const rest = rows.slice(GANTT_MAX_ROWS - 1), dayHours = {};
+                rest.forEach(r => Object.keys(r.dayHours).forEach(dt => {
+                    const x = dayHours[dt] || (dayHours[dt] = { normal: 0, ot: 0 });
+                    x.normal += r.dayHours[dt].normal; x.ot += r.dayHours[dt].ot;
+                }));
+                list = rows.slice(0, GANTT_MAX_ROWS - 1).concat([{ key: '_rest', name: `${rest.length} dự án khác`, wbs: '', dayHours,
+                    dates: Object.keys(dayHours).sort(), total: rest.reduce((t, r) => t + r.total, 0), first: '', merged: true }]);
+            }
+            list.forEach((r, i) => {
+                r.color = r.merged ? '#64748b' : GANTT_COLORS[i % GANTT_COLORS.length];
+                // nối các ngày làm cách nhau chỉ bằng ngày nghỉ hằng tuần / lễ thành một đoạn liền
+                r.links = [];
+                for (let k = 1; k < r.dates.length; k++) {
+                    const a = order.indexOf(r.dates[k - 1]), b = order.indexOf(r.dates[k]);
+                    if (b - a > 1 && order.slice(a + 1, b).every(dt => dayInfo[dt].holiday || dayInfo[dt].rest)) r.links.push([a, b]);
+                }
+            });
+            const leaveDates = {}; Object.values(leave).forEach(l => Object.keys(l.days).forEach(dt => { leaveDates[dt] = l.label; }));
+            return { rows: list, leaveDates, hasLeave: Object.keys(leaveDates).length > 0 };
+        }
+
+        function GanttChart({ days, gantt, onPickDay, compact }) {
+            const W = 720, LBL = 150, padT = 28, rowH = compact ? 18 : 24, padB = 14;
+            const rows = gantt.rows, nRows = rows.length + (gantt.hasLeave ? 1 : 0);
+            const H = padT + Math.max(1, nRows) * rowH + padB;
+            const cw = (W - LBL) / days.length, x = (i) => LBL + i * cw;
+            const clip = (t, n) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+            const cellLabel = (r, d, hrs) => `${r.name}${r.wbs ? ' (' + r.wbs + ')' : ''} — ${WEEKDAYS_LONG[weekdayOf(d.date)]} ${fmtDMY(d.date)}: ${fmtH(hrs.normal)} giờ thường` + (hrs.ot ? `, ${fmtH(hrs.ot)} giờ tăng ca` : '');
+            return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="rp-chart rp-gantt" role="img" aria-label="Biểu đồ Gantt: các dự án đã làm theo từng ngày trong kỳ">
+                    {days.map((d, i) => (d.holiday || d.rest) && (
+                        <rect key={'bg' + d.date} x={x(i)} y={padT - 4} width={cw} height={H - padT - padB + 4} fill={d.holiday ? '#fef3c7' : '#f1f5f9'}/>
+                    ))}
+                    {days.map((d, i) => {
+                        const dd = parseInt(d.date.split('-')[2], 10), red = d.holiday || weekdayOf(d.date) === 0;
+                        return (
+                            <g key={'h' + d.date}>
+                                <text x={x(i) + cw / 2} y={11} textAnchor="middle" className={`rp-axis ${red ? 'rp-red' : ''}`}>{WEEKDAYS[weekdayOf(d.date)]}</text>
+                                <text x={x(i) + cw / 2} y={22} textAnchor="middle" className={`rp-axis ${red ? 'rp-red' : ''}`}>{dd === 1 || i === 0 ? `${dd}/${parseInt(d.date.split('-')[1], 10)}` : dd}</text>
+                                {d.missing && <circle cx={x(i) + cw / 2} cy={H - padB + 6} r="2.5" fill="#e11d48"><title>{`Chưa chấm ${fmtDMY(d.date)}`}</title></circle>}
+                            </g>
+                        );
+                    })}
+                    <line x1={LBL} x2={W} y1={padT - 4} y2={padT - 4} stroke="#94a3b8" strokeWidth="1"/>
+                    {rows.map((r, ri) => {
+                        const y = padT + ri * rowH, by = y + 4, bh = rowH - 8;
+                        return (
+                            <g key={r.key}>
+                                <line x1={0} x2={W} y1={y + rowH} y2={y + rowH} stroke="#e2e8f0" strokeWidth="1"/>
+                                <title>{`${r.name}${r.wbs ? ' (' + r.wbs + ')' : ''} — ${fmtH(r.total)} giờ, ${r.dates.length} ngày`}</title>
+                                <rect x={0} y={y + 6} width="4" height={rowH - 12} rx="2" fill={r.color}/>
+                                {compact
+                                    ? <text x={9} y={y + rowH / 2 + 3} className="rp-gname">{clip(r.name, 21)}<tspan className="rp-axis"> · {fmtH(r.total)} giờ</tspan></text>
+                                    : <React.Fragment>
+                                        <text x={9} y={y + rowH * 0.46} className="rp-gname">{clip(r.name, 26)}</text>
+                                        <text x={9} y={y + rowH * 0.85} className="rp-axis">{(r.wbs ? clip(r.wbs, 14) + ' · ' : '') + fmtH(r.total) + ' giờ'}</text>
+                                    </React.Fragment>}
+                                {r.links.map(([a, b]) => <rect key={'l' + a} x={x(a) + cw - 1} y={by + bh / 2 - 1.5} width={x(b) - x(a) - cw + 2} height="3" fill={r.color} opacity=".35"/>)}
+                                {days.map((d, i) => {
+                                    const hrs = r.dayHours[d.date]; if (!hrs) return null;
+                                    const tot = hrs.normal + hrs.ot, label = fmtH(tot);
+                                    return (
+                                        <g key={d.date} className={onPickDay ? 'rp-gcell' : undefined} onClick={onPickDay ? () => onPickDay(d.date) : undefined}>
+                                            <title>{cellLabel(r, d, hrs)}</title>
+                                            <rect x={x(i) + 0.5} y={by} width={cw - 1} height={bh} rx="2.5" fill={r.color}/>
+                                            {hrs.ot > 0 && <rect x={x(i) + 0.5} y={by + bh - 3} width={cw - 1} height="3" fill="#ea580c"/>}
+                                            {cw >= 15 && label.length * 4.6 < cw - 1 && <text x={x(i) + cw / 2} y={by + bh / 2 + 3} textAnchor="middle" className="rp-gtxt">{label}</text>}
+                                        </g>
+                                    );
+                                })}
+                            </g>
+                        );
+                    })}
+                    {gantt.hasLeave && (() => {
+                        const y = padT + rows.length * rowH, by = y + 4, bh = rowH - 8;
+                        return (
+                            <g>
+                                <rect x={0} y={y + 6} width="4" height={rowH - 12} rx="2" fill="#7c3aed"/>
+                                {compact
+                                    ? <text x={9} y={y + rowH / 2 + 3} className="rp-gname">Nghỉ phép / ốm<tspan className="rp-axis"> · không tính giờ</tspan></text>
+                                    : <React.Fragment>
+                                        <text x={9} y={y + rowH * 0.46} className="rp-gname">Nghỉ phép / ốm</text>
+                                        <text x={9} y={y + rowH * 0.85} className="rp-axis">P · không tính giờ làm</text>
+                                    </React.Fragment>}
+                                {days.map((d, i) => gantt.leaveDates[d.date] ? (
+                                    <g key={d.date}><title>{`${gantt.leaveDates[d.date]} — ${fmtDMY(d.date)}`}</title>
+                                        <rect x={x(i) + 0.5} y={by} width={cw - 1} height={bh} rx="2.5" fill="#ede9fe" stroke="#7c3aed" strokeWidth="1"/>
+                                        {cw >= 12 && <text x={x(i) + cw / 2} y={by + bh / 2 + 3} textAnchor="middle" className="rp-gtxt" fill="#6d28d9">P</text>}
+                                    </g>) : null)}
+                            </g>
+                        );
+                    })()}
+                    {nRows === 0 && <text x={LBL + 8} y={padT + 16} className="rp-axis">Chưa có giờ làm việc trong kỳ.</text>}
+                </svg>
+            );
+        }
+
+        function GanttLegend({ short }) {
+            return (
+                <div className="rp-legend">
+                    <span><i style={{ background: '#2563eb' }}/>Ngày làm việc (số giờ trong ô; mỗi dự án một màu)</span>
+                    <span><i style={{ background: '#ea580c', height: 4 }}/>Có tăng ca</span>
+                    {!short && <span><i style={{ background: '#fef3c7', border: '1px solid #fcd34d' }}/>Ngày lễ / nghỉ bù</span>}
+                    {!short && <span><i style={{ background: '#f1f5f9', border: '1px solid #cbd5e1' }}/>Ngày nghỉ hằng tuần</span>}
+                    {!short && <span><i className="rp-dot"/>Chưa chấm</span>}
+                </div>
+            );
+        }
 
         function Bar({ value, max, color }) {
             return <span className="rp-bar"><span style={{ width: `${max > 0 ? Math.max(1, value / max * 100) : 0}%`, background: color || '#1d4ed8' }}/></span>;
@@ -1080,7 +1236,7 @@
 
                         <section className="rp-sec">
                             <h2>Giờ làm theo ngày</h2>
-                            <div className="rp-chartwrap"><DailyChart days={d.days}/></div>
+                            <div className="rp-chartwrap"><DailyChart days={d.days} h={120}/></div>
                             <div className="rp-legend">
                                 <span><i style={{ background: '#1d4ed8' }}/>Giờ thường</span>
                                 <span><i style={{ background: '#ea580c' }}/>Tăng ca</span>
@@ -1089,6 +1245,12 @@
                                 <span><b className="rp-leave">P</b> Nghỉ phép / ốm</span>
                                 <span><i className="rp-dot"/>Chưa chấm</span>
                             </div>
+                        </section>
+
+                        <section className="rp-sec">
+                            <h2>Lộ trình trong kỳ (Gantt)</h2>
+                            <div className="rp-chartwrap"><GanttChart days={d.days} gantt={d.gantt} compact/></div>
+                            <GanttLegend short/>
                         </section>
 
                         <div className="rp-cols">

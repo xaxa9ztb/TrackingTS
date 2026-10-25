@@ -57,7 +57,7 @@ Lịch hiện các ngày lễ của kỳ lương.
 
 ## Báo cáo tổng quan (cho giám sát)
 Nút **Báo cáo** trên thanh trên → trang A4 của kỳ lương đang xem; **In / Lưu PDF** (in của trình duyệt, dùng được
-ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc; tên file PDF gợi ý `Bao_cao_tong_quan_<tên>_Thang_MM_YYYY`.
+ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc (kỳ có nhiều hơn khoảng 4 dự án thì phần ký tên có thể sang trang 2); tên file PDF gợi ý `Bao_cao_tong_quan_<tên>_Thang_MM_YYYY`.
 - Số liệu chính: tổng giờ làm việc (không tính nghỉ) và số ngày làm việc, giờ thường, tăng ca (% tổng),
   số ngày / giờ nghỉ, ngày T2–T6 chưa chấm.
 - Biểu đồ giờ theo ngày (giờ thường xanh, tăng ca cam, vạch 8 giờ; nền ngày lễ / ngày nghỉ hằng tuần; P = nghỉ;
@@ -66,6 +66,18 @@ ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc; tên file PDF g
 - Giờ công theo loại (hệ số, giờ, tỷ lệ, **giờ quy đổi** theo hệ số) · nghỉ theo loại (6010 / 6020 / 6090, ngày nào)
   · ngày lễ trong kỳ · ô ký *Người lao động* / *Giám sát (PM / PE) xác nhận*.
 - Mã nghỉ phép / ốm / không lương **không** tính vào giờ làm việc và tỷ lệ hoạt động.
+
+## Lộ trình kỳ lương (Gantt)
+Thẻ **Lộ trình kỳ lương (Gantt)** nằm ngay dưới thông tin nhân viên (thu gọn / mở, nhớ lựa chọn trên máy) và cũng là mục
+**Lộ trình trong kỳ** trong **Báo cáo** nộp cuối kỳ — để người chấm công và giám sát nhìn cả kỳ 16 → 15 trong một hình.
+- Mỗi **dự án** một hàng (sắp theo ngày bắt đầu, mỗi dự án một màu), mỗi **ngày làm** một ô ghi số giờ; vạch cam dưới ô = có tăng ca.
+- Các ngày làm cách nhau chỉ bằng ngày nghỉ hằng tuần / lễ được **nối liền** thành một đoạn; ngày chưa chấm (chấm đỏ) thì không nối.
+- Hàng **Nghỉ phép / ốm** riêng (mã 6010 / 6020 / 6090, không tính vào giờ làm).
+- Trong **Báo cáo** biểu đồ thu gọn (mỗi dự án một dòng chữ) để vẫn vừa trang A4.
+- Hơn 10 dự án trong kỳ: 9 dự án đầu hiện riêng, phần còn lại gộp thành hàng "N dự án khác" để báo cáo vẫn gọn.
+- Trên trang chính, bấm một ô để lọc danh sách chấm công theo ngày đó. Rê chuột / chạm giữ để xem giờ thường, giờ tăng ca.
+- Điện thoại: biểu đồ cuộn ngang trong khung, trang không bị tràn.
+- Mã: `buildGantt()` + `GanttChart` trong `src/app.jsx` (dùng chung số liệu với `buildReport()`).
 
 ## Gửi mail cho giám sát
 Nút **Gửi mail** (cạnh Xuất Excel) mở ngăn *Gửi bảng công cho giám sát*:
