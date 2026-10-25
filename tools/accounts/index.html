@@ -6,7 +6,7 @@
 <title>Tài khoản & phân quyền — Bộ công cụ dự án</title>
 <meta name="theme-color" content="#111827">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 <!-- Dữ liệu trên máy (IndexedDB) — để đưa EE Data + Dự án hiện có lên máy chủ -->
 <script src="../../js/db.js?v=36"></script>
 </head>
@@ -72,6 +72,13 @@
         <label class="ac-check"><input type="checkbox" id="autoOnlyEmpty" checked> Chỉ dự án chưa có Site Sup</label></div>
       <div id="autoOut"></div>
     </div>
+    <div class="ac-auto" id="pmBox">
+      <h3>Gán một Quản lý dự án cho nhiều dự án</h3>
+      <p class="ac-help">Dùng khi các dự án đều do cùng một người quản lý. Chọn người rồi bấm <b>Gán</b>; bảng công ở các dự án này sẽ đi tới người đó ở cấp duyệt cuối.</p>
+      <div class="ac-row"><select id="pmPick" aria-label="Quản lý dự án"></select>
+        <label class="ac-check"><input type="checkbox" id="pmOnlyEmpty" checked> Chỉ dự án chưa có Quản lý dự án</label>
+        <button class="btn primary" id="btnPmAll">Gán</button><span id="pmMsg" class="ac-note"></span></div>
+    </div>
     <div class="ac-row"><input type="search" id="qp" placeholder="Tìm WBS, tên dự án…" aria-label="Tìm dự án"></div>
     <div class="ac-scroll"><table class="ac-table" id="staff">
       <thead><tr><th>WBS</th><th>Dự án</th><th>Site Sup</th><th>Quản lý dự án</th><th></th></tr></thead>
@@ -89,6 +96,6 @@
 </main>
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

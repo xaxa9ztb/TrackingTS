@@ -405,3 +405,40 @@ test('tự phân công: dữ liệu 312 dự án / 9 giám sát — áp dụng m
   assert.equal(r.data.assigned, 312);
   assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM project_staff WHERE role = 'sitesup' AND wbs LIKE 'GP-%'").first()).c, 312);
 });
+
+// ---------- gán một Quản lý dự án cho nhiều dự án ----------
+test('gán một Quản lý dự án cho mọi dự án: chỉ dự án chưa có; thay thế khi chọn', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [
+    { empId: 'PM1', fullName: 'Lê Thanh Tùng', position: 'Project Manager - Volume Business' },
+    { empId: 'PM2', fullName: 'Người Khác', position: 'Project Manager' },
+    { empId: 'FT1', fullName: 'Thợ Lắp', position: 'Fitter' },
+  ] } });
+  const total = (await env.DB.prepare('SELECT COUNT(*) c FROM projects').first()).c;
+  // một dự án đã có PM2
+  assert.equal((await call('PUT', '/api/projects/SP5/staff', { email: 'boss@example.com', body: { sitesup: [], pm: ['PM2'] } })).status, 200);
+  const hadPm = (await env.DB.prepare("SELECT COUNT(DISTINCT wbs) c FROM project_staff WHERE role = 'pm'").first()).c;
+  const r = await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: { empId: 'PM1' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.assigned, total - hadPm);
+  assert.equal(r.data.skipped, hadPm);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM project_staff WHERE role = 'pm' AND emp_id = 'PM1'").first()).c, total - hadPm);
+  assert.deepEqual((await env.DB.prepare("SELECT emp_id FROM project_staff WHERE role = 'pm' AND wbs = 'SP5'").all()).results, [{ emp_id: 'PM2' }], 'không đè dự án đã có PM');
+  // chạy lại: không có gì mới
+  assert.equal((await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: { empId: 'PM1' } })).data.assigned, 0);
+  // thay thế toàn bộ
+  const all = await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: { empId: 'PM1', onlyEmpty: false } });
+  assert.equal(all.data.assigned, total);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM project_staff WHERE role = 'pm' AND emp_id = 'PM1'").first()).c, total);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM project_staff WHERE role = 'pm' AND emp_id <> 'PM1'").first()).c, 0);
+  const log = (await call('GET', '/api/admin/audit?limit=3', { email: 'boss@example.com' })).data.entries.find(e => e.action === 'assign_pm');
+  assert.ok(log && log.after.empId === 'PM1');
+});
+
+test('gán Quản lý dự án: chỉ chọn được người có vai trò QLDA; chặn fitter; người không có / bị khoá', async () => {
+  assert.equal((await call('POST', '/api/projects/pm', { email: 'tho@example.com', body: { empId: 'PM1' } })).status, 403);
+  assert.equal((await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: { empId: 'FT1' } })).status, 400);
+  assert.equal((await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: { empId: 'KHONGCO' } })).status, 404);
+  assert.equal((await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: {} })).status, 404);
+  await call('PATCH', '/api/admin/employees/PM2', { email: 'boss@example.com', body: { active: false } });
+  assert.equal((await call('POST', '/api/projects/pm', { email: 'boss@example.com', body: { empId: 'PM2' } })).status, 400);
+});

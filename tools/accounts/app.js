@@ -346,8 +346,34 @@
     });
   }
 
+  // ---------- 3c. gán một Quản lý dự án cho nhiều dự án ----------
+  function renderPmPick() {
+    const sel = $('pmPick'); const cur = sel.value;
+    const pms = employees.filter(e => e.active && ((e.roles || []).includes('pm') || (e.roles || []).includes('admin')));
+    sel.innerHTML = '<option value="">— chọn Quản lý dự án —</option>' + pms.map(e => `<option value="${esc(e.empId)}">${esc(e.name)} (${esc(e.empId)}) — ${esc(e.position)}</option>`).join('');
+    if (cur) sel.value = cur;
+  }
+
+  function wirePm() {
+    $('btnPmAll').addEventListener('click', async () => {
+      const msg = $('pmMsg'); const empId = $('pmPick').value;
+      if (!empId) { msg.className = 'ac-note err'; msg.textContent = 'Chọn người trước.'; return; }
+      const onlyEmpty = $('pmOnlyEmpty').checked;
+      const who = $('pmPick').selectedOptions[0].textContent.split(' — ')[0];
+      if (!onlyEmpty && !confirm(`Thay Quản lý dự án của TẤT CẢ dự án bằng ${who}?`)) return;
+      msg.className = 'ac-note'; msg.textContent = 'Đang gán…'; $('btnPmAll').disabled = true;
+      try {
+        const r = await api('POST', '/api/projects/pm', { empId, onlyEmpty });
+        msg.className = 'ac-note ok';
+        msg.textContent = `✓ Đã gán ${r.name} cho ${r.assigned} dự án` + (r.skipped ? `, bỏ qua ${r.skipped} dự án đã có Quản lý dự án.` : '.');
+        await loadAll();
+      } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+      finally { $('btnPmAll').disabled = false; }
+    });
+  }
+
   // ---------- 4. nhật ký ----------
-  const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt', auto_staff: 'Tự phân công Site Sup' };
+  const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt', auto_staff: 'Tự phân công Site Sup', assign_pm: 'Gán Quản lý dự án' };
   const FIELD = { email: 'email', roleOverride: 'vai trò chỉnh tay', active: 'đang làm', sitesup: 'Site Sup', pm: 'QLDA',
     employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá', changes: 'thay đổi', assigned: 'số dự án', groups: 'nhóm', onlyEmpty: 'chỉ dự án chưa có' };
   const val = (v) => Array.isArray(v) ? (v.length && typeof v[0] === 'object' ? v.length + ' dòng' : (v.join(', ') || '—')) : v === true ? 'có' : v === false ? 'không' : (v === '' || v == null ? '—' : (ROLE_LABEL[v] || v));
@@ -369,6 +395,7 @@
   async function loadAll() {
     const [emp, proj] = await Promise.all([api('GET', '/api/employees'), api('GET', '/api/projects')]);
     employees = emp.employees; projects = proj.projects;
+    renderPmPick();
     if (me.isAdmin) renderPeople();
     renderStaff();
     loadAudit();
@@ -397,6 +424,7 @@
     $('secStaff').hidden = false;
     wireStaff();
     wireAuto();
+    wirePm();
     if (me.isAdmin) {
       ['secImport', 'secPeople', 'secAudit'].forEach(id => { $(id).hidden = false; });
       wirePeople();

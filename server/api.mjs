@@ -334,6 +334,37 @@ async function applySupervisors(env, me, request) {
   return json({ ok: true, assigned, results });
 }
 
+// Gán MỘT Quản lý dự án cho nhiều dự án một lần (thường: mọi dự án do cùng một người quản lý).
+// onlyEmpty (mặc định true): chỉ dự án chưa có Quản lý dự án.
+async function assignPmAll(env, me, request) {
+  need(me, 'pm');
+  const body = await readJson(request);
+  const empId = str(body.empId, 50);
+  const onlyEmpty = body.onlyEmpty !== false;
+  const emp = empId ? await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(empId).first() : null;
+  if (!emp) throw new HttpError(404, 'Không có nhân viên ' + (empId || '(trống)'));
+  if (!emp.active) throw new HttpError(400, 'Nhân viên này đã bị khoá');
+  const roles = effectiveRoles(emp, emp.email, env);
+  if (!roles.includes('pm') && !roles.includes('admin')) throw new HttpError(400, 'Người này không có vai trò Quản lý dự án (theo chức danh hoặc vai trò chỉnh tay)');
+
+  const { results: projs } = await env.DB.prepare('SELECT wbs FROM projects').all();
+  const { results: have } = await env.DB.prepare("SELECT DISTINCT wbs FROM project_staff WHERE role = 'pm'").all();
+  const hasPm = new Set(have.map(r => r.wbs));
+  const targets = projs.map(r => r.wbs).filter(w => !(onlyEmpty && hasPm.has(w)));
+  const parts = [];
+  if (!onlyEmpty) {
+    for (const ids of chunks(targets, IDS_PER_STMT)) parts.push({ sql: `DELETE FROM project_staff WHERE role = 'pm' AND wbs IN (${ids.map(() => '?').join(',')})`, params: ids });
+  }
+  for (const ids of chunks(targets, 45)) {
+    parts.push({ sql: `INSERT OR IGNORE INTO project_staff (wbs, emp_id, role) VALUES ${ids.map(() => "(?, ?, 'pm')").join(', ')}`, params: ids.flatMap(w => [w, empId]) });
+  }
+  if (parts.length > MAX_STMTS) throw new HttpError(413, 'Quá nhiều dự án một lần');
+  if (parts.length) await env.DB.batch(parts.map(x => env.DB.prepare(x.sql).bind(...x.params)));
+  const summary = { empId, name: emp.full_name, assigned: targets.length, skipped: projs.length - targets.length, onlyEmpty };
+  await audit(env, me, 'assign_pm', 'project', '', undefined, summary);
+  return json({ ok: true, ...summary });
+}
+
 async function patchEmployee(env, me, empId, request) {
   need(me);
   const body = await readJson(request);
@@ -407,6 +438,7 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/projects\/([^/]+)\/staff$/)) && method === 'PUT') return await putProjectStaff(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/import' && method === 'POST') return await importData(env, me, request);
     if (path === '/api/admin/emails' && method === 'POST') return await setEmails(env, me, request);
+    if (path === '/api/projects/pm' && method === 'POST') return await assignPmAll(env, me, request);
     if (path === '/api/supervisors' && method === 'GET') return await listSupervisors(env, me);
     if (path === '/api/supervisors/apply' && method === 'POST') return await applySupervisors(env, me, request);
     if ((m = path.match(/^\/api\/admin\/employees\/([^/]+)$/)) && method === 'PATCH') return await patchEmployee(env, me, decodeURIComponent(m[1]), request);
