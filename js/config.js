@@ -18,4 +18,8 @@ window.CONFIG = {
   // và chạy:  await hashPassword('mật-khẩu-của-bạn')
   // Để trống = không khoá (chỉ nên để trống khi chạy cục bộ).
   ADMIN_PASSWORD_HASH: '6edcd46c8c68d46dbf4fc318b2edb4f88cb556c4d8c4473c3a8ac67b3d9106e8',
+
+  // Kho dữ liệu chung của "Quản lý dự án" (Google Apps Script, URL kết thúc bằng /exec).
+  // Để trống = Quản lý dự án chỉ lưu trên từng máy. Xem tools/projectplan/apps-script/HUONG-DAN.md
+  PM_SYNC_URL: '',
 };

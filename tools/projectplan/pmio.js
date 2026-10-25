@@ -381,7 +381,70 @@
         return wb;
     }
 
-    const api = { assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
+    // ---------------- GỘP THAY ĐỔI (nhiều người cùng sửa) ----------------
+    // Gộp 3 chiều: base = bản chung lúc máy này đồng bộ lần cuối, local = bản trên máy, remote = bản chung mới nhất.
+    // Từng dự án / fitter / ô phân công (fitter + ngày): bên nào đổi so với base thì lấy bên đó; cả hai cùng đổi
+    // khác nhau → `prefer` thắng (mặc định: máy đang lưu). base = null (lần đầu kết nối): gộp theo tên.
+    const stable = (v) => (v && typeof v === 'object' ? (Array.isArray(v) ? '[' + v.map(stable).join(',') + ']'
+        : '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}') : JSON.stringify(v));
+    const same = (a, b) => stable(a) === stable(b);
+    function threeWay(b, l, r, prefer, stat) {
+        const keys = new Set([...Object.keys(b), ...Object.keys(l), ...Object.keys(r)]);
+        const out = {};
+        keys.forEach(k => {
+            const lc = !same(b[k], l[k]), rc = !same(b[k], r[k]);
+            let v;
+            if (!lc) v = r[k];
+            else if (!rc || same(l[k], r[k])) v = l[k];
+            else { v = prefer === 'remote' ? r[k] : l[k]; stat.conflicts++; }
+            if (v !== undefined) out[k] = v;
+        });
+        return out;
+    }
+    const byIdMap = (arr) => { const m = {}; (arr || []).forEach(x => { m[x.id] = x; }); return m; };
+    const flatAlloc = (alloc) => { const m = {}; Object.keys(alloc || {}).forEach(f => Object.keys(alloc[f] || {}).forEach(d => { m[f + '|' + d] = alloc[f][d]; })); return m; };
+    // lần đầu kết nối: fitter / dự án trùng tên với bản chung → dùng id của bản chung (tránh nhân đôi)
+    function remapByName(local, remote) {
+        const L = JSON.parse(JSON.stringify(local)), idmap = {};
+        [['fitters', 'f'], ['projects', 'p']].forEach(([k]) => {
+            const rn = {}; (remote[k] || []).forEach(x => { rn[plain(x.name)] = x.id; });
+            (L[k] || []).forEach(x => { const id = rn[plain(x.name)]; if (id && id !== x.id) { idmap[x.id] = id; x.id = id; } });
+        });
+        const alloc = {};
+        Object.keys(L.alloc || {}).forEach(f => {
+            const nf = idmap[f] || f; alloc[nf] = alloc[nf] || {};
+            Object.keys(L.alloc[f]).forEach(d => { const v = Object.assign({}, L.alloc[f][d]); v.p = idmap[v.p] || v.p; alloc[nf][d] = v; });
+        });
+        L.alloc = alloc;
+        return L;
+    }
+    function merge(base, local, remote, prefer) {
+        const stat = { conflicts: 0 };
+        remote = remote || emptyData();
+        if (!base) { local = remapByName(local || emptyData(), remote); base = emptyData(); prefer = prefer || 'remote'; }
+        local = local || emptyData();
+        const order = (k, m) => {
+            const ids = [];
+            (remote[k] || []).forEach(x => { if (m[x.id] && !ids.includes(x.id)) ids.push(x.id); });
+            (local[k] || []).forEach(x => { if (m[x.id] && !ids.includes(x.id)) ids.push(x.id); });
+            return ids.map(id => m[id]);
+        };
+        const fm = threeWay(byIdMap(base.fitters), byIdMap(local.fitters), byIdMap(remote.fitters), prefer, stat);
+        const pm = threeWay(byIdMap(base.projects), byIdMap(local.projects), byIdMap(remote.projects), prefer, stat);
+        const am = threeWay(flatAlloc(base.alloc), flatAlloc(local.alloc), flatAlloc(remote.alloc), prefer, stat);
+        const out = emptyData();
+        out.fitters = order('fitters', fm);
+        out.projects = order('projects', pm);
+        out.fitters.forEach(f => { out.alloc[f.id] = {}; });
+        Object.keys(am).forEach(k => {
+            const i = k.indexOf('|'), f = k.slice(0, i), d = k.slice(i + 1);
+            if (out.alloc[f] && pm[am[k].p]) out.alloc[f][d] = am[k]; // bỏ ô của fitter / dự án đã bị xoá
+        });
+        out.updatedAt = new Date().toISOString();
+        return { data: out, conflicts: stat.conflicts };
+    }
+
+    const api = { merge, same, assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
         parseMilestone, plain, uid, iso, isISO, addDays, daysBetween, fmtVN, serialToISO, isoToUTCDate, allocRange, isGray };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.PMIO = api;

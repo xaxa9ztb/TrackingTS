@@ -3,9 +3,24 @@
 Dành cho **Quản lý dự án và Site Sup**. Thay cho file Excel "Quản lý Lắp đặt NI" — Excel vẫn dùng để
 **nhập / xuất** (cùng 2 sheet, cùng cách trình bày), còn việc cập nhật hằng ngày làm trên ứng dụng.
 
-> **Bản demo, chưa áp dụng:** dữ liệu lưu trên trình duyệt của từng máy (`localStorage`, khoá `pm_data_v1`).
-> Chia sẻ giữa các giám sát bằng **Xuất Excel → gửi file → Nhập Excel** (nhập sẽ **thay toàn bộ** dữ liệu
-> trên máy, có Hoàn tác). Muốn nhiều người cùng sửa một bộ dữ liệu cần kho dùng chung (bước sau).
+## Lưu trữ
+- **Kho dữ liệu chung trên Google Drive** (khuyến nghị — bỏ được file Excel): mọi Quản lý dự án / Site Sup cùng sửa
+  một bộ dữ liệu, **tự tải khi mở, tự lưu sau mỗi thay đổi**, hai người sửa cùng lúc được **gộp** (`PMIO.merge`),
+  mất mạng thì giữ trên máy và tự lưu khi có mạng. Cần quản trị viên triển khai 1 lần một Google Apps Script
+  (`apps-script/Code.gs`) rồi điền `PM_SYNC_URL` trong `js/config.js` — xem [`apps-script/HUONG-DAN.md`](apps-script/HUONG-DAN.md).
+- **Chưa cấu hình** (`PM_SYNC_URL` trống): dữ liệu chỉ lưu trên trình duyệt của từng máy (`localStorage`, khoá
+  `pm_data_v1`); chia sẻ tạm bằng Xuất / Nhập Excel (menu ⋯).
+- Excel vẫn **nhập / xuất** được ở menu ⋯ (dự phòng, gửi người ngoài). Khi đã kết nối kho chung, *Nhập Excel*
+  thay **dữ liệu chung của cả nhóm** (có Hoàn tác).
+
+## Dữ liệu dùng chung (EE Data + Dự án — như Thống kê giờ công)
+- Dòng **Dữ liệu dùng chung**: số nhân viên / dự án trên máy, lần đồng bộ, nút **Đồng bộ** (tải từ Google Drive,
+  dùng chung với Thống kê giờ công, Timesheet, Hồ sơ chất lượng).
+- **+ Từ dữ liệu nhân sự**: thêm fitter từ EE Data (lọc chức danh fitter / lắp đặt; tuỳ chọn mọi chức danh), có mã NV.
+- Hộp **Fitter**: liên kết tên hiển thị (vd. "Do") với nhân viên trong EE Data (gợi ý tự động khi tên khớp duy nhất);
+  mã NV không còn trong EE Data → ⚠ trên lưới.
+- Hộp **Dự án**: *Chọn từ danh sách dự án chung (WBS)* → điền sẵn tên, WBS, loại thang, giám sát; WBS không có trong
+  danh sách chung → cảnh báo trên bảng.
 
 ## Hai nhiệm vụ chính
 ### 1. Điều phối nhân sự (Fitter allocation) — tab *Điều phối nhân sự*

@@ -95,7 +95,7 @@ const Session = (() => {
   }
   function clear() {
     for (const st of ['sessionStorage', 'localStorage']) { try { window[st].removeItem(KEY); } catch (e) { /* ignore */ } }
-    try { sessionStorage.removeItem('adminOk'); sessionStorage.removeItem('viewerOk'); } catch (e) { /* ignore */ }
+    try { ['adminOk', 'viewerOk', 'pmStoreKey'].forEach(k => sessionStorage.removeItem(k)); } catch (e) { /* ignore */ }
   }
   // sửa vài trường của phiên hiện có, giữ nguyên nơi lưu và hạn dùng
   function update(patch) {
