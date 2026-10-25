@@ -695,7 +695,7 @@
 
                     {SERVER && (
                         <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6">
-                            <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth}
+                            <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth} period={period}
                                 onRetry={runSync} onSubmit={handleSubmit} onWithdraw={handleWithdraw}/>
                         </div>
                     )}
@@ -730,8 +730,11 @@
                                         {WEEKDAYS[weekdayOf(dayFilter)]}, {fmtDMY(dayFilter)} <span aria-hidden="true">✕</span><span className="sr-only">Bỏ lọc ngày</span>
                                     </button>
                                 )}
+                                <button id="tsDailyMailBtn" type="button" onClick={() => setDrawer({ type: 'dailyMail', date: dayFilter || getTodayLocal(), key: Date.now() })}
+                                    className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                    title="Gửi giám sát báo cáo thi công của một ngày (tự mở ứng dụng mail)"><Icons.Mail/> Báo cáo ngày</button>
                                 {dayFilter && (
-                                    <button type="button" onClick={() => openNewEntry(dayFilter)} className="ml-auto text-sm font-semibold text-blue-700 hover:text-blue-900">
+                                    <button type="button" onClick={() => openNewEntry(dayFilter)} className="text-sm font-semibold text-blue-700 hover:text-blue-900">
                                         + Thêm cho ngày {fmtDM(dayFilter)}
                                     </button>
                                 )}
@@ -773,6 +776,12 @@
                                 onSent={(msg) => { closeDrawer(); showToast(msg); }} onCancel={closeDrawer}/>
                         </Drawer>
                     )}
+                    {drawer && drawer.type === 'dailyMail' && (
+                        <Drawer title="Gửi báo cáo thi công trong ngày" onClose={closeDrawer}>
+                            <DailyMailPanel key={drawer.key} profile={profile} setProfile={setProfile} entries={entries} bdOf={bdOf}
+                                defaultDate={drawer.date} onSent={(msg) => { closeDrawer(); showToast(msg); }} onCancel={closeDrawer}/>
+                        </Drawer>
+                    )}
                     {drawer && drawer.type === 'settings' && (
                         <Drawer title="Sao lưu & khôi phục" onClose={closeDrawer}>
                             <SettingsPanel onBackup={handleBackup} onRestore={handleRestore} onReset={handleResetData} onDone={closeDrawer}/>
@@ -789,12 +798,19 @@
         }
 
         // ---------- Bản máy chủ: trạng thái kỳ + đồng bộ ----------
-        function SyncBar({ info, status, note, submitting, month, onRetry, onSubmit, onWithdraw }) {
+        function SyncBar({ info, status, note, submitting, month, period, onRetry, onSubmit, onWithdraw }) {
             const [y, m] = month.split('-');
             const pending = Object.keys(TsSync.load().dirty || {}).length;
             const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                 : status === 'rejected' ? 'bg-rose-50 text-rose-800 border-rose-200'
                 : TsSync.LOCKED.includes(status) ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200';
+            // nhắc hạn: bảng công phải nộp trước ngày 12 của tháng kết thúc kỳ (từ ngày 9 bắt đầu nhắc)
+            const today = getTodayLocal(), deadline = `${month}-12`;
+            const daysLeft = Math.round((parseLocal(deadline) - parseLocal(today)) / 864e5);
+            const open = status === 'draft' || status === 'rejected';
+            const remind = open && today >= period.start && daysLeft <= 3
+                ? (daysLeft < 0 ? { tone: 'rose', text: `⚠ Đã quá hạn nộp bảng công (hạn ${fmtDM(deadline)}). Nộp ngay để giám sát kịp duyệt.` }
+                    : { tone: daysLeft <= 1 ? 'rose' : 'amber', text: `⏰ Hạn nộp bảng công kỳ này là ${fmtDM(deadline)} (${daysLeft === 0 ? 'hôm nay' : `còn ${daysLeft} ngày`}). Chấm trước cả các ngày còn lại của kỳ rồi bấm Nộp.` }) : null;
             const at = info.at ? new Date(info.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
             return (
                 <div id="tsSyncBar" className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" role="status">
@@ -808,6 +824,7 @@
                     )}
                     {TsSync.LOCKED.includes(status) && <span className="text-sm text-slate-600">{status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : 'Không sửa được trong lúc chờ duyệt.'}</span>}
                     {status === 'rejected' && note && <span id="tsRejectNote" className="text-sm text-rose-700 font-medium">Lý do trả lại — {note}</span>}
+                    {remind && <span id="tsDeadline" className={`text-sm font-medium ${remind.tone === 'rose' ? 'text-rose-700' : 'text-amber-800'}`}>{remind.text}</span>}
                     <span id="tsSyncText" className="ml-auto text-sm text-slate-600 inline-flex items-center gap-2">
                         {info.state === 'syncing' && <span>⟳ Đang đồng bộ với máy chủ…</span>}
                         {info.state === 'ok' && <span>✓ Đã lưu trên máy chủ{at ? ` lúc ${at}` : ''}{pending ? ` · còn ${pending} kỳ chưa gửi` : ''}</span>}
@@ -1535,6 +1552,26 @@
             return { subject, body, shortBody };
         }
 
+        // Thư báo cáo thi công trong ngày (fitter tự gửi giám sát / quản lý)
+        function buildDailyMail(profile, date, rows, bdOf) {
+            const name = profile.name || 'Nhân viên';
+            const subject = `[Báo cáo thi công] ${name}${profile.empId ? ` (${profile.empId})` : ''} – ${WEEKDAYS[weekdayOf(date)]} ${fmtDMY(date)}`;
+            const list = rows.filter(e => e.date === date).sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+            const total = list.reduce((t, e) => t + sumBd(bdOf(e)), 0);
+            const normal = list.reduce((t, e) => t + (bdOf(e).NORMAL || 0), 0);
+            const lines = list.map((e, i) => {
+                const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
+                const ots = Object.keys(bdOf(e)).filter(k => k !== 'NORMAL' && bdOf(e)[k] > 0).map(k => `${k} ${fmtH(bdOf(e)[k])}`).join(', ');
+                return [`${i + 1}) ${e.projectName || '(không ghi dự án)'}${e.workNumber ? ` (${e.workNumber})` : ''}`,
+                    `   ${e.startTime}–${e.endTime} · ${fmtH(sumBd(bdOf(e)))} giờ${ots ? ` (tăng ca: ${ots})` : ''} · ${meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : e.activityCode}`,
+                    e.report ? `   Báo cáo: ${e.report}` : (e.remarks ? `   Ghi chú: ${e.remarks}` : '')].filter(Boolean).join('\n');
+            });
+            const head = ['Kính gửi Anh/Chị,', '', `Báo cáo thi công ngày ${WEEKDAYS_LONG[weekdayOf(date)]} ${fmtDMY(date)} của ${name}${profile.empId ? ` (${profile.empId})` : ''}:`, ''];
+            const tail = ['', list.length ? `Tổng: ${fmtH(total)} giờ (thường ${fmtH(normal)}, tăng ca ${fmtH(total - normal)}).` : 'Hôm nay chưa có dòng chấm công.', '', 'Trân trọng,', name];
+            const body = [...head, ...(lines.length ? lines.join('\n\n').split('\n') : []), ...tail].join('\n');
+            return { subject, body, shortBody: body.length > 1500 ? body.slice(0, 1400) + '\n…' : body };
+        }
+
         const canShareFiles = () => {
             try { return !!(navigator.canShare && navigator.share && navigator.canShare({ files: [new File(['x'], 'x.xlsx', { type: XLSX_MIME })] })); }
             catch (e) { return false; }
@@ -1546,19 +1583,19 @@
             document.body.appendChild(a); a.click(); a.remove();
         };
 
-        function MailPanel({ profile, setProfile, file, mail, supervisorName, onSent, onCancel }) {
-            const [to, setTo] = useState(profile.mailTo || '');
-            const [cc, setCc] = useState(profile.mailCc || '');
+        function MailPanel({ profile, setProfile, file, mail, supervisorName, onSent, onCancel, noFile, initTo, initCc, toLabel, toHint }) {
+            const [to, setTo] = useState(initTo !== undefined ? initTo : (profile.mailTo || ''));
+            const [cc, setCc] = useState(initCc !== undefined ? initCc : (profile.mailCc || ''));
             const [subject, setSubject] = useState(mail.subject);
             const [body, setBody] = useState(mail.body);
             const [touched, setTouched] = useState(false);
-            const share = useMemo(canShareFiles, []);
+            const share = useMemo(canShareFiles, []) && !noFile;
             const toList = parseEmails(to), ccList = parseEmails(cc);
             const badTo = !toList.length ? 'Nhập email giám sát / quản lý.' : toList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${toList.find(e => !EMAIL_RE.test(e))}` : '';
             const badCc = ccList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${ccList.find(e => !EMAIL_RE.test(e))}` : '';
             const invalid = !!(badTo || badCc);
-            const ready = file && file.status === 'ready';
-            const remember = () => setProfile({ ...profile, mailTo: toList.join(', '), mailCc: ccList.join(', ') });
+            const ready = !noFile && file && file.status === 'ready';
+            const remember = () => { if (!noFile) setProfile({ ...profile, mailTo: toList.join(', '), mailCc: ccList.join(', ') }); };   // thư báo cáo ngày: người nhận theo dự án, không ghi đè địa chỉ đã nhớ của thư cuối kỳ
             const guard = () => { setTouched(true); if (invalid) return false; remember(); return true; };
             const download = () => { if (ready) saveAs(file.blob, file.name); };
             const attachNote = ready ? ` — file ${file.name} đã tải về máy, hãy đính kèm vào thư trước khi gửi.` : '.';
@@ -1593,8 +1630,8 @@
             return (
                 <div className="px-5 py-5 space-y-5">
                     <section className="space-y-3">
-                        <Field label="Gửi đến (email giám sát / quản lý)" htmlFor="tsMailTo"
-                            hint={supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.'}>
+                        <Field label={toLabel || 'Gửi đến (email giám sát / quản lý)'} htmlFor="tsMailTo"
+                            hint={toHint || (supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.')}>
                             <input id="tsMailTo" data-autofocus type="email" multiple inputMode="email" autoComplete="email" className={inputCls}
                                 value={to} onChange={e => setTo(e.target.value)} onBlur={() => setTouched(true)} placeholder="email@congty.com"
                                 aria-invalid={touched && !!badTo} aria-describedby="tsMailErr"/>
@@ -1612,13 +1649,13 @@
                                 <button type="button" onClick={() => { setBody(mail.body); setSubject(mail.subject); }} className="mt-1 text-sm font-medium text-blue-700 hover:text-blue-900">Soạn lại theo số liệu kỳ</button>
                             )}
                         </Field>
-                        <div id="tsMailFile" className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
+                        {!noFile && <div id="tsMailFile" className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
                             <span aria-hidden="true">📎</span>
                             {!file || file.status === 'loading' ? <span className="text-slate-500">Đang tạo file bảng chấm công Excel…</span>
                                 : file.status === 'ready' ? <span><b>{file.name}</b> <span className="text-slate-500">· {Math.max(1, Math.round(file.blob.size / 1024))} KB</span></span>
                                 : file.status === 'empty' ? <span className="text-amber-800">Kỳ này chưa có chấm công — thư sẽ không có file đính kèm.</span>
                                 : <span className="text-rose-700">{file.error}</span>}
-                        </div>
+                        </div>}
                     </section>
 
                     <section className="space-y-2 pt-4 border-t border-slate-200">
@@ -1638,10 +1675,44 @@
                             <button id="tsMailGmail" type="button" onClick={() => viaWeb('gmail')} className={`${btnGhost} h-11`}>Gmail (web)</button>
                             <button id="tsMailOwa" type="button" onClick={() => viaWeb('owa')} className={`${btnGhost} h-11`}>Outlook web</button>
                         </div>
-                        <p className="text-xs text-slate-500">Với 3 cách này, thư đã điền sẵn người nhận, tiêu đề, nội dung; file Excel tự tải về máy —
-                            trình duyệt không cho tự đính kèm, hãy kéo / chọn file vào thư rồi bấm Gửi.</p>
+                        <p className="text-xs text-slate-500">{noFile ? 'Thư đã điền sẵn người nhận, tiêu đề, nội dung — kiểm tra lại rồi bấm Gửi trong ứng dụng mail.'
+                            : 'Với 3 cách này, thư đã điền sẵn người nhận, tiêu đề, nội dung; file Excel tự tải về máy — trình duyệt không cho tự đính kèm, hãy kéo / chọn file vào thư rồi bấm Gửi.'}</p>
                         <button type="button" onClick={onCancel} className={`${btnGhost} w-full h-11 mt-2`}>Hủy</button>
                     </section>
+                </div>
+            );
+        }
+
+        function DailyMailPanel({ profile, setProfile, entries, bdOf, defaultDate, onSent, onCancel }) {
+            const [date, setDate] = useState(defaultDate);
+            const wbsKey = [...new Set(entries.filter(e => e.date === date).map(e => String(e.workNumber || '').trim()).filter(Boolean))].join(',');
+            const [people, setPeople] = useState(null);     // gợi ý người nhận từ máy chủ (null = đang hỏi / không có)
+            useEffect(() => {
+                setPeople(null);
+                if (!SERVER || !wbsKey) return;
+                let live = true;
+                fetch('/api/ts/approvers?wbs=' + encodeURIComponent(wbsKey), { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' })
+                    .then(r => (r.ok ? r.json() : { approvers: [] })).then(j => { if (live) setPeople(j.approvers || []); }).catch(() => { if (live) setPeople([]); });
+                return () => { live = false; };
+            }, [wbsKey]);
+            const waiting = SERVER && wbsKey && people === null;
+            const sup = (people || []).filter(p => p.level === 'sitesup').map(p => p.email), pms = (people || []).filter(p => p.level === 'pm').map(p => p.email);
+            const initTo = sup.length ? sup.join(', ') : (pms.length ? pms.join(', ') : (profile.mailTo || ''));
+            const initCc = sup.length ? pms.join(', ') : (profile.mailCc || '');
+            const names = (people || []).map(p => `${p.name} (${p.level === 'pm' ? 'QLDA' : 'Site Sup'})`).join(', ');
+            return (
+                <div>
+                    <div className="px-5 pt-5">
+                        <Field label="Ngày báo cáo" htmlFor="tsDailyDate">
+                            <input id="tsDailyDate" type="date" className={inputCls} value={date} max={getTodayLocal()} onChange={e => e.target.value && setDate(e.target.value)}/>
+                        </Field>
+                    </div>
+                    {waiting ? <p className="px-5 py-8 text-sm text-slate-500">Đang tìm người phụ trách các dự án trong ngày…</p>
+                        : <MailPanel key={date + '|' + (people ? people.map(p => p.empId).join(',') : '-')} noFile profile={profile} setProfile={setProfile}
+                            mail={buildDailyMail(profile, date, entries, bdOf)} initTo={initTo} initCc={initCc}
+                            toLabel="Gửi đến (Site Sup của dự án)"
+                            toHint={names ? `Tự điền theo phân công dự án: ${names}. Sửa được.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy.'}
+                            onSent={onSent} onCancel={onCancel}/>}
                 </div>
             );
         }

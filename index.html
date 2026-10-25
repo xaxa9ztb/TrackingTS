@@ -536,6 +536,24 @@
       const cards = allowed.length ? `<ul class="tools">${allowed.map(id => card(id, sameRoles)).join('')}</ul>` : '';
       return `<section class="group" aria-label="${esc(g.title)}">${head}${cards}${locked.length ? lockedPanel(locked) : ''}</section>`;
     }).join('');
+    loadApprovalBadge();
+  }
+
+  // Bản máy chủ: số bảng công đang chờ người này duyệt (hiện trên thẻ "Duyệt bảng công")
+  async function loadApprovalBadge() {
+    if (!Session.SERVER) return;
+    const el = document.querySelector('a.tool[data-tool="approvals"]');
+    if (!el) return;
+    try {
+      const resp = await fetch('/api/ts/inbox', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' });
+      if (!resp.ok) return;
+      const n = ((await resp.json()).items || []).length;
+      let b = el.querySelector('.app-badge');
+      if (n > 0) {
+        if (!b) { b = document.createElement('span'); b.className = 'app-badge'; el.prepend(b); }
+        b.textContent = `${n} chờ duyệt`; b.dataset.count = String(n);
+      } else if (b && b.dataset.count !== undefined) b.remove();
+    } catch (e) { /* mất mạng: bỏ qua */ }
   }
 
   function card(id, roleInHeader) {

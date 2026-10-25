@@ -1434,6 +1434,7 @@ function App() {
     note: docNotes[currentMonth] || '',
     submitting: submitting,
     month: currentMonth,
+    period: period,
     onRetry: runSync,
     onSubmit: handleSubmit,
     onWithdraw: handleWithdraw
@@ -1497,10 +1498,20 @@ function App() {
     "aria-hidden": "true"
   }, "\u2715"), /*#__PURE__*/React.createElement("span", {
     className: "sr-only"
-  }, "B\u1ECF l\u1ECDc ng\xE0y")), dayFilter && /*#__PURE__*/React.createElement("button", {
+  }, "B\u1ECF l\u1ECDc ng\xE0y")), /*#__PURE__*/React.createElement("button", {
+    id: "tsDailyMailBtn",
+    type: "button",
+    onClick: () => setDrawer({
+      type: 'dailyMail',
+      date: dayFilter || getTodayLocal(),
+      key: Date.now()
+    }),
+    className: "ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50",
+    title: "G\u1EEDi gi\xE1m s\xE1t b\xE1o c\xE1o thi c\xF4ng c\u1EE7a m\u1ED9t ng\xE0y (t\u1EF1 m\u1EDF \u1EE9ng d\u1EE5ng mail)"
+  }, /*#__PURE__*/React.createElement(Icons.Mail, null), " B\xE1o c\xE1o ng\xE0y"), dayFilter && /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: () => openNewEntry(dayFilter),
-    className: "ml-auto text-sm font-semibold text-blue-700 hover:text-blue-900"
+    className: "text-sm font-semibold text-blue-700 hover:text-blue-900"
   }, "+ Th\xEAm cho ng\xE0y ", fmtDM(dayFilter))), visible.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "px-6 py-14 text-center"
   }, /*#__PURE__*/React.createElement("div", {
@@ -1567,6 +1578,21 @@ function App() {
       showToast(msg);
     },
     onCancel: closeDrawer
+  })), drawer && drawer.type === 'dailyMail' && /*#__PURE__*/React.createElement(Drawer, {
+    title: "G\u1EEDi b\xE1o c\xE1o thi c\xF4ng trong ng\xE0y",
+    onClose: closeDrawer
+  }, /*#__PURE__*/React.createElement(DailyMailPanel, {
+    key: drawer.key,
+    profile: profile,
+    setProfile: setProfile,
+    entries: entries,
+    bdOf: bdOf,
+    defaultDate: drawer.date,
+    onSent: msg => {
+      closeDrawer();
+      showToast(msg);
+    },
+    onCancel: closeDrawer
   })), drawer && drawer.type === 'settings' && /*#__PURE__*/React.createElement(Drawer, {
     title: "Sao l\u01B0u & kh\xF4i ph\u1EE5c",
     onClose: closeDrawer
@@ -1602,6 +1628,7 @@ function SyncBar({
   note,
   submitting,
   month,
+  period,
   onRetry,
   onSubmit,
   onWithdraw
@@ -1609,6 +1636,18 @@ function SyncBar({
   const [y, m] = month.split('-');
   const pending = Object.keys(TsSync.load().dirty || {}).length;
   const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : status === 'rejected' ? 'bg-rose-50 text-rose-800 border-rose-200' : TsSync.LOCKED.includes(status) ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200';
+  // nhắc hạn: bảng công phải nộp trước ngày 12 của tháng kết thúc kỳ (từ ngày 9 bắt đầu nhắc)
+  const today = getTodayLocal(),
+    deadline = `${month}-12`;
+  const daysLeft = Math.round((parseLocal(deadline) - parseLocal(today)) / 864e5);
+  const open = status === 'draft' || status === 'rejected';
+  const remind = open && today >= period.start && daysLeft <= 3 ? daysLeft < 0 ? {
+    tone: 'rose',
+    text: `⚠ Đã quá hạn nộp bảng công (hạn ${fmtDM(deadline)}). Nộp ngay để giám sát kịp duyệt.`
+  } : {
+    tone: daysLeft <= 1 ? 'rose' : 'amber',
+    text: `⏰ Hạn nộp bảng công kỳ này là ${fmtDM(deadline)} (${daysLeft === 0 ? 'hôm nay' : `còn ${daysLeft} ngày`}). Chấm trước cả các ngày còn lại của kỳ rồi bấm Nộp.`
+  } : null;
   const at = info.at ? new Date(info.at).toLocaleTimeString('vi-VN', {
     hour: '2-digit',
     minute: '2-digit'
@@ -1637,7 +1676,10 @@ function SyncBar({
   }, status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : 'Không sửa được trong lúc chờ duyệt.'), status === 'rejected' && note && /*#__PURE__*/React.createElement("span", {
     id: "tsRejectNote",
     className: "text-sm text-rose-700 font-medium"
-  }, "L\xFD do tr\u1EA3 l\u1EA1i \u2014 ", note), /*#__PURE__*/React.createElement("span", {
+  }, "L\xFD do tr\u1EA3 l\u1EA1i \u2014 ", note), remind && /*#__PURE__*/React.createElement("span", {
+    id: "tsDeadline",
+    className: `text-sm font-medium ${remind.tone === 'rose' ? 'text-rose-700' : 'text-amber-800'}`
+  }, remind.text), /*#__PURE__*/React.createElement("span", {
     id: "tsSyncText",
     className: "ml-auto text-sm text-slate-600 inline-flex items-center gap-2"
   }, info.state === 'syncing' && /*#__PURE__*/React.createElement("span", null, "\u27F3 \u0110ang \u0111\u1ED3ng b\u1ED9 v\u1EDBi m\xE1y ch\u1EE7\u2026"), info.state === 'ok' && /*#__PURE__*/React.createElement("span", null, "\u2713 \u0110\xE3 l\u01B0u tr\xEAn m\xE1y ch\u1EE7", at ? ` lúc ${at}` : '', pending ? ` · còn ${pending} kỳ chưa gửi` : ''), info.state === 'offline' && /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCF4 M\u1EA5t m\u1EA1ng \u2014 d\u1EEF li\u1EC7u an to\xE0n tr\xEAn m\xE1y, s\u1EBD t\u1EF1 g\u1EEDi khi c\xF3 m\u1EA1ng", pending ? ` (${pending} kỳ chưa gửi)` : ''), info.state === 'error' && /*#__PURE__*/React.createElement("span", {
@@ -2948,6 +2990,28 @@ function buildMailText(d, profile, period, month, supervisorName) {
     shortBody
   };
 }
+
+// Thư báo cáo thi công trong ngày (fitter tự gửi giám sát / quản lý)
+function buildDailyMail(profile, date, rows, bdOf) {
+  const name = profile.name || 'Nhân viên';
+  const subject = `[Báo cáo thi công] ${name}${profile.empId ? ` (${profile.empId})` : ''} – ${WEEKDAYS[weekdayOf(date)]} ${fmtDMY(date)}`;
+  const list = rows.filter(e => e.date === date).sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+  const total = list.reduce((t, e) => t + sumBd(bdOf(e)), 0);
+  const normal = list.reduce((t, e) => t + (bdOf(e).NORMAL || 0), 0);
+  const lines = list.map((e, i) => {
+    const meta = ACTIVITY_META.find(a => a.id === e.activityCode || a.code === e.activityCode);
+    const ots = Object.keys(bdOf(e)).filter(k => k !== 'NORMAL' && bdOf(e)[k] > 0).map(k => `${k} ${fmtH(bdOf(e)[k])}`).join(', ');
+    return [`${i + 1}) ${e.projectName || '(không ghi dự án)'}${e.workNumber ? ` (${e.workNumber})` : ''}`, `   ${e.startTime}–${e.endTime} · ${fmtH(sumBd(bdOf(e)))} giờ${ots ? ` (tăng ca: ${ots})` : ''} · ${meta ? meta.desc.replace(/^\S+\s*-\s*/, '') : e.activityCode}`, e.report ? `   Báo cáo: ${e.report}` : e.remarks ? `   Ghi chú: ${e.remarks}` : ''].filter(Boolean).join('\n');
+  });
+  const head = ['Kính gửi Anh/Chị,', '', `Báo cáo thi công ngày ${WEEKDAYS_LONG[weekdayOf(date)]} ${fmtDMY(date)} của ${name}${profile.empId ? ` (${profile.empId})` : ''}:`, ''];
+  const tail = ['', list.length ? `Tổng: ${fmtH(total)} giờ (thường ${fmtH(normal)}, tăng ca ${fmtH(total - normal)}).` : 'Hôm nay chưa có dòng chấm công.', '', 'Trân trọng,', name];
+  const body = [...head, ...(lines.length ? lines.join('\n\n').split('\n') : []), ...tail].join('\n');
+  return {
+    subject,
+    body,
+    shortBody: body.length > 1500 ? body.slice(0, 1400) + '\n…' : body
+  };
+}
 const canShareFiles = () => {
   try {
     return !!(navigator.canShare && navigator.share && navigator.canShare({
@@ -2977,25 +3041,32 @@ function MailPanel({
   mail,
   supervisorName,
   onSent,
-  onCancel
+  onCancel,
+  noFile,
+  initTo,
+  initCc,
+  toLabel,
+  toHint
 }) {
-  const [to, setTo] = useState(profile.mailTo || '');
-  const [cc, setCc] = useState(profile.mailCc || '');
+  const [to, setTo] = useState(initTo !== undefined ? initTo : profile.mailTo || '');
+  const [cc, setCc] = useState(initCc !== undefined ? initCc : profile.mailCc || '');
   const [subject, setSubject] = useState(mail.subject);
   const [body, setBody] = useState(mail.body);
   const [touched, setTouched] = useState(false);
-  const share = useMemo(canShareFiles, []);
+  const share = useMemo(canShareFiles, []) && !noFile;
   const toList = parseEmails(to),
     ccList = parseEmails(cc);
   const badTo = !toList.length ? 'Nhập email giám sát / quản lý.' : toList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${toList.find(e => !EMAIL_RE.test(e))}` : '';
   const badCc = ccList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${ccList.find(e => !EMAIL_RE.test(e))}` : '';
   const invalid = !!(badTo || badCc);
-  const ready = file && file.status === 'ready';
-  const remember = () => setProfile({
-    ...profile,
-    mailTo: toList.join(', '),
-    mailCc: ccList.join(', ')
-  });
+  const ready = !noFile && file && file.status === 'ready';
+  const remember = () => {
+    if (!noFile) setProfile({
+      ...profile,
+      mailTo: toList.join(', '),
+      mailCc: ccList.join(', ')
+    });
+  }; // thư báo cáo ngày: người nhận theo dự án, không ghi đè địa chỉ đã nhớ của thư cuối kỳ
   const guard = () => {
     setTouched(true);
     if (invalid) return false;
@@ -3061,9 +3132,9 @@ function MailPanel({
   }, /*#__PURE__*/React.createElement("section", {
     className: "space-y-3"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "G\u1EEDi \u0111\u1EBFn (email gi\xE1m s\xE1t / qu\u1EA3n l\xFD)",
+    label: toLabel || 'Gửi đến (email giám sát / quản lý)',
     htmlFor: "tsMailTo",
-    hint: supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.'
+    hint: toHint || (supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.')
   }, /*#__PURE__*/React.createElement("input", {
     id: "tsMailTo",
     "data-autofocus": true,
@@ -3119,7 +3190,7 @@ function MailPanel({
       setSubject(mail.subject);
     },
     className: "mt-1 text-sm font-medium text-blue-700 hover:text-blue-900"
-  }, "So\u1EA1n l\u1EA1i theo s\u1ED1 li\u1EC7u k\u1EF3")), /*#__PURE__*/React.createElement("div", {
+  }, "So\u1EA1n l\u1EA1i theo s\u1ED1 li\u1EC7u k\u1EF3")), !noFile && /*#__PURE__*/React.createElement("div", {
     id: "tsMailFile",
     className: "flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm",
     "aria-live": "polite"
@@ -3164,11 +3235,76 @@ function MailPanel({
     className: `${btnGhost} h-11`
   }, "Outlook web")), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-slate-500"
-  }, "V\u1EDBi 3 c\xE1ch n\xE0y, th\u01B0 \u0111\xE3 \u0111i\u1EC1n s\u1EB5n ng\u01B0\u1EDDi nh\u1EADn, ti\xEAu \u0111\u1EC1, n\u1ED9i dung; file Excel t\u1EF1 t\u1EA3i v\u1EC1 m\xE1y \u2014 tr\xECnh duy\u1EC7t kh\xF4ng cho t\u1EF1 \u0111\xEDnh k\xE8m, h\xE3y k\xE9o / ch\u1ECDn file v\xE0o th\u01B0 r\u1ED3i b\u1EA5m G\u1EEDi."), /*#__PURE__*/React.createElement("button", {
+  }, noFile ? 'Thư đã điền sẵn người nhận, tiêu đề, nội dung — kiểm tra lại rồi bấm Gửi trong ứng dụng mail.' : 'Với 3 cách này, thư đã điền sẵn người nhận, tiêu đề, nội dung; file Excel tự tải về máy — trình duyệt không cho tự đính kèm, hãy kéo / chọn file vào thư rồi bấm Gửi.'), /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onCancel,
     className: `${btnGhost} w-full h-11 mt-2`
   }, "H\u1EE7y")));
+}
+function DailyMailPanel({
+  profile,
+  setProfile,
+  entries,
+  bdOf,
+  defaultDate,
+  onSent,
+  onCancel
+}) {
+  const [date, setDate] = useState(defaultDate);
+  const wbsKey = [...new Set(entries.filter(e => e.date === date).map(e => String(e.workNumber || '').trim()).filter(Boolean))].join(',');
+  const [people, setPeople] = useState(null); // gợi ý người nhận từ máy chủ (null = đang hỏi / không có)
+  useEffect(() => {
+    setPeople(null);
+    if (!SERVER || !wbsKey) return;
+    let live = true;
+    fetch('/api/ts/approvers?wbs=' + encodeURIComponent(wbsKey), {
+      credentials: 'same-origin',
+      redirect: 'manual',
+      cache: 'no-store'
+    }).then(r => r.ok ? r.json() : {
+      approvers: []
+    }).then(j => {
+      if (live) setPeople(j.approvers || []);
+    }).catch(() => {
+      if (live) setPeople([]);
+    });
+    return () => {
+      live = false;
+    };
+  }, [wbsKey]);
+  const waiting = SERVER && wbsKey && people === null;
+  const sup = (people || []).filter(p => p.level === 'sitesup').map(p => p.email),
+    pms = (people || []).filter(p => p.level === 'pm').map(p => p.email);
+  const initTo = sup.length ? sup.join(', ') : pms.length ? pms.join(', ') : profile.mailTo || '';
+  const initCc = sup.length ? pms.join(', ') : profile.mailCc || '';
+  const names = (people || []).map(p => `${p.name} (${p.level === 'pm' ? 'QLDA' : 'Site Sup'})`).join(', ');
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "px-5 pt-5"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Ng\xE0y b\xE1o c\xE1o",
+    htmlFor: "tsDailyDate"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsDailyDate",
+    type: "date",
+    className: inputCls,
+    value: date,
+    max: getTodayLocal(),
+    onChange: e => e.target.value && setDate(e.target.value)
+  }))), waiting ? /*#__PURE__*/React.createElement("p", {
+    className: "px-5 py-8 text-sm text-slate-500"
+  }, "\u0110ang t\xECm ng\u01B0\u1EDDi ph\u1EE5 tr\xE1ch c\xE1c d\u1EF1 \xE1n trong ng\xE0y\u2026") : /*#__PURE__*/React.createElement(MailPanel, {
+    key: date + '|' + (people ? people.map(p => p.empId).join(',') : '-'),
+    noFile: true,
+    profile: profile,
+    setProfile: setProfile,
+    mail: buildDailyMail(profile, date, entries, bdOf),
+    initTo: initTo,
+    initCc: initCc,
+    toLabel: "G\u1EEDi \u0111\u1EBFn (Site Sup c\u1EE7a d\u1EF1 \xE1n)",
+    toHint: names ? `Tự điền theo phân công dự án: ${names}. Sửa được.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy.',
+    onSent: onSent,
+    onCancel: onCancel
+  }));
 }
 function Toast({
   toast,

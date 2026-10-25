@@ -95,6 +95,11 @@ Trên `*.pages.dev` (chế độ máy chủ) Timesheet **vẫn chấm công trê
   Luồng: *Đang chấm → Đã nộp (chờ Site Sup) → Site Sup đã duyệt (chờ Quản lý dự án) → Đã duyệt xong*. Giám sát / quản lý có thể **Trả lại** kèm lý do
   (hiện trên thanh trạng thái, kỳ mở lại để sửa rồi nộp lại); chưa ai duyệt thì người nộp **Thu hồi để sửa**.
   Duyệt xong, các dòng **tự sang bảng Theo dõi giờ công** (Thống kê giờ công).
+- **Gửi báo cáo thi công hằng ngày (thủ công)**: nút **Báo cáo ngày** ở đầu danh sách chấm công → chọn ngày → thư soạn sẵn (dự án, giờ, việc làm,
+  báo cáo thi công). Bản máy chủ **tự điền người nhận**: Site Sup của các dự án trong ngày (To) và Quản lý dự án (CC) theo phân công dự án
+  (`GET /api/ts/approvers`); sửa được. Gửi bằng Outlook / ứng dụng mail, Gmail web hoặc Outlook web — fitter tự bấm Gửi, không có máy chủ gửi mail.
+- **Nhắc hạn**: từ ngày 9 hằng tháng thanh trạng thái nhắc *hạn nộp bảng công là ngày 12* (còn N ngày); quá hạn thì báo đỏ. Site Sup / Quản lý dự án
+  thấy huy hiệu **N chờ duyệt** trên thẻ *Duyệt bảng công* ở trang chủ. (Không gửi email / thông báo đẩy tự động.)
 - Kiểm thử logic gộp / mất mạng / hai thiết bị: `npm run test:client` (máy chủ giả trong bộ nhớ).
 
 ## Gửi mail cho giám sát

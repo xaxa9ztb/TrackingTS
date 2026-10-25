@@ -609,6 +609,23 @@ async function putMyDoc(env, me, period, request) {
     { status: 409, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
+// Gợi ý người nhận khi fitter tự gửi mail báo cáo thi công: Site Sup / Quản lý dự án được gán cho các dự án (WBS) của ngày đó.
+// Chỉ trả tên + email của đúng những người phụ trách các dự án mà người hỏi đang làm.
+async function tsApprovers(env, me, url) {
+  needOwnEmp(me);
+  const list = [...new Set((url.searchParams.get('wbs') || '').split(',').map(x => str(x, 100)).filter(Boolean))].slice(0, 20);
+  if (!list.length) return json({ approvers: [] });
+  const { results } = await env.DB.prepare(`SELECT s.wbs, s.role, e.emp_id, e.full_name, e.email FROM project_staff s JOIN employees e ON e.emp_id = s.emp_id
+    WHERE s.wbs IN (${list.map(() => '?').join(', ')}) AND e.active = 1 AND e.email <> '' ORDER BY s.role, e.full_name`).bind(...list).all();
+  const by = new Map();
+  for (const r of results) {
+    const k = r.emp_id + '|' + r.role;
+    if (!by.has(k)) by.set(k, { empId: r.emp_id, name: r.full_name, email: r.email, level: r.role, wbs: [] });
+    by.get(k).wbs.push(r.wbs);
+  }
+  return json({ approvers: [...by.values()] });
+}
+
 // ---------- nộp bảng công và duyệt hai cấp (Site Sup → Quản lý dự án) ----------
 const DOC_JSON_HEAD = (r) => `{"ok":true,"period":${JSON.stringify(r.period)},"emp":${JSON.stringify(r.emp_id)},"version":${r.version},"status":${JSON.stringify(r.status)}`;
 
@@ -854,6 +871,7 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'PUT') return await putMyDoc(env, me, decodeURIComponent(m[1]), request);
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/submit$/)) && method === 'POST') return await submitMyDoc(env, me, decodeURIComponent(m[1]), request);
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/withdraw$/)) && method === 'POST') return await withdrawMyDoc(env, me, decodeURIComponent(m[1]));
+    if (path === '/api/ts/approvers' && method === 'GET') return await tsApprovers(env, me, url);
     if (path === '/api/ts/inbox' && method === 'GET') return await tsInbox(env, me);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);

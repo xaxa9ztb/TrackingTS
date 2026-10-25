@@ -187,6 +187,9 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
   người đó trong kỳ (duyệt lại không nhân đôi); admin nạp lại bảng công từ Excel thì dòng đã duyệt **được giữ** ở những ngày bản nạp mới chưa có dòng của người đó.
   Phân loại giờ (thường / OT) do trình duyệt tính bằng `labor.js` (chạy trên máy chủ gói miễn phí quá giới hạn CPU) và máy chủ kiểm tra tổng; người duyệt thấy
   cảnh báo nếu phân loại khác kết quả tính lại.
+- **Không gửi email tự động**: báo cáo thi công hằng ngày và bảng công cuối kỳ do fitter tự gửi từ ứng dụng mail của họ (người nhận được gợi ý theo
+  phân công dự án); nhắc hạn là thông báo trong ứng dụng. Vì vậy **không cần dịch vụ gửi mail hay lịch chạy tự động (cron)**. Sao lưu dữ liệu: D1 có sẵn
+  *Time Travel* (khôi phục về bất kỳ phút nào trong 30 ngày gần nhất, không tốn thêm phí — Cloudflare → D1 → cơ sở dữ liệu → *Time Travel*).
 - **Sửa / xoá dự án và Swat Hour Target** (tab Dự án, tab SWAT) ghi thẳng lên máy chủ (`PATCH /api/admin/projects/:wbs`, `POST /api/admin/projects/delete`,
   chỉ admin, có nhật ký). Ghi lên máy chủ **trước**, lỗi thì báo và không đổi gì trên máy — nên đồng bộ không làm mất. Chỉ gửi các trường vừa sửa
   nên không đè thay đổi của người khác.

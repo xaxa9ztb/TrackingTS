@@ -825,3 +825,16 @@ test('bảng Theo dõi giờ công: admin nạp lại từ Excel không làm m�
   assert.equal(rows.filter(x => x.empId === 'TS3').length, 3, 'người khác không bị ảnh hưởng');
   assert.equal(up.commit.data.count, rows.length);
 });
+
+test('gợi ý người nhận mail báo cáo: Site Sup / QLDA của đúng các dự án hỏi', async () => {
+  const r = await call('GET', '/api/ts/approvers?wbs=WA-1,KHONG-CO', { email: 'ts1@example.com' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.approvers.map(a => [a.name, a.email, a.level, a.wbs]), [['Quản Lý Duyệt', 'ap3@example.com', 'pm', ['WA-1']], ['Giám Sát Duyệt', 'ap1@example.com', 'sitesup', ['WA-1']]]);
+  assert.deepEqual((await call('GET', '/api/ts/approvers?wbs=', { email: 'ts1@example.com' })).data.approvers, []);
+  assert.equal((await call('GET', '/api/ts/approvers?wbs=WA-1', { email: 'boss@example.com' })).status, 403, 'tài khoản chưa gắn nhân viên');
+  assert.equal((await call('GET', '/api/ts/approvers?wbs=WA-1')).status, 401);
+  // không lộ email người đã bị khoá
+  await call('PATCH', '/api/admin/employees/AP1', { email: 'boss@example.com', body: { active: false } });
+  assert.deepEqual((await call('GET', '/api/ts/approvers?wbs=WA-1', { email: 'ts1@example.com' })).data.approvers.map(a => a.level), ['pm']);
+  await call('PATCH', '/api/admin/employees/AP1', { email: 'boss@example.com', body: { active: true } });
+});
