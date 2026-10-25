@@ -220,6 +220,24 @@ const Icons = {
     x2: "18",
     y2: "18"
   })),
+  Mail: () => /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "2.5",
+    y: "4.5",
+    width: "19",
+    height: "15",
+    rx: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M3 6.5l9 6.5 9-6.5"
+  })),
   Chart: () => /*#__PURE__*/React.createElement("svg", {
     width: "20",
     height: "20",
@@ -574,6 +592,7 @@ const getTemplateBuffer = async () => {
   if (!res.ok) throw new Error('không tải được mẫu bảng chấm công (HTTP ' + res.status + ')');
   return res.arrayBuffer();
 };
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const cloneStyle = s => s ? JSON.parse(JSON.stringify(s)) : {};
 // Ngày ghi vào Excel PHẢI tạo theo UTC: ExcelJS đổi Date sang số ngày Excel theo giờ UTC.
 // new Date(y, m-1, d) là 0 giờ GIỜ MÁY — ở Việt Nam (UTC+7) = 17 giờ hôm TRƯỚC theo UTC → Excel lùi 1 ngày
@@ -703,6 +722,8 @@ function App() {
   const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
   const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
   const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+  const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
+  const [supervisorName, setSupervisorName] = useState(''); // giám sát theo EE Data (nếu có trên máy)
   const [dayFilter, setDayFilter] = useState(null);
   const [toast, setToast] = useState(null);
   const [syncStatus, setSyncStatus] = useState('');
@@ -731,6 +752,13 @@ function App() {
       if (!n && !savedProjects) setNeedProjects(true);
     })();
   }, []);
+  useEffect(() => {
+    if (typeof DB === 'undefined' || !profile.empId) return;
+    DB.getAll('employees').then(list => {
+      const me = (list || []).find(e => String(e.empId).trim().toLowerCase() === String(profile.empId).trim().toLowerCase());
+      setSupervisorName(me && me.supervisor ? String(me.supervisor) : '');
+    }).catch(() => {});
+  }, [profile.empId, projSyncedAt]); // máy mới: EE Data có sau lần đồng bộ đầu
   useEffect(() => {
     localStorage.setItem('ts_entries_v28', JSON.stringify(entries));
   }, [entries]);
@@ -895,19 +923,14 @@ function App() {
       }
     }
   };
-  const handleExportExcel = async () => {
-    if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+
+  // Tạo file bảng chấm công Excel (mẫu Schindler) của kỳ đang xem → { blob, name }.
+  // Dùng cho Xuất Excel và để đính kèm khi Gửi mail. Lỗi tải thư viện / mẫu → throw.
+  const buildExcelFile = async () => {
     const sortedData = [...monthlyEntries].sort((a, b) => a.date.localeCompare(b.date));
-    setSyncStatus('Đang tạo file...');
-    let workbook;
-    try {
-      await ensureExcelJS();
-      workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(await getTemplateBuffer());
-    } catch (err) {
-      setSyncStatus('');
-      return alert('Không xuất được Excel: ' + err.message + (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.'));
-    }
+    await ensureExcelJS();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await getTemplateBuffer());
     const sheet = workbook.getWorksheet('New TS') || workbook.worksheets[0];
 
     // Snapshot template styles BEFORE editing: a data row (11), the total row (59),
@@ -1039,8 +1062,51 @@ function App() {
     const buffer = await workbook.xlsx.writeBuffer();
     const cleanName = removeAccents(profile.name || 'Timesheet');
     const [y, m] = currentMonth.split('-');
-    saveAs(new Blob([buffer]), `${cleanName}_Thang_${m}_${y}.xlsx`);
-    setSyncStatus('');
+    return {
+      blob: new Blob([buffer], {
+        type: XLSX_MIME
+      }),
+      name: `${cleanName}_Thang_${m}_${y}.xlsx`
+    };
+  };
+  const excelError = err => 'Không xuất được Excel: ' + err.message + (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
+  const handleExportExcel = async () => {
+    if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+    setSyncStatus('Đang tạo file...');
+    try {
+      const f = await buildExcelFile();
+      saveAs(f.blob, f.name);
+    } catch (err) {
+      alert(excelError(err));
+    } finally {
+      setSyncStatus('');
+    }
+  };
+  const openMail = async () => {
+    setDrawer({
+      type: 'mail',
+      key: Date.now()
+    });
+    if (!monthlyEntries.length) {
+      setMailFile({
+        status: 'empty'
+      });
+      return;
+    }
+    setMailFile({
+      status: 'loading'
+    });
+    try {
+      setMailFile({
+        status: 'ready',
+        ...(await buildExcelFile())
+      });
+    } catch (err) {
+      setMailFile({
+        status: 'error',
+        error: excelError(err)
+      });
+    }
   };
   const handleBackup = () => {
     const blob = new Blob([JSON.stringify({
@@ -1121,6 +1187,15 @@ function App() {
   }, /*#__PURE__*/React.createElement(Icons.Download, null), /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
   }, exporting ? 'Đang tạo file...' : 'Xuất Excel')), /*#__PURE__*/React.createElement("button", {
+    id: "tsMailBtn",
+    type: "button",
+    onClick: openMail,
+    className: btnGhost,
+    title: "G\u1EEDi b\u1EA3ng ch\u1EA5m c\xF4ng c\u1EE7a k\u1EF3 cho gi\xE1m s\xE1t / qu\u1EA3n l\xFD qua email",
+    "aria-label": "G\u1EEDi mail"
+  }, /*#__PURE__*/React.createElement(Icons.Mail, null), /*#__PURE__*/React.createElement("span", {
+    className: "hidden sm:inline"
+  }, "G\u1EEDi mail")), /*#__PURE__*/React.createElement("button", {
     id: "tsSettingsBtn",
     type: "button",
     onClick: () => setDrawer({
@@ -1223,6 +1298,28 @@ function App() {
     entries: entries,
     projects: projects,
     sch: sch
+  })), drawer && drawer.type === 'mail' && /*#__PURE__*/React.createElement(Drawer, {
+    title: "G\u1EEDi b\u1EA3ng c\xF4ng cho gi\xE1m s\xE1t",
+    onClose: closeDrawer
+  }, /*#__PURE__*/React.createElement(MailPanel, {
+    key: drawer.key,
+    profile: profile,
+    setProfile: setProfile,
+    file: mailFile,
+    supervisorName: supervisorName,
+    mail: buildMailText(buildReport({
+      rows: monthlyEntries,
+      bdOf,
+      period,
+      sch,
+      holidays,
+      missing: stats.missing
+    }), profile, period, currentMonth, supervisorName),
+    onSent: msg => {
+      closeDrawer();
+      showToast(msg);
+    },
+    onCancel: closeDrawer
   })), drawer && drawer.type === 'settings' && /*#__PURE__*/React.createElement(Drawer, {
     title: "Sao l\u01B0u & kh\xF4i ph\u1EE5c",
     onClose: closeDrawer
@@ -2179,6 +2276,260 @@ function ReportView({
   }, /*#__PURE__*/React.createElement("p", null, "Gi\u1EDD t\u0103ng ca t\xEDnh theo B\u1ED9 lu\u1EADt Lao \u0111\u1ED9ng 2019 (\u0110i\u1EC1u 98, 106) v\xE0 Ngh\u1ECB \u0111\u1ECBnh 145/2020 (\u0110i\u1EC1u 57). Chi ti\u1EBFt t\u1EEBng d\xF2ng xem file b\u1EA3ng ch\u1EA5m c\xF4ng Excel. L\u1EADp ng\xE0y ", fmtDMY(getTodayLocal()), " t\u1EEB Timesheet c\xE1 nh\xE2n (", d.entries, " d\xF2ng ch\u1EA5m c\xF4ng)."), /*#__PURE__*/React.createElement("div", {
     className: "rp-sign"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Ng\u01B0\u1EDDi lao \u0111\u1ED9ng"), /*#__PURE__*/React.createElement("i", null), profile.name || ''), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Gi\xE1m s\xE1t (PM / PE) x\xE1c nh\u1EADn"), /*#__PURE__*/React.createElement("i", null))))));
+}
+
+// ================================================================
+//   GỬI MAIL CHO GIÁM SÁT
+//   Web tĩnh không tự gửi được thư → mở ứng dụng mail đã điền sẵn người nhận / tiêu đề / nội dung:
+//   - Chia sẻ (điện thoại, Windows, Mac): kèm luôn file Excel, chọn Gmail / Outlook trong bảng chia sẻ
+//   - mailto: (Outlook / ứng dụng mail mặc định), Gmail web, Outlook web: tải file Excel để đính kèm
+// ================================================================
+const EMAIL_RE = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
+const parseEmails = s => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+const MAILTO_MAX = 1900; // một số ứng dụng mail cắt / từ chối link mailto dài hơn ~2000 ký tự
+
+function buildMailText(d, profile, period, month, supervisorName) {
+  const [y, m] = month.split('-');
+  const kp = `kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDMY(period.start)} – ${fmtDMY(period.end)})`;
+  const name = profile.name || 'Nhân viên';
+  const subject = `[Timesheet] ${name}${profile.empId ? ` (${profile.empId})` : ''} – Kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDM(period.start)}–${fmtDM(period.end)}/${period.end.slice(0, 4)})`;
+  const ots = OT_TYPES.filter(t => t.code !== 'NORMAL' && d.byType[t.code] > 0).map(t => `${t.code}: ${fmtH(d.byType[t.code])}`).join(' · ');
+  const who = [`Nhân viên: ${name}`, profile.empId && `Mã NV: ${profile.empId}`, profile.position && `Chức vụ: ${profile.position}`, profile.dept && `Phòng ban: ${profile.dept}`].filter(Boolean).join(' – ');
+  const head = [`Kính gửi Anh/Chị${supervisorName ? ' ' + supervisorName : ''},`, '', `Tôi xin gửi bảng chấm công ${kp}.`, '', who, `Tổng giờ làm việc: ${fmtH(d.total)} giờ (${d.workDays} ngày)`, `- Giờ thường: ${fmtH(d.normal)} giờ`, `- Tăng ca: ${fmtH(d.ot)} giờ${ots ? ` (${ots})` : ''}`];
+  const leave = d.leaveDays ? `Nghỉ: ${d.leaveDays} ngày${d.leaveHours ? `, ${fmtH(d.leaveHours)} giờ` : ''} (${d.leaveList.map(l => `${l.label}: ${l.days} ngày`).join('; ')})` : 'Nghỉ: không';
+  const top = d.projectList.slice(0, 5);
+  const projects = top.length ? ['Dự án:', ...top.map(p => `- ${p.name}${p.wbs ? ` (${p.wbs})` : ''}: ${fmtH(p.total)} giờ`), ...(d.projectList.length > top.length ? [`- … và ${d.projectList.length - top.length} dự án khác`] : [])] : [];
+  const missing = d.missing.length ? [`Ngày chưa chấm: ${d.missing.map(fmtDM).join(', ')}`] : [];
+  const tail = ['', 'File bảng chấm công Excel đính kèm.', '', 'Trân trọng,', name];
+  const body = [...head, leave, ...projects, ...missing, ...tail].join('\n');
+  const shortBody = [...head, leave, ...missing, ...tail].join('\n'); // cho link mailto quá dài
+  return {
+    subject,
+    body,
+    shortBody
+  };
+}
+const canShareFiles = () => {
+  try {
+    return !!(navigator.canShare && navigator.share && navigator.canShare({
+      files: [new File(['x'], 'x.xlsx', {
+        type: XLSX_MIME
+      })]
+    }));
+  } catch (e) {
+    return false;
+  }
+};
+const qs = o => Object.keys(o).filter(k => o[k]).map(k => `${k}=${encodeURIComponent(o[k])}`).join('&');
+const crlf = t => t.replace(/\r?\n/g, '\r\n');
+const openLink = url => {
+  // mở mailto: bằng thẻ <a> (không rời trang)
+  const a = document.createElement('a');
+  a.href = url;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+function MailPanel({
+  profile,
+  setProfile,
+  file,
+  mail,
+  supervisorName,
+  onSent,
+  onCancel
+}) {
+  const [to, setTo] = useState(profile.mailTo || '');
+  const [cc, setCc] = useState(profile.mailCc || '');
+  const [subject, setSubject] = useState(mail.subject);
+  const [body, setBody] = useState(mail.body);
+  const [touched, setTouched] = useState(false);
+  const share = useMemo(canShareFiles, []);
+  const toList = parseEmails(to),
+    ccList = parseEmails(cc);
+  const badTo = !toList.length ? 'Nhập email giám sát / quản lý.' : toList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${toList.find(e => !EMAIL_RE.test(e))}` : '';
+  const badCc = ccList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${ccList.find(e => !EMAIL_RE.test(e))}` : '';
+  const invalid = !!(badTo || badCc);
+  const ready = file && file.status === 'ready';
+  const remember = () => setProfile({
+    ...profile,
+    mailTo: toList.join(', '),
+    mailCc: ccList.join(', ')
+  });
+  const guard = () => {
+    setTouched(true);
+    if (invalid) return false;
+    remember();
+    return true;
+  };
+  const download = () => {
+    if (ready) saveAs(file.blob, file.name);
+  };
+  const attachNote = ready ? ` — file ${file.name} đã tải về máy, hãy đính kèm vào thư trước khi gửi.` : '.';
+  const viaShare = () => {
+    if (!guard() || !ready) return;
+    const f = new File([file.blob], file.name, {
+      type: XLSX_MIME
+    });
+    try {
+      navigator.clipboard && navigator.clipboard.writeText(toList.join(', ')).catch(() => {});
+    } catch (e) {/* bỏ qua */}
+    navigator.share({
+      files: [f],
+      title: subject,
+      text: body
+    }).then(() => onSent(`Đã chuyển sang ứng dụng mail kèm file ${file.name}. Địa chỉ giám sát đã chép sẵn — dán vào ô Người nhận.`)).catch(err => {
+      if (err && err.name !== 'AbortError') alert('Không chia sẻ được: ' + err.message);
+    });
+  };
+  const viaMailto = () => {
+    if (!guard()) return;
+    download();
+    let url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({
+      cc: ccList.join(','),
+      subject,
+      body: crlf(body)
+    });
+    if (url.length > MAILTO_MAX) url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({
+      cc: ccList.join(','),
+      subject,
+      body: crlf(body === mail.body ? mail.shortBody : body.slice(0, 900) + '\n…')
+    });
+    openLink(url);
+    onSent('Đã mở ứng dụng mail (Outlook / mail mặc định)' + attachNote);
+  };
+  const viaWeb = kind => {
+    if (!guard()) return;
+    download();
+    const url = kind === 'gmail' ? 'https://mail.google.com/mail/?view=cm&fs=1&' + qs({
+      to: toList.join(','),
+      cc: ccList.join(','),
+      su: subject,
+      body
+    }) : 'https://outlook.office.com/mail/deeplink/compose?' + qs({
+      to: toList.join(','),
+      cc: ccList.join(','),
+      subject,
+      body
+    });
+    window.open(url, '_blank', 'noopener');
+    onSent(`Đã mở ${kind === 'gmail' ? 'Gmail' : 'Outlook web'}` + attachNote);
+  };
+  const btnRow = 'w-full justify-start h-11';
+  return /*#__PURE__*/React.createElement("div", {
+    className: "px-5 py-5 space-y-5"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "G\u1EEDi \u0111\u1EBFn (email gi\xE1m s\xE1t / qu\u1EA3n l\xFD)",
+    htmlFor: "tsMailTo",
+    hint: supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.'
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMailTo",
+    "data-autofocus": true,
+    type: "email",
+    multiple: true,
+    inputMode: "email",
+    autoComplete: "email",
+    className: inputCls,
+    value: to,
+    onChange: e => setTo(e.target.value),
+    onBlur: () => setTouched(true),
+    placeholder: "email@congty.com",
+    "aria-invalid": touched && !!badTo,
+    "aria-describedby": "tsMailErr"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "CC (kh\xF4ng b\u1EAFt bu\u1ED9c)",
+    htmlFor: "tsMailCc"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMailCc",
+    type: "email",
+    multiple: true,
+    inputMode: "email",
+    className: inputCls,
+    value: cc,
+    onChange: e => setCc(e.target.value),
+    placeholder: "email@congty.com"
+  })), /*#__PURE__*/React.createElement("p", {
+    id: "tsMailErr",
+    role: "alert",
+    className: "text-sm text-rose-700 empty:hidden"
+  }, touched ? badTo || badCc : ''), /*#__PURE__*/React.createElement(Field, {
+    label: "Ti\xEAu \u0111\u1EC1",
+    htmlFor: "tsMailSubject"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMailSubject",
+    type: "text",
+    className: inputCls,
+    value: subject,
+    onChange: e => setSubject(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "N\u1ED9i dung",
+    htmlFor: "tsMailBody"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    id: "tsMailBody",
+    rows: 11,
+    className: `${inputCls} h-auto py-2 leading-snug font-normal`,
+    value: body,
+    onChange: e => setBody(e.target.value)
+  }), (body !== mail.body || subject !== mail.subject) && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      setBody(mail.body);
+      setSubject(mail.subject);
+    },
+    className: "mt-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+  }, "So\u1EA1n l\u1EA1i theo s\u1ED1 li\u1EC7u k\u1EF3")), /*#__PURE__*/React.createElement("div", {
+    id: "tsMailFile",
+    className: "flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm",
+    "aria-live": "polite"
+  }, /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": "true"
+  }, "\uD83D\uDCCE"), !file || file.status === 'loading' ? /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-500"
+  }, "\u0110ang t\u1EA1o file b\u1EA3ng ch\u1EA5m c\xF4ng Excel\u2026") : file.status === 'ready' ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, file.name), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-500"
+  }, "\xB7 ", Math.max(1, Math.round(file.blob.size / 1024)), " KB")) : file.status === 'empty' ? /*#__PURE__*/React.createElement("span", {
+    className: "text-amber-800"
+  }, "K\u1EF3 n\xE0y ch\u01B0a c\xF3 ch\u1EA5m c\xF4ng \u2014 th\u01B0 s\u1EBD kh\xF4ng c\xF3 file \u0111\xEDnh k\xE8m.") : /*#__PURE__*/React.createElement("span", {
+    className: "text-rose-700"
+  }, file.error))), /*#__PURE__*/React.createElement("section", {
+    className: "space-y-2 pt-4 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold"
+  }, "G\u1EEDi b\u1EB1ng"), share && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    id: "tsMailShare",
+    type: "button",
+    onClick: viaShare,
+    disabled: !ready,
+    className: `${btnPrimary} ${btnRow}`
+  }, /*#__PURE__*/React.createElement(Icons.Mail, null), " G\u1EEDi k\xE8m file Excel"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500 -mt-1"
+  }, "M\u1EDF b\u1EA3ng chia s\u1EBB c\u1EE7a m\xE1y v\u1EDBi file \u0111\xEDnh k\xE8m s\u1EB5n \u2014 ch\u1ECDn Gmail, Outlook\u2026 \u0110\u1ECBa ch\u1EC9 gi\xE1m s\xE1t \u0111\u01B0\u1EE3c ch\xE9p s\u1EB5n \u0111\u1EC3 d\xE1n v\xE0o \xF4 Ng\u01B0\u1EDDi nh\u1EADn.")), /*#__PURE__*/React.createElement("button", {
+    id: "tsMailApp",
+    type: "button",
+    onClick: viaMailto,
+    className: `${share ? btnGhost : btnPrimary} ${btnRow}`
+  }, /*#__PURE__*/React.createElement(Icons.Mail, null), " Outlook / \u1EE9ng d\u1EE5ng mail tr\xEAn m\xE1y"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    id: "tsMailGmail",
+    type: "button",
+    onClick: () => viaWeb('gmail'),
+    className: `${btnGhost} h-11`
+  }, "Gmail (web)"), /*#__PURE__*/React.createElement("button", {
+    id: "tsMailOwa",
+    type: "button",
+    onClick: () => viaWeb('owa'),
+    className: `${btnGhost} h-11`
+  }, "Outlook web")), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-slate-500"
+  }, "V\u1EDBi 3 c\xE1ch n\xE0y, th\u01B0 \u0111\xE3 \u0111i\u1EC1n s\u1EB5n ng\u01B0\u1EDDi nh\u1EADn, ti\xEAu \u0111\u1EC1, n\u1ED9i dung; file Excel t\u1EF1 t\u1EA3i v\u1EC1 m\xE1y \u2014 tr\xECnh duy\u1EC7t kh\xF4ng cho t\u1EF1 \u0111\xEDnh k\xE8m, h\xE3y k\xE9o / ch\u1ECDn file v\xE0o th\u01B0 r\u1ED3i b\u1EA5m G\u1EEDi."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onCancel,
+    className: `${btnGhost} w-full h-11 mt-2`
+  }, "H\u1EE7y")));
 }
 function Toast({
   toast,

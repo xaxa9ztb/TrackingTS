@@ -15,6 +15,7 @@
             ChevronLeft: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
             ChevronRight: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
             X: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Mail: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M3 6.5l9 6.5 9-6.5"/></svg>,
             Chart: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="5" width="3" height="13" rx="1"/></svg>,
             Alert: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         };
@@ -135,6 +136,7 @@
             if (!res.ok) throw new Error('không tải được mẫu bảng chấm công (HTTP ' + res.status + ')');
             return res.arrayBuffer();
         };
+        const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
         const cloneStyle = (s) => (s ? JSON.parse(JSON.stringify(s)) : {});
         // Ngày ghi vào Excel PHẢI tạo theo UTC: ExcelJS đổi Date sang số ngày Excel theo giờ UTC.
         // new Date(y, m-1, d) là 0 giờ GIỜ MÁY — ở Việt Nam (UTC+7) = 17 giờ hôm TRƯỚC theo UTC → Excel lùi 1 ngày
@@ -232,6 +234,8 @@
             const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
             const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
             const [reportOpen, setReportOpen] = useState(false); // báo cáo tổng quan cho giám sát
+            const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
+            const [supervisorName, setSupervisorName] = useState(''); // giám sát theo EE Data (nếu có trên máy)
             const [dayFilter, setDayFilter] = useState(null);
             const [toast, setToast] = useState(null);
             const [syncStatus, setSyncStatus] = useState('');
@@ -258,6 +262,13 @@
                 })();
             }, []);
 
+            useEffect(() => {
+                if (typeof DB === 'undefined' || !profile.empId) return;
+                DB.getAll('employees').then(list => {
+                    const me = (list || []).find(e => String(e.empId).trim().toLowerCase() === String(profile.empId).trim().toLowerCase());
+                    setSupervisorName(me && me.supervisor ? String(me.supervisor) : '');
+                }).catch(() => {});
+            }, [profile.empId, projSyncedAt]); // máy mới: EE Data có sau lần đồng bộ đầu
             useEffect(() => { localStorage.setItem('ts_entries_v28', JSON.stringify(entries)); }, [entries]);
             useEffect(() => { localStorage.setItem('ts_profile_v28', JSON.stringify(profile)); }, [profile]);
             useEffect(() => { localStorage.setItem('ts_projects_v28', JSON.stringify(projects)); }, [projects]);
@@ -376,21 +387,13 @@
                 }
             };
 
-            const handleExportExcel = async () => {
-                if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+            // Tạo file bảng chấm công Excel (mẫu Schindler) của kỳ đang xem → { blob, name }.
+            // Dùng cho Xuất Excel và để đính kèm khi Gửi mail. Lỗi tải thư viện / mẫu → throw.
+            const buildExcelFile = async () => {
                 const sortedData = [...monthlyEntries].sort((a,b) => a.date.localeCompare(b.date));
-
-                setSyncStatus('Đang tạo file...');
-                let workbook;
-                try {
-                    await ensureExcelJS();
-                    workbook = new ExcelJS.Workbook();
-                    await workbook.xlsx.load(await getTemplateBuffer());
-                } catch (err) {
-                    setSyncStatus('');
-                    return alert('Không xuất được Excel: ' + err.message +
-                        (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.'));
-                }
+                await ensureExcelJS();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(await getTemplateBuffer());
                 const sheet = workbook.getWorksheet('New TS') || workbook.worksheets[0];
 
                 // Snapshot template styles BEFORE editing: a data row (11), the total row (59),
@@ -491,8 +494,29 @@
                 const buffer = await workbook.xlsx.writeBuffer();
                 const cleanName = removeAccents(profile.name || 'Timesheet');
                 const [y, m] = currentMonth.split('-');
-                saveAs(new Blob([buffer]), `${cleanName}_Thang_${m}_${y}.xlsx`);
-                setSyncStatus('');
+                return { blob: new Blob([buffer], { type: XLSX_MIME }), name: `${cleanName}_Thang_${m}_${y}.xlsx` };
+            };
+            const excelError = (err) => 'Không xuất được Excel: ' + err.message +
+                (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
+            const handleExportExcel = async () => {
+                if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+                setSyncStatus('Đang tạo file...');
+                try {
+                    const f = await buildExcelFile();
+                    saveAs(f.blob, f.name);
+                } catch (err) {
+                    alert(excelError(err));
+                } finally {
+                    setSyncStatus('');
+                }
+            };
+
+            const openMail = async () => {
+                setDrawer({ type: 'mail', key: Date.now() });
+                if (!monthlyEntries.length) { setMailFile({ status: 'empty' }); return; }
+                setMailFile({ status: 'loading' });
+                try { setMailFile({ status: 'ready', ...(await buildExcelFile()) }); }
+                catch (err) { setMailFile({ status: 'error', error: excelError(err) }); }
             };
 
             const handleBackup = () => { const blob = new Blob([JSON.stringify({ profile, entries, projects })], { type: "application/json" }); saveAs(blob, `TS_Backup_${profile.name}.json`); };
@@ -543,6 +567,10 @@
                                 <button id="tsExportBtn" type="button" onClick={handleExportExcel} disabled={exporting}
                                     className={btnGhost} title="Xuất bảng chấm công của kỳ ra Excel (mẫu Schindler)" aria-label="Xuất Excel">
                                     <Icons.Download/><span className="hidden sm:inline">{exporting ? 'Đang tạo file...' : 'Xuất Excel'}</span>
+                                </button>
+                                <button id="tsMailBtn" type="button" onClick={openMail} className={btnGhost}
+                                    title="Gửi bảng chấm công của kỳ cho giám sát / quản lý qua email" aria-label="Gửi mail">
+                                    <Icons.Mail/><span className="hidden sm:inline">Gửi mail</span>
                                 </button>
                                 <button id="tsSettingsBtn" type="button" onClick={() => setDrawer({ type: 'settings' })} className={btnGhost} aria-label="Sao lưu & khôi phục" title="Sao lưu & khôi phục">
                                     <Icons.Settings/><span className="hidden xl:inline">Sao lưu</span>
@@ -608,6 +636,13 @@
                                 onSave={handleSaveEntry} onCancel={closeDrawer}
                                 onDelete={drawer.entry ? () => handleDelete(drawer.entry) : null}
                                 entries={entries} projects={projects} sch={sch}/>
+                        </Drawer>
+                    )}
+                    {drawer && drawer.type === 'mail' && (
+                        <Drawer title="Gửi bảng công cho giám sát" onClose={closeDrawer}>
+                            <MailPanel key={drawer.key} profile={profile} setProfile={setProfile} file={mailFile} supervisorName={supervisorName}
+                                mail={buildMailText(buildReport({ rows: monthlyEntries, bdOf, period, sch, holidays, missing: stats.missing }), profile, period, currentMonth, supervisorName)}
+                                onSent={(msg) => { closeDrawer(); showToast(msg); }} onCancel={closeDrawer}/>
                         </Drawer>
                     )}
                     {drawer && drawer.type === 'settings' && (
@@ -1143,6 +1178,156 @@
                             </div>
                         </footer>
                     </article>
+                </div>
+            );
+        }
+
+
+        // ================================================================
+        //   GỬI MAIL CHO GIÁM SÁT
+        //   Web tĩnh không tự gửi được thư → mở ứng dụng mail đã điền sẵn người nhận / tiêu đề / nội dung:
+        //   - Chia sẻ (điện thoại, Windows, Mac): kèm luôn file Excel, chọn Gmail / Outlook trong bảng chia sẻ
+        //   - mailto: (Outlook / ứng dụng mail mặc định), Gmail web, Outlook web: tải file Excel để đính kèm
+        // ================================================================
+        const EMAIL_RE = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
+        const parseEmails = (s) => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+        const MAILTO_MAX = 1900; // một số ứng dụng mail cắt / từ chối link mailto dài hơn ~2000 ký tự
+
+        function buildMailText(d, profile, period, month, supervisorName) {
+            const [y, m] = month.split('-');
+            const kp = `kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDMY(period.start)} – ${fmtDMY(period.end)})`;
+            const name = profile.name || 'Nhân viên';
+            const subject = `[Timesheet] ${name}${profile.empId ? ` (${profile.empId})` : ''} – Kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDM(period.start)}–${fmtDM(period.end)}/${period.end.slice(0, 4)})`;
+            const ots = OT_TYPES.filter(t => t.code !== 'NORMAL' && d.byType[t.code] > 0).map(t => `${t.code}: ${fmtH(d.byType[t.code])}`).join(' · ');
+            const who = [`Nhân viên: ${name}`, profile.empId && `Mã NV: ${profile.empId}`, profile.position && `Chức vụ: ${profile.position}`, profile.dept && `Phòng ban: ${profile.dept}`].filter(Boolean).join(' – ');
+            const head = [
+                `Kính gửi Anh/Chị${supervisorName ? ' ' + supervisorName : ''},`, '',
+                `Tôi xin gửi bảng chấm công ${kp}.`, '',
+                who,
+                `Tổng giờ làm việc: ${fmtH(d.total)} giờ (${d.workDays} ngày)`,
+                `- Giờ thường: ${fmtH(d.normal)} giờ`,
+                `- Tăng ca: ${fmtH(d.ot)} giờ${ots ? ` (${ots})` : ''}`,
+            ];
+            const leave = d.leaveDays
+                ? `Nghỉ: ${d.leaveDays} ngày${d.leaveHours ? `, ${fmtH(d.leaveHours)} giờ` : ''} (${d.leaveList.map(l => `${l.label}: ${l.days} ngày`).join('; ')})`
+                : 'Nghỉ: không';
+            const top = d.projectList.slice(0, 5);
+            const projects = top.length ? ['Dự án:', ...top.map(p => `- ${p.name}${p.wbs ? ` (${p.wbs})` : ''}: ${fmtH(p.total)} giờ`),
+                ...(d.projectList.length > top.length ? [`- … và ${d.projectList.length - top.length} dự án khác`] : [])] : [];
+            const missing = d.missing.length ? [`Ngày chưa chấm: ${d.missing.map(fmtDM).join(', ')}`] : [];
+            const tail = ['', 'File bảng chấm công Excel đính kèm.', '', 'Trân trọng,', name];
+            const body = [...head, leave, ...projects, ...missing, ...tail].join('\n');
+            const shortBody = [...head, leave, ...missing, ...tail].join('\n'); // cho link mailto quá dài
+            return { subject, body, shortBody };
+        }
+
+        const canShareFiles = () => {
+            try { return !!(navigator.canShare && navigator.share && navigator.canShare({ files: [new File(['x'], 'x.xlsx', { type: XLSX_MIME })] })); }
+            catch (e) { return false; }
+        };
+        const qs = (o) => Object.keys(o).filter(k => o[k]).map(k => `${k}=${encodeURIComponent(o[k])}`).join('&');
+        const crlf = (t) => t.replace(/\r?\n/g, '\r\n');
+        const openLink = (url) => { // mở mailto: bằng thẻ <a> (không rời trang)
+            const a = document.createElement('a'); a.href = url; a.rel = 'noopener';
+            document.body.appendChild(a); a.click(); a.remove();
+        };
+
+        function MailPanel({ profile, setProfile, file, mail, supervisorName, onSent, onCancel }) {
+            const [to, setTo] = useState(profile.mailTo || '');
+            const [cc, setCc] = useState(profile.mailCc || '');
+            const [subject, setSubject] = useState(mail.subject);
+            const [body, setBody] = useState(mail.body);
+            const [touched, setTouched] = useState(false);
+            const share = useMemo(canShareFiles, []);
+            const toList = parseEmails(to), ccList = parseEmails(cc);
+            const badTo = !toList.length ? 'Nhập email giám sát / quản lý.' : toList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${toList.find(e => !EMAIL_RE.test(e))}` : '';
+            const badCc = ccList.find(e => !EMAIL_RE.test(e)) ? `Email không hợp lệ: ${ccList.find(e => !EMAIL_RE.test(e))}` : '';
+            const invalid = !!(badTo || badCc);
+            const ready = file && file.status === 'ready';
+            const remember = () => setProfile({ ...profile, mailTo: toList.join(', '), mailCc: ccList.join(', ') });
+            const guard = () => { setTouched(true); if (invalid) return false; remember(); return true; };
+            const download = () => { if (ready) saveAs(file.blob, file.name); };
+            const attachNote = ready ? ` — file ${file.name} đã tải về máy, hãy đính kèm vào thư trước khi gửi.` : '.';
+
+            const viaShare = () => {
+                if (!guard() || !ready) return;
+                const f = new File([file.blob], file.name, { type: XLSX_MIME });
+                try { navigator.clipboard && navigator.clipboard.writeText(toList.join(', ')).catch(() => {}); } catch (e) { /* bỏ qua */ }
+                navigator.share({ files: [f], title: subject, text: body })
+                    .then(() => onSent(`Đã chuyển sang ứng dụng mail kèm file ${file.name}. Địa chỉ giám sát đã chép sẵn — dán vào ô Người nhận.`))
+                    .catch(err => { if (err && err.name !== 'AbortError') alert('Không chia sẻ được: ' + err.message); });
+            };
+            const viaMailto = () => {
+                if (!guard()) return;
+                download();
+                let url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({ cc: ccList.join(','), subject, body: crlf(body) });
+                if (url.length > MAILTO_MAX) url = `mailto:${toList.map(encodeURIComponent).join(',')}?` + qs({ cc: ccList.join(','), subject, body: crlf(body === mail.body ? mail.shortBody : body.slice(0, 900) + '\n…') });
+                openLink(url);
+                onSent('Đã mở ứng dụng mail (Outlook / mail mặc định)' + attachNote);
+            };
+            const viaWeb = (kind) => {
+                if (!guard()) return;
+                download();
+                const url = kind === 'gmail'
+                    ? 'https://mail.google.com/mail/?view=cm&fs=1&' + qs({ to: toList.join(','), cc: ccList.join(','), su: subject, body })
+                    : 'https://outlook.office.com/mail/deeplink/compose?' + qs({ to: toList.join(','), cc: ccList.join(','), subject, body });
+                window.open(url, '_blank', 'noopener');
+                onSent(`Đã mở ${kind === 'gmail' ? 'Gmail' : 'Outlook web'}` + attachNote);
+            };
+
+            const btnRow = 'w-full justify-start h-11';
+            return (
+                <div className="px-5 py-5 space-y-5">
+                    <section className="space-y-3">
+                        <Field label="Gửi đến (email giám sát / quản lý)" htmlFor="tsMailTo"
+                            hint={supervisorName ? `Giám sát theo dữ liệu nhân sự: ${supervisorName}. Nhiều địa chỉ cách nhau bằng dấu phẩy.` : 'Nhiều địa chỉ cách nhau bằng dấu phẩy. Lần sau tự điền lại.'}>
+                            <input id="tsMailTo" data-autofocus type="email" multiple inputMode="email" autoComplete="email" className={inputCls}
+                                value={to} onChange={e => setTo(e.target.value)} onBlur={() => setTouched(true)} placeholder="email@congty.com"
+                                aria-invalid={touched && !!badTo} aria-describedby="tsMailErr"/>
+                        </Field>
+                        <Field label="CC (không bắt buộc)" htmlFor="tsMailCc">
+                            <input id="tsMailCc" type="email" multiple inputMode="email" className={inputCls} value={cc} onChange={e => setCc(e.target.value)} placeholder="email@congty.com"/>
+                        </Field>
+                        <p id="tsMailErr" role="alert" className="text-sm text-rose-700 empty:hidden">{touched ? (badTo || badCc) : ''}</p>
+                        <Field label="Tiêu đề" htmlFor="tsMailSubject">
+                            <input id="tsMailSubject" type="text" className={inputCls} value={subject} onChange={e => setSubject(e.target.value)}/>
+                        </Field>
+                        <Field label="Nội dung" htmlFor="tsMailBody">
+                            <textarea id="tsMailBody" rows={11} className={`${inputCls} h-auto py-2 leading-snug font-normal`} value={body} onChange={e => setBody(e.target.value)}/>
+                            {(body !== mail.body || subject !== mail.subject) && (
+                                <button type="button" onClick={() => { setBody(mail.body); setSubject(mail.subject); }} className="mt-1 text-sm font-medium text-blue-700 hover:text-blue-900">Soạn lại theo số liệu kỳ</button>
+                            )}
+                        </Field>
+                        <div id="tsMailFile" className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
+                            <span aria-hidden="true">📎</span>
+                            {!file || file.status === 'loading' ? <span className="text-slate-500">Đang tạo file bảng chấm công Excel…</span>
+                                : file.status === 'ready' ? <span><b>{file.name}</b> <span className="text-slate-500">· {Math.max(1, Math.round(file.blob.size / 1024))} KB</span></span>
+                                : file.status === 'empty' ? <span className="text-amber-800">Kỳ này chưa có chấm công — thư sẽ không có file đính kèm.</span>
+                                : <span className="text-rose-700">{file.error}</span>}
+                        </div>
+                    </section>
+
+                    <section className="space-y-2 pt-4 border-t border-slate-200">
+                        <h3 className="font-semibold">Gửi bằng</h3>
+                        {share && (
+                            <React.Fragment>
+                                <button id="tsMailShare" type="button" onClick={viaShare} disabled={!ready} className={`${btnPrimary} ${btnRow}`}>
+                                    <Icons.Mail/> Gửi kèm file Excel
+                                </button>
+                                <p className="text-xs text-slate-500 -mt-1">Mở bảng chia sẻ của máy với file đính kèm sẵn — chọn Gmail, Outlook… Địa chỉ giám sát được chép sẵn để dán vào ô Người nhận.</p>
+                            </React.Fragment>
+                        )}
+                        <button id="tsMailApp" type="button" onClick={viaMailto} className={`${share ? btnGhost : btnPrimary} ${btnRow}`}>
+                            <Icons.Mail/> Outlook / ứng dụng mail trên máy
+                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button id="tsMailGmail" type="button" onClick={() => viaWeb('gmail')} className={`${btnGhost} h-11`}>Gmail (web)</button>
+                            <button id="tsMailOwa" type="button" onClick={() => viaWeb('owa')} className={`${btnGhost} h-11`}>Outlook web</button>
+                        </div>
+                        <p className="text-xs text-slate-500">Với 3 cách này, thư đã điền sẵn người nhận, tiêu đề, nội dung; file Excel tự tải về máy —
+                            trình duyệt không cho tự đính kèm, hãy kéo / chọn file vào thư rồi bấm Gửi.</p>
+                        <button type="button" onClick={onCancel} className={`${btnGhost} w-full h-11 mt-2`}>Hủy</button>
+                    </section>
                 </div>
             );
         }

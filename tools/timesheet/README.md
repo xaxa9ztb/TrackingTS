@@ -67,6 +67,18 @@ ngoại tuyến) để gửi giám sát. Vừa 1 trang A4 dọc; tên file PDF g
   · ngày lễ trong kỳ · ô ký *Người lao động* / *Giám sát (PM / PE) xác nhận*.
 - Mã nghỉ phép / ốm / không lương **không** tính vào giờ làm việc và tỷ lệ hoạt động.
 
+## Gửi mail cho giám sát
+Nút **Gửi mail** (cạnh Xuất Excel) mở ngăn *Gửi bảng công cho giám sát*:
+- **Gửi đến / CC**: email giám sát, quản lý (nhớ cho lần sau); gợi ý tên giám sát theo EE Data.
+- **Tiêu đề / Nội dung** soạn sẵn theo số liệu kỳ (tổng giờ, giờ thường, OT từng loại, nghỉ, dự án, ngày chưa chấm);
+  sửa được, có nút *Soạn lại*. File bảng chấm công Excel của kỳ được tạo sẵn để đính kèm.
+- Cách gửi (web tĩnh không tự gửi thư được, nên mở ứng dụng mail đã điền sẵn):
+  - **Gửi kèm file Excel** — chỉ hiện khi máy hỗ trợ chia sẻ file (điện thoại, Windows, Mac): bảng chia sẻ → chọn
+    Gmail / Outlook, **file đã đính kèm sẵn**; địa chỉ giám sát được chép sẵn để dán vào ô Người nhận.
+  - **Outlook / ứng dụng mail trên máy** (`mailto:`), **Gmail (web)**, **Outlook web** (Office 365): thư điền sẵn
+    người nhận, tiêu đề, nội dung; file Excel **tự tải về** để người dùng đính kèm (trình duyệt không cho tự đính kèm).
+- Link `mailto:` giữ dưới ~1900 ký tự (Outlook cắt link dài): nội dung quá dài thì bỏ danh sách dự án (đã có trong file).
+
 ## Ngày trong file Excel
 Ngày ghi vào Excel phải tạo bằng `excelDate(y, m, d)` (= `Date.UTC`), **không** dùng `new Date(y, m-1, d)`:
 ExcelJS đổi Date sang số ngày Excel theo UTC, nên 0 giờ giờ Việt Nam (UTC+7) thành 17:00 hôm trước → Excel lùi 1 ngày
