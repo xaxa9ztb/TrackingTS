@@ -6,7 +6,7 @@
 <title>Tài khoản & phân quyền — Bộ công cụ dự án</title>
 <meta name="theme-color" content="#111827">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 <!-- Dữ liệu trên máy (IndexedDB) — để đưa EE Data + Dự án hiện có lên máy chủ -->
 <script src="../../js/db.js?v=36"></script>
 </head>
@@ -44,6 +44,14 @@
       <thead><tr><th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Email đăng nhập</th><th>Vai trò</th><th>Đang làm</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
+    <details class="ac-access" id="pasteBlock">
+      <summary>Dán danh sách email (mã NV, email) — gắn cho nhiều người một lúc</summary>
+      <p class="ac-help">Mỗi dòng một người: <b>mã NV</b> rồi <b>email</b>, cách nhau bằng tab, dấu phẩy hoặc khoảng trắng. Có thể sao chép thẳng 2 cột từ Excel.
+        Dòng sai được liệt kê bên dưới, dòng đúng vẫn được gắn. Làm lại bao nhiêu lần cũng được.</p>
+      <textarea id="pasteBox" rows="6" placeholder="F001&#9;an.nguyen@gmail.com&#10;F002, binh.tran@gmail.com" aria-label="Danh sách mã NV và email"></textarea>
+      <div class="ac-row"><button class="btn primary" id="btnPaste">Gắn email</button></div>
+      <pre id="pasteMsg" class="ac-note ac-pre" role="status"></pre>
+    </details>
     <details class="ac-access">
       <summary>Danh sách email cho Cloudflare Access</summary>
       <p class="ac-help">Dán vào chính sách <b>Allow</b> của ứng dụng trong Zero Trust (Access → Applications → trackingts → Policies → Include: Emails),
@@ -73,6 +81,6 @@
 </main>
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
-<script src="app.js?v=1"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>

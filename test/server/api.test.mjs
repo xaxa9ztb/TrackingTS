@@ -220,3 +220,84 @@ test('khoá Access xoay vòng: kid mới được tải lại', async () => {
 test('đường dẫn lạ → 404', async () => {
   assert.equal((await call('GET', '/api/nope', { email: 'boss@example.com' })).status, 404);
 });
+
+// ---------- đưa dữ liệu lớn theo từng đợt + gắn email hàng loạt ----------
+const bigEmployees = Array.from({ length: 677 }, (_, i) => ({ empId: 'B' + String(i + 1).padStart(4, '0'), fullName: 'Người số ' + (i + 1), position: i % 50 === 0 ? 'Site Supervisor' : 'Fitter' }));
+const bigProjects = Array.from({ length: 312 }, (_, i) => ({ wbs: 'BW-' + (i + 1), projectName: 'Dự án ' + (i + 1), customer: 'KH ' + (i % 7), specs: { stops: i % 30, note: 'x'.repeat(200) } }));
+
+test('đưa 677 nhân viên + 312 dự án theo từng đợt nhỏ: đủ dòng, không lỗi', async () => {
+  let n = 0;
+  for (let i = 0; i < bigEmployees.length; i += 200) {
+    const r = await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: bigEmployees.slice(i, i + 200) } });
+    assert.equal(r.status, 200, JSON.stringify(r.data)); n += r.data.employees;
+  }
+  assert.equal(n, 677);
+  let p = 0;
+  for (let i = 0; i < bigProjects.length; i += 100) {
+    const r = await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { projects: bigProjects.slice(i, i + 100) } });
+    assert.equal(r.status, 200, JSON.stringify(r.data)); p += r.data.projects;
+  }
+  assert.equal(p, 312);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM employees WHERE emp_id LIKE 'B%'").first()).c, 677);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM projects WHERE wbs LIKE 'BW-%'").first()).c, 312);
+});
+
+test('một yêu cầu quá lớn bị từ chối rõ ràng (413), không làm hỏng dữ liệu', async () => {
+  const r = await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: bigEmployees, projects: bigProjects } });
+  assert.equal(r.status, 413);
+  assert.match(r.data.error, /từng đợt/);
+});
+
+test('dòng trùng mã trong cùng một đợt: dòng sau thắng, không lỗi', async () => {
+  const r = await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [
+    { empId: 'D1', fullName: 'Tên cũ' }, { empId: 'D1', fullName: 'Tên mới' }, { empId: '', fullName: 'Thiếu mã' }] } });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.employees, 1);
+  assert.equal((await env.DB.prepare('SELECT full_name n FROM employees WHERE emp_id = ?').bind('D1').first()).n, 'Tên mới');
+});
+
+test('khoá người không còn trong danh sách đầy đủ (allEmpIds), gửi riêng', async () => {
+  const keep = bigEmployees.slice(0, 600).map(e => e.empId).concat(['F01', 'P01', 'S01', 'F02', 'D1']);
+  const r = await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { deactivateMissing: true, allEmpIds: keep } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.deactivated, 77);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM employees WHERE emp_id LIKE 'B%' AND active = 0").first()).c, 77);
+});
+
+test('gắn email hàng loạt: đúng / sai từng dòng, dòng lỗi không làm hỏng dòng khác', async () => {
+  const r = await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [
+    { empId: 'B0001', email: 'Mot@Example.com' },
+    { empId: 'B0002', email: 'b0002@example.com' },
+    { empId: 'B0003', email: 'khong-phai-email' },
+    { empId: 'KHONGCO', email: 'ba@example.com' },
+    { empId: 'B0004', email: 'mot@example.com' },          // trùng dòng 1 trong cùng danh sách
+    { empId: 'B0005', email: 'tho@example.com' },          // đã gắn cho F01
+    { empId: '', email: 'x@example.com' },
+  ] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const by = Object.fromEntries(r.data.results.map((x, i) => [i, x]));
+  assert.equal(by[0].ok, true); assert.equal(by[1].ok, true);
+  assert.match(by[2].error, /không hợp lệ/); assert.match(by[3].error, /Không có mã NV/);
+  assert.match(by[4].error, /trùng/); assert.match(by[5].error, /đã gắn cho nhân viên F01/); assert.match(by[6].error, /Thiếu mã/);
+  assert.equal(r.data.applied, 2);
+  assert.equal((await env.DB.prepare('SELECT email e FROM employees WHERE emp_id = ?').bind('B0001').first()).e, 'mot@example.com');
+  // làm lại đúng danh sách cũ: không đổi gì
+  const again = await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [{ empId: 'B0001', email: 'mot@example.com' }] } });
+  assert.equal(again.data.applied, 0); assert.equal(again.data.results[0].unchanged, true);
+  // nhật ký
+  const log = (await call('GET', '/api/admin/audit?limit=5', { email: 'boss@example.com' })).data.entries.find(e => e.action === 'set_emails');
+  assert.ok(log && log.after.changes.length === 2);
+});
+
+test('gắn email hàng loạt: chỉ admin; tối đa 40 dòng; không tự đổi email của mình', async () => {
+  assert.equal((await call('POST', '/api/admin/emails', { email: 'pm@example.com', body: { items: [{ empId: 'B0010', email: 'z@example.com' }] } })).status, 403);
+  assert.equal((await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [] } })).status, 400);
+  const many = Array.from({ length: 41 }, (_, i) => ({ empId: 'B' + String(i + 20).padStart(4, '0'), email: `m${i}@example.com` }));
+  assert.equal((await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: many } })).status, 413);
+  const self = await call('POST', '/api/admin/emails', { email: 'pm@example.com', body: { items: [] } });
+  assert.equal(self.status, 403);
+  // người dùng có empId (P01 làm admin chỉnh tay) không tự đổi email của chính mình
+  await call('PATCH', '/api/admin/employees/P01', { email: 'boss@example.com', body: { roleOverride: 'admin' } });
+  const own = await call('POST', '/api/admin/emails', { email: 'pm@example.com', body: { items: [{ empId: 'P01', email: 'moi@example.com' }] } });
+  assert.match(own.data.results[0].error, /chính mình/);
+});
