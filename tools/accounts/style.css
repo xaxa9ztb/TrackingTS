@@ -50,3 +50,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .ac-table th:nth-child(3), .ac-table td:nth-child(3) { display: none; }
 }
 .ac-pre { white-space: pre-wrap; margin: 4px 0 0; font-family: inherit; }
+.ac-auto { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; background: #fafbfc; }
+.ac-auto h3 { margin: 0 0 4px; font-size: 14.5px; }
+.ac-auto .ac-check { margin: 0; }
+.ac-auto select { max-width: 340px; width: 100%; }
+.ac-auto .how { font-size: 12px; color: var(--muted); }
+.ac-auto tr.nomatch td:first-child { color: var(--red); }

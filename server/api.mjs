@@ -4,6 +4,7 @@
 
 import { verifyAccessJwt, teamHost } from './auth.mjs';
 import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
+import { matchSupervisor, keyOf } from './supervisors.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -242,6 +243,128 @@ async function setEmails(env, me, request) {
   return json({ ok: true, applied: changes.length, results });
 }
 
+// ---------- tự phân công Site Sup theo cột "Giám sát" của dự án ----------
+async function supervisorGroups(env) {
+  const { results: projs } = await env.DB.prepare("SELECT wbs, supervisor FROM projects WHERE TRIM(supervisor) <> ''").all();
+  const { results: emps } = await env.DB.prepare('SELECT emp_id, full_name, position, active FROM employees').all();
+  const { results: aliasRows } = await env.DB.prepare('SELECT norm, emp_id FROM supervisor_alias').all();
+  const { results: staffed } = await env.DB.prepare("SELECT DISTINCT wbs FROM project_staff WHERE role = 'sitesup'").all();
+  const alias = new Map(aliasRows.map(a => [a.norm, a.emp_id]));
+  const has = new Set(staffed.map(r => r.wbs));
+  const groups = new Map();
+  for (const p of projs) {
+    const k = keyOf(p.supervisor);
+    if (!k) continue;
+    if (!groups.has(k)) groups.set(k, { key: k, label: String(p.supervisor).trim(), projects: [], withSitesup: 0 });
+    const g = groups.get(k);
+    g.projects.push(p.wbs);
+    if (has.has(p.wbs)) g.withSitesup++;
+  }
+  return { groups: [...groups.values()], emps, alias };
+}
+
+async function listSupervisors(env, me) {
+  need(me, 'pm');
+  const { groups, emps, alias } = await supervisorGroups(env);
+  const out = groups.map(g => {
+    const m = matchSupervisor(g.label, emps, alias.get(g.key));
+    return {
+      key: g.key, label: g.label, projects: g.projects.length, withSitesup: g.withSitesup,
+      match: m.match ? { empId: m.match.emp_id, name: m.match.full_name, position: m.match.position, how: m.how } : null,
+      candidates: m.candidates.map(e => ({ empId: e.emp_id, name: e.full_name, position: e.position })),
+    };
+  }).sort((a, b) => b.projects - a.projects);
+  return json({ groups: out, totalProjects: out.reduce((n, g) => n + g.projects, 0) });
+}
+
+// items: [{ key, empId }]; onlyEmpty (mặc định true): chỉ dự án chưa có Site Sup
+async function applySupervisors(env, me, request) {
+  need(me, 'pm');
+  const body = await readJson(request);
+  const items = Array.isArray(body.items) ? body.items : [];
+  const onlyEmpty = body.onlyEmpty !== false;
+  if (!items.length) throw new HttpError(400, 'Chưa chọn nhóm nào');
+  if (items.length > 30) throw new HttpError(413, 'Tối đa 30 nhóm mỗi lần');
+  const { groups } = await supervisorGroups(env);
+  const byKey = new Map(groups.map(g => [g.key, g]));
+  const empIds = [...new Set(items.map(i => str(i && i.empId, 50)).filter(Boolean))];
+  const { results: found } = empIds.length
+    ? await env.DB.prepare(`SELECT emp_id, full_name, active FROM employees WHERE emp_id IN (${empIds.map(() => '?').join(',')})`).bind(...empIds).all()
+    : { results: [] };
+  const emp = new Map(found.map(e => [e.emp_id, e]));
+  const { results: staffed } = await env.DB.prepare("SELECT DISTINCT wbs FROM project_staff WHERE role = 'sitesup'").all();
+  const has = new Set(staffed.map(r => r.wbs));
+
+  const t = now(), results = [], parts = [], aliasRows = [], changes = [];
+  const wbsTouched = new Map();   // wbs → empId (nhóm sau không đè nhóm trước trong cùng yêu cầu)
+  for (const it of items) {
+    const key = str(it && it.key, 300), empId = str(it && it.empId, 50);
+    const g = byKey.get(key), e = emp.get(empId);
+    const res = { key, empId, ok: false, assigned: 0, skipped: 0, error: '' };
+    results.push(res);
+    if (!g) { res.error = 'Không có nhóm giám sát này'; continue; }
+    if (!e) { res.error = 'Không có nhân viên ' + (empId || '(trống)'); continue; }
+    if (!e.active) { res.error = 'Nhân viên ' + empId + ' đã bị khoá'; continue; }
+    aliasRows.push([key, g.label, empId, t]);
+    for (const wbs of g.projects) {
+      if (wbsTouched.has(wbs) || (onlyEmpty && has.has(wbs))) { res.skipped++; continue; }
+      wbsTouched.set(wbs, empId); res.assigned++;
+    }
+    res.ok = true; res.name = e.full_name;
+    changes.push({ key: g.label, empId, assigned: res.assigned, skipped: res.skipped });
+  }
+  const wbsList = [...wbsTouched.keys()];
+  if (!onlyEmpty) {
+    for (let i = 0; i < wbsList.length; i += 90) {
+      const ids = wbsList.slice(i, i + 90);
+      parts.push({ sql: `DELETE FROM project_staff WHERE role = 'sitesup' AND wbs IN (${ids.map(() => '?').join(',')})`, params: ids });
+    }
+  }
+  for (let i = 0; i < wbsList.length; i += 45) {
+    const rows = wbsList.slice(i, i + 45).map(w => [w, wbsTouched.get(w)]);
+    parts.push({ sql: `INSERT OR IGNORE INTO project_staff (wbs, emp_id, role) VALUES ${rows.map(() => "(?, ?, 'sitesup')").join(', ')}`, params: rows.flat() });
+  }
+  for (const a of aliasRows) {
+    parts.push({ sql: 'INSERT INTO supervisor_alias (norm, label, emp_id, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(norm) DO UPDATE SET label = excluded.label, emp_id = excluded.emp_id, updated_at = excluded.updated_at', params: a });
+  }
+  if (parts.length > MAX_STMTS) throw new HttpError(413, 'Quá nhiều dự án một lần — chọn ít nhóm hơn');
+  if (parts.length) await env.DB.batch(parts.map(x => env.DB.prepare(x.sql).bind(...x.params)));
+  const assigned = wbsList.length;
+  if (changes.length) await audit(env, me, 'auto_staff', 'project', '', undefined, { onlyEmpty, assigned, groups: changes });
+  return json({ ok: true, assigned, results });
+}
+
+// Gán MỘT Quản lý dự án cho nhiều dự án một lần (thường: mọi dự án do cùng một người quản lý).
+// onlyEmpty (mặc định true): chỉ dự án chưa có Quản lý dự án.
+async function assignPmAll(env, me, request) {
+  need(me, 'pm');
+  const body = await readJson(request);
+  const empId = str(body.empId, 50);
+  const onlyEmpty = body.onlyEmpty !== false;
+  const emp = empId ? await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(empId).first() : null;
+  if (!emp) throw new HttpError(404, 'Không có nhân viên ' + (empId || '(trống)'));
+  if (!emp.active) throw new HttpError(400, 'Nhân viên này đã bị khoá');
+  const roles = effectiveRoles(emp, emp.email, env);
+  if (!roles.includes('pm') && !roles.includes('admin')) throw new HttpError(400, 'Người này không có vai trò Quản lý dự án (theo chức danh hoặc vai trò chỉnh tay)');
+
+  const { results: projs } = await env.DB.prepare('SELECT wbs FROM projects').all();
+  const { results: have } = await env.DB.prepare("SELECT DISTINCT wbs FROM project_staff WHERE role = 'pm'").all();
+  const hasPm = new Set(have.map(r => r.wbs));
+  const targets = projs.map(r => r.wbs).filter(w => !(onlyEmpty && hasPm.has(w)));
+  const parts = [];
+  if (!onlyEmpty) {
+    for (const ids of chunks(targets, IDS_PER_STMT)) parts.push({ sql: `DELETE FROM project_staff WHERE role = 'pm' AND wbs IN (${ids.map(() => '?').join(',')})`, params: ids });
+  }
+  for (const ids of chunks(targets, 45)) {
+    parts.push({ sql: `INSERT OR IGNORE INTO project_staff (wbs, emp_id, role) VALUES ${ids.map(() => "(?, ?, 'pm')").join(', ')}`, params: ids.flatMap(w => [w, empId]) });
+  }
+  if (parts.length > MAX_STMTS) throw new HttpError(413, 'Quá nhiều dự án một lần');
+  if (parts.length) await env.DB.batch(parts.map(x => env.DB.prepare(x.sql).bind(...x.params)));
+  const summary = { empId, name: emp.full_name, assigned: targets.length, skipped: projs.length - targets.length, onlyEmpty };
+  await audit(env, me, 'assign_pm', 'project', '', undefined, summary);
+  return json({ ok: true, ...summary });
+}
+
 async function patchEmployee(env, me, empId, request) {
   need(me);
   const body = await readJson(request);
@@ -315,6 +438,9 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/projects\/([^/]+)\/staff$/)) && method === 'PUT') return await putProjectStaff(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/import' && method === 'POST') return await importData(env, me, request);
     if (path === '/api/admin/emails' && method === 'POST') return await setEmails(env, me, request);
+    if (path === '/api/projects/pm' && method === 'POST') return await assignPmAll(env, me, request);
+    if (path === '/api/supervisors' && method === 'GET') return await listSupervisors(env, me);
+    if (path === '/api/supervisors/apply' && method === 'POST') return await applySupervisors(env, me, request);
     if ((m = path.match(/^\/api\/admin\/employees\/([^/]+)$/)) && method === 'PATCH') return await patchEmployee(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     throw new HttpError(404, 'Không có đường dẫn này');

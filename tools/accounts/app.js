@@ -284,10 +284,98 @@
     });
   }
 
+  // ---------- 3b. tự phân công Site Sup theo cột "Giám sát" ----------
+  const HOW = { alias: 'đã chọn từ trước', exact: 'trùng tên', words: 'khớp, khác thứ tự họ tên', subset: 'khớp một phần tên' };
+  let autoGroups = [];
+
+  function autoOptions(g) {
+    const seen = new Set();
+    const opt = (e, sel) => { seen.add(e.empId); return `<option value="${esc(e.empId)}"${sel ? ' selected' : ''}>${esc(e.name)} (${esc(e.empId)}) — ${esc(e.position)}</option>`; };
+    let html = '<option value="">— bỏ qua nhóm này —</option>';
+    const sug = [];
+    if (g.match) sug.push(opt(g.match, true));
+    g.candidates.forEach(c => { if (!seen.has(c.empId)) sug.push(opt(c, false)); });
+    if (sug.length) html += `<optgroup label="Gợi ý">${sug.join('')}</optgroup>`;
+    const sups = employees.filter(e => e.active && (e.roles || []).includes('sitesup') && !seen.has(e.empId));
+    html += `<optgroup label="Tất cả Site Sup (${sups.length})">${sups.map(e => opt(e, false)).join('')}</optgroup>`;
+    return html;
+  }
+
+  function renderAuto() {
+    const out = $('autoOut');
+    if (!autoGroups.length) { out.innerHTML = '<p class="ac-note">Chưa có dự án nào có tên giám sát.</p>'; return; }
+    const total = autoGroups.reduce((n, g) => n + g.projects, 0);
+    const matched = autoGroups.filter(g => g.match);
+    out.innerHTML = `<p class="ac-note"><b>${autoGroups.length}</b> tên giám sát cho <b>${total}</b> dự án — tự khớp được <b>${matched.length}</b> tên (${matched.reduce((n, g) => n + g.projects, 0)} dự án).</p>
+      <div class="ac-scroll"><table class="ac-table"><thead><tr><th>Tên giám sát trong dự án</th><th>Dự án</th><th>Phân cho</th></tr></thead><tbody>
+      ${autoGroups.map((g, i) => `<tr data-i="${i}" class="${g.match ? '' : 'nomatch'}">
+        <td>${esc(g.label)}${g.match ? `<div class="how">${esc(HOW[g.match.how] || '')}</div>` : '<div class="how">chưa khớp — chọn tay</div>'}</td>
+        <td>${g.projects}${g.withSitesup ? `<div class="how">${g.withSitesup} đã có Site Sup</div>` : ''}</td>
+        <td><select data-sel aria-label="Site Sup cho ${esc(g.label)}">${autoOptions(g)}</select></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="ac-row"><button class="btn primary" id="btnAutoApply">Áp dụng phân công</button><span id="autoMsg" class="ac-note"></span></div>`;
+    $('btnAutoApply').addEventListener('click', applyAuto);
+  }
+
+  async function applyAuto() {
+    const msg = $('autoMsg');
+    const items = [...$('autoOut').querySelectorAll('tbody tr')].map(tr => ({ key: autoGroups[+tr.dataset.i].key, empId: tr.querySelector('[data-sel]').value })).filter(x => x.empId);
+    if (!items.length) { msg.className = 'ac-note err'; msg.textContent = 'Chưa chọn người nào.'; return; }
+    msg.className = 'ac-note'; msg.textContent = 'Đang phân công…'; $('btnAutoApply').disabled = true;
+    try {
+      let assigned = 0; const problems = [];
+      for (let i = 0; i < items.length; i += 30) {
+        const r = await api('POST', '/api/supervisors/apply', { items: items.slice(i, i + 30), onlyEmpty: $('autoOnlyEmpty').checked });
+        assigned += r.assigned;
+        r.results.forEach(x => { if (!x.ok) problems.push(`${x.key}: ${x.error}`); });
+      }
+      msg.className = problems.length ? 'ac-note err' : 'ac-note ok';
+      msg.textContent = `✓ Đã phân công Site Sup cho ${assigned} dự án.` + (problems.length ? ' Chưa được: ' + problems.join('; ') : '');
+      await loadAll();
+      const r = await api('GET', '/api/supervisors'); autoGroups = r.groups;
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+    finally { const b = $('btnAutoApply'); if (b) b.disabled = false; }
+  }
+
+  function wireAuto() {
+    $('btnAutoLoad').addEventListener('click', async () => {
+      const b = $('btnAutoLoad'); b.disabled = true; $('autoOut').innerHTML = '<p class="ac-note">Đang đọc…</p>';
+      try { autoGroups = (await api('GET', '/api/supervisors')).groups; renderAuto(); }
+      catch (e) { $('autoOut').innerHTML = `<p class="ac-note err">✗ ${esc(e.message)}</p>`; }
+      finally { b.disabled = false; }
+    });
+  }
+
+  // ---------- 3c. gán một Quản lý dự án cho nhiều dự án ----------
+  function renderPmPick() {
+    const sel = $('pmPick'); const cur = sel.value;
+    const pms = employees.filter(e => e.active && ((e.roles || []).includes('pm') || (e.roles || []).includes('admin')));
+    sel.innerHTML = '<option value="">— chọn Quản lý dự án —</option>' + pms.map(e => `<option value="${esc(e.empId)}">${esc(e.name)} (${esc(e.empId)}) — ${esc(e.position)}</option>`).join('');
+    if (cur) sel.value = cur;
+  }
+
+  function wirePm() {
+    $('btnPmAll').addEventListener('click', async () => {
+      const msg = $('pmMsg'); const empId = $('pmPick').value;
+      if (!empId) { msg.className = 'ac-note err'; msg.textContent = 'Chọn người trước.'; return; }
+      const onlyEmpty = $('pmOnlyEmpty').checked;
+      const who = $('pmPick').selectedOptions[0].textContent.split(' — ')[0];
+      if (!onlyEmpty && !confirm(`Thay Quản lý dự án của TẤT CẢ dự án bằng ${who}?`)) return;
+      msg.className = 'ac-note'; msg.textContent = 'Đang gán…'; $('btnPmAll').disabled = true;
+      try {
+        const r = await api('POST', '/api/projects/pm', { empId, onlyEmpty });
+        msg.className = 'ac-note ok';
+        msg.textContent = `✓ Đã gán ${r.name} cho ${r.assigned} dự án` + (r.skipped ? `, bỏ qua ${r.skipped} dự án đã có Quản lý dự án.` : '.');
+        await loadAll();
+      } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+      finally { $('btnPmAll').disabled = false; }
+    });
+  }
+
   // ---------- 4. nhật ký ----------
-  const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt' };
+  const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt', auto_staff: 'Tự phân công Site Sup', assign_pm: 'Gán Quản lý dự án' };
   const FIELD = { email: 'email', roleOverride: 'vai trò chỉnh tay', active: 'đang làm', sitesup: 'Site Sup', pm: 'QLDA',
-    employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá', changes: 'thay đổi' };
+    employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá', changes: 'thay đổi', assigned: 'số dự án', groups: 'nhóm', onlyEmpty: 'chỉ dự án chưa có' };
   const val = (v) => Array.isArray(v) ? (v.length && typeof v[0] === 'object' ? v.length + ' dòng' : (v.join(', ') || '—')) : v === true ? 'có' : v === false ? 'không' : (v === '' || v == null ? '—' : (ROLE_LABEL[v] || v));
   function detail(e) {
     const show = (o) => o ? Object.entries(o).map(([k, v]) => `${FIELD[k] || k}: ${val(v)}`).join(' · ') : '';
@@ -307,6 +395,7 @@
   async function loadAll() {
     const [emp, proj] = await Promise.all([api('GET', '/api/employees'), api('GET', '/api/projects')]);
     employees = emp.employees; projects = proj.projects;
+    renderPmPick();
     if (me.isAdmin) renderPeople();
     renderStaff();
     loadAudit();
@@ -334,6 +423,8 @@
     }
     $('secStaff').hidden = false;
     wireStaff();
+    wireAuto();
+    wirePm();
     if (me.isAdmin) {
       ['secImport', 'secPeople', 'secAudit'].forEach(id => { $(id).hidden = false; });
       wirePeople();

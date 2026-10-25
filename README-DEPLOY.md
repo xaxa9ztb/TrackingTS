@@ -133,7 +133,7 @@ Trong lúc chuyển, bản GitHub Pages + Google Drive **vẫn chạy như cũ**
 | Đóng gói giao diện | `scripts/build-pages.mjs` → `dist/` |
 | Triển khai | `.github/workflows/cloudflare.yml`: mọi PR chạy kiểm thử; merge vào `main` → tự triển khai |
 | Kiểm thử máy chủ | `npm install && npm run test:server` (D1 giả lập, không cần mạng / tài khoản) |
-| Trang quản trị | `tools/accounts/` — gắn email (từng người hoặc **dán danh sách** mã NV + email từ Excel), vai trò, phân công dự án, đưa EE Data + Dự án lên (gửi từng đợt nhỏ, vừa giới hạn của gói miễn phí), nhật ký |
+| Trang quản trị | `tools/accounts/` — gắn email (từng người hoặc **dán danh sách** mã NV + email từ Excel), vai trò, phân công dự án, đưa EE Data + Dự án lên (gửi từng đợt nhỏ, vừa giới hạn của gói miễn phí), **tự phân công Site Sup theo cột Giám sát của dự án** (khớp tên không phân biệt dấu / thứ tự họ tên, ghi nhớ lựa chọn), **gán một Quản lý dự án cho nhiều dự án một lần**, nhật ký |
 
 **Đã làm (người giữ tài khoản Cloudflare):** tài khoản + quản trị phụ, API token `trackingts-deploy`
 (Workers Scripts, D1, Cloudflare Pages, Workers R2 Storage — Edit), secret GitHub `CLOUDFLARE_API_TOKEN`,
