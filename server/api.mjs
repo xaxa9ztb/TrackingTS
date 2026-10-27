@@ -7,15 +7,16 @@ import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
+import { demoRequested, demoCookie, demoEnv, seedDemo, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, trackingRow } from './tsdoc.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
-const json = (data, status = 200) => new Response(JSON.stringify(data), {
+const json = (data, status = 200, extraHeaders) => new Response(JSON.stringify(data), {
   status,
-  headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+  headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(extraHeaders || {}) },
 });
 
 const now = () => new Date().toISOString();
@@ -81,7 +82,16 @@ async function getMe(env, me) {
   const { results } = me.empId
     ? await env.DB.prepare('SELECT wbs, role FROM project_staff WHERE emp_id = ? ORDER BY wbs').bind(me.empId).all()
     : { results: [] };
-  return json({ ...me, projects: results });
+  return json({ ...me, projects: results, demo: !!env.DEMO });
+}
+
+// ---------- chế độ Demo: cơ sở dữ liệu D1 riêng (DB_DEMO), xem server/demo.mjs ----------
+async function demoStart(realEnv, email, request) {
+  if (!realEnv.DB_DEMO) throw new HttpError(503, 'Chế độ demo chưa được bật trên máy chủ này');
+  const body = await readJson(request);
+  const role = DEMO_ROLES.includes(body.role) ? body.role : 'staff';
+  const r = await seedDemo(realEnv.DB_DEMO, { email }, role);
+  return json({ ok: true, role, ...r }, 200, { 'set-cookie': demoCookie(true) });
 }
 
 async function listEmployees(env, me) {
@@ -857,13 +867,25 @@ export async function handle(request, env, opts = {}) {
       });
     }
     if (!env.DB) throw new HttpError(503, 'Máy chủ chưa gắn cơ sở dữ liệu');
+    const realEnv = env;
+    // Chế độ demo: cookie ts_demo=1 → toàn bộ yêu cầu dùng cơ sở dữ liệu demo riêng, không đụng dữ liệu thật
+    const demo = !!(env.DB_DEMO && demoRequested(request));
+    if (demo) env = demoEnv(env);
     // Yêu cầu ghi bắt buộc là JSON: trang lạ không gửi được kiểu này sang (chặn giả mạo yêu cầu)
     if (method !== 'GET' && method !== 'HEAD') {
       const ct = (request.headers.get('content-type') || '').toLowerCase();
       if (!ct.startsWith('application/json')) throw new HttpError(415, 'Yêu cầu ghi phải gửi dạng JSON');
     }
     const { email } = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), env, opts);
+    if (path === '/api/demo/status' && method === 'GET') return json({ available: !!realEnv.DB_DEMO, active: demo });
+    if (path === '/api/demo/start' && method === 'POST') return await demoStart(realEnv, email, request);
+    if (path === '/api/demo/stop' && method === 'POST') return json({ ok: true }, 200, { 'set-cookie': demoCookie(false) });
     const me = await loadMe(env, email);
+    if (path === '/api/demo/reset' && method === 'POST') {       // dựng lại dữ liệu mẫu (giữ nguyên vai trò đang thử)
+      if (!demo) throw new HttpError(400, 'Chỉ dùng trong chế độ demo');
+      const role = me.isAdmin ? 'admin' : me.roles.includes('pm') ? 'pm' : me.roles.includes('sitesup') ? 'sitesup' : 'staff';
+      return json({ ok: true, role, ...(await seedDemo(env.DB, { email }, role)) });
+    }
 
     let m;
     if (path === '/api/me' && method === 'GET') return await getMe(env, me);

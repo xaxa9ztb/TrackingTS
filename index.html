@@ -151,6 +151,11 @@
   .app-badge { position: absolute; top: 10px; right: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
     color: var(--warn-ink); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 999px; padding: 1px 7px; }
   /* thẻ "đang phát triển": biểu tượng xám, bấm vào chỉ mở hộp thông báo */
+  .demo-link { border: 1px solid var(--line, #d1d5db); background: #fff; color: #78350f; border-radius: 8px; padding: 5px 12px; font: 600 12.5px inherit; cursor: pointer; }
+  .demo-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 10px 0 6px; }
+  .demo-roles button { text-align: left; border: 1px solid #d1d5db; background: #fff; border-radius: 10px; padding: 10px 12px; cursor: pointer; font: inherit; }
+  .demo-roles button:hover, .demo-roles button:focus-visible { border-color: #f59e0b; background: #fffbeb; outline: none; }
+  .demo-roles small { display: block; color: #6b7280; margin-top: 2px; font-size: 12px; }
   .soon-badge { font-size: 11px; font-weight: 600; color: var(--warn-ink); background: var(--warn-bg);
     border: 1px solid var(--warn-line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
   button.tool { border-style: dashed; background: #fcfcfd; }
@@ -349,6 +354,21 @@
     <button type="button" class="btn-install" id="btnInstall">Cài đặt</button>
   </section>
 
+  <dialog class="dlg" id="demoDlg" aria-labelledby="demoTitle">
+    <form method="dialog">
+      <div class="dlg-head"><div><span class="soon-badge">Chạy thử</span><h2 id="demoTitle">Chế độ Demo</h2></div></div>
+      <p>Dùng thử toàn bộ hệ thống với <b>dữ liệu mẫu bịa</b> trên một cơ sở dữ liệu riêng — <b>không ảnh hưởng dữ liệu thật</b>, không gửi email. Chọn vai trò muốn thử:</p>
+      <div class="demo-roles">
+        <button type="button" data-role="admin"><b>Quản trị viên</b><small>Nhân viên, dự án, tài khoản, nạp bảng công</small></button>
+        <button type="button" data-role="pm"><b>Quản lý dự án</b><small>Duyệt bảng công cấp 2, điều phối</small></button>
+        <button type="button" data-role="sitesup"><b>Site Sup</b><small>Duyệt bảng công fitter (cấp 1)</small></button>
+        <button type="button" data-role="staff"><b>Nhân viên / Fitter</b><small>Chấm công, nộp bảng công</small></button>
+      </div>
+      <p class="dlg-sub" id="demoMsg" role="status"></p>
+      <button class="btn-primary" value="cancel" type="submit">Đóng</button>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="soonDlg" aria-labelledby="soonTitle">
     <form method="dialog">
       <div class="dlg-head">
@@ -367,9 +387,11 @@
   <div class="wrap">
     <span>Mỗi chức năng lưu dữ liệu riêng. Dữ liệu Timesheet cá nhân chỉ nằm trên trình duyệt của bạn.</span>
     <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn: Thống kê giờ công (PDF)</a>
+    <button type="button" class="demo-link" id="btnDemo" hidden>🧪 Chạy thử (Demo)</button>
   </div>
 </footer>
 
+<script src="js/demo.js?v=1"></script>
 <script src="js/config.js?v=37"></script>
 <script src="js/db.js?v=37"></script>
 <script src="js/cloud.js?v=42"></script>
@@ -664,6 +686,22 @@
   }
   $('soonDlg').addEventListener('click', (ev) => { if (ev.target === $('soonDlg')) $('soonDlg').close(); }); // bấm ra ngoài
   $('soonDlg').addEventListener('close', () => { if (soonFrom && soonFrom.isConnected) soonFrom.focus(); soonFrom = null; });
+
+  // ---------- chế độ Demo (chỉ bản Cloudflare có cơ sở dữ liệu demo) ----------
+  if (Session.SERVER && window.TsDemo) {
+    const dlg = $('demoDlg'), btn = $('btnDemo');
+    const openDemo = () => { $('demoMsg').textContent = ''; dlg.showModal(); };
+    if (!TsDemo.on) TsDemo.available().then((st) => { if (st.available) btn.hidden = false; });
+    btn.addEventListener('click', openDemo);
+    dlg.addEventListener('click', (ev) => { if (ev.target === dlg) dlg.close(); });
+    dlg.querySelectorAll('.demo-roles button').forEach((b) => b.addEventListener('click', async () => {
+      $('demoMsg').textContent = 'Đang dựng dữ liệu mẫu…';
+      dlg.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+      try { await TsDemo.start(b.dataset.role); }
+      catch (e) { $('demoMsg').textContent = 'Không vào được demo: ' + e.message; dlg.querySelectorAll('button').forEach((x) => { x.disabled = false; }); }
+    }));
+    if (location.hash === '#demo') { history.replaceState(null, '', location.pathname); setTimeout(openDemo, 400); }
+  }
 
   // Sau khi đăng nhập: mở thẳng chức năng người dùng định vào (nếu có quyền), nếu không thì hiện danh sách
   function afterLogin() {

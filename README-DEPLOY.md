@@ -219,6 +219,27 @@ Người lạ có thể thấy trang đăng nhập và giao diện (mã nguồn 
 
 ---
 
+### Mục Quản trị (`admin.html`) — chỉ admin
+
+Dữ liệu nền của hệ thống không còn nằm trong “Thống kê giờ công” mà gom vào **Quản trị** (thẻ riêng trên trang chủ, chỉ hiện với admin; người khác mở thẳng địa chỉ cũng bị chuyển về trang chủ):
+
+| Tab | Nội dung |
+|---|---|
+| Nhân viên | EE Data: thêm / sửa / xoá nhân viên |
+| Dự án | Danh sách dự án, thông số thang, Swat Target Hour |
+| Bảng công | Bảng “Theo dõi giờ công” — **nạp Excel hàng tháng** (nút *Cập nhật Data*, rồi *Lưu lên máy chủ* / *Lưu lên Drive*) |
+| Tài khoản & phân quyền | (bản Cloudflare) gắn email, vai trò, phân công Site Sup / Quản lý dự án — trang `tools/accounts/` nhúng vào |
+
+Trên bản Cloudflare, **hai nguồn bảng công chạy song song**: (1) admin nạp file Excel hàng tháng như bản GitHub; (2) bảng công do nhân viên tự chấm công (Timesheet cá nhân) tự đẩy vào bảng Theo dõi giờ công khi Quản lý bấm phê duyệt. Nạp lại Excel không làm mất các dòng đã duyệt (dòng có nguồn “approved” được giữ cho những ngày Excel chưa có). “Thống kê giờ công” chỉ còn Dashboard, Bảng công (xem) và SWAT.
+
+### Chế độ Demo (chạy thử, không ảnh hưởng dữ liệu thật)
+
+- Mọi người dùng được vào app (đã qua Cloudflare Access) bấm **🧪 Chạy thử (Demo)** ở chân trang chủ, chọn vai trò *Quản trị viên / Quản lý dự án / Site Sup / Nhân viên* — dữ liệu mẫu (8 nhân viên, 4 dự án, ~110 dòng bảng công, 3 bảng công chờ duyệt) được dựng sẵn.
+- Dùng **cơ sở dữ liệu D1 riêng `trackingts-demo`** (binding `DB_DEMO`), tự tạo khi triển khai (`.github/workflows/cloudflare.yml`). Cookie `ts_demo` làm máy chủ chuyển mọi yêu cầu sang cơ sở dữ liệu này; **không gửi email**, danh sách admin khởi tạo (`ADMIN_EMAILS`) không có hiệu lực — vai trò do người dùng chọn.
+- Trên trình duyệt, khoá `localStorage` / `sessionStorage` / IndexedDB được đổi tên có tiền tố `demo:` / `demo_` nên **bảng công cá nhân và phiên đăng nhập thật không bị đụng**; thoát demo thì dữ liệu demo trên trình duyệt được dọn.
+- Thanh vàng ở đầu mọi trang: *Làm mới dữ liệu demo* (dựng lại dữ liệu mẫu), *Đổi vai trò*, *Thoát demo*. Mã: `server/demo.mjs`, `js/demo.js`.
+- Nếu bước tạo D1 demo lỗi khi triển khai, workflow tự gỡ binding và chỉ tắt demo (nút không hiện), bản chính vẫn triển khai bình thường.
+
 ## Bước 1 — Đặt mật khẩu admin
 
 1. Mở app (localhost hoặc sau này là link github.io), nhấn **F12** → tab **Console**.

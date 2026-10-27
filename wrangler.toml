@@ -10,6 +10,13 @@ database_name = "trackingts"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
+# Cơ sở dữ liệu DEMO (chạy thử): cùng cấu trúc, dữ liệu mẫu bịa — xem server/demo.mjs. Cũng do bước triển khai điền database_id.
+[[d1_databases]]
+binding = "DB_DEMO"
+database_name = "trackingts-demo"
+database_id = "11111111-1111-1111-1111-111111111111"
+migrations_dir = "migrations"
+
 [vars]
 ACCESS_TEAM_DOMAIN = "small-rice-4f91"
 ACCESS_AUD = "5e81f676bfe422bc6cd16a7206256beaa943bfb5ef0d7501166ffde87e9b7c7f"
