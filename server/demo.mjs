@@ -67,6 +67,7 @@ const STAFF = [   // wbs, empId, role
   ['DEMO-001', 'D001', 'pm'], ['DEMO-002', 'D001', 'pm'], ['DEMO-003', 'D001', 'pm'], ['DEMO-004', 'D001', 'pm'],
 ];
 
+const DEMO_REPORTS = ['Lắp ray dẫn hướng tầng 1–4, kiểm tra độ thẳng.', 'Lắp khung cabin, treo đối trọng.', 'Đi dây hố thang, lắp tủ điều khiển.', 'Lắp cửa tầng, căn chỉnh khe hở.', 'Chạy thử không tải, chỉnh phanh.'];
 // một dòng chấm công cá nhân hợp lệ khi nộp (có bd khớp giờ vào - ra)
 function tsEntry(n, date, wbs, name, start, end, brk) {
   const t = (s) => { const [h, m] = s.split(':').map(Number); return h + m / 60; };
@@ -74,7 +75,8 @@ function tsEntry(n, date, wbs, name, start, end, brk) {
   const normal = Math.min(8, hours), ot = Math.max(0, hours - 8);
   return {
     id: String(1700000000000 + n), date, startTime: start, endTime: end, breakTime: String(brk),
-    activityCode: '1110', workNumber: wbs, projectName: name, cat: 'INS', u: 1700000000000 + n,
+    otMode: 'auto', otType: 'NORMAL', dutyHour: '0', remarks: '', report: DEMO_REPORTS[n % DEMO_REPORTS.length],
+    activityCode: '1110', workNumber: wbs, projectName: name, cat: 'NI', u: 1700000000000 + n,
     bd: ot > 0 ? { NORMAL: normal, OT1: ot } : { NORMAL: normal },
   };
 }
@@ -139,7 +141,9 @@ export async function seedDemo(db, me, role, today = new Date()) {
       const day = addDays(start, d), wd = day.getUTCDay();
       if (periodOf(day) !== per) break;
       if (wd === 0) continue;
-      entries.push(tsEntry(++n, iso(day), wbs, name, '08:00', wd === 6 ? '12:00' : '17:30', wd === 6 ? 0 : 1));
+      n++;
+      // T2–T6 08:00–17:00 (8 giờ thường), cứ 4 ngày có 1 ngày tăng ca đến 19:00 (OT1 2 giờ); T7 làm sáng
+      entries.push(tsEntry(n, iso(day), wbs, name, '08:00', wd === 6 ? '12:00' : (n % 4 === 0 ? '19:00' : '17:00'), wd === 6 ? 0 : 1));
     }
     return entries;
   };

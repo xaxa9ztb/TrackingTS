@@ -154,6 +154,8 @@ main { padding: 20px; }
   background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
 }
 #swatFrame { width: 100%; height: calc(100vh - 132px); min-height: 520px; border: 0; display: block; }
+/* trang Quản trị: tab Tài khoản & phân quyền nhúng tools/accounts */
+#accountsFrame { width: 100%; height: calc(100vh - 150px); min-height: 560px; border: 0; display: block; }
 body:not(.admin-mode) .swat-topbar { display: none; }
 
 /* Batch report bar (admin) above the SWAT iframe */

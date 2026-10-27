@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hướng dẫn sử dụng — Bộ công cụ dự án</title>
+<meta name="description" content="Hướng dẫn sử dụng Bộ công cụ dự án cho Fitter, Giám sát (Site Sup), Quản lý dự án và Quản trị viên: chấm công, nộp và duyệt bảng công, hồ sơ chất lượng, điều phối nhân sự.">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<!-- Trang hướng dẫn mở được cả khi chưa đăng nhập (không gọi Session.guard). -->
+<style>
+  :root {
+    --ink: #111827; --ink-2: #374151; --muted: #6b7280; --line: #e5e7eb; --bg: #f4f5f7; --card: #fff;
+    --brand: #e2001a; --brand-ink: #b00016; --blue: #1d4ed8; --blue-bg: #eff6ff;
+    --green: #047857; --green-bg: #ecfdf5; --amber: #92400e; --amber-bg: #fffbeb; --red: #b91c1c; --red-bg: #fef2f2;
+    --c-fitter: #059669; --c-sup: #0891b2; --c-pm: #ea580c; --c-admin: #334155; --c-all: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--blue); }
+  img { max-width: 100%; }
+
+  /* ---------- thanh trên ---------- */
+  .top { position: sticky; top: 0; z-index: 20; background: #111827; color: #f9fafb; }
+  .top .in { max-width: 1240px; margin: 0 auto; padding: 0 16px; height: 56px; display: flex; align-items: center; gap: 12px; }
+  .top a.home { color: #f9fafb; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 6px 10px 6px 6px; margin-left: -6px; border-radius: 8px; }
+  .top a.home:hover, .top a.home:focus-visible { background: #1f2937; outline: none; }
+  .top .dot { width: 10px; height: 10px; border-radius: 2px; background: var(--brand); }
+  .top .ttl { color: #9ca3af; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top .act { margin-left: auto; display: flex; gap: 8px; }
+  .top button { font: 600 13px/1 inherit; color: #f9fafb; background: #1f2937; border: 1px solid #374151; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  .top button:hover { background: #374151; }
+
+  /* ---------- mở đầu ---------- */
+  .hero { background: #fff; border-bottom: 1px solid var(--line); }
+  .hero .in { max-width: 1240px; margin: 0 auto; padding: 28px 16px 26px; }
+  .hero h1 { margin: 0 0 6px; font-size: clamp(26px, 4vw, 36px); line-height: 1.2; letter-spacing: -.01em; }
+  .hero p.lead { margin: 0 0 18px; color: var(--ink-2); max-width: 820px; }
+  .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .role { display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: inherit; background: #fff; border: 1px solid var(--line); border-top: 5px solid var(--c); border-radius: 14px; padding: 14px 16px 12px; transition: box-shadow .15s, transform .15s; }
+  .role:hover, .role:focus-visible { box-shadow: 0 8px 24px rgba(17,24,39,.08); transform: translateY(-1px); outline: none; }
+  .role b { font-size: 17px; display: flex; align-items: center; gap: 8px; }
+  .role b .ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--c); color: #fff; font-size: 16px; }
+  .role ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+  .role .go { margin-top: auto; font-size: 13px; font-weight: 600; color: var(--c); }
+
+  /* ---------- khung chính ---------- */
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 22px 16px 60px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 28px; }
+  nav.toc { position: sticky; top: 72px; align-self: start; max-height: calc(100vh - 90px); overflow: auto; font-size: 14px; }
+  nav.toc details { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  nav.toc summary { font-weight: 700; cursor: pointer; list-style: none; }
+  nav.toc summary::-webkit-details-marker { display: none; }
+  nav.toc ol { list-style: none; margin: 8px 0 0; padding: 0; }
+  nav.toc li { margin: 1px 0; }
+  nav.toc a { display: block; text-decoration: none; color: var(--ink-2); padding: 4px 8px; border-radius: 7px; }
+  nav.toc a:hover { background: #f3f4f6; }
+  nav.toc a.on { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
+  nav.toc .grp > a { font-weight: 700; color: var(--ink); margin-top: 6px; }
+  nav.toc .grp ol { margin: 0 0 0 10px; }
+  nav.toc .sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 7px; vertical-align: 1px; }
+
+  main { min-width: 0; }
+  section.part { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px 8px; margin-bottom: 22px; }
+  section.part > h2 { margin: 0 0 4px; font-size: 26px; line-height: 1.25; display: flex; align-items: center; gap: 10px; }
+  section.part > h2 .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--c); color: #fff; font-size: 18px; flex: none; }
+  section.part > p.for { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  h3 { font-size: 20px; margin: 30px 0 8px; padding-top: 4px; border-top: 1px solid var(--line); padding-top: 18px; }
+  section.part > h3:first-of-type { border-top: 0; padding-top: 4px; }
+  h4 { font-size: 16px; margin: 18px 0 6px; }
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 12px; }
+  kbd, .btnlike { display: inline-block; font: 600 13px/1.2 inherit; background: #f3f4f6; border: 1px solid #d1d5db; border-bottom-width: 2px; border-radius: 6px; padding: 2px 7px; white-space: nowrap; color: var(--ink); }
+  .btnlike.pri { background: #1d4ed8; border-color: #1e3a8a; color: #fff; }
+  .btnlike.red { background: #b91c1c; border-color: #7f1d1d; color: #fff; }
+
+  /* các bước làm */
+  ol.steps { list-style: none; counter-reset: st; padding: 0; margin: 0 0 16px; }
+  ol.steps > li { counter-increment: st; position: relative; padding: 2px 0 10px 44px; }
+  ol.steps > li::before { content: counter(st); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+  ol.steps > li:not(:last-child)::after { content: ''; position: absolute; left: 14px; top: 32px; bottom: 0; width: 2px; background: #e5e7eb; }
+
+  /* ảnh + chú thích số */
+  figure.shot { margin: 8px 0 6px; }
+  figure.shot img { display: block; width: 100%; height: auto; border: 1px solid #d1d5db; border-radius: 12px; box-shadow: 0 6px 20px rgba(17,24,39,.08); cursor: zoom-in; background: #fff; }
+  figure.shot.phone { max-width: 340px; }
+  figure.shot.mid { max-width: 820px; }
+  figure.shot figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .side { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; align-items: start; }
+  ol.legend { list-style: none; counter-reset: lg; padding: 0; margin: 10px 0 16px; display: grid; gap: 6px; }
+  ol.legend > li { counter-increment: lg; position: relative; padding-left: 38px; min-height: 28px; }
+  ol.legend > li::before { content: counter(lg); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff; font: 700 14px/26px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(0,0,0,.25); }
+  ol.legend > li[value]::before { content: attr(value); }
+
+  /* hộp lưu ý */
+  .note { border-radius: 12px; padding: 12px 14px 2px 46px; margin: 10px 0 16px; position: relative; font-size: 15px; }
+  .note::before { position: absolute; left: 14px; top: 11px; font-size: 18px; }
+  .note.tip { background: var(--green-bg); border: 1px solid #a7f3d0; } .note.tip::before { content: '💡'; }
+  .note.warn { background: var(--amber-bg); border: 1px solid #fde68a; } .note.warn::before { content: '⚠️'; }
+  .note.info { background: var(--blue-bg); border: 1px solid #bfdbfe; } .note.info::before { content: 'ℹ️'; }
+  .note.key { background: var(--red-bg); border: 1px solid #fecaca; } .note.key::before { content: '📌'; }
+
+  /* sơ đồ luồng duyệt */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 10px 0 18px; }
+  .flow .st { flex: 1 1 150px; background: #fff; border: 2px solid var(--c, #d1d5db); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+  .flow .st b { display: block; font-size: 15px; color: var(--c, var(--ink)); }
+  .flow .ar { align-self: center; font-size: 22px; color: var(--muted); }
+
+  table.tbl { border-collapse: collapse; width: 100%; font-size: 14px; margin: 6px 0 16px; }
+  table.tbl th, table.tbl td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  table.tbl th { background: #f9fafb; }
+  .chip { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 600; border: 1px solid; white-space: nowrap; }
+  .chip.gray { background: #f8fafc; border-color: #e2e8f0; color: #334155; }
+  .chip.amber { background: #fffbeb; border-color: #fde68a; color: #78350f; }
+  .chip.green { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+  .chip.rose { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
+
+  /* minh hoạ màn đăng nhập Cloudflare */
+  .mock { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+  .mock .scr { background: #fff; border: 1px solid #d1d5db; border-radius: 14px; padding: 14px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.05); }
+  .mock .scr .h { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+  .mock .scr .in { border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; color: #334155; margin-bottom: 8px; background: #f8fafc; }
+  .mock .scr .bt { background: #f6821f; color: #fff; border-radius: 8px; padding: 7px 9px; text-align: center; font-weight: 700; }
+  .mock .scr .cap { margin-top: 8px; color: var(--muted); }
+  .mock .scr .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: 12px; margin-right: 6px; }
+
+  details.faq { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 0 0 8px; }
+  details.faq summary { font-weight: 600; cursor: pointer; }
+  details.faq[open] summary { margin-bottom: 6px; }
+
+  footer.ft { max-width: 1240px; margin: 0 auto; padding: 0 16px 40px; color: var(--muted); font-size: 13px; }
+
+  /* phóng to ảnh */
+  dialog.zoom { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh; }
+  dialog.zoom::backdrop { background: rgba(17,24,39,.82); }
+  dialog.zoom img { display: block; max-width: 96vw; max-height: 92vh; border-radius: 10px; }
+  dialog.zoom p { color: #e5e7eb; text-align: center; margin: 6px 0 0; font-size: 13px; }
+
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; gap: 14px; }
+    nav.toc { position: static; max-height: none; }
+    .pair, .side { grid-template-columns: 1fr; }
+    section.part { padding: 18px 16px 6px; border-radius: 14px; }
+    .top .ttl { display: none; }
+  }
+  @media print {
+    @page { size: A4; margin: 12mm; }
+    body { background: #fff; font-size: 11pt; }
+    .top, nav.toc, .noprint, dialog { display: none !important; }
+    .wrap { display: block; padding: 0; }
+    .hero { border: 0; } .hero .in { padding: 0 0 12px; }
+    .role { break-inside: avoid; }
+    section.part { border: 0; padding: 0; margin: 0 0 8mm; break-before: page; }
+    figure.shot, ol.legend > li, .note, .flow, table.tbl, ol.steps > li { break-inside: avoid; }
+    figure.shot img { box-shadow: none; }
+    figure.shot:not(.phone) { max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    details.faq { break-inside: avoid; }
+    details.faq > *:not(summary) { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="in">
+    <a class="home" href="index.html" title="Về trang chủ Bộ công cụ"><span class="dot" aria-hidden="true"></span>‹ Bộ công cụ</a>
+    <span class="ttl">Hướng dẫn sử dụng</span>
+    <div class="act noprint">
+      <button type="button" id="btnPrint" title="In hoặc lưu thành file PDF (chọn “Lưu dưới dạng PDF”)">🖨 In / Lưu PDF</button>
+    </div>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="in">
+    <h1>Hướng dẫn sử dụng Bộ công cụ dự án</h1>
+    <p class="lead">Chọn đúng vai trò của bạn để xem phần hướng dẫn dành riêng cho mình. Mỗi phần có <b>ảnh màn hình thật</b>, các
+      <b>số đỏ ①②③</b> trên ảnh tương ứng với danh sách giải thích bên dưới. Bấm vào ảnh để phóng to.
+      Dữ liệu trong ảnh là <b>dữ liệu mẫu</b> (tên người, dự án đều là giả định).</p>
+    <div class="roles">
+      <a class="role" href="#fitter" style="--c: var(--c-fitter)">
+        <b><span class="ic" aria-hidden="true">👷</span>Fitter / Nhân viên</b>
+        <ul><li>Chấm công hằng ngày trên điện thoại</li><li>Ghi báo cáo thi công</li><li>Nộp bảng công cuối kỳ (trước ngày 12)</li></ul>
+        <span class="go">Xem hướng dẫn Fitter →</span>
+      </a>
+      <a class="role" href="#giamsat" style="--c: var(--c-sup)">
+        <b><span class="ic" aria-hidden="true">🦺</span>Giám sát (Site Sup)</b>
+        <ul><li>Duyệt / trả lại bảng công của fitter</li><li>Lập hồ sơ chất lượng, biên bản</li><li>Xem lịch trình dự án của mình</li></ul>
+        <span class="go">Xem hướng dẫn Giám sát →</span>
+      </a>
+      <a class="role" href="#quanly" style="--c: var(--c-pm)">
+        <b><span class="ic" aria-hidden="true">📋</span>Quản lý dự án</b>
+        <ul><li>Duyệt bảng công cấp 2</li><li>Điều phối fitter (kéo thả)</li><li>So kế hoạch với chấm công thực tế</li></ul>
+        <span class="go">Xem hướng dẫn Quản lý →</span>
+      </a>
+      <a class="role" href="#quantri" style="--c: var(--c-admin)">
+        <b><span class="ic" aria-hidden="true">🛡️</span>Quản trị viên</b>
+        <ul><li>Nhân viên, dự án, tài khoản</li><li>Nạp bảng công Excel hằng tháng</li><li>Phân quyền, gắn email</li></ul>
+        <span class="go">Xem hướng dẫn Quản trị →</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Mục lục">
+    <details open id="tocBox">
+      <summary>📑 Mục lục</summary>
+      <ol>
+        <li class="grp"><a href="#batdau"><span class="sw" style="--c: var(--c-all)"></span>1. Bắt đầu (mọi người)</a>
+          <ol>
+            <li><a href="#dangnhap">Đăng nhập</a></li>
+            <li><a href="#trangchu">Trang chủ</a></li>
+            <li><a href="#caidat">Cài lên điện thoại</a></li>
+            <li><a href="#demo">Chạy thử (Demo)</a></li>
+          </ol></li>
+        <li class="grp"><a href="#fitter"><span class="sw" style="--c: var(--c-fitter)"></span>2. Fitter / Nhân viên</a>
+          <ol>
+            <li><a href="#ts-manhinh">Màn hình Timesheet</a></li>
+            <li><a href="#ts-them">Thêm chấm công</a></li>
+            <li><a href="#ts-lich">Lịch &amp; danh sách</a></li>
+            <li><a href="#ts-baocao">Báo cáo ngày, gửi mail</a></li>
+            <li><a href="#ts-nop">Nộp bảng công</a></li>
+            <li><a href="#ts-tralai">Khi bị trả lại</a></li>
+          </ol></li>
+        <li class="grp"><a href="#giamsat"><span class="sw" style="--c: var(--c-sup)"></span>3. Giám sát (Site Sup)</a>
+          <ol>
+            <li><a href="#gs-trangchu">Trang chủ giám sát</a></li>
+            <li><a href="#gs-duyet">Duyệt bảng công</a></li>
+            <li><a href="#gs-lichtrinh">Lịch trình dự án</a></li>
+            <li><a href="#gs-hoso">Hồ sơ chất lượng</a></li>
+            <li><a href="#gs-thongke">Thống kê giờ công</a></li>
+          </ol></li>
+        <li class="grp"><a href="#quanly"><span class="sw" style="--c: var(--c-pm)"></span>4. Quản lý dự án</a>
+          <ol>
+            <li><a href="#ql-duyet">Duyệt cấp 2</a></li>
+            <li><a href="#ql-dieuphoi">Điều phối nhân sự</a></li>
+            <li><a href="#ql-lichtrinh">Lịch trình dự án</a></li>
+            <li><a href="#ql-thucte">Thực tế &amp; bám kế hoạch</a></li>
+            <li><a href="#ql-tiendo">Bảng tiến độ thi công</a></li>
+          </ol></li>
+        <li class="grp"><a href="#quantri"><span class="sw" style="--c: var(--c-admin)"></span>5. Quản trị viên</a></li>
+        <li class="grp"><a href="#hoidap"><span class="sw" style="--c: #9ca3af"></span>6. Hỏi đáp &amp; sự cố</a></li>
+      </ol>
+    </details>
+  </nav>
+
+  <main>
+
+  <!-- =============================== 1. BẮT ĐẦU =============================== -->
+  <section class="part" id="batdau" style="--c: var(--c-all)">
+    <h2><span class="ic" aria-hidden="true">🚀</span>1. Bắt đầu</h2>
+    <p class="for">Dành cho mọi người dùng.</p>
+
+    <h3 id="dangnhap">1.1. Đăng nhập</h3>
+    <p>Mở trình duyệt (Chrome, Safari, Edge…) và vào địa chỉ <b><a href="https://nihan-ts.pages.dev" rel="noopener">https://nihan-ts.pages.dev</a></b>.
+      Không cần mật khẩu: hệ thống gửi <b>mã đăng nhập 6 số vào email</b> của bạn.</p>
+    <div class="mock" aria-label="Minh hoạ các bước đăng nhập">
+      <div class="scr"><div class="h"><span class="n">1</span>Nhập email</div><div class="in">ten.ban@gmail.com</div><div class="bt">Send me a code</div><div class="cap">Gõ email đã được quản trị viên đăng ký cho bạn rồi bấm <b>Send me a code</b>.</div></div>
+      <div class="scr"><div class="h"><span class="n">2</span>Mở hộp thư</div><div class="in">Mã đăng nhập: <b>4 8 2 9 1 7</b></div><div class="cap">Thư của Cloudflare Access đến sau vài giây (xem cả mục <i>Spam / Quảng cáo</i>).</div></div>
+      <div class="scr"><div class="h"><span class="n">3</span>Nhập mã</div><div class="in">482917</div><div class="bt">Sign in</div><div class="cap">Nhập mã → <b>Sign in</b>. Trình duyệt sẽ <b>ghi nhớ đăng nhập khoảng 1 tháng</b>.</div></div>
+    </div>
+    <div class="side">
+      <figure class="shot phone"><img src="docs/huong-dan/hub-denied.jpg" alt="Thông báo email chưa được gắn với nhân viên" loading="lazy" width="780" height="1688"><figcaption>Email chưa được cấp quyền</figcaption></figure>
+      <div>
+        <p>Nếu thấy thông báo như hình bên:</p>
+        <ol class="legend">
+          <li><b>“Email này chưa được gắn với nhân viên nào”</b> — quản trị viên chưa gắn email của bạn. Gửi cho quản trị viên <b>họ tên, mã NV và email</b> bạn dùng để đăng nhập.</li>
+          <li><b>Đăng xuất / dùng email khác</b> — nếu bạn lỡ nhập nhầm email.</li>
+        </ol>
+        <div class="note info"><p>Mỗi người <b>một email</b>. Có thể dùng Gmail cá nhân hoặc email công ty, miễn là quản trị viên đã gắn đúng email đó.</p></div>
+      </div>
+    </div>
+
+    <h3 id="trangchu">1.2. Trang chủ</h3>
+    <div class="side">
+      <figure class="shot phone"><img src="docs/huong-dan/hub-fitter.jpg" alt="Trang chủ trên điện thoại" loading="lazy" width="780" height="1688"><figcaption>Trang chủ (điện thoại) — tài khoản Fitter</figcaption></figure>
+      <div>
+        <ol class="legend">
+          <li><b>Tài khoản</b> — chữ cái đầu tên bạn và nút <span class="btnlike">Đăng xuất</span>. Dùng máy chung thì nhớ đăng xuất.</li>
+          <li><b>Dữ liệu dùng chung</b> — danh sách nhân viên và dự án được tải về máy để dùng cả khi mất mạng. Bấm <span class="btnlike">Đồng bộ ngay</span> nếu không thấy dự án mới.</li>
+          <li><b>Các chức năng</b> — bấm vào thẻ để mở. Mỗi vai trò thấy những chức năng khác nhau; chức năng chưa được dùng hiện ở ô khoá 🔒.</li>
+        </ol>
+        <table class="tbl">
+          <tr><th>Vai trò</th><th>Chức năng dùng được</th></tr>
+          <tr><td>Fitter / Nhân viên</td><td>Timesheet cá nhân, Thống kê giờ công</td></tr>
+          <tr><td>Giám sát (Site Sup)</td><td>+ Duyệt bảng công, Hồ sơ chất lượng, Quản lý dự án</td></tr>
+          <tr><td>Quản lý dự án</td><td>+ Duyệt bảng công (cấp 2), Quản lý dự án đầy đủ</td></tr>
+          <tr><td>Quản trị viên</td><td>Tất cả + mục <b>Quản trị</b></td></tr>
+        </table>
+        <p>Vai trò được xác định theo <b>chức danh</b> trong dữ liệu nhân sự. Thấy sai chức năng → báo quản trị viên.</p>
+        <div class="note tip">📖 Cần xem lại tài liệu này? Bấm nút <b>Hướng dẫn sử dụng</b> ở thanh trên cùng trang chủ, hoặc nút <b>📖 Hướng dẫn</b> trên thanh đen của từng chức năng — mở thẳng phần dành cho chức năng đó.</div>
+      </div>
+    </div>
+
+    <h3 id="caidat">1.3. Cài lên điện thoại &amp; dùng khi mất sóng</h3>
+    <div class="side">
+      <figure class="shot phone"><img src="docs/huong-dan/hub-install.jpg" alt="Thẻ cài đặt ứng dụng" loading="lazy" width="780" height="1688"><figcaption>Thẻ “Cài Bộ công cụ lên máy” ở cuối trang chủ</figcaption></figure>
+      <div>
+        <ol class="legend"><li>Bấm <span class="btnlike">Cài đặt</span> để có biểu tượng trên màn hình chính, mở nhanh như một ứng dụng.</li></ol>
+        <h4>📱 Android (Chrome)</h4>
+        <p>Bấm <span class="btnlike">Cài đặt</span> trên thẻ, hoặc menu <b>⋮ → Cài đặt ứng dụng / Thêm vào màn hình chính</b>.</p>
+        <h4>🍎 iPhone (Safari)</h4>
+        <p>Bấm nút <b>Chia sẻ</b> (ô vuông có mũi tên lên) → <b>Thêm vào MH chính</b> → <b>Thêm</b>.</p>
+        <div class="note tip"><p><b>Mất sóng ở công trường vẫn chấm công được.</b> Dữ liệu lưu ngay trên điện thoại, có mạng lại thì <b>tự gửi lên máy chủ</b>. Thanh trạng thái sẽ báo “Mất mạng — dữ liệu an toàn trên máy”.</p></div>
+      </div>
+    </div>
+
+    <h3 id="demo">1.4. Chạy thử (Demo) — tập dùng không sợ sai</h3>
+    <p>Muốn thử bấm các nút mà không ảnh hưởng dữ liệu thật? Bấm <span class="btnlike">🧪 Chạy thử (Demo)</span> ở <b>chân trang chủ</b>, chọn vai trò muốn thử.</p>
+    <div class="pair">
+      <figure class="shot"><img src="docs/huong-dan/demo-dialog.jpg" alt="Hộp chọn vai trò chạy thử" loading="lazy" width="1280" height="800"><figcaption>Chọn vai trò muốn thử</figcaption></figure>
+      <figure class="shot"><img src="docs/huong-dan/demo-banner.jpg" alt="Thanh vàng CHẾ ĐỘ DEMO" loading="lazy" width="1280" height="420"><figcaption>Đang ở chế độ demo: thanh vàng luôn hiện ở đầu trang</figcaption></figure>
+    </div>
+    <ol class="legend"><li>Thanh vàng <b>CHẾ ĐỘ DEMO</b>: dữ liệu mẫu riêng, <b>không ảnh hưởng dữ liệu thật</b>, không gửi email. Có nút <span class="btnlike">Làm mới dữ liệu demo</span>, <span class="btnlike">Đổi vai trò</span>, <span class="btnlike">Thoát demo</span>.</li></ol>
+    <div class="note warn"><p>Nhớ bấm <b>Thoát demo</b> khi thử xong — chấm công thật phải làm ngoài chế độ demo.</p></div>
+  </section>
+
+  <!-- =============================== 2. FITTER =============================== -->
+  <section class="part" id="fitter" style="--c: var(--c-fitter)">
+    <h2><span class="ic" aria-hidden="true">👷</span>2. Fitter / Nhân viên — Timesheet cá nhân</h2>
+    <p class="for">Chấm công hằng ngày, ghi báo cáo thi công, nộp bảng công cuối kỳ.</p>
+
+    <div class="note key">
+      <p><b>Ghi nhớ 3 điều:</b></p>
+      <ol>
+        <li><b>Kỳ lương</b> tính từ <b>ngày 16 tháng trước đến ngày 15 tháng này</b> (ví dụ kỳ 11/2026 = 16/10 → 15/11).</li>
+        <li>Chấm công <b>mỗi ngày</b> (làm xong ca là chấm luôn, kèm vài dòng báo cáo thi công).</li>
+        <li><b>Nộp bảng công trước ngày 12</b> của tháng kết thúc kỳ (kỳ 11/2026 → nộp trước 12/11). Các ngày 13–15 chấm trước theo kế hoạch rồi nộp.</li>
+      </ol>
+    </div>
+
+    <h3 id="ts-manhinh">2.1. Màn hình Timesheet</h3>
+    <p>Từ trang chủ bấm thẻ <b>Timesheet cá nhân</b>.</p>
+    <figure class="shot"><img src="docs/huong-dan/ts-overview.jpg" alt="Màn hình Timesheet trên máy tính" loading="lazy" width="1280" height="800"><figcaption>Timesheet cá nhân (máy tính)</figcaption></figure>
+    <ol class="legend">
+      <li><b>Kỳ lương</b> — bấm ‹ › để xem kỳ trước / kỳ sau.</li>
+      <li><span class="btnlike pri">+ Thêm chấm công</span> — ghi một dòng chấm công mới (xem mục 2.2).</li>
+      <li><b>Báo cáo</b> — bản tổng hợp cả kỳ (giờ thường, tăng ca, theo dự án, biểu đồ) để xem hoặc in.</li>
+      <li><b>Xuất Excel</b> — tải file bảng công theo mẫu công ty.</li>
+      <li><b>Gửi mail</b> — gửi bảng công (kèm file Excel) cho giám sát qua ứng dụng email của bạn.</li>
+      <li><span class="btnlike pri">Nộp bảng công</span> — nộp cả kỳ để giám sát duyệt (mục 2.5).</li>
+      <li><b>Trạng thái lưu</b> — “✓ Đã lưu trên máy chủ” là dữ liệu đã an toàn; “Chưa gửi” / “Mất mạng” là đang chờ mạng để gửi.</li>
+    </ol>
+    <p>Phía dưới có: <b>Thông tin nhân viên</b> (tự lấy theo tài khoản), <b>Lộ trình kỳ lương (Gantt)</b> cho thấy mỗi ngày làm dự án nào, bao nhiêu giờ, và các ô thống kê <b>Giờ công thường / Tăng ca / Tổng giờ / Ngày đã chấm</b>.</p>
+
+    <div class="side">
+      <figure class="shot phone"><img src="docs/huong-dan/ts-phone.jpg" alt="Timesheet trên điện thoại" loading="lazy" width="780" height="1688"><figcaption>Trên điện thoại</figcaption></figure>
+      <div>
+        <h4>Trên điện thoại</h4>
+        <ol class="legend">
+          <li><span class="btnlike pri">Nộp bảng công</span> nằm ngay đầu trang.</li>
+          <li>Nút tròn <b>＋</b> ở góc dưới luôn hiện khi cuộn — bấm để thêm chấm công.</li>
+        </ol>
+        <p>Các nút Báo cáo, Xuất Excel, Gửi mail, Cài đặt là 4 biểu tượng nhỏ dưới tên bạn.</p>
+      </div>
+    </div>
+
+    <h3 id="ts-them">2.2. Thêm chấm công (mỗi ngày)</h3>
+    <div class="pair">
+      <figure class="shot"><img src="docs/huong-dan/ts-form.jpg" alt="Form thêm chấm công — phần thời gian" loading="lazy" width="1280" height="800"><figcaption>Phần trên: thời gian</figcaption></figure>
+      <figure class="shot"><img src="docs/huong-dan/ts-form2.jpg" alt="Form thêm chấm công — phần công việc" loading="lazy" width="1280" height="800"><figcaption>Phần dưới: công việc, báo cáo</figcaption></figure>
+    </div>
+    <ol class="legend">
+      <li><b>Ngày</b> — mặc định là hôm nay. Chấm bù ngày khác thì chọn lại ngày.</li>
+      <li><b>Từ – Đến – Nghỉ</b> — giờ vào, giờ ra và số giờ nghỉ (thường 1 giờ nghỉ trưa). Ô <b>Số giờ tính công</b> tự hiện ngay bên dưới.</li>
+      <li><b>Tự tính giờ thường / OT theo Luật Lao động</b> — <b>để nguyên dấu tick</b>. Hệ thống tự chia giờ thường, OT 150%, 200%, 300%, ban đêm, ngày lễ.</li>
+      <li><b>Mã công việc</b> — chọn đúng loại việc (ví dụ <i>1110 – NI Prod. Hours Fitter</i> cho giờ lắp đặt).</li>
+      <li><b>Tên dự án + Work Number / WBS</b> — gõ vài chữ tên dự án rồi chọn trong gợi ý, WBS tự điền.</li>
+      <li><b>Báo cáo thi công trong ngày</b> — vài dòng hôm nay làm gì, vướng gì. Giám sát đọc được nội dung này.</li>
+      <li><span class="btnlike pri">Lưu</span>.</li>
+    </ol>
+    <div class="note tip">
+      <p><b>Một ngày làm 2 dự án?</b> Thêm 2 dòng, mỗi dòng một khoảng giờ và một dự án.</p>
+      <p><b>Sửa / xoá</b>: bấm biểu tượng ✏️ hoặc 🗑 ở cuối dòng trong danh sách. Xoá nhầm thì bấm <b>Hoàn tác</b> trên thông báo hiện ra.</p>
+    </div>
+
+    <h3 id="ts-lich">2.3. Lịch kỳ lương &amp; danh sách chấm công</h3>
+    <figure class="shot"><img src="docs/huong-dan/ts-list.jpg" alt="Lịch kỳ lương và danh sách chấm công" loading="lazy" width="1280" height="800"><figcaption>Lịch kỳ lương (trái) và danh sách chấm công (phải)</figcaption></figure>
+    <ol class="legend">
+      <li><b>Lịch kỳ lương</b> — ngày có <b>chấm đỏ</b> là ngày làm việc <b>chưa chấm công</b>; ngày xanh là đã chấm (kèm số giờ). Bấm một ngày trên lịch để thêm / xem chấm công ngày đó.</li>
+      <li><b>Chấm công trong kỳ</b> — mọi dòng đã ghi: thời gian, số giờ, loại giờ (thường / OT), mã công việc, dự án và 📝 báo cáo thi công.</li>
+    </ol>
+
+    <h3 id="ts-baocao">2.4. Báo cáo ngày &amp; gửi mail cho giám sát</h3>
+    <div class="note info"><p><b>Không bắt buộc gửi mail mỗi ngày:</b> hệ thống <b>tự gửi email tổng hợp báo cáo thi công lúc 18:30</b> hằng ngày cho Site Sup / Quản lý dự án của dự án. Hai nút dưới đây dùng khi bạn muốn gửi thêm hoặc gửi gấp.</p></div>
+    <div class="pair">
+      <figure class="shot"><img src="docs/huong-dan/ts-daily.jpg" alt="Gửi báo cáo thi công trong ngày" loading="lazy" width="1280" height="800"><figcaption>Nút <b>Báo cáo ngày</b> (trên danh sách chấm công)</figcaption></figure>
+      <figure class="shot"><img src="docs/huong-dan/ts-mail.jpg" alt="Gửi bảng công cho giám sát" loading="lazy" width="1280" height="800"><figcaption>Nút <b>Gửi mail</b> (gửi cả bảng công kỳ)</figcaption></figure>
+    </div>
+    <p><b>Báo cáo ngày</b> (ảnh trái): ① chọn ngày báo cáo, ② nhập email giám sát (lần sau tự nhớ) — nội dung lấy từ các dòng chấm công và báo cáo thi công của ngày đó.</p>
+    <p><b>Gửi mail</b> (ảnh phải):</p>
+    <ol class="legend">
+      <li><b>Gửi đến</b> — tự điền email giám sát theo dữ liệu nhân sự (sửa được).</li>
+      <li><b>Tiêu đề, Nội dung</b> — soạn sẵn: tổng giờ, giờ thường, tăng ca.</li>
+      <li><b>File đính kèm</b> — file Excel bảng công được tạo sẵn.</li>
+      <li>Chọn cách gửi: <b>Outlook / ứng dụng mail trên máy</b>, <b>Gmail</b> hoặc <b>Outlook web</b>. Trên điện thoại có thêm nút <b>Chia sẻ</b> (Zalo, Gmail…).</li>
+    </ol>
+
+    <h3 id="ts-nop">2.5. Nộp bảng công cuối kỳ</h3>
+    <ol class="steps">
+      <li>Kiểm tra <b>Lịch kỳ lương</b>: không còn ngày chấm đỏ (ngày nghỉ phép thì chấm mã nghỉ tương ứng).</li>
+      <li>Từ <b>ngày 9</b> app hiện nhắc hạn ⏰; email nhắc vào sáng <b>ngày 9 và ngày 11</b>. Hạn cuối là <b>ngày 12</b>.</li>
+      <li>Bấm <span class="btnlike pri">Nộp bảng công</span> → xác nhận.</li>
+      <li>Trạng thái chuyển thành <span class="chip amber">Đã nộp — chờ giám sát</span>. Bảng công bị <b>khoá</b> (không thêm / sửa được) trong lúc chờ duyệt.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/ts-submitted.jpg" alt="Trạng thái đã nộp" loading="lazy" width="1280" height="330"><figcaption>Sau khi nộp</figcaption></figure>
+    <ol class="legend">
+      <li><b>Trạng thái kỳ</b> — theo dõi bảng công đang ở bước nào.</li>
+      <li><span class="btnlike">Thu hồi để sửa</span> — nộp nhầm? Bấm để lấy về sửa tiếp (chỉ được khi giám sát <b>chưa duyệt</b>), sửa xong nộp lại.</li>
+    </ol>
+    <h4>Các trạng thái bảng công</h4>
+    <div class="flow">
+      <div class="st" style="--c:#475569"><b>Đang chấm</b>Bạn chấm công, sửa thoải mái.</div><span class="ar">→</span>
+      <div class="st" style="--c:#b45309"><b>Đã nộp — chờ giám sát</b>Khoá sửa. Site Sup xem và duyệt.</div><span class="ar">→</span>
+      <div class="st" style="--c:#b45309"><b>Giám sát đã duyệt — chờ quản lý</b>Quản lý dự án duyệt lần 2.</div><span class="ar">→</span>
+      <div class="st" style="--c:#047857"><b>Đã duyệt xong</b>Giờ công tự chuyển sang bảng Theo dõi giờ công.</div>
+    </div>
+    <p>Ở bất kỳ bước duyệt nào, nếu có sai sót giám sát / quản lý có thể <span class="chip rose">Bị trả lại — cần sửa</span> kèm lý do.</p>
+
+    <h3 id="ts-tralai">2.6. Khi bảng công bị trả lại</h3>
+    <figure class="shot"><img src="docs/huong-dan/ts-rejected.jpg" alt="Bảng công bị trả lại kèm lý do" loading="lazy" width="1280" height="380"><figcaption>Bảng công bị trả lại</figcaption></figure>
+    <ol class="legend">
+      <li>Trạng thái đổi thành <span class="chip rose">Bị trả lại — cần sửa</span>; bạn cũng nhận email thông báo.</li>
+      <li><b>Lý do</b> của người duyệt hiện ngay bên cạnh — đọc kỹ để sửa đúng chỗ.</li>
+      <li>Sửa các dòng cần sửa, rồi bấm <span class="btnlike pri">Nộp bảng công</span> lại.</li>
+    </ol>
+  </section>
+
+  <!-- =============================== 3. GIÁM SÁT =============================== -->
+  <section class="part" id="giamsat" style="--c: var(--c-sup)">
+    <h2><span class="ic" aria-hidden="true">🦺</span>3. Giám sát (Site Sup)</h2>
+    <p class="for">Duyệt bảng công cấp 1, lập hồ sơ chất lượng, theo dõi lịch trình dự án. Site Sup cũng chấm công cá nhân như Fitter (mục 2).</p>
+
+    <h3 id="gs-trangchu">3.1. Trang chủ của giám sát</h3>
+    <figure class="shot"><img src="docs/huong-dan/hub-sitesup.jpg" alt="Trang chủ giám sát" loading="lazy" width="1280" height="800"><figcaption>Nhóm chức năng “Quản lý dự án &amp; Giám sát dự án”</figcaption></figure>
+    <ol class="legend">
+      <li><b>Duyệt bảng công</b> — nhãn đỏ “<b>N chờ duyệt</b>” cho biết số bảng công đang chờ bạn.</li>
+      <li><b>Hồ sơ chất lượng thang máy</b> — lập trọn bộ hồ sơ nghiệm thu, biên bản, nhật ký (mục 3.4).</li>
+      <li><b>Quản lý dự án</b> — xem lịch trình các dự án, điều phối fitter (mục 3.3 và phần 4).</li>
+    </ol>
+
+    <h3 id="gs-duyet">3.2. Duyệt bảng công (cấp 1)</h3>
+    <p>Bạn chỉ thấy bảng công của fitter làm ở <b>dự án bạn phụ trách</b>. Nên duyệt sớm sau khi fitter nộp để Quản lý dự án kịp duyệt.</p>
+    <figure class="shot"><img src="docs/huong-dan/appr-inbox.jpg" alt="Danh sách bảng công chờ duyệt" loading="lazy" width="1280" height="800"><figcaption>Hộp “Chờ bạn duyệt”</figcaption></figure>
+    <ol class="legend">
+      <li>Mỗi dòng: <b>người nộp, kỳ lương, cấp duyệt</b> (Site Sup / Quản lý dự án), <b>dự án</b>, số dòng, thời điểm nộp.</li>
+      <li><span class="btnlike pri">Xem &amp; duyệt</span> — mở chi tiết.</li>
+    </ol>
+    <figure class="shot mid"><img src="docs/huong-dan/appr-detail.jpg" alt="Chi tiết bảng công" loading="lazy" width="1280" height="1370"><figcaption>Chi tiết một bảng công</figcaption></figure>
+    <ol class="legend">
+      <li><b>Tổng quan</b>: giờ công, giờ thường, tăng ca, số ngày; dòng cảnh báo vàng liệt kê <b>ngày làm việc chưa chấm</b>.</li>
+      <li><b>Theo dự án</b>: số ngày, giờ thường, OT của từng dự án — so với thực tế công trường.</li>
+      <li><b>Từng ngày</b>: giờ vào – ra, loại giờ, mã công việc, dự án và <b>báo cáo thi công</b>. Dòng <b>tô đỏ</b> là dòng có phân loại giờ không khớp quy định → nên trả lại để fitter mở lại Timesheet và nộp lại.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/appr-reject.jpg" alt="Duyệt hoặc trả lại" loading="lazy" width="1280" height="800"><figcaption>Cuối trang chi tiết: Duyệt hoặc Trả lại</figcaption></figure>
+    <ol class="legend">
+      <li><span class="btnlike pri">Duyệt (chuyển sang Quản lý dự án)</span> — đúng thì bấm duyệt; bảng công chuyển lên Quản lý dự án.</li>
+      <li>Thấy sai: bấm <span class="btnlike red">Trả lại…</span>, ghi <b>lý do cụ thể</b> (ngày nào, sai gì) — <b>bắt buộc</b>, fitter sẽ đọc lý do này.</li>
+      <li><span class="btnlike red">Trả lại bảng công</span> để gửi.</li>
+    </ol>
+    <div class="note tip"><p>Hằng tối <b>18:30</b> bạn nhận email tổng hợp <b>báo cáo thi công trong ngày</b> của fitter ở dự án mình. Sáng ngày 11 có email nhắc nếu còn bảng công chờ bạn duyệt.</p></div>
+
+    <h3 id="gs-lichtrinh">3.3. Xem lại lịch trình dự án</h3>
+    <p>Mở <b>Quản lý dự án → tab Lịch trình dự án → Lịch trình (Gantt)</b>, bấm <span class="btnlike">Dự án của tôi</span> để chỉ xem dự án mình giám sát.</p>
+    <figure class="shot"><img src="docs/huong-dan/pp-mine.jpg" alt="Lịch trình dạng Gantt, lọc dự án của tôi" loading="lazy" width="1280" height="800"><figcaption>Lịch trình các dự án của tôi</figcaption></figure>
+    <ol class="legend"><li><span class="btnlike">Dự án của tôi</span> — lọc nhanh theo tên giám sát của bạn.</li></ol>
+    <table class="tbl">
+      <tr><th>Ký hiệu trên Gantt</th><th>Ý nghĩa</th></tr>
+      <tr><td><span style="display:inline-block;width:40px;height:6px;border-radius:3px;background:#94a3b8"></span></td><td>Hàng: từ xuất xưởng đến hàng về</td></tr>
+      <tr><td><span style="display:inline-block;width:40px;height:10px;border-radius:5px;background:#93c5fd"></span></td><td>Lắp đặt: từ nhận hố đến bàn giao (màu của dự án)</td></tr>
+      <tr><td><span style="display:inline-block;width:40px;height:4px;border-radius:2px;background:#059669"></span></td><td>Thời gian có fitter được phân công</td></tr>
+      <tr><td>◇ / ◆ / <span style="color:#b91c1c">◇ đỏ</span></td><td>Mốc chưa xong / đã xong / quá hạn chưa xác nhận</td></tr>
+      <tr><td><span style="color:#b91c1c;font-weight:700">│</span></td><td>Hôm nay</td></tr>
+    </table>
+    <p>Bấm tên dự án để mở chi tiết: ngày hàng về, giao hố, nhận hố, bàn giao, ghi chú. Chi tiết các thao tác xem mục <a href="#ql-lichtrinh">4.3</a>.</p>
+
+    <h3 id="gs-hoso">3.4. Hồ sơ chất lượng thang máy</h3>
+    <p>Lập trọn bộ hồ sơ nghiệm thu (.docx, mở bằng Word để in), biên bản hàng về, biên bản bàn giao thang và nhật ký thi công — chỉ cần nhập thông tin một lần.</p>
+    <h4>Bước 1 — Nhập hợp đồng</h4>
+    <figure class="shot"><img src="docs/huong-dan/hs-start.jpg" alt="Nhập hợp đồng" loading="lazy" width="1280" height="860"><figcaption>Màn hình đầu</figcaption></figure>
+    <ol class="legend">
+      <li><b>Chọn dự án từ danh sách chung</b> — gõ tên / WBS để điền sẵn tên dự án, chủ đầu tư, thiết bị.</li>
+      <li><b>Kéo thả file hợp đồng</b> (PDF / ảnh) — app tự quét để lấy số hợp đồng, ngày ký, các bên… (xử lý ngay trên máy, không gửi file đi đâu).</li>
+      <li>Hoặc <span class="btnlike">Bỏ qua — nhập tay</span>.</li>
+    </ol>
+    <h4>Bước 2 — Chọn chức năng</h4>
+    <figure class="shot"><img src="docs/huong-dan/hs-choose.jpg" alt="Chọn chức năng" loading="lazy" width="1280" height="860"><figcaption>Hai chức năng dùng chung dữ liệu hợp đồng</figcaption></figure>
+    <ol class="legend">
+      <li><b>Lập bảng tiến độ thi công</b> — Gantt theo tuần, xuất Excel / PDF khổ A3 (xem mục <a href="#ql-tiendo">4.5</a>).</li>
+      <li><b>Hồ sơ quản lý chất lượng</b> — bộ hồ sơ nghiệm thu Word.</li>
+    </ol>
+    <h4>Bước 3 — Điền thông tin hồ sơ</h4>
+    <p>Điền lần lượt các mục A → F. Ô để trống sẽ in dấu chấm để điền tay sau.</p>
+    <figure class="shot"><img src="docs/huong-dan/hs-contract.jpg" alt="Mục hợp đồng và tài liệu căn cứ" loading="lazy" width="1280" height="860"><figcaption>Mục C — Hợp đồng &amp; tài liệu căn cứ</figcaption></figure>
+    <ol class="legend">
+      <li><b>Hợp đồng có phụ lục</b> — chỉ tick khi thật sự có phụ lục; không tick thì toàn bộ hồ sơ <b>không nhắc tới phụ lục</b>.</li>
+      <li>Số và ngày ký hợp đồng.</li>
+      <li>Mã hiệu bản vẽ thi công được duyệt.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/hs-chungtu.jpg" alt="Chứng từ hàng hóa" loading="lazy" width="1280" height="860"><figcaption>Mục C2 — Chứng từ hàng hóa (C/O, C/Q, Packing List, HBL)</figcaption></figure>
+    <ol class="legend">
+      <li><b>Loại file</b> — để “Tự nhận diện” hoặc chọn đúng loại nếu đẩy từng loại.</li>
+      <li><span class="btnlike">⬆ Đẩy file lên để quét số…</span> — chọn một hay nhiều file PDF / ảnh; app tự đọc <b>số và ngày</b> chứng từ, xuất xứ, số kiện.</li>
+      <li>Kết quả điền vào bảng — <b>luôn đối chiếu với bản gốc</b> (máy có thể đọc nhầm ký tự). Có thể gõ tay trực tiếp.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/hs-elevs.jpg" alt="Danh sách thang và đợt nghiệm thu" loading="lazy" width="1280" height="860"><figcaption>Mục D — Danh sách thang &amp; đợt nghiệm thu</figcaption></figure>
+    <ol class="legend">
+      <li>Khai báo <b>toàn bộ thang</b> của dự án: tên, loại, model, tải, tốc độ, số điểm dừng…</li>
+      <li><b>Đợt nghiệm thu</b>: mỗi đợt chọn các bước (vật liệu đầu vào, lắp đặt tĩnh, chạy thử…, hoàn thành) và thang thuộc bước đó.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/hs-extras.jpg" alt="Hạng mục khác" loading="lazy" width="1280" height="860"><figcaption>Mục D2 — Hạng mục khác / phát sinh</figcaption></figure>
+    <ol class="legend">
+      <li><span class="btnlike">+ Đà thép</span>, <span class="btnlike">+ Điều hòa…</span>, <span class="btnlike">+ Nội thất cabin</span> — thêm hạng mục có sẵn diễn giải. <b>Chỉ khi có hạng mục</b> thì đà thép / phát sinh mới vào biên bản lắp đặt tĩnh và các <b>biên bản kiểm tra</b>.</li>
+      <li><span class="btnlike">+ Thêm hạng mục khác</span> — tự đặt tên, đơn vị, số lượng.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/hs-docs.jpg" alt="Tài liệu bổ sung" loading="lazy" width="1280" height="860"><figcaption>Mục F — Tài liệu bổ sung (xuất riêng từng file)</figcaption></figure>
+    <ol class="legend">
+      <li><b>Biên bản xác nhận thiết bị đến công trường</b> — lấy số HBL, Packing List, C/O, C/Q, số kiện ở mục C2.</li>
+      <li><b>Biên bản bàn giao thang máy</b> (song ngữ) — mỗi thang một file; nhiều thang tải về file .zip.</li>
+      <li><b>Nhật ký thi công</b> — bìa, trang thông tin, bảng cán bộ và số trang nhật ký hằng ngày (điền sẵn ngày).</li>
+    </ol>
+    <h4>Bước 4 — Xuất bộ hồ sơ</h4>
+    <figure class="shot"><img src="docs/huong-dan/hs-export.jpg" alt="Xuất bộ hồ sơ" loading="lazy" width="1280" height="860"><figcaption>Mục E — Kiểu in và nút xuất</figcaption></figure>
+    <ol class="legend">
+      <li><b>Chế độ in</b>: 1 mặt (đánh số trang theo từng biên bản) hoặc 2 mặt (tự chèn trang trắng).</li>
+      <li><span class="btnlike red">⬇ Xuất bộ hồ sơ chất lượng (.docx)</span> → mở bằng Word, kiểm tra rồi in.</li>
+    </ol>
+    <div class="note tip"><p>Dữ liệu hồ sơ nằm trên trình duyệt của bạn. Lần sau mở lại vẫn còn; đổi máy thì phải nhập lại (hoặc chọn dự án từ danh sách chung để điền nhanh).</p></div>
+
+    <h3 id="gs-thongke">3.5. Thống kê giờ công dự án</h3>
+    <figure class="shot"><img src="docs/huong-dan/tracking-dashboard.jpg" alt="Dashboard thống kê giờ công" loading="lazy" width="1280" height="800"><figcaption>Dashboard giờ công theo dự án</figcaption></figure>
+    <ol class="legend">
+      <li><b>Dự án</b> — gõ tên hoặc WBS để chọn.</li>
+      <li>Lọc theo <b>Site Sup / Fitter</b>.</li>
+      <li><b>Khoảng ngày</b> — chọn từ ngày – đến ngày hoặc kéo thanh trượt.</li>
+      <li>Tab <b>Bảng công</b> — xem từng dòng giờ công (gồm cả Excel nạp hằng tháng và bảng công đã duyệt).</li>
+      <li>Tab <b>SWAT</b> — tính SWAT Hour, so sánh với giờ thực tế, xuất báo cáo.</li>
+    </ol>
+    <p>Hướng dẫn chi tiết các biểu đồ, báo cáo PDF / Excel: <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn Thống kê giờ công (PDF)</a>.</p>
+  </section>
+
+  <!-- =============================== 4. QUẢN LÝ DỰ ÁN =============================== -->
+  <section class="part" id="quanly" style="--c: var(--c-pm)">
+    <h2><span class="ic" aria-hidden="true">📋</span>4. Quản lý dự án</h2>
+    <p class="for">Duyệt bảng công cấp 2, điều phối nhân sự, theo dõi lịch trình, đánh giá bám kế hoạch. Các thao tác của giám sát (mục 3) bạn cũng làm được.</p>
+
+    <h3 id="ql-duyet">4.1. Duyệt bảng công cấp 2</h3>
+    <div class="pair">
+      <figure class="shot"><img src="docs/huong-dan/hub-pm.jpg" alt="Trang chủ quản lý dự án" loading="lazy" width="1280" height="800"><figcaption>Nhãn “chờ duyệt” trên trang chủ</figcaption></figure>
+      <figure class="shot"><img src="docs/huong-dan/appr-pm.jpg" alt="Hộp chờ duyệt cấp quản lý" loading="lazy" width="1280" height="800"><figcaption>Bảng công Site Sup đã duyệt, chờ bạn</figcaption></figure>
+    </div>
+    <ol class="legend">
+      <li>Cột <b>Cấp duyệt</b> ghi “Quản lý dự án” và tên <b>Site Sup đã duyệt</b> trước.</li>
+    </ol>
+    <p>Mở chi tiết và duyệt / trả lại giống mục <a href="#gs-duyet">3.2</a>. Khi bạn bấm <b>Duyệt</b>, bảng công chuyển trạng thái <span class="chip green">Đã duyệt xong</span> và <b>giờ công tự đẩy sang bảng Theo dõi giờ công</b> (Thống kê giờ công) — không cần nhập lại.</p>
+
+    <h3 id="ql-dieuphoi">4.2. Điều phối nhân sự (fitter × ngày)</h3>
+    <p>Mở <b>Quản lý dự án → tab Điều phối nhân sự</b>. Dữ liệu lưu chung trên máy chủ: mọi Quản lý dự án / Site Sup cùng xem, tự lưu sau mỗi thay đổi.</p>
+    <figure class="shot"><img src="docs/huong-dan/pp-alloc.jpg" alt="Lưới điều phối nhân sự, đang kéo một dải" loading="lazy" width="1280" height="800"><figcaption>Lưới điều phối — đang kéo một dải phân công sang fitter khác</figcaption></figure>
+    <ol class="legend">
+      <li><b>Hiển thị 2 / 4 / 6 / 8 tuần</b>; nút ‹ <b>Tuần này</b> › để di chuyển.</li>
+      <li><span class="btnlike">+ Từ dữ liệu nhân sự</span> — thêm fitter từ EE Data (có mã NV, cần cho mục 4.4).</li>
+      <li><b>Kéo thả (máy tính)</b>: giữ chuột trên một dải màu rồi kéo sang fitter / ngày khác — khung nét đứt cho thấy chỗ sẽ thả (đỏ = đè lên lịch đã có). Kéo <b>mép trái / phải</b> của dải để rút ngắn / kéo dài.</li>
+      <li><b>Hôm nay</b>: số fitter có việc và tên người đang rảnh.</li>
+    </ol>
+    <ol class="steps">
+      <li><b>Phân công mới</b>: bấm ô trống (hoặc kéo chuột qua nhiều ô trống) → chọn dự án, từ – đến ngày, <b>Chính thức</b> hay <b>Dự kiến</b> (dải sọc) → Lưu.</li>
+      <li><b>Sửa</b>: bấm (không kéo) vào dải màu → đổi dự án / ngày / fitter, hoặc <b>Bỏ trống</b>.</li>
+      <li>Mọi thay đổi có <b>Hoàn tác</b> trên thông báo hiện ra.</li>
+    </ol>
+    <div class="note info"><p>Nền vàng = ngày lễ, xám = Chủ nhật. Dòng cuối <b>Chưa có việc</b> đếm số fitter rảnh mỗi ngày làm việc.</p></div>
+
+    <h3 id="ql-lichtrinh">4.3. Lịch trình dự án</h3>
+    <figure class="shot"><img src="docs/huong-dan/pp-list.jpg" alt="Lịch trình dự án dạng danh sách" loading="lazy" width="1280" height="800"><figcaption>Dạng danh sách</figcaption></figure>
+    <ol class="legend">
+      <li><b>Sắp tới 14 ngày</b> — các mốc sắp đến và mốc <b>đã qua chưa xác nhận</b> (đỏ).</li>
+      <li>Mỗi dự án: thông số thang, mốc hàng (xuất xưởng, về cảng, hàng về), mốc lắp đặt (giao hố, CĐT yêu cầu, nhận hố, bàn giao), fitter đang phân công, giám sát và cảnh báo.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/pp-gantt.jpg" alt="Lịch trình dạng Gantt" loading="lazy" width="1280" height="800"><figcaption>Dạng Gantt — xem nhanh toàn cảnh</figcaption></figure>
+    <ol class="legend">
+      <li><b>Danh sách / Lịch trình (Gantt)</b> — chuyển cách xem.</li>
+      <li>Lọc theo <b>Giám sát</b>, trạng thái, tìm theo tên.</li>
+      <li>Mỗi dòng một dự án: dải hàng, dải lắp đặt, gạch xanh fitter, các mốc ◇ (ký hiệu xem bảng ở mục <a href="#gs-lichtrinh">3.3</a>).</li>
+    </ol>
+    <div class="note tip"><p><b>Tự điền thông số thang:</b> khi dự án có <b>WBS</b> trùng với dự án chung, loại thang, số điểm dừng, tải trọng, hành trình, số lượng, giám sát được <b>tự điền vào ô còn trống</b>. Thêm dự án mới mà gõ tên giống dự án chung, app gợi ý “<i>Có phải dự án … ?</i>” — bấm để liên kết.</p></div>
+
+    <h3 id="ql-thucte">4.4. Thực tế &amp; bám kế hoạch</h3>
+    <p>So <b>kế hoạch điều phối</b> với <b>chấm công thực tế</b> (bảng Theo dõi giờ công) để biết fitter có làm đúng dự án như kế hoạch không và đánh giá chất lượng lên kế hoạch của giám sát.</p>
+    <figure class="shot"><img src="docs/huong-dan/pp-actual.jpg" alt="So sánh kế hoạch với thực tế" loading="lazy" width="1280" height="800"><figcaption>So sánh với kế hoạch (theo tháng)</figcaption></figure>
+    <ol class="legend">
+      <li><b>Hiển thị</b>: <i>So sánh với kế hoạch</i> hoặc <i>Gantt thực tế</i>.</li>
+      <li><span class="btnlike">⟳ Tải bảng công mới nhất</span> — lấy dữ liệu chấm công mới nhất từ máy chủ.</li>
+      <li><b>% bám kế hoạch</b> = số ngày làm đúng dự án ÷ số ngày có phân công chính thức. Xanh ≥ 90%, vàng 70–90%, đỏ &lt; 70%.</li>
+      <li>Mỗi fitter: giờ thực tế và % bám kế hoạch. Trong ô ngày: <b>✓</b> đúng dự án · <b>≠</b> làm dự án khác · <b>✗</b> có kế hoạch nhưng không chấm công · <b>+</b> làm ngoài kế hoạch. Gạch màu dưới ô = dự án theo kế hoạch.</li>
+    </ol>
+    <div class="pair">
+      <figure class="shot"><img src="docs/huong-dan/pp-actual-tables.jpg" alt="Bảng đánh giá theo giám sát, dự án, fitter" loading="lazy" width="1280" height="800"><figcaption>Bảng đánh giá theo <b>giám sát</b>, theo dự án, theo fitter</figcaption></figure>
+      <figure class="shot"><img src="docs/huong-dan/pp-actual-gantt.jpg" alt="Gantt nhân sự thực tế" loading="lazy" width="1280" height="800"><figcaption>Gantt thực tế: fitter thật sự làm dự án nào trong tháng</figcaption></figure>
+    </div>
+    <div class="note warn"><p>Muốn đối chiếu được: fitter trong lưới phải <b>liên kết mã NV</b> (thêm bằng “+ Từ dữ liệu nhân sự” hoặc bấm tên fitter để liên kết) và dự án phải có <b>WBS</b>. Phân công <b>dự kiến</b> và ngày nghỉ không có người đi làm không bị tính.</p></div>
+
+    <h3 id="ql-tiendo">4.5. Bảng tiến độ thi công</h3>
+    <figure class="shot"><img src="docs/huong-dan/hs-schedule.jpg" alt="Lập bảng tiến độ" loading="lazy" width="1280" height="860"><figcaption>Hồ sơ chất lượng → <b>Lập bảng tiến độ thi công</b></figcaption></figure>
+    <p>Nhập mốc ngày bắt đầu, chọn cách tính ngày (ngày làm việc / lịch), sửa danh sách bước và số ngày, các thành phần ký duyệt → <b>xuất Excel hoặc PDF khổ A3 ngang</b>. Ngày lễ Việt Nam được tự trừ. Từ bảng tiến độ có thể soạn <b>thư xác nhận hàng về</b> và nội dung email gửi khách hàng.</p>
+  </section>
+
+  <!-- =============================== 5. QUẢN TRỊ =============================== -->
+  <section class="part" id="quantri" style="--c: var(--c-admin)">
+    <h2><span class="ic" aria-hidden="true">🛡️</span>5. Quản trị viên</h2>
+    <p class="for">Chỉ tài khoản quản trị mới thấy thẻ “Quản trị”.</p>
+    <figure class="shot"><img src="docs/huong-dan/hub-admin.jpg" alt="Trang chủ quản trị viên" loading="lazy" width="1280" height="800"><figcaption>Trang chủ của quản trị viên</figcaption></figure>
+    <ol class="legend">
+      <li>Thẻ <b>Quản trị</b> — dữ liệu nhân viên, dự án, bảng công, tài khoản.</li>
+      <li><b>Chạy thử (Demo)</b> — dùng để hướng dẫn người mới mà không đụng dữ liệu thật.</li>
+    </ol>
+    <figure class="shot"><img src="docs/huong-dan/admin-tabs.jpg" alt="Trang Quản trị" loading="lazy" width="1280" height="800"><figcaption>Trang Quản trị</figcaption></figure>
+    <ol class="legend">
+      <li><b>Nhân viên</b> — EE Data: thêm, sửa, xoá nhân viên; chức danh quyết định vai trò.</li>
+      <li><b>Dự án</b> — danh sách dự án, WBS, thông số thang, Swat Target Hour.</li>
+      <li><b>Bảng công</b> — bảng Theo dõi giờ công: tìm, lọc, tìm dòng trùng lặp, sửa / xoá.</li>
+      <li><b>Tài khoản &amp; phân quyền</b> — gắn email đăng nhập, chỉnh vai trò, khoá tài khoản, phân công Site Sup / Quản lý dự án cho dự án, nhật ký thay đổi, gửi email thử.</li>
+      <li><span class="btnlike pri">Cập nhật Data</span> — nạp bảng công Excel hằng tháng.</li>
+    </ol>
+    <h3>5.1. Nạp bảng công Excel hằng tháng</h3>
+    <figure class="shot mid"><img src="docs/huong-dan/admin-import.jpg" alt="Hộp Cập nhật Database" loading="lazy" width="1280" height="800"><figcaption>Cập nhật Data</figcaption></figure>
+    <ol class="steps">
+      <li>Bấm <span class="btnlike pri">Cập nhật Data</span> → mục <b>1. Bổ sung Bảng công</b> → <b>Chọn files</b> (mỗi nhân viên 1 file / tháng, cột như sheet TS All). Dòng trùng tự bỏ qua.</li>
+      <li>Kiểm tra số dòng ở thanh trạng thái, rồi bấm <span class="btnlike pri">Lưu lên máy chủ</span>.</li>
+    </ol>
+    <div class="note key"><p><b>Hai nguồn bảng công chạy song song:</b> (1) file Excel quản trị nạp hằng tháng; (2) bảng công nhân viên tự chấm, <b>tự chuyển sang khi Quản lý dự án duyệt</b>. Nạp lại Excel <b>không làm mất</b> các dòng đã duyệt (trừ ngày mà file Excel đã có dòng của người đó).</p></div>
+    <h3>5.2. Tài khoản &amp; phân quyền</h3>
+    <figure class="shot"><img src="docs/huong-dan/admin-accounts.jpg" alt="Tài khoản và phân quyền" loading="lazy" width="1280" height="800"><figcaption>Tab Tài khoản &amp; phân quyền</figcaption></figure>
+    <ol class="steps">
+      <li><b>Gắn email</b> cho từng nhân viên (gõ tên / mã NV để tìm), hoặc <b>dán danh sách</b> mã NV + email từ Excel.</li>
+      <li><b>Vai trò</b>: mặc định theo chức danh; có thể chỉnh tay (Admin / Quản lý dự án / Site Sup / Nhân viên).</li>
+      <li><b>Phân công dự án</b>: chọn Site Sup và Quản lý dự án cho từng dự án — quyết định ai duyệt bảng công của dự án đó.</li>
+      <li>Người nghỉ việc: <b>khoá tài khoản</b> (không xoá) để giữ lịch sử.</li>
+    </ol>
+  </section>
+
+  <!-- =============================== 6. HỎI ĐÁP =============================== -->
+  <section class="part" id="hoidap" style="--c: #6b7280">
+    <h2><span class="ic" aria-hidden="true">❓</span>6. Hỏi đáp &amp; xử lý sự cố</h2>
+    <details class="faq"><summary>Mất sóng ở công trường có chấm công được không?</summary><p>Được. Dữ liệu lưu ngay trên điện thoại; thanh trạng thái báo “Mất mạng — dữ liệu an toàn trên máy”. Có mạng lại app tự gửi lên máy chủ — không cần làm gì.</p></details>
+    <details class="faq"><summary>Đổi điện thoại / dùng thêm máy tính thì sao?</summary><p>Đăng nhập bằng cùng email trên máy mới, mở Timesheet: bảng công tự tải về từ máy chủ. Chấm trên máy nào cũng được, các máy tự đồng bộ.</p></details>
+    <details class="faq"><summary>Không thấy dự án của mình khi chấm công?</summary><p>Ở trang chủ bấm <b>Đồng bộ ngay</b>, hoặc trong Timesheet bấm <b>Đồng bộ ngay</b> ở thẻ “Dữ liệu dự án”. Vẫn không có → báo quản trị viên thêm dự án. Tạm thời vẫn gõ tay tên dự án / WBS được.</p></details>
+    <details class="faq"><summary>Nộp nhầm bảng công?</summary><p>Nếu giám sát chưa duyệt: bấm <b>Thu hồi để sửa</b>, sửa xong nộp lại. Nếu đã duyệt: nhờ giám sát / quản lý <b>trả lại</b> bảng công.</p></details>
+    <details class="faq"><summary>Quá hạn ngày 12 chưa nộp?</summary><p>Vẫn nộp được — app hiện cảnh báo đỏ. Nộp ngay và báo giám sát để kịp duyệt tính lương.</p></details>
+    <details class="faq"><summary>Không thấy chức năng Duyệt bảng công / Quản lý dự án?</summary><p>Các chức năng này theo <b>vai trò</b> (từ chức danh). Nếu chức danh của bạn đã thay đổi, báo quản trị viên cập nhật; đăng xuất rồi đăng nhập lại.</p></details>
+    <details class="faq"><summary>Không nhận được mã đăng nhập?</summary><p>Xem thư mục Spam / Quảng cáo; kiểm tra gõ đúng email; đợi 1 phút rồi bấm gửi lại. Vẫn không được → báo quản trị viên.</p></details>
+    <details class="faq"><summary>Site Sup / Quản lý không nhận được bảng công tôi nộp?</summary><p>Người duyệt được xác định theo <b>dự án (WBS)</b> trên các dòng chấm công. Kiểm tra dòng chấm công đã ghi đúng dự án và WBS; báo quản trị viên kiểm tra phân công Site Sup / Quản lý dự án cho dự án đó.</p></details>
+    <details class="faq"><summary>Chế độ Demo có làm mất dữ liệu thật không?</summary><p>Không. Demo dùng cơ sở dữ liệu riêng và tách riêng dữ liệu trên trình duyệt. Bấm <b>Thoát demo</b> là về đúng tài khoản và dữ liệu thật.</p></details>
+    <details class="faq"><summary>Muốn in tài liệu hướng dẫn này?</summary><p>Bấm <b>🖨 In / Lưu PDF</b> ở góc trên, chọn máy in hoặc “Lưu dưới dạng PDF”. Mỗi phần in bắt đầu từ trang mới.</p></details>
+  </section>
+
+  </main>
+</div>
+
+<footer class="ft">
+  Bộ công cụ dự án — tài liệu hướng dẫn người dùng · cập nhật 10/2026 · ảnh minh hoạ dùng dữ liệu mẫu.
+  Cần hỗ trợ: liên hệ quản trị viên của phòng.
+</footer>
+
+<dialog class="zoom" id="zoom" aria-label="Ảnh phóng to"><img id="zoomImg" alt=""><p id="zoomCap"></p></dialog>
+
+<script>
+(function () {
+  // bấm ảnh để phóng to
+  const dlg = document.getElementById('zoom'), img = document.getElementById('zoomImg'), cap = document.getElementById('zoomCap');
+  document.querySelectorAll('figure.shot img').forEach(el => el.addEventListener('click', () => {
+    img.src = el.src; img.alt = el.alt;
+    const fc = el.closest('figure').querySelector('figcaption'); cap.textContent = fc ? fc.textContent : '';
+    if (dlg.showModal) dlg.showModal();
+  }));
+  dlg.addEventListener('click', () => dlg.close());
+  document.getElementById('btnPrint').addEventListener('click', () => {
+    document.querySelectorAll('img[loading="lazy"]').forEach(i => { i.loading = 'eager'; });   // in đủ ảnh
+    setTimeout(() => window.print(), 300);
+  });
+  // mục lục: đánh dấu phần đang đọc; điện thoại thu gọn mục lục
+  const toc = document.getElementById('tocBox');
+  if (window.matchMedia('(max-width: 900px)').matches) toc.open = false;
+  const links = [...document.querySelectorAll('nav.toc a[href^="#"]')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((ents) => {
+    ents.forEach(e => { if (e.isIntersecting) { links.forEach(a => a.classList.remove('on')); const a = map.get(e.target.id); if (a) a.classList.add('on'); } });
+  }, { rootMargin: '-80px 0px -70% 0px' });
+  map.forEach((a, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+</script>
+</body>
+</html>
