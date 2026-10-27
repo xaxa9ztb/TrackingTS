@@ -42,6 +42,23 @@ Dành cho **Quản lý dự án và Site Sup**. Thay cho file Excel "Quản lý 
 - **Gộp dự án**: tên ngắn trong lưới không khớp chắc chắn với Plan (vd. "Thanh Xuân") được tạo thành dự án
   riêng — gộp vào dự án đúng, phân công chuyển theo.
 
+## Bổ sung: xem lịch trình, kéo thả, so với chấm công thực tế
+- **Kéo thả (máy tính, chuột)** trên lưới *Điều phối nhân sự*: kéo cả dải màu sang fitter / ngày khác (có khung gợi ý, đè lên ngày
+  đã có thì hỏi lại); kéo **mép trái / phải** của dải để rút ngắn / kéo dài. Bấm (không kéo) vẫn mở hộp sửa; mọi thay đổi có **Hoàn tác**.
+- **Lịch trình (Gantt)** (tab *Lịch trình dự án* → nút *Lịch trình (Gantt)*): mỗi dự án một dòng — dải xám = hàng (xuất xưởng → hàng về),
+  dải màu dự án = lắp đặt (nhận hố → bàn giao), gạch xanh = thời gian fitter được phân công, ◇ = các mốc (đặc = đã xong, đỏ = quá hạn chưa xác nhận),
+  vạch đỏ = hôm nay. Site Sup bấm **Dự án của tôi** để chỉ xem dự án mình giám sát. Bấm tên dự án để mở chi tiết.
+- **Thực tế & bám kế hoạch** (tab mới): đối chiếu lưới điều phối với bảng *Theo dõi giờ công* (dữ liệu của Thống kê giờ công — trên bản
+  Cloudflare gồm cả bảng công nhân viên tự nộp đã được duyệt). Cần: fitter được **liên kết mã NV** (EE Data) và dự án có **WBS**.
+  - *So sánh với kế hoạch*: mỗi ô ngày ✓ đúng dự án · ≠ làm dự án khác · ✗ có kế hoạch nhưng không chấm công · + làm ngoài kế hoạch; dự kiến không tính.
+  - *Gantt thực tế*: dải liên tiếp theo dự án mà fitter thực sự chấm công trong tháng.
+  - Bảng **đánh giá theo giám sát / dự án / fitter**: % bám kế hoạch (= ngày đúng ÷ ngày có phân công chính thức) và % giờ thực tế trên dự án đúng kế hoạch.
+  - Logic thuần ở `actual.js` (có kiểm thử `test/client/actual.test.mjs`).
+- **Tự điền thông số thang từ dự án chung**: dự án đã có WBS khớp danh sách dự án chung được **tự điền các ô còn trống** (loại thang, số điểm dừng,
+  tải trọng, hành trình, số lượng, giám sát) khi mở trang / đồng bộ; có Hoàn tác. Trong hộp thoại dự án: nút *↻ Điền thông số thang…* và gợi ý
+  *Có phải dự án … ?* khi tên khớp duy nhất. Menu ⋯ → *Điền thông số thang từ dữ liệu dự án chung* để làm hàng loạt.
+  (Cột thông số của dự án chung được nhận theo **từ khoá** — stops / điểm dừng, load / tải trọng, travel / hành trình, qty / số lượng.)
+
 ## Nhập / xuất Excel (`pmio.js`)
 - **Nhập** bằng SheetJS (`js/xlsx.full.min.js`; ExcelJS lỗi khi đọc file có *bảng Excel* như sheet Plan).
   - Sheet **Nhân sự**: tìm dòng ngày + cột "Tên"; đoạn phân công = ô gộp **hoặc** các ô liền nhau cùng màu

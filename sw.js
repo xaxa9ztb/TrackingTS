@@ -7,7 +7,7 @@
 //  - Google Drive / đăng nhập Google: KHÔNG lưu đệm (dữ liệu đã có IndexedDB lo).
 //
 // Khi đổi danh sách file bên dưới hoặc cách lưu đệm: tăng VERSION.
-const VERSION = 'v61';
+const VERSION = 'v62';
 const SHELL = `toolset-shell-${VERSION}`;
 const CDN = 'toolset-cdn-v1';
 const HTML_TIMEOUT = 4000;
@@ -22,7 +22,7 @@ const SHELL_FILES = [
   './tools/timesheet/', './tools/timesheet/index.html', './tools/timesheet/labor.js', './tools/timesheet/tssync.js', './tools/timesheet/app.js',
   './tools/timesheet/tailwind.css', './tools/timesheet/ts-template.xlsx',
   './tools/tiendotm/', './tools/tiendotm/index.html',
-  './tools/projectplan/', './tools/projectplan/index.html', './tools/projectplan/app.js', './tools/projectplan/pmio.js', './tools/projectplan/style.css',
+  './tools/projectplan/', './tools/projectplan/index.html', './tools/projectplan/app.js', './tools/projectplan/pmio.js', './tools/projectplan/actual.js', './tools/projectplan/style.css',
   './tools/tiendotm/hoso_chatluong_template.docx', './tools/tiendotm/thu_hangve_template.docx', './tools/tiendotm/chungtu.js',
   './tools/tiendotm/nhatky_template.docx', './tools/tiendotm/bbxn_hangve_template.docx', './tools/tiendotm/bangiao_template.docx',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png',

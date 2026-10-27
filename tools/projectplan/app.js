@@ -33,7 +33,7 @@
   ui.weeks = ui.weeks || (window.innerWidth < 700 ? 2 : 4);
   ui.tab = ui.tab || 'alloc';
   let viewStart = mondayOf(today());
-  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started })); } catch (e) { /* bỏ qua */ } };
+  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, actMode: ui.actMode })); } catch (e) { /* bỏ qua */ } };
   function save() {
     data.updatedAt = new Date().toISOString();
     try { localStorage.setItem(KEY, JSON.stringify(data)); }
@@ -235,11 +235,13 @@
     document.querySelector('.pp-tabs').hidden = empty;
     $('viewAlloc').hidden = empty || ui.tab !== 'alloc';
     $('viewPlan').hidden = empty || ui.tab !== 'plan';
+    $('viewActual').hidden = empty || ui.tab !== 'actual';
     $('tabAlloc').setAttribute('aria-selected', String(ui.tab === 'alloc'));
     $('tabPlan').setAttribute('aria-selected', String(ui.tab === 'plan'));
+    $('tabActual').setAttribute('aria-selected', String(ui.tab === 'actual'));
     $('btnExport').disabled = empty;
     if (empty) return;
-    if (ui.tab === 'alloc') renderAlloc(); else renderPlan();
+    if (ui.tab === 'alloc') renderAlloc(); else if (ui.tab === 'plan') renderPlan(); else renderActual();
   }
   function setTab(t) { ui.tab = t; saveUI(); render(); }
 
@@ -262,6 +264,7 @@
     const months = []; days.forEach(d => { const k = d.slice(0, 7); const last = months[months.length - 1]; if (last && last.k === k) last.n++; else months.push({ k, n: 1 }); });
     const nameW = window.innerWidth < 600 ? 112 : 160;
     $('alTable').style.width = (nameW + days.length * 36) + 'px';
+    alGeo = { nameW, start: days[0], n: days.length };
     let h = `<colgroup><col style="width:${nameW}px">${days.map(() => '<col style="width:36px">').join('')}</colgroup><thead><tr><th class="name"></th>${months.map(m => `<th colspan="${m.n}">Tháng ${Number(m.k.slice(5))}/${m.k.slice(0, 4)}</th>`).join('')}</tr>`;
     h += `<tr><th class="name" scope="col">Fitter (${data.fitters.length})</th>${days.map(d => {
       const hol = holiday(d);
@@ -281,7 +284,7 @@
         let j = i; while (j + 1 < days.length && m[days[j + 1]] && m[days[j + 1]].p === v.p && !!m[days[j + 1]].t === !!v.t) j++;
         const p = pm[v.p], blk = blockAt(f.id, d);
         const title = `${p.name}${v.t ? ' (dự kiến)' : ''} · ${f.name} · ${P.fmtVN(blk.from)} – ${P.fmtVN(blk.to)}`;
-        h += `<td class="bar${v.t ? ' tent' : ''}${hi && hi !== v.p ? ' dim' : ''}" colspan="${j - i + 1}" data-f="${esc(f.id)}" data-d="${d}" tabindex="0" role="button" title="${esc(title)}" aria-label="${esc(title)}"><span style="background:${safeColor(p.color)};color:${textOn(p.color)}">${esc(p.name)}</span></td>`;
+        h += `<td class="bar${v.t ? ' tent' : ''}${hi && hi !== v.p ? ' dim' : ''}" colspan="${j - i + 1}" data-f="${esc(f.id)}" data-d="${d}" tabindex="0" role="button" title="${esc(title)}" aria-label="${esc(title)}">${d === blk.from ? '<i class="rz l" data-e="l"></i>' : ''}${days[j] === blk.to ? '<i class="rz r" data-e="r"></i>' : ''}<span style="background:${safeColor(p.color)};color:${textOn(p.color)}">${esc(p.name)}</span></td>`;
         i = j + 1;
       }
       h += '</tr>';
@@ -299,6 +302,7 @@
       (free.length && !offDay(t) ? `<span class="chip warn">Chưa có việc hôm nay: ${free.map(f => esc(f.name)).join(', ')}</span>` : '');
   }
 
+  let alGeo = null;
   // chọn khoảng ngày bằng kéo chuột trên một dòng
   let drag = null;
   function markSel() {
@@ -324,11 +328,95 @@
     markSel();
   });
   $('alTable').addEventListener('click', (e) => {
+    if (suppressClick) { suppressClick = false; return; }
     const bar = e.target.closest('td.bar'), nm = e.target.closest('td.name[data-f]');
     if (bar) { const blk = blockAt(bar.dataset.f, bar.dataset.d); openAssign({ f: bar.dataset.f, from: blk.from, to: blk.to, edit: blk }); }
     else if (nm) openFitter(nm.dataset.f);
   });
   $('alTable').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('td[tabindex]')) { e.preventDefault(); e.target.click(); } });
+
+
+  // ---------- kéo thả đoạn phân công (chuột trên máy tính) ----------
+  // Kéo cả đoạn sang fitter / ngày khác (chuyển), kéo mép trái / phải để rút ngắn / kéo dài. Mọi thay đổi có Hoàn tác.
+  let mv = null, suppressClick = false;
+  const COLW = 36;
+  const dayDiff = (a, b) => Math.round((P.isoToUTCDate(b) - P.isoToUTCDate(a)) / 864e5);
+  function cellAtPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const td = el && el.closest ? el.closest('#alTable td[data-f][data-d]') : null;
+    if (!td) return null;
+    let d = td.dataset.d;
+    if (td.classList.contains('bar')) { const r = td.getBoundingClientRect(); d = P.addDays(d, Math.max(0, Math.min(td.colSpan - 1, Math.floor((x - r.left) / COLW)))); }
+    return { f: td.dataset.f, d, row: td.parentElement };
+  }
+  function ghostFor(row, from, to, bad) {
+    let g = $('alGhost');
+    if (!g) { g = document.createElement('div'); g.id = 'alGhost'; g.className = 'al-ghost'; $('alScroll').appendChild(g); }
+    const box = $('alScroll').getBoundingClientRect(), tb = $('alTable').getBoundingClientRect(), rr = row.getBoundingClientRect();
+    const a = Math.max(0, dayDiff(alGeo.start, from)), b = Math.min(alGeo.n - 1, dayDiff(alGeo.start, to));
+    if (b < a) { g.hidden = true; return; }
+    g.hidden = false;
+    g.style.left = (tb.left - box.left + $('alScroll').scrollLeft + alGeo.nameW + a * COLW + 1) + 'px';
+    g.style.width = ((b - a + 1) * COLW - 2) + 'px';
+    g.style.top = (rr.top - box.top + $('alScroll').scrollTop + 2) + 'px';
+    g.style.height = (rr.height - 4) + 'px';
+    g.classList.toggle('bad', !!bad);
+  }
+  const clearGhost = () => { const g = $('alGhost'); if (g) g.remove(); document.querySelectorAll('#alTable td.moving').forEach(x => x.classList.remove('moving')); };
+  // vị trí mới của đoạn theo con trỏ → { f, from, to } (hoặc null nếu chưa hợp lệ)
+  function mvTarget(e) {
+    const c = cellAtPoint(e.clientX, e.clientY); if (!c) return null;
+    const b = mv.blk;
+    if (mv.mode === 'move') { const dd = dayDiff(mv.grab, c.d); return { f: c.f, row: c.row, from: P.addDays(b.from, dd), to: P.addDays(b.to, dd) }; }
+    if (c.f !== mv.f) return null;
+    if (mv.mode === 'rl') return { f: mv.f, row: c.row, from: c.d > b.to ? b.to : c.d, to: b.to };
+    return { f: mv.f, row: c.row, from: b.from, to: c.d < b.from ? b.from : c.d };
+  }
+  $('alTable').addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    const bar = e.target.closest('td.bar'); if (!bar) return;
+    const rz = e.target.closest('.rz'), c = cellAtPoint(e.clientX, e.clientY), blk = blockAt(bar.dataset.f, bar.dataset.d);
+    if (!c || !blk) return;
+    mv = { mode: rz ? (rz.dataset.e === 'l' ? 'rl' : 'rr') : 'move', f: bar.dataset.f, blk, grab: c.d, x0: e.clientX, y0: e.clientY, moved: false, target: null };
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!mv) return;
+    if (!mv.moved) { if (Math.hypot(e.clientX - mv.x0, e.clientY - mv.y0) < 5) return; mv.moved = true; document.querySelectorAll(`#alTable td.bar[data-f="${CSS.escape(mv.f)}"]`).forEach(td => { const b = blockAt(td.dataset.f, td.dataset.d); if (b && b.from === mv.blk.from) td.classList.add('moving'); }); }
+    const t = mvTarget(e); mv.target = t;
+    if (!t) { const g = $('alGhost'); if (g) g.hidden = true; return; }
+    const m = data.alloc[t.f] || {}, own = new Set(t.f === mv.f ? P.daysBetween(mv.blk.from, mv.blk.to) : []);
+    const clash = P.daysBetween(t.from, t.to).some(d => m[d] && !own.has(d));
+    ghostFor(t.row, t.from, t.to, clash);
+  });
+  document.addEventListener('pointerup', () => {
+    if (!mv) return;
+    const m0 = mv; mv = null;
+    clearGhost();
+    if (!m0.moved) return;
+    suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+    const t = m0.target; if (!t) return;
+    const b = m0.blk;
+    if (t.f === m0.f && t.from === b.from && t.to === b.to) return;
+    applyBlockMove(b, m0.f, t);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mv) { mv = null; clearGhost(); } });
+  function applyBlockMove(b, fromF, t) {
+    const oldDays = P.daysBetween(b.from, b.to);
+    const resize = t.f === fromF && (t.from !== b.from || t.to !== b.to) && (t.from === b.from || t.to === b.to);
+    const newDays = P.daysBetween(t.from, t.to);
+    const tm = data.alloc[t.f] || {}, own = new Set(t.f === fromF ? oldDays : []);
+    const clash = newDays.filter(d => tm[d] && !own.has(d));
+    const fn = (id) => (data.fitters.find(f => f.id === id) || {}).name || '';
+    if (clash.length && !confirm(`Vị trí mới đè lên ${clash.length} ngày đã có phân công của ${fn(t.f)}. Vẫn thực hiện?`)) return;
+    commit(null, () => {
+      const src = data.alloc[fromF] || (data.alloc[fromF] = {});
+      oldDays.forEach(d => { delete src[d]; });
+      const dst = data.alloc[t.f] || (data.alloc[t.f] = {});
+      newDays.forEach(d => { dst[d] = b.t ? { p: b.p, t: 1 } : { p: b.p }; });
+    });
+    const pn = (byId()[b.p] || {}).name || '';
+    toastUndoLast(resize ? `Đã đổi thời gian ${pn}: ${dm(t.from)} – ${dm(t.to)}.` : `Đã chuyển ${pn} → ${fn(t.f)} (${dm(t.from)} – ${dm(t.to)}).`);
+  }
 
   // ---------- hộp thoại phân công ----------
   let asCtx = null;
@@ -575,6 +663,11 @@
     const liftInfo = (p) => [p.travel, p.load !== '' && p.load != null ? (typeof p.load === 'number' ? p.load + 'kg' : p.load) : '', p.stops ? p.stops + ' điểm dừng' : ''].filter(Boolean).join(' · ');
     const badges = (p) => (p.province ? '<span class="badge">Tỉnh</span>' : '') + (p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : '') + (p.done ? '<span class="badge ok">Hoàn thành</span>' : '');
     const alertHtml = (p) => alertsOf(p, t).map(a => `<span class="badge ${a.c}">${esc(a.s)}</span>`).join('');
+    const gv = ui.planView === 'gantt';
+    $('planViewList').setAttribute('aria-pressed', String(!gv)); $('planViewGantt').setAttribute('aria-pressed', String(gv));
+    $('planList').hidden = gv; $('planGantt').hidden = !gv; $('upcoming').hidden = gv;
+    $('planMine').hidden = !data.projects.some(isMine);
+    if (gv) { if (list.length) renderGantt(list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date))); else $('planGantt').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
     if (!list.length) { $('planList').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
     let h = `<table class="pl"><thead><tr><th>Dự án</th><th>Thang</th><th>Hàng</th><th>Lắp đặt</th><th>Nhân sự</th><th>Giám sát · cảnh báo</th></tr></thead><tbody>`;
     const gridOnly = list.filter(p => p.fromGrid).length;
@@ -600,10 +693,156 @@
     });
     $('planList').innerHTML = h + '</div>';
   }
+
+  // ---------- lịch trình dạng Gantt (giám sát xem lại nhanh) ----------
+  ui.planView = ui.planView || 'list';
+  const ganttSpan = () => ({ from: P.addDays(today(), -30), to: P.addDays(today(), 150) });
+  function renderGantt(list) {
+    const t = today(), sp = ganttSpan(), days = P.daysBetween(sp.from, sp.to), PX = 6;      // 6 px / ngày
+    const idx = (d) => dayDiff(sp.from, d) * PX;
+    const W = days.length * PX, nameW = window.innerWidth < 600 ? 130 : 220;
+    const months = []; days.forEach(d => { const k = d.slice(0, 7), l = months[months.length - 1]; if (l && l.k === k) l.n++; else months.push({ k, n: 1 }); });
+    const pmv = (p, k) => (p[k] && p[k].date) || '';
+    const clip = (a, b) => (!a || !b || b < sp.from || a > sp.to) ? null : { a: a > sp.from ? a : sp.from, b: b < sp.to ? b : sp.to };
+    let h = `<div class="gt-legend"><span><i style="background:#94a3b8"></i>Hàng (xuất xưởng → hàng về)</span><span><i style="background:var(--blue)"></i>Lắp đặt (nhận hố → bàn giao)</span><span><i style="background:#059669"></i>Fitter được phân công</span><span>◇ mốc (đặc = đã xong, đỏ = quá hạn chưa xác nhận)</span><span style="color:var(--red)">| hôm nay</span></div>`;
+    h += `<div class="gt-scroll"><table class="gt" style="width:${nameW + W}px"><colgroup><col style="width:${nameW}px"><col style="width:${W}px"></colgroup><thead><tr><th class="name">Dự án (${list.length})</th><th><div style="display:flex">${months.map(m => `<span style="width:${m.n * PX}px;overflow:hidden;white-space:nowrap;border-left:1px solid #e5e7eb;padding-left:3px">${Number(m.k.slice(5))}/${m.k.slice(2, 4)}</span>`).join('')}</div></th></tr></thead><tbody>`;
+    list.forEach(p => {
+      const goodsA = pmv(p, 'factory') || pmv(p, 'port') || pmv(p, 'arrival'), goodsB = pmv(p, 'arrival') || pmv(p, 'port') || pmv(p, 'factory');
+      const instA = pmv(p, 'teamStart') || pmv(p, 'ownerStart') || pmv(p, 'shaftReady'), instB = pmv(p, 'handover') || (instA ? P.addDays(instA, 30) : '');
+      const segs = [];
+      const g = clip(goodsA, goodsB < goodsA ? goodsA : goodsB), ins = clip(instA, instB < instA ? instA : instB);
+      if (g) segs.push(`<span class="seg goods" style="left:${idx(g.a)}px;width:${Math.max(PX, idx(g.b) - idx(g.a) + PX)}px"></span>`);
+      if (ins) segs.push(`<span class="seg inst" style="left:${idx(ins.a)}px;width:${Math.max(PX, idx(ins.b) - idx(ins.a) + PX)}px;background:${safeColor(p.color)}"></span>`);
+      const runs = projectRuns(p.id, sp.from, sp.to);
+      if (runs.length) { const a = runs.reduce((m, r) => (r.from < m ? r.from : m), runs[0].from), b = runs.reduce((m, r) => (r.to > m ? r.to : m), runs[0].to); segs.push(`<span class="seg crew" style="left:${idx(a)}px;width:${idx(b) - idx(a) + PX}px" title="Fitter: ${esc([...new Set(runs.map(r => r.f.name))].join(', '))}"></span>`); }
+      P.MILESTONES.forEach(m => {
+        const v = p[m.key]; if (!v || !v.date || v.date < sp.from || v.date > sp.to) return;
+        const late = !v.done && v.date < t && LATE_KEYS.includes(m.key);
+        segs.push(`<span class="mk${v.done ? ' done' : ''}${late ? ' late' : ''}" style="left:${idx(v.date) + PX / 2}px" title="${esc(`${m.label}: ${P.fmtVN(v.date)}${v.done ? ' (đã xong)' : ''}`)}"></span>`);
+      });
+      h += `<tr data-p="${esc(p.id)}"><td class="name" tabindex="0" data-p="${esc(p.id)}"><b>${esc(p.name)}</b><small>${esc([p.supervisor, p.liftCount ? p.liftCount + ' × ' + (p.liftType || 'thang') : p.liftType].filter(Boolean).join(' · '))}</small></td><td><div class="tl">${segs.join('')}</div></td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+    $('planGantt').innerHTML = h;
+    const tbl = $('planGantt').querySelector('.gt'), line = document.createElement('div');
+    line.className = 'today-line'; line.style.left = (nameW + idx(t) + PX / 2) + 'px'; line.style.top = '0'; line.style.height = tbl.offsetHeight + 'px';
+    tbl.appendChild(line);
+    const sc = $('planGantt').querySelector('.gt-scroll'); sc.scrollLeft = Math.max(0, idx(t) - 160);
+  }
+  function setPlanView(v) { ui.planView = v; saveUI(); render(); }
+  $('planViewList').addEventListener('click', () => setPlanView('list'));
+  $('planViewGantt').addEventListener('click', () => setPlanView('gantt'));
+  $('planGantt').addEventListener('click', (e) => { const r = e.target.closest('td.name[data-p]'); if (r) openProject(r.dataset.p); });
+  // Site Sup: mặc định xem dự án mình giám sát
+  const myName = () => { const s = typeof Session !== 'undefined' ? Session.current() : null; return s && s.name ? P.plain(s.name) : ''; };
+  const isMine = (p) => { const n = myName(); return !!n && !!p.supervisor && (P.plain(p.supervisor) === n || n.endsWith(' ' + P.plain(p.supervisor)) || P.plain(p.supervisor).endsWith(' ' + n)); };
+  $('planMine').addEventListener('click', () => {
+    const mine = data.projects.find(isMine); if (!mine) { toast('Không thấy dự án nào ghi giám sát là tên của bạn.'); return; }
+    $('planSup').value = P.plain(mine.supervisor); renderPlan();
+  });
+
   $('planList').addEventListener('click', (e) => { const r = e.target.closest('[data-p]'); if (r) openProject(r.dataset.p); });
   $('planList').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('[data-p]')) openProject(e.target.dataset.p); });
   $('upcoming').addEventListener('click', (e) => { const r = e.target.closest('[data-p]'); if (r) openProject(r.dataset.p); });
   ['planSearch', 'planStatus', 'planSup'].forEach(id => $(id).addEventListener('input', renderPlan));
+
+
+  // ================= THỰC TẾ & BÁM KẾ HOẠCH =================
+  // Đối chiếu lưới điều phối với bảng "Theo dõi giờ công" (cùng dữ liệu của Thống kê giờ công; bản Cloudflare gồm cả
+  // bảng công nhân viên tự nộp sau khi được duyệt). Mỗi fitter phải được liên kết mã NV (EE Data) và mỗi dự án có WBS.
+  const A = window.PlanActual;
+  let act = { month: today().slice(0, 7), rows: null, loadedMonth: '', tried: false };
+  ui.actMode = ui.actMode || 'compare';
+  const monthDays = (m) => { const a = m + '-01'; let b = a; while (P.addDays(b, 1).slice(0, 7) === m) b = P.addDays(b, 1); return P.daysBetween(a, b); };
+  const shiftMonth = (m, n) => { const [y, mo] = m.split('-').map(Number); const d = new Date(Date.UTC(y, mo - 1 + n, 1)); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1); };
+  const pctCls = (v) => (v == null ? '' : v >= 90 ? 'g' : v >= 70 ? 'a' : 'r');
+  const pctTxt = (v) => (v == null ? '—' : String(v).replace('.', ',') + '%');
+  const wbsMap = () => { const m = {}; data.projects.forEach(p => { if (p.wbs) m[A.norm(p.wbs)] = p; }); return m; };
+
+  async function loadActualRows(force) {
+    if (typeof DB === 'undefined') { act.rows = []; return; }
+    if (force && typeof Cloud !== 'undefined' && Cloud.configured() && navigator.onLine !== false) {
+      try { await Cloud.loadFromDrive({ timesheets: true }); } catch (e) { toast('Chưa tải được bảng công mới nhất: ' + e.message); }
+    }
+    try { act.rows = await DB.getAll('timesheets'); } catch (e) { act.rows = []; }
+    act.loadedMonth = act.month;
+  }
+  async function renderActual() {
+    const myMonth = act.month;
+    if (act.rows === null) { $('actInfo').innerHTML = '<span class="dot busy"></span><span>Đang đọc bảng công trên máy…</span>'; await loadActualRows(false); if (myMonth !== act.month) return; }
+    const days = monthDays(act.month), from = days[0], to = days[days.length - 1];
+    $('actMode').value = ui.actMode;
+    $('actLabel').textContent = `Tháng ${Number(act.month.slice(5))}/${act.month.slice(0, 4)}`;
+    const inMonth = act.rows.filter(r => r.date >= from && r.date <= to).length;
+    const linked = data.fitters.filter(f => f.empId).length;
+    const hours = A.hoursByDay(act.rows, from, to);
+    const res = A.compare({ data, hours, days, offDay });
+    const T = res.totals, t = today();
+    $('actInfo').innerHTML = `<span class="dot ${inMonth ? 'ok' : 'warn'}"></span><span>Bảng công trên máy: <b>${act.rows.length.toLocaleString('vi-VN')}</b> dòng · tháng này <b>${inMonth.toLocaleString('vi-VN')}</b> dòng · fitter đã liên kết mã NV: <b>${linked}/${data.fitters.length}</b></span>`;
+    if (!data.fitters.length) { $('actSummary').innerHTML = ''; $('actTable').innerHTML = ''; $('actTables').innerHTML = '<p class="pp-empty">Chưa có fitter nào.</p>'; return; }
+    $('actSummary').innerHTML = (T.n
+      ? `<span class="chip">Bám kế hoạch: <b class="pct ${pctCls(T.pct)}">${pctTxt(T.pct)}</b> (${T.ok}/${T.n} ngày công theo kế hoạch)</span>` +
+        `<span class="chip">Làm đúng dự án: <b>${T.ok}</b></span><span class="chip">Làm dự án khác: <b>${T.diff}</b></span><span class="chip ${T.miss ? 'warn' : ''}">Không chấm công: <b>${T.miss}</b></span>` +
+        `<span class="chip">Ngoài kế hoạch: <b>${T.extra}</b> ngày</span><span class="chip">Giờ đúng kế hoạch: <b>${pctTxt(T.util)}</b></span>`
+      : `<span class="chip warn">Chưa đối chiếu được: ${!inMonth ? 'tháng này chưa có dữ liệu chấm công (bấm “Tải bảng công mới nhất”)' : !linked ? 'chưa có fitter nào liên kết mã nhân viên' : 'chưa có phân công chính thức gắn WBS trong tháng này'}.</span>`)
+      + (T.nolink ? `<span class="chip warn" title="Dự án trong kế hoạch chưa có WBS nên không đối chiếu được">${T.nolink} ngày thuộc dự án chưa có WBS</span>` : '');
+    const wm = wbsMap(), nameW = window.innerWidth < 600 ? 112 : 170, CW = 30;
+    $('actTable').style.width = (nameW + days.length * CW) + 'px';
+    const dcls = (d) => [wd(d) === 0 ? 'sun' : '', holiday(d) ? 'hol' : '', d === t ? 'today' : ''].filter(Boolean).join(' ');
+    let h = `<colgroup><col style="width:${nameW}px">${days.map(() => `<col style="width:${CW}px">`).join('')}</colgroup><thead><tr><th class="name" scope="col">Fitter (${data.fitters.length})</th>${days.map(d => {
+      const hol = holiday(d);
+      return `<th class="day ${dcls(d)}" scope="col" title="${esc(`${WD[wd(d)]} ${P.fmtVN(d)}${hol ? ' — ' + hol.name : ''}`)}"><span class="dw">${WD[wd(d)]}</span><span class="dd">${Number(d.slice(8))}</span></th>`;
+    }).join('')}</tr></thead><tbody>`;
+    const pm = byId();
+    res.fitters.forEach(r => {
+      const sub = !r.linked ? '<span class="warn">chưa liên kết mã NV</span>' : `${r.actualHours ? Math.round(r.actualHours) + 'h thực tế' : 'chưa có chấm công'}${r.pct != null ? ` · <b class="pct ${pctCls(r.pct)}">${pctTxt(r.pct)}</b>` : ''}`;
+      h += `<tr><td class="name"><span class="nm">${esc(r.name)}</span><span class="nd">${sub}</span></td>`;
+      if (ui.actMode === 'gantt') {
+        const runs = A.actualRuns(r, days, wm).map(x => ({ x, p: x.project }));
+        for (let i = 0; i < days.length;) {
+          const run = runs.find(z => z.x.startIdx === i);
+          if (!run) { h += `<td class="${dcls(days[i])}"></td>`; i++; continue; }
+          const n = run.x.endIdx - run.x.startIdx + 1, p = run.p, col = p ? p.color : '#cbd5e1';
+          const title = `${p ? p.name : 'WBS ' + run.x.wbs} · ${r.name} · ${P.fmtVN(days[run.x.startIdx])} – ${P.fmtVN(days[run.x.endIdx])} · ${Math.round(run.x.hours * 10) / 10}h`;
+          h += `<td class="act" colspan="${n}" title="${esc(title)}"><span style="background:${safeColor(col)};color:${textOn(col)}">${n > 1 ? esc(p ? p.name : run.x.wbs) : ''}</span></td>`;
+          i += n;
+        }
+      } else {
+        days.forEach(d => {
+          const c = r.days[d], plan = c.plan && pm[c.plan.p], mark = { ok: '✓', diff: '≠', miss: '✗', extra: '+', tent: '·', nolink: '?' }[c.st] || '';
+          const actTxt = c.act ? Object.keys(c.act.byWbs).map(w => `${(wm[w] ? wm[w].name : 'WBS ' + w)} ${Math.round(c.act.byWbs[w] * 10) / 10}h`).join(', ') : 'không chấm công';
+          const title = `${P.fmtVN(d)} · ${r.name}\nKế hoạch: ${plan ? plan.name + (c.plan.t ? ' (dự kiến)' : '') : '—'}\nThực tế: ${actTxt}`;
+          h += `<td class="cmp ${c.st} ${dcls(d)}" title="${esc(title)}">${mark}${plan ? `<i style="background:${safeColor(plan.color)}"></i>` : ''}</td>`;
+        });
+      }
+      h += '</tr>';
+    });
+    $('actTable').innerHTML = h + '</tbody>';
+    $('actLegend').innerHTML = ui.actMode === 'gantt'
+      ? 'Mỗi dải = số ngày liên tiếp fitter chấm công cho cùng một dự án (theo WBS trong bảng công). Dải xám = WBS chưa có trong danh sách dự án của kế hoạch.'
+      : '<b>✓</b> đúng dự án theo kế hoạch · <b>≠</b> làm dự án khác · <b>✗</b> kế hoạch có nhưng không chấm công · <b>+</b> làm ngoài kế hoạch · <b>·</b> kế hoạch dự kiến (không tính %) · <b>?</b> dự án chưa có WBS. Gạch màu dưới ô = dự án trong kế hoạch.';
+
+    const row = (r, nameCol) => `<tr><td>${esc(nameCol)}</td><td>${r.n}</td><td>${r.ok}</td><td>${r.diff}</td><td>${r.miss}</td><td><b class="pct ${pctCls(r.pct)}">${pctTxt(r.pct)}</b></td><td>${pctTxt(r.util)}</td></tr>`;
+    const head = (first) => `<thead><tr><th>${first}</th><th>Ngày KH</th><th>Đúng</th><th>Khác DA</th><th>Vắng</th><th>% bám KH</th><th>% giờ</th></tr></thead>`;
+    const fitRows = res.fitters.filter(r => r.linked).map(r => ({ ...r, n: r.ok + r.diff + r.miss, util: r.util })).sort((a, b) => (a.pct == null) - (b.pct == null) || a.pct - b.pct);
+    $('actTables').innerHTML =
+      `<p class="act-note">% bám kế hoạch = ngày chấm công đúng dự án ÷ ngày có phân công chính thức (gắn WBS) ở các ngày làm việc. % giờ = giờ thực tế trên dự án đúng kế hoạch ÷ (8 giờ × ngày kế hoạch). Phân công dự kiến và ngày nghỉ không có người đi làm không bị tính.</p>` +
+      `<table class="act-tbl"><caption>Đánh giá theo giám sát (hiệu quả bám kế hoạch)</caption>${head('Giám sát')}<tbody>${res.bySupervisor.map(r => row(r, r.label)).join('') || '<tr><td colspan="7">Chưa có dữ liệu đối chiếu.</td></tr>'}</tbody></table>` +
+      `<table class="act-tbl"><caption>Theo dự án</caption>${head('Dự án')}<tbody>${res.byProject.map(r => row(r, r.label)).join('') || '<tr><td colspan="7">Chưa có dữ liệu đối chiếu.</td></tr>'}</tbody></table>` +
+      `<table class="act-tbl"><caption>Theo fitter</caption>${head('Fitter')}<tbody>${fitRows.map(r => row(r, r.name)).join('') || '<tr><td colspan="7">Chưa có fitter liên kết mã NV.</td></tr>'}</tbody></table>`;
+  }
+  const actGo = (m) => { act.month = m; render(); };
+  $('actPrev').addEventListener('click', () => actGo(shiftMonth(act.month, -1)));
+  $('actNext').addEventListener('click', () => actGo(shiftMonth(act.month, 1)));
+  $('actNow').addEventListener('click', () => actGo(today().slice(0, 7)));
+  $('actMode').addEventListener('change', () => { ui.actMode = $('actMode').value; saveUI(); render(); });
+  $('actLoad').addEventListener('click', async () => {
+    const b = $('actLoad'); b.disabled = true; b.textContent = 'Đang tải…';
+    await loadActualRows(true);
+    b.disabled = false; b.textContent = '⟳ Tải bảng công mới nhất';
+    toast(`Đã đọc ${act.rows.length.toLocaleString('vi-VN')} dòng bảng công.`);
+    render();
+  });
 
   // ---------- hộp thoại dự án ----------
   let pjId = null;
@@ -634,7 +873,7 @@
     $('pjMergeTo').innerHTML = '<option value="">— chọn dự án —</option>' + data.projects.filter(x => x.id !== id).sort((a, b) => a.name.localeCompare(b.name, 'vi')).map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
     const sups = [...new Set(data.projects.map(x => x.supervisor).filter(Boolean))];
     $('supList').innerHTML = sups.map(s => `<option value="${esc(s)}">`).join('');
-    $('pjShared').value = ''; sharedHint(p.wbs);
+    $('pjShared').value = ''; sharedHint(p.wbs); pjAssist();
     $('dlgProject').showModal();
     $('pj_name').focus();
   }
@@ -651,9 +890,68 @@
     if (!$('pj_name').value.trim() || (data.projects.find(p => p.id === pjId) || {}).fromGrid) $('pj_name').value = x.projectName;
     if (!$('pj_liftType').value.trim() && x.productLine) $('pj_liftType').value = x.productLine;
     if (!$('pj_supervisor').value.trim() && x.supervisor) $('pj_supervisor').value = x.supervisor;
-    sharedHint(x.wbs);
+    fillDialog(x, false);
+    sharedHint(x.wbs); pjAssist();
   });
   $('pj_wbs').addEventListener('input', () => sharedHint($('pj_wbs').value.trim()));
+
+  // ---------- tự điền thông số thang từ dữ liệu dự án chung (Thống kê giờ công) ----------
+  // Cột thông số của dự án chung đặt tên theo file Yan_COM nên nhận theo TỪ KHOÁ, không theo tên cố định.
+  const specNum = (v) => { const m = String(v == null ? '' : v).replace(/,/g, '.').match(/\d+(\.\d+)?/); return m ? Number(m[0]) : ''; };
+  function specsOf(x) {
+    const out = {}, sp = x.specs || {};
+    Object.keys(sp).forEach(k => {
+      const key = P.plain(k), v = sp[k];
+      if (v === '' || v == null) return;
+      if (out.stops === undefined && /(^| )(stops?|landings?|floors?|so diem dung|diem dung|so tang)( |$)/.test(key)) { const n = specNum(v); if (n !== '') out.stops = n; }
+      else if (out.load === undefined && /(^| )(load|capacity|tai trong|rated load|kg)( |$)/.test(key)) { const n = specNum(v); if (n !== '') out.load = n; }
+      else if (out.travel === undefined && /(^| )(travel|rise|hanh trinh|lift height|travel height)( |$)/.test(key)) out.travel = String(v).trim();
+      else if (out.liftCount === undefined && /(^| )(qty|quantity|so luong|units?|no of lifts?|lifts?)( |$)/.test(key)) { const n = specNum(v); if (n !== '' && n > 0 && n < 100) out.liftCount = n; }
+    });
+    if (x.productLine) out.liftType = x.productLine;
+    if (x.supervisor) out.supervisor = x.supervisor;
+    return out;
+  }
+  const isEmptyVal = (v) => v === '' || v == null;
+  // điền vào các trường CÒN TRỐNG của dự án p; trả về danh sách trường đã điền
+  function fillProject(p, x, overwrite) {
+    const sp = specsOf(x), done = [];
+    ['liftType', 'stops', 'load', 'travel', 'liftCount', 'supervisor'].forEach(k => {
+      if (sp[k] !== undefined && (overwrite || isEmptyVal(p[k]))) { if (p[k] !== sp[k]) { p[k] = sp[k]; done.push(k); } }
+    });
+    return done;
+  }
+  const FIELD_VN = { liftType: 'loại thang', stops: 'số điểm dừng', load: 'tải trọng', travel: 'hành trình', liftCount: 'số lượng', supervisor: 'giám sát' };
+  function autofillAll(announce) {
+    const todo = data.projects.map(p => ({ p, x: p.wbs ? sharedByWbs(p.wbs) : null })).filter(o => o.x && Object.keys(specsOf(o.x)).some(k => isEmptyVal(o.p[k]) && specsOf(o.x)[k] !== undefined));
+    if (!todo.length) { if (announce) toast('Mọi dự án đã liên kết WBS đều đủ thông số thang.'); return 0; }
+    commit(`Đã tự điền thông số thang cho ${todo.length} dự án từ dữ liệu dự án chung.`, () => { todo.forEach(o => fillProject(o.p, o.x, false)); });
+    return todo.length;
+  }
+  $('miAutofill').addEventListener('click', () => { closeMenu(); autofillAll(true); });
+  // gợi ý WBS cho dự án chưa liên kết: khớp tên (bỏ dấu) với dự án chung, chỉ khi duy nhất
+  function suggestShared(name) {
+    const n = P.plain(name); if (n.length < 4) return null;
+    const hits = SHARED.filter(x => { const m = P.plain(x.projectName); return m && (m === n || m.includes(n) || (m.length >= 6 && n.includes(m))); });
+    return hits.length === 1 ? hits[0] : null;
+  }
+  function pjAssist() {
+    const w = $('pj_wbs').value.trim(), x = w ? sharedByWbs(w) : null;
+    const can = x && Object.keys(specsOf(x)).length > 0;
+    $('pjFill').hidden = !can;
+    if (can) $('pjFill').textContent = '↻ Điền thông số thang từ dự án chung (' + [specsOf(x).liftType, specsOf(x).stops ? specsOf(x).stops + ' điểm dừng' : '', specsOf(x).load ? specsOf(x).load + 'kg' : ''].filter(Boolean).join(' · ') + ')';
+    const sg = !w ? suggestShared($('pj_name').value) : null;
+    $('pjSuggest').hidden = !sg;
+    if (sg) { $('pjSuggest').textContent = `💡 Có phải dự án ${sg.wbs} — ${sg.projectName}? Bấm để liên kết`; $('pjSuggest').dataset.w = sg.wbs; }
+  }
+  function fillDialog(x, overwrite) {
+    const sp = specsOf(x), set = (id, k) => { if (sp[k] !== undefined && (overwrite || !$(id).value.trim())) $(id).value = sp[k]; };
+    set('pj_liftType', 'liftType'); set('pj_stops', 'stops'); set('pj_load', 'load'); set('pj_travel', 'travel'); set('pj_liftCount', 'liftCount'); set('pj_supervisor', 'supervisor');
+  }
+  $('pjFill').addEventListener('click', () => { const x = sharedByWbs($('pj_wbs').value.trim()); if (x) { fillDialog(x, true); toast('Đã điền thông số thang từ dự án chung (kiểm tra rồi bấm Lưu).'); } });
+  $('pjSuggest').addEventListener('click', () => { const x = sharedByWbs($('pjSuggest').dataset.w); if (!x) return; $('pj_wbs').value = x.wbs; fillDialog(x, false); sharedHint(x.wbs); pjAssist(); });
+  ['pj_wbs', 'pj_name'].forEach(id => $(id).addEventListener('input', pjAssist));
+
   $('pjMilestones').addEventListener('click', (e) => {
     const use = e.target.closest('[data-use]'), keep = e.target.closest('[data-keep]');
     if (!use && !keep) return;
@@ -802,6 +1100,7 @@
   // ---------------- nối sự kiện ----------------
   $('tabAlloc').addEventListener('click', () => setTab('alloc'));
   $('tabPlan').addEventListener('click', () => setTab('plan'));
+  $('tabActual').addEventListener('click', () => setTab('actual'));
   $('prevWeek').addEventListener('click', () => { viewStart = P.addDays(viewStart, -7); renderAlloc(); });
   $('nextWeek').addEventListener('click', () => { viewStart = P.addDays(viewStart, 7); renderAlloc(); });
   $('thisWeek').addEventListener('click', () => { viewStart = mondayOf(today()); renderAlloc(); });
@@ -851,6 +1150,6 @@
   window.addEventListener('beforeunload', (e) => { if (dirty() && st.phase !== 'denied') { e.preventDefault(); e.returnValue = ''; } });
 
   render();
-  loadShared().then(render);
+  loadShared().then(() => { render(); if (SHARED.length && data.projects.length) autofillAll(false); });
   if (STORE_URL) pull();
 })();
