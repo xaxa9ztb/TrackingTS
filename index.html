@@ -57,6 +57,20 @@
     border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
   }
   .btn-logout:hover, .btn-logout:focus-visible { background: #1f2937; outline: none; }
+  .help-top { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: #f9fafb; text-decoration: none; font-size: 13px; font-weight: 600;
+    border: 1px solid #4b5563; border-radius: 8px; padding: 6px 12px; white-space: nowrap; }
+  .help-top:hover, .help-top:focus-visible { background: #1f2937; outline: none; }
+  .help-top ~ .user { margin-left: 0; }
+  .help-card { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; padding: 14px 18px; border-radius: 12px; text-decoration: none; color: inherit;
+    background: linear-gradient(90deg, #eff6ff, #f5f3ff); border: 1px solid #c7d2fe; }
+  .help-card:hover, .help-card:focus-visible { border-color: #6366f1; outline: none; box-shadow: 0 2px 10px rgba(79, 70, 229, .15); }
+  .help-card .hc-ico { font-size: 26px; line-height: 1; flex: none; }
+  .help-card .hc-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .help-card strong { font-size: 15px; color: #1e1b4b; }
+  .help-card span.hc-sub { font-size: 13px; color: #4b5563; }
+  .help-card .hc-go { margin-left: auto; flex: none; font-weight: 700; font-size: 13px; color: #4338ca; white-space: nowrap; }
+  .login-intro .help-card { margin: 18px 0 0; }
+  @media (max-width: 520px) { .help-top .ht-long { display: none; } .help-card .hc-go { display: none; } }
   .net-off { font-size: 12px; font-weight: 600; color: #fde68a; background: #3f2d0a; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 
   /* ---- cài ứng dụng (PWA) ---- */
@@ -265,6 +279,7 @@
     <span class="divider" aria-hidden="true"></span>
     <span class="product">Bộ công cụ dự án</span>
     <span class="net-off" id="netOff" role="status" hidden>📴 Ngoại tuyến</span>
+    <a class="help-top" id="helpTop" href="huong-dan.html" title="Hướng dẫn sử dụng có hình minh họa cho Fitter, Giám sát, Quản lý">📖 <span>Hướng dẫn<span class="ht-long"> sử dụng</span></span></a>
     <div class="user" id="userBox" hidden>
       <span class="avatar" id="userAvatar" aria-hidden="true"></span>
       <span class="user-text">
@@ -284,6 +299,11 @@
       <p>Đăng nhập một lần, sau đó chọn chức năng phù hợp với công việc của bạn.</p>
       <p class="intro-apps-label" id="introLabel">Các chức năng — chọn một chức năng rồi đăng nhập để mở ngay:</p>
       <ul class="intro-apps" id="introList" aria-labelledby="introLabel"></ul>
+      <a class="help-card" href="huong-dan.html">
+        <span class="hc-ico" aria-hidden="true">📖</span>
+        <span class="hc-text"><strong>Lần đầu sử dụng?</strong><span class="hc-sub">Xem hướng dẫn từng bước có hình minh họa — cách đăng nhập, chấm công, duyệt bảng công.</span></span>
+        <span class="hc-go" aria-hidden="true">Xem hướng dẫn →</span>
+      </a>
     </section>
 
     <section class="login-card" aria-labelledby="loginTitle">
@@ -333,6 +353,11 @@
     <h1 id="hello"></h1>
     <p>Chọn chức năng để bắt đầu.</p>
   </section>
+  <a class="help-card" id="helpCard" href="huong-dan.html">
+    <span class="hc-ico" aria-hidden="true">📖</span>
+    <span class="hc-text"><strong>Hướng dẫn sử dụng</strong><span class="hc-sub" id="helpCardSub">Từng bước, có hình minh họa cho Fitter, Giám sát (Site Sup) và Quản lý dự án.</span></span>
+    <span class="hc-go" aria-hidden="true">Mở hướng dẫn →</span>
+  </a>
   <div class="note note-warn" id="deniedNote" role="status" hidden></div>
 
   <section class="sync" id="syncCard" aria-labelledby="syncTitle">
@@ -386,7 +411,7 @@
 <footer>
   <div class="wrap">
     <span>Mỗi chức năng lưu dữ liệu riêng. Dữ liệu Timesheet cá nhân chỉ nằm trên trình duyệt của bạn.</span>
-    <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn: Thống kê giờ công (PDF)</a>
+    <span><a href="huong-dan.html"><strong>📖 Hướng dẫn sử dụng</strong></a> · <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Thống kê giờ công (PDF)</a></span>
     <button type="button" class="demo-link" id="btnDemo" hidden>🧪 Chạy thử (Demo)</button>
   </div>
 </footer>
@@ -543,6 +568,9 @@
     $('userRole').textContent = Session.roleLabel(s);
     $('userAvatar').textContent = initial(s.name);
     $('hello').textContent = 'Xin chào, ' + s.name;
+    // mở thẳng phần hướng dẫn đúng vai trò
+    const rs = Session.roles(s);
+    $('helpCard').href = 'huong-dan.html#' + (rs.includes('admin') ? 'quantri' : rs.includes('pm') ? 'quanly' : rs.includes('sitesup') ? 'giamsat' : 'fitter');
 
     const denied = params.get('denied');
     if (denied && Session.TOOLS[denied] && !Session.canAccess(denied, s)) {

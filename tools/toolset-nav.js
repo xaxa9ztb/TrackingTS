@@ -13,6 +13,8 @@
   if (!script || !document.body || document.querySelector('.tsn-bar')) return;
 
   var home = new URL('../index.html', script.src).href;
+  // tài liệu hướng dẫn (huong-dan.html) — data-help="#mục" mở thẳng phần của công cụ này
+  var help = new URL('../huong-dan.html', script.src).href + (script.getAttribute('data-help') || '');
   var name = script.getAttribute('data-tool') || document.title;
   var session = (typeof Session !== 'undefined') ? Session.current() : null;
 
@@ -29,6 +31,8 @@
     '.tsn-bar .tsn-name,.tsn-bar .tsn-user{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}' +
     '.tsn-bar .tsn-right{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}' +
     '.tsn-bar .tsn-user{color:#e5e7eb;max-width:220px}' +
+    '.tsn-bar a.tsn-help{flex:none;color:#f9fafb;text-decoration:none;border:1px solid #4b5563;border-radius:6px;padding:4px 10px}' +
+    '.tsn-bar a.tsn-help:hover,.tsn-bar a.tsn-help:focus-visible{background:#1f2937;outline:none}' +
     '.tsn-bar .tsn-off{flex:none;font-size:12px;font-weight:600;color:#fde68a;background:#3f2d0a;border-radius:999px;padding:2px 9px}' +
     '.tsn-bar button.tsn-out{flex:none;background:transparent;color:#f9fafb;border:1px solid #4b5563;' +
     'border-radius:6px;padding:4px 10px;font:inherit;cursor:pointer}' +
@@ -72,6 +76,14 @@
   window.addEventListener('offline', syncNet);
   syncNet();
   right.appendChild(off);
+  var hl = document.createElement('a');
+  hl.className = 'tsn-help';
+  hl.href = help;
+  hl.target = '_blank';
+  hl.rel = 'noopener';
+  hl.title = 'Hướng dẫn sử dụng (mở tab mới)';
+  hl.textContent = '📖 Hướng dẫn';
+  right.appendChild(hl);
 
   if (session) {
     var who = document.createElement('span');

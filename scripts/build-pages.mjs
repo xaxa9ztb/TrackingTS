@@ -8,7 +8,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'dist');
 
 const INCLUDE = ['index.html', 'tracking.html', 'admin.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons', 'tools',
-  'docs/Huong-dan-su-dung-nguoi-dung.pdf']; // trang chủ + Thống kê giờ công có link tới file này
+  'docs/Huong-dan-su-dung-nguoi-dung.pdf', // trang chủ + Thống kê giờ công có link tới file này
+  'huong-dan.html', 'docs/huong-dan']; // tài liệu hướng dẫn sử dụng + ảnh minh họa
 const SKIP = /(^|\/)(node_modules|package(-lock)?\.json)(\/|$)/;
 
 rmSync(OUT, { recursive: true, force: true });
