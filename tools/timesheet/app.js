@@ -2968,7 +2968,22 @@ function ReportView({
 const EMAIL_RE = /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/;
 const parseEmails = s => String(s || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
 const MAILTO_MAX = 1900; // một số ứng dụng mail cắt / từ chối link mailto dài hơn ~2000 ký tự
-
+// chế độ Demo: thư tự soạn ghi rõ là thư demo (tiêu đề [DEMO] + dòng đầu thư)
+const IS_DEMO = typeof TsDemo !== 'undefined' && !!TsDemo.on;
+// demo: gợi ý gửi về chính email đăng nhập (người nhận thật trong dữ liệu mẫu chỉ là địa chỉ giả)
+const demoMyEmail = () => {
+  try {
+    const s = IS_DEMO && Session.current();
+    return s && s.email || '';
+  } catch (e) {
+    return '';
+  }
+};
+const demoMark = m => IS_DEMO ? {
+  subject: '[DEMO] ' + m.subject,
+  body: '*** THƯ DEMO — dữ liệu chạy thử, không phải bảng công thật ***\n\n' + m.body,
+  shortBody: '*** THƯ DEMO — dữ liệu chạy thử ***\n\n' + m.shortBody
+} : m;
 function buildMailText(d, profile, period, month, supervisorName) {
   const [y, m] = month.split('-');
   const kp = `kỳ lương tháng ${parseInt(m, 10)}/${y} (${fmtDMY(period.start)} – ${fmtDMY(period.end)})`;
@@ -2984,11 +2999,11 @@ function buildMailText(d, profile, period, month, supervisorName) {
   const tail = ['', 'File bảng chấm công Excel đính kèm.', '', 'Trân trọng,', name];
   const body = [...head, leave, ...projects, ...missing, ...tail].join('\n');
   const shortBody = [...head, leave, ...missing, ...tail].join('\n'); // cho link mailto quá dài
-  return {
+  return demoMark({
     subject,
     body,
     shortBody
-  };
+  });
 }
 
 // Thư báo cáo thi công trong ngày (fitter tự gửi giám sát / quản lý)
@@ -3006,11 +3021,11 @@ function buildDailyMail(profile, date, rows, bdOf) {
   const head = ['Kính gửi Anh/Chị,', '', `Báo cáo thi công ngày ${WEEKDAYS_LONG[weekdayOf(date)]} ${fmtDMY(date)} của ${name}${profile.empId ? ` (${profile.empId})` : ''}:`, ''];
   const tail = ['', list.length ? `Tổng: ${fmtH(total)} giờ (thường ${fmtH(normal)}, tăng ca ${fmtH(total - normal)}).` : 'Hôm nay chưa có dòng chấm công.', '', 'Trân trọng,', name];
   const body = [...head, ...(lines.length ? lines.join('\n\n').split('\n') : []), ...tail].join('\n');
-  return {
+  return demoMark({
     subject,
     body,
     shortBody: body.length > 1500 ? body.slice(0, 1400) + '\n…' : body
-  };
+  });
 }
 const canShareFiles = () => {
   try {
@@ -3048,7 +3063,7 @@ function MailPanel({
   toLabel,
   toHint
 }) {
-  const [to, setTo] = useState(initTo !== undefined ? initTo : profile.mailTo || '');
+  const [to, setTo] = useState(initTo !== undefined ? initTo : profile.mailTo || demoMyEmail());
   const [cc, setCc] = useState(initCc !== undefined ? initCc : profile.mailCc || '');
   const [subject, setSubject] = useState(mail.subject);
   const [body, setBody] = useState(mail.body);

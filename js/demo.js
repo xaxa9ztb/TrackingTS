@@ -6,7 +6,9 @@
 //  2. Dữ liệu lưu trên trình duyệt (localStorage / sessionStorage / IndexedDB) được ĐỔI TÊN KHOÁ có tiền tố "demo:" / "demo_",
 //     nên bảng công cá nhân, phiên đăng nhập, bản sao dữ liệu… của người dùng thật không bị đọc hay ghi đè,
 //     và những gì nhập trong demo không bị đẩy lên máy chủ thật khi thoát.
-//  3. Thanh "CHẾ ĐỘ DEMO" luôn hiện ở đầu trang với nút Làm mới dữ liệu / Thoát demo.
+//  3. Thanh "CHẾ ĐỘ DEMO" luôn hiện ở đầu trang với nút Làm mới dữ liệu / Đổi vai trò / Thoát demo.
+//  4. Đổi vai trò giữ nguyên dữ liệu trên máy chủ (thử trọn luồng nộp → duyệt); email thông báo vẫn gửi thật nhưng
+//     chỉ về email của người đang thử, tiêu đề có [DEMO].
 //
 // File này phải được nạp TRƯỚC mọi script dùng localStorage / IndexedDB (db.js, session.js…).
 (function () {
@@ -79,6 +81,10 @@
       location.href = ROOT + 'index.html';
     });
   };
+  // đổi vai trò, GIỮ dữ liệu trên máy chủ; dữ liệu trên trình duyệt của vai cũ bị xoá (vai mới tải lại từ máy chủ)
+  api.role = function (role) {
+    return post('/api/demo/role', { role: role }).then(function () { wipe(); location.href = ROOT + 'index.html'; });
+  };
   api.reset = function () {
     return post('/api/demo/reset', {}).then(function () { wipe(); location.reload(); });
   };
@@ -105,7 +111,7 @@
     bar.setAttribute('role', 'status');
     bar.style.cssText = 'position:sticky;top:0;z-index:2147483000;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:7px 14px;' +
       'background:#fef3c7;color:#78350f;border-bottom:2px solid #f59e0b;font:600 13px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
-    bar.innerHTML = '<span>🧪 CHẾ ĐỘ DEMO — dữ liệu thử, không ảnh hưởng dữ liệu thật; không gửi email.</span>' +
+    bar.innerHTML = '<span>🧪 CHẾ ĐỘ DEMO — dữ liệu thử, không ảnh hưởng dữ liệu thật. Email chỉ gửi về hộp thư của bạn, tiêu đề có [DEMO].</span>' +
       '<span style="margin-left:auto;display:flex;gap:8px"><button type="button" data-a="reset">Làm mới dữ liệu demo</button>' +
       '<button type="button" data-a="role">Đổi vai trò</button><button type="button" data-a="stop">Thoát demo</button></span>';
     bar.querySelectorAll('button').forEach(function (b) {

@@ -234,8 +234,10 @@ Trên bản Cloudflare, **hai nguồn bảng công chạy song song**: (1) admin
 
 ### Chế độ Demo (chạy thử, không ảnh hưởng dữ liệu thật)
 
-- Mọi người dùng được vào app (đã qua Cloudflare Access) bấm **🧪 Chạy thử (Demo)** ở chân trang chủ, chọn vai trò *Quản trị viên / Quản lý dự án / Site Sup / Nhân viên* — dữ liệu mẫu (8 nhân viên, 4 dự án, ~110 dòng bảng công, 3 bảng công chờ duyệt) được dựng sẵn.
-- Dùng **cơ sở dữ liệu D1 riêng `trackingts-demo`** (binding `DB_DEMO`), tự tạo khi triển khai (`.github/workflows/cloudflare.yml`). Cookie `ts_demo` làm máy chủ chuyển mọi yêu cầu sang cơ sở dữ liệu này; **không gửi email**, danh sách admin khởi tạo (`ADMIN_EMAILS`) không có hiệu lực — vai trò do người dùng chọn.
+- Mọi người dùng được vào app (đã qua Cloudflare Access) bấm **🧪 Chạy thử (Demo)** ở chân trang chủ, chọn vai trò *Fitter (Phạm Minh Dũng) / Site Sup (Trần Thị Bình) / Quản lý dự án (Nguyễn Văn An) / Quản trị viên* — dữ liệu mẫu (8 nhân viên, 4 dự án, ~110 dòng bảng công, 1 bảng công chờ Site Sup, 1 chờ QLDA, kỳ trước của Fitter đã chấm đủ chờ nộp) được dựng sẵn.
+- **Đổi vai trò giữ nguyên dữ liệu** (`POST /api/demo/role` chỉ chuyển email người thử sang nhân viên mẫu khác) → thử trọn luồng Fitter nộp → Site Sup duyệt → QLDA duyệt → vào bảng Theo dõi giờ công. Các nhân viên mẫu khác có email giả `<mã>@demo.invalid`.
+- Dùng **cơ sở dữ liệu D1 riêng `trackingts-demo`** (binding `DB_DEMO`), tự tạo khi triển khai (`.github/workflows/cloudflare.yml`). Cookie `ts_demo` làm máy chủ chuyển mọi yêu cầu sang cơ sở dữ liệu này; danh sách admin khởi tạo (`ADMIN_EMAILS`) không có hiệu lực — vai trò do người dùng chọn.
+- **Email trong demo vẫn gửi thật qua Brevo nhưng LUÔN chỉ tới email của người đang thử** (email đăng nhập Cloudflare Access), không bao giờ tới địa chỉ khác: tiêu đề có `[DEMO]`, đầu thư có khung vàng "THƯ DEMO" ghi rõ trong hệ thống thật thư sẽ gửi tới ai. Tối đa 60 thư demo / ngày (để không dùng hết 300 thư/ngày của gói miễn phí). Thư tự soạn trong Timesheet ở chế độ demo cũng có `[DEMO]` ở tiêu đề.
 - Trên trình duyệt, khoá `localStorage` / `sessionStorage` / IndexedDB được đổi tên có tiền tố `demo:` / `demo_` nên **bảng công cá nhân và phiên đăng nhập thật không bị đụng**; thoát demo thì dữ liệu demo trên trình duyệt được dọn.
 - Thanh vàng ở đầu mọi trang: *Làm mới dữ liệu demo* (dựng lại dữ liệu mẫu), *Đổi vai trò*, *Thoát demo*. Mã: `server/demo.mjs`, `js/demo.js`.
 - Nếu bước tạo D1 demo lỗi khi triển khai, workflow tự gỡ binding và chỉ tắt demo (nút không hiện), bản chính vẫn triển khai bình thường.
