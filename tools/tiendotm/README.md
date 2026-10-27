@@ -37,3 +37,11 @@
 - Ngày nghỉ lễ nhập dạng `yyyy-mm-dd`, phân cách dấu phẩy (mặc định 01–02/09/2026).
 - Xuất PDF: trình duyệt sẽ mở hộp thoại in — chọn khổ **A3**, hướng **Ngang (Landscape)**, đích **Save as PDF**.
 - Trình duyệt khuyến nghị: Chrome/Edge bản mới.
+
+## Hồ sơ chất lượng — các tuỳ chọn nội dung (cập nhật)
+
+- **Phụ lục hợp đồng** (mục C): chỉ khi tick “Hợp đồng có phụ lục” thì mới nhập số/ngày phụ lục; không tick thì bìa, căn cứ (tự đánh lại số), các biên bản, bảng kiểm tra và biên bản bàn giao **không nhắc tới phụ lục**.
+- **Đà thép / hạng mục phát sinh** (mục D2): không còn viết cứng trong mẫu. Có khai “Đà thép” (hoặc hạng mục khác) thì mới xuất hiện ở BB nghiệm thu lắp đặt tĩnh, tên bước “… VÀ ĐÀ THÉP”, dòng bản vẽ thi công, **Biên bản kiểm tra vật liệu (Phần I)** và **Biên bản kiểm tra lắp đặt (Phần II)**, Phần VII (khối lượng lấy đúng SL/ĐVT đã khai), bản vẽ hoàn công. Cột TT được đánh lại liên tục.
+- **Chứng từ hàng hóa** (mục C2): đẩy file C/O, C/Q, Packing List, HBL (PDF/ảnh) để tự quét số + ngày (PDF có lớp chữ đọc trực tiếp, bản scan thì OCR), hoặc nhập tay. Số chứng từ vào Biên bản kiểm tra vật liệu (mục II “Hồ sơ hàng hóa”) và BB hàng về công trường. Luôn kiểm tra lại vì OCR có thể sai ký tự.
+- **Tài liệu bổ sung** (mục F, xuất riêng): BB xác nhận thiết bị đến công trường, BB bàn giao thang máy (mỗi thang 1 file, nhiều thang → .zip), nhật ký thi công (bìa, trang thông tin, bảng cán bộ, N trang ngày điền sẵn).
+- Mẫu Word: `hoso_chatluong_template.docx` (đã vá bằng `tools_patch_hoso.py`), `bbxn_hangve_template.docx`, `bangiao_template.docx`, `nhatky_template.docx` (tạo từ mẫu gốc bằng `tools_make_templates.py`). Nhận diện chứng từ: `chungtu.js` (có kiểm thử trong `test/client`).
