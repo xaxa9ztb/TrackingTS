@@ -5,6 +5,8 @@
 import { verifyAccessJwt, teamHost } from './auth.mjs';
 import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
+import { notifyEvent } from './notify.mjs';
+import { mailConfigured, sendMail, layout } from './mail.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, trackingRow } from './tsdoc.mjs';
 
 export class HttpError extends Error {
@@ -651,6 +653,7 @@ async function submitMyDoc(env, me, period, request) {
   if (wbsList.length) stmts.push(env.DB.prepare(`INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbsList.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbsList.flatMap(w => [emp, period, w])));
   await env.DB.batch(stmts);
   await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length });
+  await notifyEvent(env, 'submitted', { empId: emp, period, wbs: wbsList });
   return json({ ok: true, status: 'submitted', version: row.version, submittedAt: t });
 }
 
@@ -761,12 +764,14 @@ async function decideDoc(env, me, emp, period, action, request) {
     const r = await env.DB.prepare("UPDATE ts_docs SET status = 'rejected', note = ?, submitted_at = '' WHERE emp_id = ? AND period = ? AND status = ?").bind(`${me.name}: ${note}`, emp, period, row.status).run();
     if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
     await audit(env, me, 'ts_reject', 'ts_doc', `${emp}:${period}`, { status: row.status }, { note });
+    await notifyEvent(env, 'rejected', { empId: emp, period, wbs, note: `${me.name}: ${note}` });
     return json({ ok: true, status: 'rejected' });
   }
   if (level === 'sitesup') {
     const r = await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok', sitesup_by = ?, sitesup_at = ? WHERE emp_id = ? AND period = ? AND status = 'submitted'").bind(me.name, t, emp, period).run();
     if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
     await audit(env, me, 'ts_sitesup_ok', 'ts_doc', `${emp}:${period}`);
+    await notifyEvent(env, 'sitesup_ok', { empId: emp, period, wbs, by: me.name });
     return json({ ok: true, status: 'sitesup_ok' });
   }
   const r = await env.DB.prepare("UPDATE ts_docs SET status = 'approved', pm_by = ?, pm_at = ? WHERE emp_id = ? AND period = ? AND status = 'sitesup_ok'").bind(me.name, t, emp, period).run();
@@ -778,7 +783,19 @@ async function decideDoc(env, me, emp, period, action, request) {
     throw e;
   }
   await audit(env, me, 'ts_approved', 'ts_doc', `${emp}:${period}`, undefined, { rows: pushed });
+  await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: me.name, pushed });
   return json({ ok: true, status: 'approved', pushed });
+}
+
+// Admin gửi thử một thư để kiểm tra cấu hình Brevo (gửi tới chính admin, hoặc một địa chỉ chỉ định)
+async function sendTestMail(env, me, request) {
+  need(me);
+  const body = await readJson(request);
+  const to = str(body.to, 200) || me.email;
+  if (!mailConfigured(env)) return json({ ok: false, configured: false, error: 'Chưa cấu hình gửi email: cần BREVO_API_KEY và MAIL_FROM (GitHub → Settings → Secrets and variables → Actions) rồi chạy lại triển khai.' }, 200);
+  const r = await sendMail(env, { to: [{ email: to }], subject: '[Thử] Email từ Bộ công cụ dự án', html: layout('Gửi thử thành công', `<p>Đây là thư thử do ${me.name} bấm trong trang Tài khoản. Nếu bạn đọc được thư này, cấu hình gửi email đã đúng.</p>`) });
+  await audit(env, me, 'mail_test', 'mail', to, undefined, { ok: r.ok });
+  return json({ ok: r.ok, configured: true, to, error: r.error || '' });
 }
 
 async function patchEmployee(env, me, empId, request) {
@@ -829,13 +846,14 @@ export async function handle(request, env, opts = {}) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '');
   const method = request.method.toUpperCase();
+  env = { ...env, APP_URL: env.APP_URL || url.origin };   // địa chỉ dùng trong liên kết của thư
   try {
     if (path === '/api/health' && method === 'GET') {
       // Chỉ báo "có / chưa có" từng giá trị cấu hình, không bao giờ trả giá trị — để biết thiếu gì khi cấu hình đăng nhập
       const hasTeam = !!teamHost(env.ACCESS_TEAM_DOMAIN), hasAud = !!String(env.ACCESS_AUD || '').trim();
       return json({
         ok: true, db: !!env.DB, auth: hasTeam && hasAud,
-        config: { ACCESS_TEAM_DOMAIN: hasTeam, ACCESS_AUD: hasAud, ADMIN_EMAILS: adminEmails(env).length > 0 },
+        config: { ACCESS_TEAM_DOMAIN: hasTeam, ACCESS_AUD: hasAud, ADMIN_EMAILS: adminEmails(env).length > 0, MAIL: mailConfigured(env) },
       });
     }
     if (!env.DB) throw new HttpError(503, 'Máy chủ chưa gắn cơ sở dữ liệu');
@@ -871,6 +889,7 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'PUT') return await putMyDoc(env, me, decodeURIComponent(m[1]), request);
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/submit$/)) && method === 'POST') return await submitMyDoc(env, me, decodeURIComponent(m[1]), request);
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/withdraw$/)) && method === 'POST') return await withdrawMyDoc(env, me, decodeURIComponent(m[1]));
+    if (path === '/api/admin/mail/test' && method === 'POST') return await sendTestMail(env, me, request);
     if (path === '/api/ts/approvers' && method === 'GET') return await tsApprovers(env, me, url);
     if (path === '/api/ts/inbox' && method === 'GET') return await tsInbox(env, me);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));

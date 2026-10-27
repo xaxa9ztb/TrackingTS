@@ -220,7 +220,6 @@
     $('accountsCount').textContent = `${rows.length} / ${accounts.length} tài khoản · ${accounts.filter(e => e.active).length} đang làm`;
     $('accounts').tBodies[0].innerHTML = rows.map(e => personRow(e, true)).join('')
       || `<tr><td colspan="7" class="ac-note">${accounts.length ? 'Không có tài khoản nào khớp.' : 'Chưa có tài khoản nào — gắn email ở mục 2.'}</td></tr>`;
-    $('accessList').value = accounts.filter(e => e.active).map(e => e.email).join(', ');
   }
 
   function renderPeople() { renderAssign(); renderAccounts(); }
@@ -254,7 +253,7 @@
         const i = employees.findIndex(x => x.empId === tr.dataset.id);
         employees[i] = r.employee;
         renderPeople();
-        toast('Đã lưu ' + r.employee.name + (changes.email !== undefined ? ' — nhớ cập nhật danh sách email ở Cloudflare Access' : ''));
+        toast('Đã lưu ' + r.employee.name + '');
         loadAudit();
       } catch (e) {
         btn.disabled = false;
@@ -268,10 +267,6 @@
     $('qa').addEventListener('input', renderAccounts);
     wirePersonTable($('people').tBodies[0]);
     wirePersonTable($('accounts').tBodies[0]);
-    $('btnCopy').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText($('accessList').value); toast('Đã sao chép danh sách email'); }
-      catch (e) { $('accessList').select(); toast('Bấm Ctrl+C để sao chép'); }
-    });
   }
 
   // ---------- 4. phân công dự án ----------
@@ -404,8 +399,28 @@
     });
   }
 
+  // ---------- 6. email tự động ----------
+  async function initMail() {
+    const state = $('mailState');
+    try {
+      const h = await api('GET', '/api/health');
+      const on = h.config && h.config.MAIL;
+      state.textContent = on ? '✓ Đã cấu hình gửi email (Brevo).' : 'Chưa cấu hình gửi email — cần BREVO_API_KEY và MAIL_FROM trên GitHub, rồi chạy lại triển khai.';
+      state.className = 'ac-counts' + (on ? '' : ' ac-note err');
+    } catch (e) { state.textContent = ''; }
+    $('btnMailTest').addEventListener('click', async () => {
+      const msg = $('mailMsg'); msg.className = 'ac-note'; msg.textContent = 'Đang gửi…'; $('btnMailTest').disabled = true;
+      try {
+        const r = await api('POST', '/api/admin/mail/test', {});
+        msg.className = r.ok ? 'ac-note ok' : 'ac-note err';
+        msg.textContent = r.ok ? `✓ Đã gửi tới ${r.to} — kiểm tra hộp thư (cả mục Spam).` : '✗ ' + r.error;
+      } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+      finally { $('btnMailTest').disabled = false; }
+    });
+  }
+
   // ---------- 5. nhật ký ----------
-  const ACTION = { import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt', auto_staff: 'Tự phân công Site Sup', assign_pm: 'Gán Quản lý dự án' };
+  const ACTION = { mail_test: 'Gửi thử email', import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt', auto_staff: 'Tự phân công Site Sup', assign_pm: 'Gán Quản lý dự án' };
   const FIELD = { email: 'email', roleOverride: 'vai trò chỉnh tay', active: 'đang làm', sitesup: 'Site Sup', pm: 'QLDA',
     employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá', changes: 'thay đổi', assigned: 'số dự án', groups: 'nhóm', onlyEmpty: 'chỉ dự án chưa có' };
   const val = (v) => Array.isArray(v) ? (v.length && typeof v[0] === 'object' ? v.length + ' dòng' : (v.join(', ') || '—')) : v === true ? 'có' : v === false ? 'không' : (v === '' || v == null ? '—' : (ROLE_LABEL[v] || v));
@@ -458,10 +473,11 @@
     wireAuto();
     wirePm();
     if (me.isAdmin) {
-      ['secImport', 'secPeople', 'secAccounts', 'secAudit'].forEach(id => { $(id).hidden = false; });
+      ['secImport', 'secPeople', 'secAccounts', 'secAudit', 'secMail'].forEach(id => { $(id).hidden = false; });
       wirePeople();
       wirePaste();
       initImport();
+      initMail();
     }
     try { await loadAll(); } catch (e) { gate(esc(e.message), true); }
   }

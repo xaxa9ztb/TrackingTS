@@ -97,9 +97,11 @@ Trên `*.pages.dev` (chế độ máy chủ) Timesheet **vẫn chấm công trê
   Duyệt xong, các dòng **tự sang bảng Theo dõi giờ công** (Thống kê giờ công).
 - **Gửi báo cáo thi công hằng ngày (thủ công)**: nút **Báo cáo ngày** ở đầu danh sách chấm công → chọn ngày → thư soạn sẵn (dự án, giờ, việc làm,
   báo cáo thi công). Bản máy chủ **tự điền người nhận**: Site Sup của các dự án trong ngày (To) và Quản lý dự án (CC) theo phân công dự án
-  (`GET /api/ts/approvers`); sửa được. Gửi bằng Outlook / ứng dụng mail, Gmail web hoặc Outlook web — fitter tự bấm Gửi, không có máy chủ gửi mail.
+  (`GET /api/ts/approvers`); sửa được. Gửi bằng Outlook / ứng dụng mail, Gmail web hoặc Outlook web — fitter tự bấm Gửi (cách dự phòng khi chưa cấu hình email tự động).
 - **Nhắc hạn**: từ ngày 9 hằng tháng thanh trạng thái nhắc *hạn nộp bảng công là ngày 12* (còn N ngày); quá hạn thì báo đỏ. Site Sup / Quản lý dự án
-  thấy huy hiệu **N chờ duyệt** trên thẻ *Duyệt bảng công* ở trang chủ. (Không gửi email / thông báo đẩy tự động.)
+  thấy huy hiệu **N chờ duyệt** trên thẻ *Duyệt bảng công* ở trang chủ.
+- **Email tự động (Brevo, nếu đã cấu hình)**: nộp / duyệt / trả lại → thư cho người liên quan; 18:30 mỗi ngày giám sát nhận báo cáo thi công của fitter;
+  8:00 ngày 9 và 11 nhắc người chưa nộp (ngày 11 nhắc cả người duyệt). Hai nút gửi thư thủ công ở trên vẫn dùng được, kể cả khi chưa cấu hình.
 - Kiểm thử logic gộp / mất mạng / hai thiết bị: `npm run test:client` (máy chủ giả trong bộ nhớ).
 
 ## Gửi mail cho giám sát
