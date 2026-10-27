@@ -44,13 +44,23 @@ async function call(method, p, { email, token, body, contentType, envOver } = {}
   return { status: resp.status, data: await resp.json() };
 }
 
+// Brevo giả: ghi lại các thư "đã gửi"; brevoMode = 'ok' | 'fail'
+const sentMail = []; let brevoMode = 'ok';
+const fakeBrevo = async (url, init) => {
+  const body = JSON.parse(init.body);
+  sentMail.push({ url, key: init.headers['api-key'], ...body });
+  return brevoMode === 'ok' ? { ok: true, status: 201, json: async () => ({ messageId: 'x' }) } : { ok: false, status: 401, json: async () => ({ message: 'Key not found' }) };
+};
+const mailsTo = (email) => sentMail.filter(m => m.to.some(t => t.email === email));
+
 before(async () => {
   proxy = await getPlatformProxy({ configPath: path.join(ROOT, 'wrangler.toml'), persist: false });
   for (const f of readdirSync(path.join(ROOT, 'migrations')).filter(n => n.endsWith('.sql')).sort()) {
     const sql = readFileSync(path.join(ROOT, 'migrations', f), 'utf8').split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
     for (const stmt of sql.split(';').map(x => x.trim()).filter(Boolean)) await proxy.env.DB.prepare(stmt).run();
   }
-  env = { DB: proxy.env.DB, ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, ADMIN_EMAILS: 'boss@example.com' };
+  env = { DB: proxy.env.DB, ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, ADMIN_EMAILS: 'boss@example.com',
+    BREVO_API_KEY: 'test-key', MAIL_FROM: 'noreply@example.com', MAIL_FROM_NAME: 'Bộ công cụ', MAIL_FETCH: fakeBrevo, APP_URL: 'https://nihan-ts.pages.dev' };
   keys = await makeKeys('k1');
   otherKeys = await makeKeys('k1'); // cùng kid nhưng khoá khác → chữ ký sai
 });
@@ -72,10 +82,10 @@ const SAMPLE = {
 test('health: không cần đăng nhập, báo đã cấu hình', async () => {
   const r = await call('GET', '/api/health');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.data, { ok: true, db: true, auth: true, config: { ACCESS_TEAM_DOMAIN: true, ACCESS_AUD: true, ADMIN_EMAILS: true } });
+  assert.deepEqual(r.data, { ok: true, db: true, auth: true, config: { ACCESS_TEAM_DOMAIN: true, ACCESS_AUD: true, ADMIN_EMAILS: true, MAIL: true } });
   // thiếu cấu hình: báo đúng giá trị nào thiếu, không lộ giá trị
   const miss = await call('GET', '/api/health', { envOver: { ACCESS_AUD: '', ADMIN_EMAILS: undefined } });
-  assert.deepEqual(miss.data.config, { ACCESS_TEAM_DOMAIN: true, ACCESS_AUD: false, ADMIN_EMAILS: false });
+  assert.deepEqual(miss.data.config, { ACCESS_TEAM_DOMAIN: true, ACCESS_AUD: false, ADMIN_EMAILS: false, MAIL: true });
   assert.equal(miss.data.auth, false);
   assert.ok(!JSON.stringify(r.data).includes(AUD));
 });
@@ -837,4 +847,125 @@ test('gợi ý người nhận mail báo cáo: Site Sup / QLDA của đúng các
   await call('PATCH', '/api/admin/employees/AP1', { email: 'boss@example.com', body: { active: false } });
   assert.deepEqual((await call('GET', '/api/ts/approvers?wbs=WA-1', { email: 'ts1@example.com' })).data.approvers.map(a => a.level), ['pm']);
   await call('PATCH', '/api/admin/employees/AP1', { email: 'boss@example.com', body: { active: true } });
+});
+
+// ---------- thư tự động (Brevo) ----------
+import { runDigest, runReminders } from '../../server/notify.mjs';
+const staffEmail = (n) => `ts${n}@example.com`;
+
+test('thư: chuẩn bị TS4–TS6 (cùng phụ trách dự án WA-1) và TS7 (chỉ có Quản lý trực tiếp)', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [
+    { empId: 'TS4', fullName: 'Thợ Bốn', position: 'Fitter' }, { empId: 'TS5', fullName: 'Thợ Năm', position: 'Fitter' },
+    { empId: 'TS6', fullName: 'Thợ Sáu', position: 'Fitter' }, { empId: 'TS7', fullName: 'Thợ Bảy', position: 'Fitter', supervisor: 'Giám Sát Khác' }] } });
+  const r = await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [4, 5, 6, 7].map(n => ({ empId: 'TS' + n, email: staffEmail(n) })) } });
+  assert.equal(r.data.applied, 4);
+});
+
+test('thư: nộp → báo Site Sup; Site Sup duyệt → báo Quản lý dự án; duyệt xong / trả lại → báo người nộp', async () => {
+  sentMail.length = 0;
+  await putDoc(staffEmail(4), '2026-12', [okEntry(41, '2026-11-18')], 0);
+  assert.equal((await submit(staffEmail(4), '2026-12')).status, 200);
+  assert.equal(sentMail.length, 1);
+  let m = sentMail[0];
+  assert.deepEqual(m.to.map(t => t.email), ['ap1@example.com']);
+  assert.match(m.subject, /Thợ Bốn đã nộp kỳ lương 12\/2026 — chờ Site Sup duyệt/);
+  assert.equal(m.sender.email, 'noreply@example.com'); assert.equal(m.key, 'test-key');
+  assert.match(m.htmlContent, /https:\/\/nihan-ts\.pages\.dev\/tools\/approvals\//);
+  sentMail.length = 0;
+  assert.equal((await call('POST', '/api/ts/review/TS4/2026-12/approve', { email: 'ap1@example.com', body: {} })).status, 200);
+  assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [['ap3@example.com']]);
+  assert.match(sentMail[0].subject, /chờ Quản lý dự án duyệt/); assert.match(sentMail[0].htmlContent, /Giám Sát Duyệt/);
+  sentMail.length = 0;
+  assert.equal((await call('POST', '/api/ts/review/TS4/2026-12/approve', { email: 'ap3@example.com', body: {} })).status, 200);
+  assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [[staffEmail(4)]]); assert.match(sentMail[0].subject, /đã được duyệt xong/);
+  // trả lại
+  await putDoc(staffEmail(5), '2026-12', [okEntry(51, '2026-11-18')], 0);
+  assert.equal((await submit(staffEmail(5), '2026-12')).status, 200);
+  sentMail.length = 0;
+  assert.equal((await call('POST', '/api/ts/review/TS5/2026-12/reject', { email: 'ap1@example.com', body: { note: 'Thiếu ngày 20/11 <b>gấp</b>' } })).status, 200);
+  assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [[staffEmail(5)]]);
+  assert.match(sentMail[0].htmlContent, /Thiếu ngày 20\/11 &lt;b&gt;gấp&lt;\/b&gt;/, 'nội dung người dùng nhập được thoát HTML');
+});
+
+test('thư: không có người phụ trách dự án → Quản lý trực tiếp; không ai cả → admin', async () => {
+  sentMail.length = 0;
+  await putDoc(staffEmail(7), '2026-12', [okEntry(71, '2026-11-18', { workNumber: 'KHONG-DU-AN' })], 0);
+  assert.equal((await submit(staffEmail(7), '2026-12')).status, 200);
+  assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [['ap2@example.com']], 'Thợ Bảy có Quản lý trực tiếp là Giám Sát Khác (AP2)');
+  sentMail.length = 0;
+  await putDoc(staffEmail(6), '2026-12', [okEntry(61, '2026-11-18', { workNumber: 'KHONG-DU-AN' })], 0);
+  assert.equal((await submit(staffEmail(6), '2026-12')).status, 200);
+  assert.deepEqual(sentMail[0].to.map(t => t.email).sort(), ['boss@example.com', 'pm@example.com'], 'không ai phụ trách → báo admin (email admin khởi tạo + người được đặt quyền admin) để không bị bỏ quên');
+});
+
+test('thư: Brevo lỗi hoặc chưa cấu hình thì nộp / duyệt vẫn thành công', async () => {
+  brevoMode = 'fail'; sentMail.length = 0;
+  await putDoc('ts2@example.com', '2027-01', [okEntry(91, '2026-12-18')], 0);
+  assert.equal((await submit('ts2@example.com', '2027-01')).status, 200, 'Brevo trả 401 nhưng bảng công vẫn được nộp');
+  assert.equal(sentMail.length, 1);
+  brevoMode = 'ok';
+  await putDoc('ts2@example.com', '2027-02', [okEntry(92, '2027-01-18')], 0);
+  sentMail.length = 0;
+  const d = (await docOf('ts2@example.com', '2027-02'));
+  const r = await call('POST', '/api/ts/docs/2027-02/submit', { email: 'ts2@example.com', body: { baseVersion: d.version }, envOver: { BREVO_API_KEY: '' } });
+  assert.equal(r.status, 200); assert.equal(sentMail.length, 0, 'chưa có khoá API → không gọi Brevo');
+});
+
+test('thư thử: chỉ admin; báo rõ khi chưa cấu hình; /api/health cho biết đã cấu hình hay chưa', async () => {
+  sentMail.length = 0;
+  assert.equal((await call('POST', '/api/admin/mail/test', { email: 'ts1@example.com', body: {} })).status, 403);
+  const ok = await call('POST', '/api/admin/mail/test', { email: 'boss@example.com', body: {} });
+  assert.equal(ok.data.ok, true); assert.equal(ok.data.to, 'boss@example.com'); assert.equal(sentMail.length, 1);
+  const none = await call('POST', '/api/admin/mail/test', { email: 'boss@example.com', body: {}, envOver: { MAIL_FROM: '' } });
+  assert.equal(none.data.ok, false); assert.equal(none.data.configured, false); assert.match(none.data.error, /BREVO_API_KEY/);
+  brevoMode = 'fail';
+  const bad = await call('POST', '/api/admin/mail/test', { email: 'boss@example.com', body: {} });
+  assert.equal(bad.data.ok, false); assert.match(bad.data.error, /401/); brevoMode = 'ok';
+  assert.equal((await call('GET', '/api/health')).data.config.MAIL, true);
+  assert.equal((await call('GET', '/api/health', { envOver: { BREVO_API_KEY: '' } })).data.config.MAIL, false);
+});
+
+test('báo cáo tối: mỗi người phụ trách một thư với dòng chấm công của fitter trong ngày; chạy lại không gửi trùng', async () => {
+  const day = '2026-11-05', now = new Date('2026-11-05T11:30:00Z');       // 18:30 giờ Việt Nam
+  const e = (id, date, extra) => okEntry(id, date, { report: 'Đã lắp xong ray tầng 5', ...extra });
+  await putDoc(staffEmail(4), '2026-11', [e(401, day), e(402, '2026-11-04', { report: 'hôm qua' }), e(403, day, { activityCode: '6010', report: 'nghỉ phép' })], 0);
+  await putDoc(staffEmail(7), '2026-11', [e(701, day, { workNumber: '', projectName: '', report: 'Việc không thuộc dự án' })], 0);
+  sentMail.length = 0;
+  const sum = await runDigest(env, { now });
+  assert.equal(sum.date, day); assert.equal(sum.entries, 2, 'chỉ dòng của ngày, bỏ mã nghỉ phép'); assert.equal(sum.sent, 3, JSON.stringify(sum));
+  const ap1 = mailsTo('ap1@example.com'), ap3 = mailsTo('ap3@example.com'), ap2 = mailsTo('ap2@example.com');
+  assert.equal(ap1.length, 1); assert.equal(ap3.length, 1); assert.equal(ap2.length, 1);
+  assert.match(ap1[0].subject, /\[Báo cáo thi công\] Thứ 5 05\/11\/2026 — 1 dòng/);
+  assert.match(ap1[0].htmlContent, /Thợ Bốn/); assert.match(ap1[0].htmlContent, /Đã lắp xong ray tầng 5/); assert.match(ap1[0].htmlContent, /8 giờ/);
+  assert.doesNotMatch(ap1[0].htmlContent, /hôm qua|nghỉ phép|Thợ Bảy/);
+  assert.match(ap2[0].htmlContent, /Thợ Bảy/); assert.doesNotMatch(ap2[0].htmlContent, /Thợ Bốn/, 'AP2 chỉ nhận fitter mình quản lý trực tiếp');
+  sentMail.length = 0;
+  const again = await runDigest(env, { now });
+  assert.equal(again.sent, 0); assert.equal(again.skipped, 3); assert.equal(sentMail.length, 0);
+  assert.equal((await runDigest(env, { now: new Date('2026-11-06T11:30:00Z') })).entries, 0, 'ngày khác không có dòng nào');
+  assert.equal((await runDigest({ ...env, BREVO_API_KEY: '' }, { now })).sent, 0);
+});
+
+test('nhắc hạn: ngày 9 nhắc người chưa nộp; ngày 11 nhắc lại và nhắc người duyệt; ngày khác không gửi; không gửi trùng', async () => {
+  // kỳ 2026-11: TS4 chưa nộp (bản nháp), TS1 bị trả lại, TS7 đã nộp
+  const d4 = await docOf(staffEmail(4), '2026-11'); assert.equal(d4.status, 'draft');
+  await submit(staffEmail(7), '2026-11');
+  assert.equal((await call('GET', '/api/ts/docs', { email: staffEmail(7) })).data.docs.find(d => d.period === '2026-11').status, 'submitted');
+  sentMail.length = 0;
+  assert.equal((await runReminders(env, { now: new Date('2026-11-08T01:00:00Z') })).sent, 0, 'ngày 8 không nhắc');
+  const s9 = await runReminders(env, { now: new Date('2026-11-09T01:00:00Z') });
+  assert.equal(s9.stage, 'r9'); assert.ok(s9.sent >= 3, JSON.stringify(s9));
+  assert.ok(mailsTo(staffEmail(4)).length === 1 && /Hạn nộp bảng công kỳ 11\/2026 là 12\/11\/2026/.test(mailsTo(staffEmail(4))[0].subject));
+  assert.match(mailsTo('ts1@example.com')[0].htmlContent, /trả lại/, 'người bị trả lại được nhắc sửa');
+  assert.equal(mailsTo(staffEmail(7)).length, 0, 'đã nộp thì không nhắc');
+  assert.ok(mailsTo('ap1@example.com').every(m => !/chờ bạn duyệt/.test(m.subject)), 'ngày 9 chưa nhắc người duyệt (AP1 chỉ nhận nhắc nộp bảng công của chính mình)');
+  const total9 = sentMail.length;
+  assert.equal((await runReminders(env, { now: new Date('2026-11-09T02:00:00Z') })).sent, 0, 'chạy lại cùng ngày không gửi trùng');
+  sentMail.length = 0;
+  const s11 = await runReminders(env, { now: new Date('2026-11-11T01:00:00Z') });
+  assert.equal(s11.stage, 'r11'); assert.ok(s11.sent > 0);
+  assert.match(mailsTo(staffEmail(4))[0].subject, /Ngày mai \(12\/11\) là hạn nộp/);
+  const ap2 = mailsTo('ap2@example.com').filter(m => /chờ bạn duyệt/.test(m.subject));
+  assert.equal(ap2.length, 1); assert.match(ap2[0].htmlContent, /Thợ Bảy/, 'AP2 là Quản lý trực tiếp của TS7 nên được nhắc duyệt');
+  assert.ok(total9 > 0);
 });

@@ -35,6 +35,8 @@ jobs:
         run: npm run test:client
       - name: Thử đóng gói giao diện
         run: npm run build:pages
+      - name: Thử đóng gói Worker gửi email theo lịch
+        run: npx wrangler deploy --dry-run -c cron/wrangler.toml --outdir "$RUNNER_TEMP/cron-out"
 
   deploy:
     needs: test
@@ -95,9 +97,12 @@ jobs:
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           ACCESS_TEAM_DOMAIN: ${{ vars.ACCESS_TEAM_DOMAIN }}
           ACCESS_AUD: ${{ vars.ACCESS_AUD }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME }}
         run: |
           # Bản trước đặt 3 giá trị này dạng "secret" của dự án Pages; xoá đi để không trùng tên với cấu hình mới
-          for k in ADMIN_EMAILS ACCESS_TEAM_DOMAIN ACCESS_AUD; do
+          for k in ADMIN_EMAILS ACCESS_TEAM_DOMAIN ACCESS_AUD BREVO_API_KEY MAIL_FROM MAIL_FROM_NAME; do
             npx wrangler pages secret delete "$k" --project-name "$PROJECT" >/dev/null 2>&1 || true
           done
           node scripts/write-vars.mjs
@@ -109,3 +114,19 @@ jobs:
         run: |
           npx wrangler pages deploy dist --project-name "$PROJECT" --branch "$GITHUB_REF_NAME" \
             --commit-hash "$GITHUB_SHA" --commit-message "$(git log -1 --pretty=%s | head -c 300)"
+
+      # Email tự động (báo cáo thi công buổi tối, nhắc hạn): Worker theo lịch dùng chung D1. Chỉ chạy khi đã khai báo MAIL_FROM.
+      # Cần khoá Cloudflare có quyền Workers Scripts: Edit; lỗi ở bước này không làm hỏng bản triển khai giao diện.
+      - name: Email tự động (Worker theo lịch)
+        if: ${{ vars.MAIL_FROM != '' }}
+        continue-on-error: true
+        env:
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME }}
+        run: |
+          id="$(grep -E '^database_id' wrangler.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')"
+          sed -i "s/00000000-0000-0000-0000-000000000000/$id/; s/^name = .*/name = \"$PROJECT-cron\"/" cron/wrangler.toml
+          APP_URL="https://$PROJECT.pages.dev" node scripts/write-vars.mjs --file cron/wrangler.toml --keys ADMIN_EMAILS,BREVO_API_KEY,MAIL_FROM,MAIL_FROM_NAME,APP_URL
+          npx wrangler deploy -c cron/wrangler.toml

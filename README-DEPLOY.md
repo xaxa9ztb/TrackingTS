@@ -164,6 +164,19 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
    → vào `tools/accounts/` → chọn file sao lưu .json (Thống kê giờ công → Cập nhật Data → ⬇ Tải bản sao lưu) →
    **Đưa lên máy chủ** → gắn email cho từng người → phân công Site Sup / Quản lý dự án cho dự án.
 
+### Email tự động (Brevo)
+Gói miễn phí của Brevo gửi tối đa 300 thư mỗi ngày — dư cho nhóm dưới 20 người.
+1. Tạo tài khoản **brevo.com**, *Senders, Domains & Dedicated IPs → Senders → Add a sender*: tên `Bộ công cụ dự án`, email là một Gmail riêng (vd. `nihan.timesheet@gmail.com`), xác nhận qua mã gửi vào Gmail đó.
+2. *SMTP & API → API Keys → Generate a new API key* (chỉ hiện một lần). Nếu có mục *Security → Authorized IPs* đang bật thì **tắt** (máy chủ Cloudflare đổi IP liên tục).
+3. GitHub → **Settings → Secrets and variables → Actions**: Secret `BREVO_API_KEY` = khoá vừa tạo; Variables `MAIL_FROM` = Gmail đã xác minh, `MAIL_FROM_NAME` = `Bộ công cụ dự án`.
+4. Khoá Cloudflare dùng để triển khai (`CLOUDFLARE_API_TOKEN`) cần thêm quyền **Account → Workers Scripts → Edit** (Cloudflare → My Profile → API Tokens → Edit). Thiếu quyền này thì bước *Email tự động (Worker theo lịch)* báo lỗi nhưng giao diện vẫn triển khai bình thường.
+5. **Run workflow** (hoặc merge một thay đổi). Vào **Tài khoản & phân quyền → 6. Email tự động** → *Gửi thử một email cho tôi* để kiểm tra.
+
+Cách hoạt động: thư báo nộp / duyệt / trả lại gửi ngay từ API (`server/notify.mjs`); báo cáo cuối ngày và nhắc hạn do Worker theo lịch `cron/worker.mjs`
+(18:30 và 08:00 giờ Việt Nam) gửi, dùng chung D1; bảng `mail_log` chống gửi trùng khi chạy lại. Khoá API được ghi vào cấu hình triển khai
+(`[vars]`, không commit) giống các giá trị đăng nhập; người xem được Cloudflare dashboard của bạn mới thấy. Người nhận: Site Sup / Quản lý dự án được gán cho dự án
+(hoặc *Quản lý trực tiếp* của fitter); không ai phụ trách thì gửi admin. Mỗi lần chạy gửi tối đa 40 thư (giới hạn lệnh gọi của gói miễn phí).
+
 ### Chế độ máy chủ của giao diện (bản `*.pages.dev`)
 `scripts/build-pages.mjs` đóng gói **cùng mã nguồn** với bản github.io nhưng đặt chế độ máy chủ (bản github.io không đổi):
 - `js/session.js`: `SERVER_MODE = true` → **không còn đăng nhập họ tên + mã NV**. Danh tính do Cloudflare Access xác thực email,
@@ -189,9 +202,10 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
   người đó trong kỳ (duyệt lại không nhân đôi); admin nạp lại bảng công từ Excel thì dòng đã duyệt **được giữ** ở những ngày bản nạp mới chưa có dòng của người đó.
   Phân loại giờ (thường / OT) do trình duyệt tính bằng `labor.js` (chạy trên máy chủ gói miễn phí quá giới hạn CPU) và máy chủ kiểm tra tổng; người duyệt thấy
   cảnh báo nếu phân loại khác kết quả tính lại.
-- **Không gửi email tự động**: báo cáo thi công hằng ngày và bảng công cuối kỳ do fitter tự gửi từ ứng dụng mail của họ (người nhận được gợi ý theo
-  phân công dự án); nhắc hạn là thông báo trong ứng dụng. Vì vậy **không cần dịch vụ gửi mail hay lịch chạy tự động (cron)**. Sao lưu dữ liệu: D1 có sẵn
-  *Time Travel* (khôi phục về bất kỳ phút nào trong 30 ngày gần nhất, không tốn thêm phí — Cloudflare → D1 → cơ sở dữ liệu → *Time Travel*).
+- **Email tự động qua Brevo** (xem mục *Email tự động* bên dưới): thông báo khi có bảng công chờ duyệt / được duyệt / bị trả lại; báo cáo thi công cuối
+  ngày (18:30) gửi Site Sup & Quản lý dự án; nhắc hạn nộp (8:00 ngày 9 và 11). Chưa cấu hình Brevo thì hệ thống vẫn chạy bình thường, chỉ không gửi thư;
+  fitter vẫn tự gửi thư được bằng nút **Báo cáo ngày** / **Gửi mail** trong Timesheet. Sao lưu dữ liệu: D1 có sẵn *Time Travel* (khôi phục về bất kỳ phút nào
+  trong 30 ngày gần nhất, không tốn thêm phí — Cloudflare → D1 → cơ sở dữ liệu → *Time Travel*).
 - **Sửa / xoá dự án và Swat Hour Target** (tab Dự án, tab SWAT) ghi thẳng lên máy chủ (`PATCH /api/admin/projects/:wbs`, `POST /api/admin/projects/delete`,
   chỉ admin, có nhật ký). Ghi lên máy chủ **trước**, lỗi thì báo và không đổi gì trên máy — nên đồng bộ không làm mất. Chỉ gửi các trường vừa sửa
   nên không đè thay đổi của người khác.

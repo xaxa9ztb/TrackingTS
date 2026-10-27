@@ -1,0 +1,14 @@
+# Worker gửi email theo lịch (xem cron/worker.mjs). Tên, database_id và [vars] được điền lúc triển khai
+# (.github/workflows/cloudflare.yml, chỉ khi đã khai báo MAIL_FROM) — KHÔNG sửa tay, KHÔNG commit bản đã điền.
+name = "trackingts-cron"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "trackingts"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[triggers]
+crons = ["30 11 * * *", "0 1 * * *"]

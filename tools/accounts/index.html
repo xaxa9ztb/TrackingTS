@@ -97,9 +97,17 @@
       <tbody></tbody>
     </table></div>
   </section>
+
+  <section class="ac-card" id="secMail" hidden>
+    <h2>6. Email tự động</h2>
+    <p class="ac-help">Hệ thống tự gửi email qua Brevo: báo Site Sup / Quản lý dự án khi có bảng công chờ duyệt, báo người nộp khi được duyệt hoặc bị trả lại,
+      <b>báo cáo thi công cuối ngày (18:30)</b> cho giám sát và <b>nhắc hạn nộp</b> (ngày 9 và 11 hằng tháng, 8:00). Cài đặt ở README-DEPLOY.md, mục <i>Email tự động</i>.</p>
+    <p id="mailState" class="ac-counts">Đang kiểm tra cấu hình…</p>
+    <div class="ac-row"><button class="btn primary" id="btnMailTest">Gửi thử một email cho tôi</button><span id="mailMsg" class="ac-note" role="status"></span></div>
+  </section>
 </main>
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
