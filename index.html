@@ -151,6 +151,11 @@
   .app-badge { position: absolute; top: 10px; right: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
     color: var(--warn-ink); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 999px; padding: 1px 7px; }
   /* thẻ "đang phát triển": biểu tượng xám, bấm vào chỉ mở hộp thông báo */
+  .demo-link { border: 1px solid var(--line, #d1d5db); background: #fff; color: #78350f; border-radius: 8px; padding: 5px 12px; font: 600 12.5px inherit; cursor: pointer; }
+  .demo-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 10px 0 6px; }
+  .demo-roles button { text-align: left; border: 1px solid #d1d5db; background: #fff; border-radius: 10px; padding: 10px 12px; cursor: pointer; font: inherit; }
+  .demo-roles button:hover, .demo-roles button:focus-visible { border-color: #f59e0b; background: #fffbeb; outline: none; }
+  .demo-roles small { display: block; color: #6b7280; margin-top: 2px; font-size: 12px; }
   .soon-badge { font-size: 11px; font-weight: 600; color: var(--warn-ink); background: var(--warn-bg);
     border: 1px solid var(--warn-line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
   button.tool { border-style: dashed; background: #fcfcfd; }
@@ -349,6 +354,21 @@
     <button type="button" class="btn-install" id="btnInstall">Cài đặt</button>
   </section>
 
+  <dialog class="dlg" id="demoDlg" aria-labelledby="demoTitle">
+    <form method="dialog">
+      <div class="dlg-head"><div><span class="soon-badge">Chạy thử</span><h2 id="demoTitle">Chế độ Demo</h2></div></div>
+      <p>Dùng thử toàn bộ hệ thống với <b>dữ liệu mẫu bịa</b> trên một cơ sở dữ liệu riêng — <b>không ảnh hưởng dữ liệu thật</b>, không gửi email. Chọn vai trò muốn thử:</p>
+      <div class="demo-roles">
+        <button type="button" data-role="admin"><b>Quản trị viên</b><small>Nhân viên, dự án, tài khoản, nạp bảng công</small></button>
+        <button type="button" data-role="pm"><b>Quản lý dự án</b><small>Duyệt bảng công cấp 2, điều phối</small></button>
+        <button type="button" data-role="sitesup"><b>Site Sup</b><small>Duyệt bảng công fitter (cấp 1)</small></button>
+        <button type="button" data-role="staff"><b>Nhân viên / Fitter</b><small>Chấm công, nộp bảng công</small></button>
+      </div>
+      <p class="dlg-sub" id="demoMsg" role="status"></p>
+      <button class="btn-primary" value="cancel" type="submit">Đóng</button>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="soonDlg" aria-labelledby="soonTitle">
     <form method="dialog">
       <div class="dlg-head">
@@ -367,13 +387,15 @@
   <div class="wrap">
     <span>Mỗi chức năng lưu dữ liệu riêng. Dữ liệu Timesheet cá nhân chỉ nằm trên trình duyệt của bạn.</span>
     <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn: Thống kê giờ công (PDF)</a>
+    <button type="button" class="demo-link" id="btnDemo" hidden>🧪 Chạy thử (Demo)</button>
   </div>
 </footer>
 
+<script src="js/demo.js?v=1"></script>
 <script src="js/config.js?v=37"></script>
 <script src="js/db.js?v=37"></script>
 <script src="js/cloud.js?v=42"></script>
-<script src="js/session.js?v=43"></script>
+<script src="js/session.js?v=44"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -387,10 +409,11 @@
     ffplus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M14 3v5h5M14 3l5 5v3"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg>',
     projectplan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><path d="M7 8h6M10 12h7M8 16h5"/></svg>',
     approvals: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17.5" rx="2"/><path d="M8 8.5h8M8 12.5h4"/><path d="M9 17l2.2 2.2L16 14.5"/></svg>',
+    admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg>',
     materials: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v2"/><path d="M3 13h18M10.5 13v2h3v-2"/></svg>',
   };
   // màu biểu tượng từng chức năng (biểu tượng trắng trên nền màu, tương phản ≥ 3:1)
-  const COLORS = { tracking: '#2563eb', timesheet: '#059669', tiendotm: '#7c3aed', projectplan: '#ea580c', approvals: '#0891b2', handover: '#0d9488', ffplus: '#db2777', materials: '#b45309' };
+  const COLORS = { tracking: '#2563eb', timesheet: '#059669', tiendotm: '#7c3aed', projectplan: '#ea580c', approvals: '#0891b2', handover: '#0d9488', ffplus: '#db2777', materials: '#b45309', admin: '#334155' };
   const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
   // Nội dung hiển thị của từng chức năng (tên / đường dẫn / quyền nằm ở Session.TOOLS)
@@ -426,6 +449,10 @@
       desc: 'Duyệt bảng công fitter đã nộp cuối kỳ: Site Sup rồi Quản lý dự án',
       full: 'Xem bảng công fitter nộp cuối kỳ (giờ theo dự án, báo cáo thi công, ngày chưa chấm), duyệt hoặc trả lại kèm lý do. Duyệt xong dữ liệu tự sang bảng Theo dõi giờ công các công trình.',
     },
+    admin: {
+      desc: 'Dữ liệu nhân viên, dự án, bảng công (nạp Excel) và phân quyền tài khoản',
+      full: 'Chỉ quản trị viên: dữ liệu nhân viên (EE Data), danh sách dự án, nạp bảng công hàng tháng từ Excel, và tài khoản & phân quyền.',
+    },
     materials: {
       desc: 'Quản lý và điều phối công cụ dụng cụ, vật tư cho các dự án.',
       scope: ['Danh mục công cụ dụng cụ, vật tư và nơi đang sử dụng', 'Điều phối, điều chuyển giữa các dự án', 'Theo dõi cấp phát và thu hồi'],
@@ -435,8 +462,9 @@
   const GROUPS = [
     { title: 'Chức năng chung', ids: ['tracking', 'timesheet'] },
     { title: 'Quản lý dự án & Giám sát dự án', ids: ['tiendotm', 'projectplan', ...(Session.SERVER ? ['approvals'] : []), 'handover', 'ffplus', 'materials'] },
+    { title: 'Quản trị', ids: ['admin'], adminOnly: true },   // chỉ hiện với quản trị viên
   ];
-  const ORDER = GROUPS.flatMap(g => g.ids);
+  const ORDER = GROUPS.filter(g => !g.adminOnly).flatMap(g => g.ids);
 
   const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const initial = (name) => { const w = String(name || '').trim().split(/\s+/).pop() || '?'; return w.charAt(0).toUpperCase(); };
@@ -526,7 +554,7 @@
     }
 
     renderSync();
-    $('toolList').innerHTML = GROUPS.map(g => {
+    $('toolList').innerHTML = GROUPS.filter(g => !g.adminOnly || s.admin).map(g => {
       const allowed = g.ids.filter(id => Session.canAccess(id, s));
       const locked = g.ids.filter(id => !Session.canAccess(id, s));
       // cả nhóm cùng một quyền → nói một lần ở tiêu đề nhóm
@@ -618,8 +646,8 @@
     try { [emp, proj] = (await Promise.all([DB.getAll('employees'), DB.getAll('projects')])).map(x => (x || []).length); } catch (e) { /* chưa có dữ liệu */ }
     const s = Session.current();
     $('syncCounts').innerHTML = `${emp} nhân viên · ${proj} dự án trên máy này — dùng cho Thống kê giờ công, Timesheet, Hồ sơ chất lượng, Quản lý dự án.` +
-      (s && s.admin && !Session.SERVER ? ` <a class="sync-admin" href="tracking.html">Cập nhật dữ liệu lên Drive (admin) →</a>` : '') +
-      (s && Session.SERVER && (s.admin || (Session.roles(s) || []).includes('pm')) ? ` <a class="sync-admin" href="tools/accounts/">Tài khoản & phân quyền →</a>` : '');
+      (s && s.admin && !Session.SERVER ? ` <a class="sync-admin" href="admin.html">Quản trị: cập nhật dữ liệu lên Drive →</a>` : '') +
+      (s && Session.SERVER && s.admin ? ` <a class="sync-admin" href="admin.html#accounts">Quản trị: tài khoản & phân quyền →</a>` : '');
   }
   $('btnSync').addEventListener('click', async () => {
     const btn = $('btnSync');
@@ -658,6 +686,22 @@
   }
   $('soonDlg').addEventListener('click', (ev) => { if (ev.target === $('soonDlg')) $('soonDlg').close(); }); // bấm ra ngoài
   $('soonDlg').addEventListener('close', () => { if (soonFrom && soonFrom.isConnected) soonFrom.focus(); soonFrom = null; });
+
+  // ---------- chế độ Demo (chỉ bản Cloudflare có cơ sở dữ liệu demo) ----------
+  if (Session.SERVER && window.TsDemo) {
+    const dlg = $('demoDlg'), btn = $('btnDemo');
+    const openDemo = () => { $('demoMsg').textContent = ''; dlg.showModal(); };
+    if (!TsDemo.on) TsDemo.available().then((st) => { if (st.available) btn.hidden = false; });
+    btn.addEventListener('click', openDemo);
+    dlg.addEventListener('click', (ev) => { if (ev.target === dlg) dlg.close(); });
+    dlg.querySelectorAll('.demo-roles button').forEach((b) => b.addEventListener('click', async () => {
+      $('demoMsg').textContent = 'Đang dựng dữ liệu mẫu…';
+      dlg.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+      try { await TsDemo.start(b.dataset.role); }
+      catch (e) { $('demoMsg').textContent = 'Không vào được demo: ' + e.message; dlg.querySelectorAll('button').forEach((x) => { x.disabled = false; }); }
+    }));
+    if (location.hash === '#demo') { history.replaceState(null, '', location.pathname); setTimeout(openDemo, 400); }
+  }
 
   // Sau khi đăng nhập: mở thẳng chức năng người dùng định vào (nếu có quyền), nếu không thì hiện danh sách
   function afterLogin() {

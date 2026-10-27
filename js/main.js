@@ -19,7 +19,8 @@ const Auth = (() => {
     } else {
       btnAdmin.style.display = 'none';
     }
-    document.getElementById('btnSaveDrive').style.display = (admin && Cloud.canWrite()) ? '' : 'none';
+    const sv = document.getElementById('btnSaveDrive');
+    if (sv) sv.style.display = (admin && Cloud.canWrite()) ? '' : 'none';
   }
 
   function init() {
@@ -90,6 +91,22 @@ const SAVE_LABEL = () => Cloud.SERVER ? 'Lưu lên máy chủ' : 'Lưu lên Driv
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  // tab Tài khoản (trang Quản trị): nhúng trang tools/accounts, chỉ tải khi mở lần đầu
+  const fr = document.getElementById('accountsFrame');
+  if (name === 'accounts' && fr && !fr.getAttribute('src')) fr.setAttribute('src', fr.dataset.src);
+  if (window.PAGE_TOOL === 'admin') { try { history.replaceState(null, '', '#' + name); } catch (e) { /* ignore */ } }
+}
+// trang Quản trị: chỉ bản máy chủ có tab Tài khoản & phân quyền; mở thẳng tab theo #địa-chỉ
+function wireAdminTabs() {
+  if (window.PAGE_TOOL !== 'admin') return;
+  const tabAcc = document.getElementById('tabAccounts');
+  if (tabAcc && Session.SERVER) tabAcc.style.display = '';
+  const note = document.getElementById('adminNote');
+  if (note) note.textContent = Session.SERVER
+    ? 'Dữ liệu nhân viên, dự án, bảng công lưu trên máy chủ Cloudflare. Bảng công có 2 nguồn chạy song song: nạp file Excel hàng tháng (“Cập nhật Data” → “Lưu lên máy chủ”) và bảng công nhân viên tự nộp, tự cập nhật sau khi Quản lý duyệt.'
+    : 'Dữ liệu nhân viên, dự án, bảng công — nạp từ file Excel rồi “Lưu lên Drive” cho mọi người cùng xem.';
+  const want = (location.hash || '').slice(1);
+  if (want && document.getElementById('tab-' + want) && (want !== 'accounts' || Session.SERVER)) switchTab(want);
 }
 
 async function updateDataStatus() {
@@ -395,13 +412,16 @@ function openUpdateModal() {
   });
 }
 
+// trang Quản trị và trang Thống kê giờ công dùng chung mã nhưng mỗi trang chỉ có một số bảng
+const hasEl = (id) => !!document.getElementById(id);
+
 async function refreshAllPages() {
   // dữ liệu vừa import / khôi phục có thể chứa dòng bảng công trùng lặp
   await Importer.removeDuplicateTimesheets();
   await Dashboard.reloadAndRefresh();
-  await ProjectsPage.load();
-  await TimesheetPage.load();
-  await EmployeesPage.load();
+  if (hasEl('projectsTable')) await ProjectsPage.load();
+  if (hasEl('timesheetTable')) await TimesheetPage.load();
+  if (hasEl('employeesTable')) await EmployeesPage.load();
   await SwatPage.load();
   await updateDataStatus();
 }
@@ -410,7 +430,7 @@ async function refreshAllPages() {
 // Trang này chỉ kiểm tra phiên: admin luôn được xem; chưa có phiên thì chuyển về
 // trang chủ để đăng nhập rồi quay lại. Đây là lớp chặn đơn giản phía client.
 const ViewerGate = (() => {
-  function ensure() { if (!Auth.isAdmin()) Session.guard('tracking'); }
+  function ensure() { if (!Auth.isAdmin() || window.PAGE_TOOL) Session.guard(window.PAGE_TOOL || 'tracking'); }   // trang Quản trị: luôn kiểm tra quyền admin
   function wire() {
     const s = Session.current();
     const who = document.getElementById('whoAmI');
@@ -432,9 +452,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   ViewerGate.ensure();
   document.getElementById('btnAdmin').addEventListener('click', async () => { await Auth.toggle(); ViewerGate.ensure(); });
 
-  document.getElementById('btnImport').addEventListener('click', openUpdateModal);
+  // Nạp / lưu / xuất dữ liệu chỉ có ở trang Quản trị (admin.html)
+  if (hasEl('btnImport')) document.getElementById('btnImport').addEventListener('click', openUpdateModal);
 
-  const btnSave = document.getElementById('btnSaveDrive');
+  const btnSave = document.getElementById('btnSaveDrive') || document.createElement('button');
   if (Cloud.SERVER) btnSave.textContent = SAVE_LABEL();
   btnSave.addEventListener('click', async () => {
     const where = Cloud.SERVER ? 'máy chủ' : 'Google Drive';
@@ -474,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await updateDataStatus();
   });
 
-  document.getElementById('btnExport').addEventListener('click', () => {
+  if (hasEl('btnExport')) document.getElementById('btnExport').addEventListener('click', () => {
     if (!Auth.isAdmin()) { alert('Chỉ admin mới được xuất dữ liệu.'); return; }
     Importer.exportWorkbook();
   });
@@ -488,14 +509,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (err) { console.error('Lỗi dọn dòng bảng công trùng lặp:', err); }
 
   await Dashboard.init();
-  await ProjectsPage.load();
-  ProjectsPage.wire();
-  await TimesheetPage.load();
-  TimesheetPage.wire();
-  await EmployeesPage.load();
-  EmployeesPage.wire();
+  if (hasEl('projectsTable')) { await ProjectsPage.load(); ProjectsPage.wire(); }
+  if (hasEl('timesheetTable')) { await TimesheetPage.load(); TimesheetPage.wire(); }
+  if (hasEl('employeesTable')) { await EmployeesPage.load(); EmployeesPage.wire(); }
   await SwatPage.load();
   SwatPage.wire();
+  wireAdminTabs();
   ViewerGate.ensure();
   await updateDataStatus();
 

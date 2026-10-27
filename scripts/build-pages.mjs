@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'dist');
 
-const INCLUDE = ['index.html', 'tracking.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons', 'tools',
+const INCLUDE = ['index.html', 'tracking.html', 'admin.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons', 'tools',
   'docs/Huong-dan-su-dung-nguoi-dung.pdf']; // trang chủ + Thống kê giờ công có link tới file này
 const SKIP = /(^|\/)(node_modules|package(-lock)?\.json)(\/|$)/;
 

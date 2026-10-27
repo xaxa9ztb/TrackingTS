@@ -10,7 +10,8 @@
 <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
 <script src="../../js/pwa.js?v=36" defer></script>
 <!-- Bộ công cụ: chỉ Quản lý dự án và Site Sup (và quản trị viên) được vào — xem js/session.js -->
-<script src="../../js/session.js?v=43"></script>
+<script src="../../js/demo.js?v=1"></script>
+<script src="../../js/session.js?v=44"></script>
 <script>Session.guard('tiendotm');</script>
 <!-- Dữ liệu Dự án dùng CHUNG với "Thống kê giờ công dự án" (cùng IndexedDB, nguồn Google Drive) -->
 <script src="../../js/config.js?v=37"></script>
@@ -23,6 +24,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="chungtu.js?v=1"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -516,8 +518,9 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:30px 0;font
     <div class="grid g2">
       <div class="f"><label>Số hợp đồng</label><input id="q_sohd"></div>
       <div class="f"><label>Ngày ký hợp đồng</label><input type="date" id="q_ngayhd"></div>
-      <div class="f"><label>Số phụ lục hợp đồng</label><input id="q_sopl" value="01"></div>
-      <div class="f"><label>Ngày ký phụ lục</label><input type="date" id="q_ngaypl"></div>
+      <div class="f" style="grid-column:1/-1"><label class="chk" style="text-transform:none;font-weight:600"><input type="checkbox" id="q_cophl" onchange="qTogglePL()">Hợp đồng có phụ lục (phát sinh) — bỏ chọn nếu không có thì hồ sơ không nhắc tới phụ lục</label></div>
+      <div class="f qpl hide"><label>Số phụ lục hợp đồng</label><input id="q_sopl" placeholder="VD: 01"></div>
+      <div class="f qpl hide"><label>Ngày ký phụ lục</label><input type="date" id="q_ngaypl"></div>
       <div class="f"><label>Mã hiệu bản vẽ thi công được duyệt</label><input id="q_mabanve" placeholder="VD: BV-TM-01_r1"></div>
       <div class="f"></div>
       <div class="f"><label>Số giấy ủy quyền — Tổng thầu</label><input id="q_souqtt"></div>
@@ -525,6 +528,35 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:30px 0;font
       <div class="f"><label>Số giấy ủy quyền — Nhà thầu</label><input id="q_souqnt"></div>
       <div class="f"><label>Ngày ủy quyền — Nhà thầu</label><input type="date" id="q_ngayuqnt"></div>
     </div>
+  </div>
+
+  <div class="panel">
+    <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">C2</span>Chứng từ hàng hóa (C/O, C/Q, Packing List, HBL)</h2>
+    <p class="hint">Số chứng từ được điền vào <b>Biên bản kiểm tra vật liệu đầu vào</b> (mục II “Hồ sơ hàng hóa”) và <b>Biên bản xác nhận hàng về công trường</b>.
+      Có 2 cách: <b>đẩy file lên để tự quét số</b> (PDF/ảnh — nên kiểm tra lại vì OCR có thể đọc sai ký tự) hoặc <b>nhập tay</b> vào bảng bên dưới. Để trống thì in dấu chấm để điền tay.</p>
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="f" style="margin:0"><label>Loại file đẩy lên</label>
+        <select id="ct_loai"><option value="">Tự nhận diện (khuyến nghị)</option><option value="co">C/O – chứng nhận xuất xứ</option><option value="cq">C/Q – chứng nhận chất lượng</option><option value="pl">Packing List</option><option value="hbl">Vận đơn HBL</option></select></div>
+      <button class="btn gho sm" onclick="document.getElementById('ct_file').click()">⬆ Đẩy file lên để quét số…</button>
+      <input type="file" id="ct_file" accept=".pdf,image/*" multiple style="display:none" onchange="ctScan(this.files);this.value=''">
+      <span id="ct_status" style="font-size:12.5px;color:var(--muted)"></span>
+    </div>
+    <div class="tblwrap"><table class="edit" style="margin-top:10px;min-width:560px">
+      <thead><tr><th>Chứng từ</th><th>Số chứng từ</th><th style="width:150px">Ngày</th></tr></thead>
+      <tbody>
+        <tr><td>C/O – chứng nhận xuất xứ</td><td><input id="ct_co_so"></td><td><input type="date" id="ct_co_ngay"></td></tr>
+        <tr><td>C/Q – chứng nhận chất lượng</td><td><input id="ct_cq_so"></td><td><input type="date" id="ct_cq_ngay"></td></tr>
+        <tr><td>Packing List</td><td><input id="ct_pl_so"></td><td><input type="date" id="ct_pl_ngay"></td></tr>
+        <tr><td>Vận đơn (HBL)</td><td><input id="ct_hbl_so"></td><td><input type="date" id="ct_hbl_ngay"></td></tr>
+        <tr><td>Chứng thư giám định <i>(nếu có)</i></td><td><input id="ct_gd_so"></td><td><input type="date" id="ct_gd_ngay"></td></tr>
+        <tr><td>Tờ khai hải quan <i>(nếu có)</i></td><td><input id="ct_tk_so"></td><td><input type="date" id="ct_tk_ngay"></td></tr>
+      </tbody>
+    </table></div>
+    <div class="grid g2" style="margin-top:10px">
+      <div class="f"><label>Xuất xứ hàng hóa</label><input id="ct_xuatxu" placeholder="VD: Trung Quốc"></div>
+      <div class="f"><label>Tổng số kiện hàng về công trường</label><input id="ct_kien" placeholder="VD: 48"></div>
+    </div>
+    <div id="ct_log" class="hint" style="margin-top:8px"></div>
   </div>
 
   <div class="panel">
@@ -561,6 +593,50 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:30px 0;font
       <button class="btn gho sm" onclick="addQExtraMau('dieuhoa')">+ Điều hòa thang máy</button>
       <button class="btn gho sm" onclick="addQExtraMau('noithat')">+ Nội thất cabin</button>
       <button class="btn gho sm" onclick="addQExtra()">+ Thêm hạng mục khác</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">F</span>Tài liệu bổ sung (xuất riêng từng file Word)</h2>
+    <p class="hint">Dùng chung dữ liệu đã nhập ở các mục A–D (công trình, các bên, hợp đồng, chứng từ hàng hóa, thang máy). Không nằm trong bộ hồ sơ ở trên — xuất riêng khi cần.</p>
+
+    <h3 style="font-size:14px;margin:14px 0 6px">F1. Biên bản xác nhận thiết bị đến công trường</h3>
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="f" style="margin:0"><label>Ngày hàng về / lập biên bản</label><input type="date" id="bx_ngay"></div>
+      <button class="btn pri sm" onclick="exportBBXN()">⬇ Xuất BB hàng về công trường (.docx)</button>
+      <span id="bx_status" style="font-size:12.5px;color:var(--muted)"></span>
+    </div>
+
+    <h3 style="font-size:14px;margin:18px 0 6px">F2. Biên bản bàn giao thang máy (song ngữ)</h3>
+    <p class="hint" style="margin:0 0 6px">Mỗi thang một biên bản (đúng mẫu: số hiệu thang, model, số điểm dừng, vận tốc, tải trọng). Nhiều thang thì tải về 1 file .zip. Thông tin Bên Mua / Bên Bán lấy ở mục B2.</p>
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <button class="btn pri sm" onclick="exportBanGiao()">⬇ Xuất BB bàn giao thang máy (.docx)</button>
+      <span id="bg_status" style="font-size:12.5px;color:var(--muted)"></span>
+    </div>
+
+    <h3 style="font-size:14px;margin:18px 0 6px">F3. Nhật ký thi công xây dựng công trình</h3>
+    <p class="hint" style="margin:0 0 6px">Bìa, trang thông tin, bảng cán bộ công trường và các trang nhật ký hàng ngày (điền sẵn ngày). Ô để trống sẽ in dấu chấm để ghi tay.</p>
+    <div class="grid g2">
+      <div class="f"><label>Quyển số</label><input id="nk_quyen" placeholder="VD: 01/NKCT-NV"></div>
+      <div class="f"><label>Mã định danh dự án</label><input id="nk_mada"></div>
+      <div class="f"><label>Mã định danh công trình xây dựng</label><input id="nk_mact"></div>
+      <div class="f"><label>Cá nhân phụ trách trực tiếp (tên, SĐT)</label><input id="nk_phutrach"></div>
+      <div class="f"><label>Kỹ sư giám sát (TVGS)</label><input id="nk_gs_ten"></div>
+      <div class="f"><label>Điện thoại kỹ sư giám sát</label><input id="nk_gs_dt"></div>
+      <div class="f"><label>Chỉ huy trưởng công trường</label><input id="nk_cht_ten"></div>
+      <div class="f"><label>Điện thoại chỉ huy trưởng</label><input id="nk_cht_dt"></div>
+      <div class="f"><label>Nhà thầu thiết kế kỹ thuật / bản vẽ thi công</label><input id="nk_tk"></div>
+      <div class="f"><label>Kiến trúc sư chủ trì</label><input id="nk_kts"></div>
+      <div class="f"><label>Kỹ sư chủ trì thiết kế</label><input id="nk_ks"></div>
+      <div class="f"><label>Khởi công theo hợp đồng</label><input type="date" id="nk_kc_hd"></div>
+      <div class="f"><label>Bàn giao theo hợp đồng</label><input type="date" id="nk_bg_hd"></div>
+      <div class="f"><label>Ngày trang nhật ký đầu tiên</label><input type="date" id="nk_start"></div>
+      <div class="f"><label>Số trang nhật ký hàng ngày</label><input type="number" id="nk_pages" value="10" min="1" max="400"></div>
+      <div class="f"><label class="chk" style="text-transform:none;font-weight:500"><input type="checkbox" id="nk_skipwe" checked> Bỏ thứ 7, chủ nhật khi điền ngày</label></div>
+    </div>
+    <div class="row" style="gap:10px;margin-top:10px">
+      <button class="btn pri sm" onclick="exportNhatKy()">⬇ Xuất nhật ký thi công (.docx)</button>
+      <span id="nk_status" style="font-size:12.5px;color:var(--muted)"></span>
     </div>
   </div>
 
@@ -1544,6 +1620,140 @@ function addQExtraMau(k){
   S.qExtras.push({name:m.name,desc:m.desc.join("\n"),unit:m.unit,qty:"",origin:m.origin});
   renderQExtras();
 }
+/* ---------- Tuỳ chọn nội dung: phụ lục hợp đồng, đà thép / hạng mục phát sinh ---------- */
+const isDaThepName=nm=>/đà thép|dà thép|bản mã|gối đôn|dầm thép/i.test(nm||"");
+let OPT={hasPL:false,hasEx:false,hasDT:false};
+function qOpts(){
+  const named=(S.qExtras||[]).filter(e=>(e.name||"").trim());
+  const cb=document.getElementById("q_cophl");
+  return {hasPL:!!(cb&&cb.checked),hasEx:named.length>0,hasDT:named.some(e=>isDaThepName(e.name))};
+}
+function qTogglePL(){
+  const on=!!document.getElementById("q_cophl").checked;
+  document.querySelectorAll(".qpl").forEach(el=>el.classList.toggle("hide",!on));
+}
+/* Chứng từ hàng hóa: ô nhập tay + quét file (C/O, C/Q, Packing List, HBL) */
+const CT_FIELDS={co:["ct_co_so","ct_co_ngay"],cq:["ct_cq_so","ct_cq_ngay"],pl:["ct_pl_so","ct_pl_ngay"],hbl:["ct_hbl_so","ct_hbl_ngay"]};
+function ctSet(id,v){const el=document.getElementById(id);if(el&&v)el.value=v;}
+function ctApply(type,r){
+  const f=CT_FIELDS[type];if(!f)return;
+  ctSet(f[0],r.so);ctSet(f[1],r.ngay);
+  if(type==="co"&&r.xuatxu)ctSet("ct_xuatxu",r.xuatxu);
+  if(type==="pl"&&r.kien)ctSet("ct_kien",r.kien);
+}
+// đọc chữ từ PDF (ưu tiên lớp text, bản scan thì OCR vài trang đầu) hoặc ảnh
+async function readDocText(f,onStep){
+  if(f.type==="application/pdf"||/\.pdf$/i.test(f.name)){
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+    const N=Math.min(pdf.numPages,4);let tl="";
+    for(let p=1;p<=N;p++){const pg=await pdf.getPage(p);tl+=itemsToLines((await pg.getTextContent()).items)+"\n\n";}
+    if(tl.replace(/\s/g,"").length>150)return tl;
+    onStep("OCR…");
+    const w=await mkWorker(()=>{});let t="";
+    try{for(let p=1;p<=N;p++){const cv=await renderPage(await pdf.getPage(p),2.2);preprocess(cv);t+=(await w.recognize(cv)).data.text+"\n\n";}}
+    finally{await w.terminate();}
+    return t;
+  }
+  onStep("OCR…");
+  const w=await mkWorker(()=>{});
+  try{const cv=await imageToCanvas(f,2200);preprocess(cv);return (await w.recognize(cv)).data.text;}
+  finally{await w.terminate();}
+}
+async function ctScan(files){
+  const st=document.getElementById("ct_status"),lg=document.getElementById("ct_log");
+  const forced=document.getElementById("ct_loai").value;
+  const lines=[];let ok=0;
+  for(const f of Array.from(files||[])){
+    st.textContent="Đang đọc "+f.name+"…";
+    try{
+      const text=await readDocText(f,m=>{st.textContent=f.name+": "+m;});
+      const type=forced||ChungTu.detect(text,f.name);
+      if(!type){lines.push("✗ "+esc(f.name)+": không nhận ra loại chứng từ — chọn “Loại file đẩy lên” rồi đẩy lại, hoặc nhập tay.");continue;}
+      const r=ChungTu.extract(type,text);
+      ctApply(type,r);
+      if(r.so)ok++;
+      lines.push((r.so?"✓ ":"⚠ ")+esc(f.name)+" → <b>"+ChungTu.LOAI[type]+"</b>: số <b>"+esc(r.so||"(chưa đọc được — nhập tay)")+"</b>"
+        +(r.ngay?", ngày "+esc(isoToVN(r.ngay)):"")+(r.xuatxu?", xuất xứ "+esc(r.xuatxu):"")+(r.kien?", "+esc(r.kien)+" kiện":""));
+    }catch(e){lines.push("✗ "+esc(f.name)+": "+esc(e.message||String(e)));}
+  }
+  st.textContent=ok?"Đã điền "+ok+" chứng từ — hãy đối chiếu với bản gốc.":"";
+  lg.innerHTML=lines.join("<br>");
+}
+// câu “C/O số … ngày …” cho biên bản; thiếu dữ liệu thì để dấu chấm
+function ctText(label,idSo,idNgay,optional){
+  const so=qv(idSo),ng=vnDate(qv(idNgay));
+  if(!so&&!ng&&optional)return "";
+  return label+" số "+(so||"………")+(ng?" ngày "+ng:" ngày ………");
+}
+function ctMap(){
+  return {
+    "{{XUAT_XU}}":qv("ct_xuatxu")||"…",
+    "{{CT_COCQ}}":ctText("C/O","ct_co_so","ct_co_ngay")+"; "+ctText("C/Q","ct_cq_so","ct_cq_ngay")+".",
+    "{{CT_VANDON}}":ctText("HBL","ct_hbl_so","ct_hbl_ngay")+"; "+ctText("Packing List","ct_pl_so","ct_pl_ngay")+".",
+    "{{CT_GIAMDINH}}":(t=>t?t+".":"")(ctText("Chứng thư","ct_gd_so","ct_gd_ngay",1)),
+    "{{CT_TOKHAI}}":(t=>t?t+".":"")(ctText("Tờ khai","ct_tk_so","ct_tk_ngay",1))
+  };
+}
+
+/* ---------- Xử lý XML theo tuỳ chọn (xem tools_patch_hoso.py: mẫu vẫn là bản “đầy đủ”, mã bỏ bớt) ---------- */
+const PARA_RE=/<w:p(?:\s[^>]*[^\/])?>(?:(?!<\/w:p>)[\s\S])*<\/w:p>/g;
+const ROW_RE=/<w:tr\b[\s\S]*?<\/w:tr>/g;
+const xText=x=>x.replace(/<[^>]+>/g,"");
+function dropParas(xml,test){return xml.replace(PARA_RE,m=>test(xText(m).trim())?"":m);}
+function dropRows(xml,test){return xml.replace(ROW_RE,m=>test(xText(m).trim())?"":m);}
+// đánh lại số thứ tự gõ tay "1. 2. 3." của danh sách nằm giữa hai tiêu đề
+function renumberList(xml,startRe,endRe){
+  let on=false,n=0;
+  return xml.replace(PARA_RE,m=>{
+    const t=xText(m).trim();
+    if(startRe.test(t)){on=true;n=0;return m;}
+    if(on&&endRe.test(t)){on=false;return m;}
+    if(on&&/^\d+\.\s/.test(t)){n++;return m.replace(/(<w:t[^>]*>\s*)\d+(\.)/,"$1"+n+"$2");}
+    return m;
+  });
+}
+// đánh lại cột TT (chỉ các dòng có số) trong mọi bảng của Biên bản kiểm tra
+function renumberKT(xml){
+  return xml.replace(/<w:tbl>[\s\S]*?<\/w:tbl>/g,t=>{
+    if(t.indexOf("Nội dung kiểm tra")<0)return t;
+    let n=0;
+    return t.replace(ROW_RE,r=>{
+      const c=r.match(/<w:tc>[\s\S]*?<\/w:tc>/);
+      if(!c||!/^\d+$/.test(xText(c[0]).trim()))return r;
+      n++;
+      return r.replace(c[0],c[0].replace(/(<w:t[^>]*>)\d+(<\/w:t>)/,"$1"+n+"$2"));
+    });
+  });
+}
+function applyOptional(x,o){
+  const rep=(re,to)=>{x=x.replace(re,to);};
+  const ps=o.hasPL&&o.hasEx;                       // có phát sinh theo phụ lục
+  // --- đà thép ---
+  if(!o.hasDT){
+    rep(/; bản vẽ thiết kế đà thép và gối đôn cửa kèm theo Phụ lục Hợp đồng số \{\{SO_PL\}\}/g,"");
+    rep(/; Bản vẽ thiết kế dầm thép và gối đôn cửa kèm PLHĐ số \{\{SO_PL\}\}/g,"");
+    rep(/ và (?:hệ )?đà thép(?:, bản mã đỡ ray)?/g,"");
+    rep(/ VÀ ĐÀ THÉP/g,"");
+  }else if(!o.hasPL){
+    rep(/ kèm theo Phụ lục Hợp đồng số \{\{SO_PL\}\}/g,"");
+    rep(/ kèm PLHĐ số \{\{SO_PL\}\}/g,"");
+  }
+  // --- phát sinh theo phụ lục ---
+  if(!ps){
+    x=dropParas(x,t=>/^\(bao gồm khối lượng phát sinh theo Phụ lục Hợp đồng số \{\{SO_PL\}\}\)$/.test(t));
+    rep(/ \((?:bao gồm )?(?:khối lượng )?phát sinh theo (?:Phụ lục Hợp đồng|PLHĐ) số \{\{SO_PL\}\}\)/g,"");
+    rep(/ và các khối lượng phát sinh theo Phụ lục Hợp đồng số \{\{SO_PL\}\}/g,"");
+  }
+  // --- phụ lục hợp đồng ---
+  if(!o.hasPL){
+    x=dropParas(x,t=>/^2\. Phụ lục Hợp đồng số \{\{SO_PL\}\} ký ngày \{\{NGAY_PL\}\}/.test(t));
+    x=renumberList(x,/^I\. Căn cứ hợp đồng/,/^II\. Căn cứ pháp lý/);
+    x=dropRows(x,t=>/^Phụ lục hợp đồng:\s*Phụ lục số \{\{SO_PL\}\}/.test(t));
+    rep(/(?:,|;| và)\s*Phụ lục (?:Hợp đồng|HĐ) số \{\{SO_PL\}\}(?: ký ngày \{\{NGAY_PL(?:_DAI)?\}\})?/g,"");
+  }
+  return x;
+}
 // dd/mm/yyyy  và  "dd tháng m năm yyyy"
 function vnDate(iso){if(!iso)return"";const p=iso.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:iso;}
 function vnDateLong(iso){if(!iso)return"";const p=iso.split("-");return p.length===3?"ngày "+p[2]+" tháng "+(+p[1])+" năm "+p[0]:iso;}
@@ -1783,7 +1993,9 @@ function fillSec(seg,si,k,p,parties){
   x=putBlock(x,"{{BLOCK_KT_PCCC}}",coPccc?ktPcccRows():"",true);
   x=putBlock(x,"{{BLOCK_KY_YC}}",sigYeuCau(parties));
   x=putBlock(x,"{{BLOCK_TCNT}}",tcNtList(se,qv("q_nhasx")));
-  x=putBlock(x,"{{BLOCK_KT_HM}}",(coCuon?ktCuonRows():"")+ktHangMucRows(S.qExtras),true);
+  // bước 1: kiểm tra vật liệu hạng mục bổ sung; bước 2: kiểm tra lắp đặt (thang cuốn + hạng mục bổ sung)
+  x=putBlock(x,"{{BLOCK_KT_HM}}",si===0?ktVatLieuRows(S.qExtras):(coCuon?ktCuonRows():"")+ktHangMucRows(S.qExtras),true);
+  if(si===6){x=x.split("{{KL_TEN}}").join(xescQ(klTen()));x=x.split("{{KL_SPEC}}").join(xescQ(klSpec(se)));}
   // ô "Tiêu chuẩn thi công – nghiệm thu áp dụng" trong Biên bản kiểm tra
   if(coCuon)x=x.split("TCVN 6396-50:2017 (EN 81-50:2014).")
                .join("TCVN 6396-50:2017 (EN 81-50:2014); TCVN 6397-1:2010 (EN 115-1:2008); QCVN 11:2012/BLĐTBXH.");
@@ -1816,6 +2028,7 @@ const SECS=[
   {ma:"HTHM", ten:"HOÀN THÀNH HẠNG MỤC THANG MÁY ĐƯA VÀO SỬ DỤNG"}
 ];
 const ROMAN=["I","II","III","IV","V","VI","VII","VIII","IX","X"];
+const secTen=si=>OPT.hasDT?SECS[si].ten:SECS[si].ten.replace(" VÀ ĐÀ THÉP","");
 const SEC_NGAN=["Vật liệu, thiết bị đầu vào","Lắp đặt tĩnh","Chạy thử đơn động không tải",
   "Chạy thử đơn động có tải","Chạy thử liên động không tải","Chạy thử liên động có tải",
   "Hoàn thành hạng mục & bàn giao"];
@@ -1919,7 +2132,7 @@ function buildDanhMuc(mahs,phases){
     // chỉ liệt kê các bước đợt này thực sự nghiệm thu, đánh số La Mã liên tục
     phaseSecs(p).forEach((si,k)=>{
       const sc=SECS[si],els=stepElevs(p,si).map(e=>e.name).join(", ");
-      out+=dmGroup(ROMAN[k],sc.ten+(phases.length>1?" — "+(p.label||"Đợt "+p.no).toUpperCase():"")+(els?" ("+els+")":""));
+      out+=dmGroup(ROMAN[k],secTen(si)+(phases.length>1?" — "+(p.label||"Đợt "+p.no).toUpperCase():"")+(els?" ("+els+")":""));
       [["YCNT","Phiếu đề nghị nghiệm thu"],["BBNT","Biên bản nghiệm thu công việc"],
        ["BBKT","Biên bản kiểm tra công tác nghiệm thu công việc"]].forEach(d=>{
         out+=dmRow(++stt,d[0],d[1],mahs+"/"+d[0]+"/"+sc.ma+"/"+p.no);
@@ -1937,7 +2150,7 @@ function buildDanhMuc(mahs,phases){
   });
   out+=dmGroup(ROMAN[8],"BẢN VẼ HOÀN CÔNG");
   out+='<w:tr>'+dmCell(DMW[0],String(++stt),1)+dmCell(DMW[1],"BVHC",1)
-    +dmCell(DMW[2],"Bản vẽ hoàn công hệ thống thang máy "+dsAll+" và các hạng mục kèm theo")
+    +dmCell(DMW[2],"Bản vẽ hoàn công hệ thống thang máy "+dsAll+(OPT.hasEx?" và các hạng mục kèm theo":""))
     +dmCell(DMW[3],".....................",1)+dmCell(DMW[4],".....................",1)+dmCell(DMW[5],"")+'</w:tr>';
   // Biên bản bàn giao nằm cuối bộ hồ sơ (PHẦN X)
   if(dsBBG.length){
@@ -2011,23 +2224,52 @@ function ktPcccRows(){
   return out;
 }
 function ktHangMucRows(extras){
-  const groups=[];
+  const groups=[],lieng=[];
   (extras||[]).forEach(ex=>{
     const nm=(ex.name||"").toLowerCase();
     let key=null;
-    if(/đà thép|dà thép|bản mã|gối đôn|dầm thép/.test(nm))key="đà thép";
+    if(isDaThepName(nm))key="đà thép";
     else if(/điều hòa|điều hoà|máy lạnh|air/.test(nm))key="điều hòa";
     else if(/kiểm soát|thẻ|card|vân tay|access/.test(nm))key="kiểm soát";
     else if(/nội thất|cabin|ốp|trang trí/.test(nm))key="nội thất";
     if(key&&groups.indexOf(key)<0)groups.push(key);
+    // hạng mục không thuộc nhóm quen thuộc: một dòng kiểm tra chung theo đúng tên người dùng khai
+    if(!key&&nm.trim())lieng.push(ex);
   });
-  if(!groups.length)return "";
+  if(!groups.length&&!lieng.length)return "";
   let out="",n=0;
-  out+=ktGroup("HM. KIỂM TRA CÁC HẠNG MỤC BỔ SUNG KÈM THEO");
+  out+=ktGroup("HM. KIỂM TRA CÁC HẠNG MỤC BỔ SUNG / PHÁT SINH");
   groups.forEach(k=>{
-    HM_CRIT[k].forEach(c=>{out+=ktRow(++n,c[0],c[1],c[2]);});
+    HM_CRIT[k].forEach(c=>{
+      // không có phụ lục thì không viện dẫn phụ lục
+      out+=ktRow(++n,c[0],c[1],OPT.hasPL?c[2]:c[2].replace(/ và phụ lục hợp đồng/g,""));
+    });
+  });
+  lieng.forEach(ex=>{
+    out+=ktRow(++n,"Lắp đặt "+ex.name,"Đo/Quan sát","Đúng bản vẽ"+(OPT.hasPL?" và phụ lục hợp đồng":"")+" được duyệt; chắc chắn, đúng vị trí, hoàn thiện đạt yêu cầu");
   });
   return out;
+}
+// hạng mục bổ sung ở bước nghiệm thu vật liệu đầu vào: theo đúng số lượng / xuất xứ đã khai
+function ktVatLieuRows(extras){
+  const L=(extras||[]).filter(e=>(e.name||"").trim());
+  if(!L.length)return "";
+  let out=ktGroup("HM. HẠNG MỤC BỔ SUNG / PHÁT SINH (VẬT TƯ, THIẾT BỊ ĐẦU VÀO)"),n=0;
+  L.forEach(e=>{
+    const sl=[e.qty,e.unit].filter(Boolean).join(" ");
+    out+=ktRow(++n,e.name,"Đo, đối chiếu",
+      "Đúng chủng loại, kích thước theo bản vẽ / hợp đồng"+(sl?"; số lượng "+sl:"")+(e.origin?"; xuất xứ "+e.origin:"")+"; không hư hỏng, cong vênh, gỉ sét");
+  });
+  return out;
+}
+// dòng “Khối lượng” của biên bản kiểm tra hoàn thành hạng mục (Phần VII)
+function klTen(){return "Khối lượng thang máy {{DS_THANG}}"+(OPT.hasEx?(OPT.hasPL?" và các hạng mục phát sinh theo PLHĐ số {{SO_PL}}":" và các hạng mục bổ sung kèm theo"):"");}
+function klSpec(se){
+  const nsx=qv("q_nhasx"),models=[...new Set(se.map(e=>e.model).filter(Boolean))].join(", ");
+  const parts=[];
+  if(se.length)parts.push(pad2(se.length)+" thang "+(models||nsx||"…"));
+  (S.qExtras||[]).filter(e=>(e.name||"").trim()).forEach(e=>parts.push([e.qty,e.unit,String(e.name).toLowerCase()].filter(Boolean).join(" ")));
+  return parts.join("; ")||"…";
 }
 
 /* ---------- Tiêu chuẩn áp dụng: sinh theo loại thiết bị có trong hồ sơ ---------- */
@@ -2132,6 +2374,8 @@ async function exportQuality(){
     let doc=await zip.file("word/document.xml").async("string");
 
     normElevs();ensurePhases();
+    OPT=qOpts();                                  // có phụ lục? có đà thép / hạng mục phát sinh?
+    doc=applyOptional(doc,OPT);
     const phases=S.qPhases;
     const els=selElevs();                        // toàn bộ thang được nghiệm thu (mọi đợt)
     const tong=S.qElevs.filter(e=>(e.name||"").trim()).length;
@@ -2192,6 +2436,7 @@ async function exportQuality(){
       "{{DIA_DANH_HOA}}":(qv("q_diadanh")||"").toUpperCase()||"…",
       "{{NAM}}":qv("q_nam")||String(new Date().getFullYear())
     };
+    Object.assign(map,ctMap());
 
     // ----- các khối động: thành phần tham gia & chữ ký -----
     const parties=S.qParties.filter(p=>(p.role||"").trim()||(p.name||"").trim());
@@ -2308,6 +2553,7 @@ async function exportQuality(){
         const pe=stepElevs(p,6);
         const uniq=a=>a.filter((v,i)=>v&&a.indexOf(v)===i).join("; ")||"…";
         let y=tpl;
+        if(!pe.some(isCuon))y=dropRows(y,t=>/Travel Height/.test(t));
         const M={
           "{{BBG_PHAN}}":"PHẦN "+ROMAN[9],
           "{{BBG_TENTB}}":(pe.map(e=>unitPrefix(e)+" "+e.name+(e.model?" "+e.model:"")).join("; ")||"…")+".",
@@ -2363,6 +2609,7 @@ async function exportQuality(){
     doc=putBlock(doc,"{{BLOCK_TCAD}}",tcList(els,qv("q_nhasx"),qv("q_mabanve")));
     // danh mục hồ sơ: gộp đầy đủ mọi đợt
     doc=putBlock(doc,"{{BLOCK_DM}}",buildDanhMuc(map["{{MA_HS}}"],phases),true);
+    doc=renumberKT(doc);                          // TT các dòng kiểm tra liên tục sau khi bỏ / thêm nhóm
 
 
 
@@ -2391,6 +2638,180 @@ async function exportQuality(){
     st.textContent="✓ Đã xuất bộ hồ sơ chất lượng ("+(names.length||1)+" thang). Mở bằng Word để in.";
   }catch(e){st.textContent="Lỗi: "+e.message+". Lưu ý: chức năng này cần mở app qua GitHub Pages (không chạy khi mở file cục bộ).";}
 }
+/* ================================================================
+   TÀI LIỆU BỔ SUNG: BB hàng về công trường, BB bàn giao thang máy, nhật ký thi công
+   Mẫu Word có {{TOKEN}} (tools_make_templates.py) — dựng bằng cách thay token, giống bộ hồ sơ.
+   ================================================================ */
+const partyOf=re=>S.qParties.find(z=>re.test(z.role||""))||null;
+const person=(pt,i)=>{const pe=pt&&pt.people&&pt.people[i];return {n:(pe&&pe.n||"").trim(),p:(pe&&pe.p||"").trim()};};
+const DOTS6="………………";
+// thông tin chung dùng cho 3 tài liệu
+function qCommon(){
+  const dash="…........................................";
+  const cdt=partyOf(/chủ đầu tư/i),tvgs=partyOf(/tư vấn|giám sát/i),nt=partyOf(/nhà thầu|thi công thang|đơn vị thi công/i);
+  const nm=pt=>pt&&(pt.name||"").trim();
+  const congTrinh=qv("q_congtrinh")||"…";
+  const hangMuc=qv("q_hangmuc")||"Cung cấp và thi công lắp đặt thang máy";
+  const nhaThau=nm(nt)||"…",cd=nm(cdt)||nm(partyOf(/tổng thầu/i))||dash;
+  return {
+    "{{CONG_TRINH}}":congTrinh,"{{CONG_TRINH_HOA}}":congTrinh.toUpperCase(),
+    "{{DIA_DIEM}}":qv("q_diadiem")||"…","{{HANG_MUC}}":hangMuc,
+    "{{SO_HD}}":qv("q_sohd")||"…","{{SO_PL}}":qv("q_sopl")||"…",
+    "{{CHU_DAU_TU}}":cd,"{{CHU_DAU_TU_HOA}}":cd.toUpperCase(),"{{TVGS}}":nm(tvgs)||dash,
+    "{{NHA_THAU}}":nhaThau,"{{NHA_THAU_HOA}}":nhaThau.toUpperCase(),
+    "{{CDT_DIACHI}}":qv("q_cdt_diachi")||dash,"{{CDT_GIAYTO}}":qv("q_cdt_giayto")||dash,
+    "{{CDT_DIENTHOAI}}":qv("q_cdt_dt")||dash,"{{CDT_DAIDIEN}}":qv("q_cdt_daidien")||dash,
+    "{{NT_DIACHI}}":qv("q_nt_diachi")||dash,"{{NT_LIENHE}}":qv("q_nt_lienhe")||dash,
+    "{{NT_DAIDIEN}}":qv("q_nt_daidien")||dash,"{{NT_CHUCVU}}":qv("q_nt_chucvu")||dash,
+    "{{DIA_DANH}}":qv("q_diadanh")||"…","{{NAM}}":qv("q_nam")||String(new Date().getFullYear())
+  };
+}
+async function loadTplDoc(url){
+  if(typeof JSZip==="undefined")throw new Error("Chưa tải được thư viện JSZip");
+  const resp=await fetch(url);
+  if(!resp.ok)throw new Error("Không tải được file mẫu "+url+" (HTTP "+resp.status+")");
+  return JSZip.loadAsync(await resp.arrayBuffer());
+}
+const fillMap=(str,map)=>{for(const k in map)str=str.split(k).join(xescQ(map[k]));return str;};
+// các token còn sót (không có dữ liệu) -> dấu chấm, để file không chứa {{...}}
+const blankTokens=str=>str.replace(/\{\{[A-Z0-9_]+\}\}/g,"………");
+const MIMEDOCX="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const fileTag=()=>(qv("q_sohd")||qv("q_congtrinh")||"ho_so").replace(/[^\w-]/g,"_").slice(0,40);
+const ngayVN=iso=>iso?vnDateLong(iso):"";
+async function zipToDocx(zip,mapFn){
+  // thay token ở thân tài liệu + mọi header/footer
+  for(const f of Object.keys(zip.files)){
+    if(/^word\/(document|header\d*|footer\d*)\.xml$/.test(f)){
+      let t=await zip.file(f).async("string");
+      t=blankTokens(mapFn(t));
+      zip.file(f,t);
+    }
+  }
+  return zip.generateAsync({type:"blob",mimeType:MIMEDOCX,compression:"DEFLATE"});
+}
+
+/* ---- F1. Biên bản xác nhận thiết bị đến công trường ---- */
+async function exportBBXN(){
+  const st=document.getElementById("bx_status");st.textContent="Đang tạo biên bản…";
+  try{
+    OPT=qOpts();
+    const zip=await loadTplDoc("bbxn_hangve_template.docx");
+    const C=qCommon();
+    const cdt=partyOf(/chủ đầu tư/i),nt=partyOf(/nhà thầu|thi công thang|đơn vị thi công/i);
+    const nd=qv("bx_ngay");
+    const doc=(c,ct,so,ng)=>{const a=qv(so),b=vnDate(qv(ng));return a?a+(b?" ngày "+b:""):"………………";};
+    const dots=(x,d)=>x||d;
+    const tong=S.qElevs.filter(e=>(e.name||"").trim()).length;
+    const M=Object.assign({},C,{
+      "{{BX_NGAY_LAP}}":ngayVN(nd)||"ngày …. tháng ….. năm 202..",
+      "{{BX_NGAY}}":ngayVN(nd)||"ngày ……… tháng …… năm 202..",
+      "{{BX_CDT1_N}}":dots(person(cdt,0).n,"………………"),"{{BX_CDT1_C}}":dots(person(cdt,0).p,"………………"),
+      "{{BX_CDT2_N}}":dots(person(cdt,1).n,"………………"),"{{BX_CDT2_C}}":dots(person(cdt,1).p,"………………"),
+      "{{BX_NT1_N}}":dots(person(nt,0).n,"………………"),"{{BX_NT1_C}}":dots(person(nt,0).p,"………………"),
+      "{{BX_NT2_N}}":dots(person(nt,1).n,"………………"),"{{BX_NT2_C}}":dots(person(nt,1).p,"………………"),
+      "{{BX_HBL}}":doc(0,0,"ct_hbl_so","ct_hbl_ngay"),"{{BX_PL}}":doc(0,0,"ct_pl_so","ct_pl_ngay"),
+      "{{BX_CO}}":doc(0,0,"ct_co_so","ct_co_ngay"),"{{BX_CQ}}":doc(0,0,"ct_cq_so","ct_cq_ngay"),
+      "{{BX_SL}}":tong?pad2(tong):"….","{{BX_KIEN}}":qv("ct_kien")||"……"
+    });
+    const blob=await zipToDocx(zip,t=>fillMap(applyOptional(t,OPT),M));
+    saveAs(blob,"BB_hang_ve_cong_truong_"+fileTag()+".docx");
+    st.textContent="✓ Đã xuất biên bản hàng về công trường.";
+  }catch(e){st.textContent="Lỗi: "+e.message;}
+}
+
+/* ---- F2. Biên bản bàn giao thang máy: mỗi thang một file ---- */
+async function exportBanGiao(){
+  const st=document.getElementById("bg_status");st.textContent="Đang tạo biên bản…";
+  try{
+    OPT=qOpts();normElevs();ensurePhases();
+    const els=S.qElevs.filter(e=>(e.name||"").trim());
+    if(!els.length)throw new Error("Chưa khai báo thang máy ở mục D.");
+    const C=qCommon(),hd=(qv("q_sohd")||"HD").replace(/[\/\s\\]+/g,"-"),mahs=qv("q_mahs")||"HS";
+    const files=[];
+    for(let k=0;k<els.length;k++){
+      const e=els[k],zip=await loadTplDoc("bangiao_template.docx");
+      const M=Object.assign({},C,{
+        "{{BBG_TENTB}}":unitPrefix(e)+" "+e.name+(e.model?" "+e.model:"")+".",
+        "{{BBG_TENTB_EN}}":(e.model||"Lift")+" No. "+e.name,
+        "{{BBG_SL}}":"01",
+        "{{BBG_MODEL}}":e.model||"…","{{BBG_STOPS}}":(isCuon(e)?"":e.stops)||"…",
+        "{{BBG_SPEED}}":e.speed||"…","{{BBG_LOAD}}":(isCuon(e)?"":e.load)||"…",
+        "{{BBG_BH}}":(qv("q_baohanh")||"12")+" tháng","{{BBG_BH_EN}}":(qv("q_baohanh")||"12")+" months",
+        "{{SO_BB}}":pad2(k+1)+"/BBBG/"+hd+"-"+e.name
+      });
+      const blob=await zipToDocx(zip,t=>fillMap(applyOptional(t,OPT),M));
+      files.push({name:"BB_ban_giao_"+e.name.replace(/[^\w-]/g,"_")+".docx",blob});
+    }
+    if(files.length===1){saveAs(files[0].blob,files[0].name);}
+    else{
+      const z=new JSZip();files.forEach(f=>z.file(f.name,f.blob));
+      saveAs(await z.generateAsync({type:"blob"}),"BB_ban_giao_"+fileTag()+".zip");
+    }
+    st.textContent="✓ Đã xuất "+files.length+" biên bản bàn giao.";
+  }catch(e){st.textContent="Lỗi: "+e.message;}
+}
+
+/* ---- F3. Nhật ký thi công ---- */
+function nkDates(startIso,n,skipWE){
+  const out=[];if(!startIso)return out;
+  let d=new Date(startIso+"T00:00:00Z");
+  while(out.length<n){
+    const w=d.getUTCDay();
+    if(!(skipWE&&(w===0||w===6)))out.push(new Date(d.getTime()));
+    d=new Date(d.getTime()+864e5);
+    if(out.length>800)break;
+  }
+  return out;
+}
+async function exportNhatKy(){
+  const st=document.getElementById("nk_status");st.textContent="Đang tạo nhật ký…";
+  try{
+    OPT=qOpts();
+    const zip=await loadTplDoc("nhatky_template.docx");
+    const C=qCommon();
+    const nt=partyOf(/nhà thầu|thi công thang|đơn vị thi công/i),gs=partyOf(/tư vấn|giám sát/i);
+    const dots="…........................................";
+    const v=(id,d)=>qv(id)||d||dots;
+    const M=Object.assign({},C,{
+      "{{NK_QUYEN}}":v("nk_quyen",".../NKCT-..."),"{{NK_MADA}}":v("nk_mada","…"),"{{NK_MACT}}":v("nk_mact","…"),
+      "{{NK_PHUTRACH}}":v("nk_phutrach"),
+      "{{NK_GS_TEN}}":qv("nk_gs_ten")||person(gs,0).n||dots,"{{NK_GS_DT}}":v("nk_gs_dt","…………"),
+      "{{NK_CHT_TEN}}":qv("nk_cht_ten")||person(nt,0).n||dots,"{{NK_CHT_DT}}":v("nk_cht_dt","…………"),
+      "{{NK_TK}}":v("nk_tk"),"{{NK_KTS}}":v("nk_kts"),"{{NK_KS}}":v("nk_ks"),
+      "{{NK_KC_HD}}":vnDate(qv("nk_kc_hd"))||"...........","{{NK_KC_TT}}":"...........",
+      "{{NK_BG_HD}}":vnDate(qv("nk_bg_hd"))||"...........","{{NK_BG_TT}}":"..........."
+    });
+    // bảng cán bộ: 4 dòng đầu lấy từ những người của nhà thầu thi công
+    const ppl=(nt&&nt.people||[]).filter(x=>(x.n||"").trim());
+    for(let i=1;i<=4;i++){
+      const x=ppl[i-1];
+      M["{{NK_CB"+i+"_TEN}}"]=x?x.n:"";M["{{NK_CB"+i+"_CV}}"]=x?(x.p||""):"";M["{{NK_CB"+i+"_NV}}"]="";M["{{NK_CB"+i+"_DT}}"]="";
+    }
+    let doc=await zip.file("word/document.xml").async("string");
+    // nhân bản khối ngày
+    const a=doc.indexOf("{{NK_DAY_BEGIN}}"),b=doc.indexOf("{{NK_DAY_END}}");
+    if(a<0||b<a)throw new Error("Mẫu nhật ký thiếu mốc khối ngày");
+    const pa=doc.lastIndexOf("<w:p>",a),pb=doc.indexOf("</w:p>",a)+6;
+    const qa=doc.lastIndexOf("<w:p>",b),qb=doc.indexOf("</w:p>",b)+6;
+    const block=doc.slice(pb,qa);
+    const n=Math.max(1,Math.min(400,parseInt(qv("nk_pages"),10)||1));
+    const dates=nkDates(qv("nk_start"),n,document.getElementById("nk_skipwe").checked);
+    const brk='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+    let days="";
+    for(let i=0;i<n;i++){
+      const d=dates[i];
+      const t=d?"Ngày "+pad2(d.getUTCDate())+" tháng "+pad2(d.getUTCMonth()+1)+" năm "+d.getUTCFullYear()
+               :"Ngày ............ tháng ............ năm ...............…";
+      days+=(i?brk:"")+block.split("{{NK_NGAY}}").join(xescQ(t));
+    }
+    doc=doc.slice(0,pa)+days+doc.slice(qb);
+    zip.file("word/document.xml",doc);
+    const blob=await zipToDocx(zip,t=>fillMap(applyOptional(t,OPT),M));
+    saveAs(blob,"Nhat_ky_thi_cong_"+fileTag()+".docx");
+    st.textContent="✓ Đã xuất nhật ký thi công ("+n+" trang ngày).";
+  }catch(e){st.textContent="Lỗi: "+e.message;}
+}
+
 /* ================================================================
    THƯ XÁC NHẬN HÀNG VỀ (.docx) & NỘI DUNG EMAIL
    Dữ liệu khách hàng/hợp đồng lấy từ scan (S.project); mốc ngày lấy

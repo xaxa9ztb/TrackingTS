@@ -35,6 +35,7 @@ const Session = (() => {
     projectplan: { name: 'Quản lý dự án', path: 'tools/projectplan/', demo: true, ...PM_TEAM }, // bản demo
     approvals: { name: 'Duyệt bảng công', path: 'tools/approvals/', serverOnly: true, ...PM_TEAM },       // chỉ có ở bản máy chủ
     materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
+    admin: { name: 'Quản trị', path: 'admin.html', roles: ['admin'], rolesLabel: 'Quản trị viên' },  // nhân viên, dự án, bảng công (Excel), tài khoản & phân quyền
   };
   // chức năng đã có trang để mở
   function ready(toolId) { const t = TOOLS[toolId]; return !!(t && t.path && !t.soon); }

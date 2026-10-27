@@ -34,14 +34,15 @@ const tokenFor = (email, over = {}) => sign(keys, { aud: [AUD], iss: ISS, email,
 let keySet = () => [keys.jwk];
 const getKeys = async () => keySet();
 
-async function call(method, p, { email, token, body, contentType, envOver } = {}) {
+async function call(method, p, { email, token, body, contentType, envOver, cookie } = {}) {
   const headers = {};
+  if (cookie) headers.cookie = cookie;
   if (email) headers['cf-access-jwt-assertion'] = await tokenFor(email);
   if (token) headers['cf-access-jwt-assertion'] = token;
   if (body !== undefined) headers['content-type'] = contentType || 'application/json';
   const req = new Request('https://trackingts.pages.dev' + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const resp = await handle(req, { ...env, ...(envOver || {}) }, { getKeys });
-  return { status: resp.status, data: await resp.json() };
+  return { status: resp.status, data: await resp.json(), setCookie: resp.headers.get('set-cookie') || '' };
 }
 
 // Brevo giả: ghi lại các thư "đã gửi"; brevoMode = 'ok' | 'fail'
@@ -57,9 +58,9 @@ before(async () => {
   proxy = await getPlatformProxy({ configPath: path.join(ROOT, 'wrangler.toml'), persist: false });
   for (const f of readdirSync(path.join(ROOT, 'migrations')).filter(n => n.endsWith('.sql')).sort()) {
     const sql = readFileSync(path.join(ROOT, 'migrations', f), 'utf8').split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
-    for (const stmt of sql.split(';').map(x => x.trim()).filter(Boolean)) await proxy.env.DB.prepare(stmt).run();
+    for (const stmt of sql.split(';').map(x => x.trim()).filter(Boolean)) { await proxy.env.DB.prepare(stmt).run(); await proxy.env.DB_DEMO.prepare(stmt).run(); }
   }
-  env = { DB: proxy.env.DB, ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, ADMIN_EMAILS: 'boss@example.com',
+  env = { DB: proxy.env.DB, DB_DEMO: proxy.env.DB_DEMO, ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, ADMIN_EMAILS: 'boss@example.com',
     BREVO_API_KEY: 'test-key', MAIL_FROM: 'noreply@example.com', MAIL_FROM_NAME: 'Bộ công cụ', MAIL_FETCH: fakeBrevo, APP_URL: 'https://nihan-ts.pages.dev' };
   keys = await makeKeys('k1');
   otherKeys = await makeKeys('k1'); // cùng kid nhưng khoá khác → chữ ký sai
@@ -969,4 +970,80 @@ test('nhắc hạn: ngày 9 nhắc người chưa nộp; ngày 11 nhắc lại v
   const ap2 = mailsTo('ap2@example.com').filter(m => /chờ bạn duyệt/.test(m.subject));
   assert.equal(ap2.length, 1); assert.match(ap2[0].htmlContent, /Thợ Bảy/, 'AP2 là Quản lý trực tiếp của TS7 nên được nhắc duyệt');
   assert.ok(total9 > 0);
+});
+
+
+// ---------- chế độ Demo: cơ sở dữ liệu riêng, không ảnh hưởng dữ liệu thật ----------
+const DEMO = 'ts_demo=1';
+test('demo: trạng thái và vào demo (đặt cookie, dựng dữ liệu mẫu)', async () => {
+  const st = await call('GET', '/api/demo/status', { email: 'boss@example.com' });
+  assert.deepEqual(st.data, { available: true, active: false });
+  const r = await call('POST', '/api/demo/start', { email: 'boss@example.com', body: { role: 'sitesup' } });
+  assert.equal(r.status, 200);
+  assert.match(r.setCookie, /ts_demo=1/); assert.match(r.setCookie, /HttpOnly/); assert.match(r.setCookie, /Secure/);
+  assert.equal(r.data.role, 'sitesup'); assert.ok(r.data.employees >= 9 && r.data.timesheets > 50 && r.data.docs === 3);
+  const me = await call('GET', '/api/me', { email: 'boss@example.com', cookie: DEMO });
+  assert.equal(me.data.demo, true);
+  assert.equal(me.data.empId, 'DEMO');
+  assert.deepEqual(me.data.roles, ['sitesup']);
+  assert.equal(me.data.isAdmin, false, 'admin khởi tạo (ADMIN_EMAILS) không có hiệu lực trong demo — vai trò do người dùng chọn');
+  assert.ok(me.data.projects.length === 4, 'người thử Site Sup được gán các dự án mẫu');
+});
+
+test('demo: dữ liệu demo tách hẳn dữ liệu thật (đọc và ghi)', async () => {
+  const real = await call('GET', '/api/projects', { email: 'boss@example.com' });
+  const demo = await call('GET', '/api/projects', { email: 'boss@example.com', cookie: DEMO });
+  assert.ok(demo.data.projects.some(p => p.wbs === 'DEMO-001'));
+  assert.ok(!real.data.projects.some(p => p.wbs.startsWith('DEMO-')), 'dữ liệu thật không có dự án demo');
+  await call('POST', '/api/demo/start', { email: 'boss@example.com', body: { role: 'admin' } });
+  const patch = await call('PATCH', '/api/admin/projects/DEMO-001', { email: 'boss@example.com', cookie: DEMO, body: { fields: { projectName: 'Sửa trong demo' } } });
+  assert.equal(patch.status, 200);
+  const after = await call('GET', '/api/projects', { email: 'boss@example.com' });
+  assert.deepEqual(after.data.projects.map(p => p.projectName), real.data.projects.map(p => p.projectName), 'sửa trong demo không đổi dữ liệu thật');
+  const demoAfter = await call('GET', '/api/projects', { email: 'boss@example.com', cookie: DEMO });
+  assert.equal(demoAfter.data.projects.find(p => p.wbs === 'DEMO-001').projectName, 'Sửa trong demo');
+  const audit = await call('GET', '/api/admin/audit', { email: 'boss@example.com' });
+  assert.ok(!audit.data.entries.some(e => e.entity_id === 'DEMO-001'), 'nhật ký thật không ghi thao tác demo');
+});
+
+test('demo: vai trò nhân viên không có quyền admin; vai trò đúng như đã chọn', async () => {
+  await call('POST', '/api/demo/start', { email: 'someone@example.com', body: { role: 'staff' } });
+  const me = await call('GET', '/api/me', { email: 'someone@example.com', cookie: DEMO });
+  assert.deepEqual(me.data.roles, []);
+  const deny = await call('POST', '/api/admin/projects/delete', { email: 'someone@example.com', cookie: DEMO, body: { wbs: ['DEMO-001'] } });
+  assert.equal(deny.status, 403);
+});
+
+test('demo: nộp / duyệt bảng công trong demo không gửi thư', async () => {
+  await call('POST', '/api/demo/start', { email: 'tester@example.com', body: { role: 'sitesup' } });
+  const before = sentMail.length;
+  const inbox = await call('GET', '/api/ts/inbox', { email: 'tester@example.com', cookie: DEMO });
+  assert.equal(inbox.status, 200);
+  assert.ok(inbox.data.items.length >= 1, 'Site Sup demo có bảng công chờ duyệt');
+  const it = inbox.data.items[0];
+  const ap = await call('POST', `/api/ts/review/${it.empId}/${it.period}/approve`, { email: 'tester@example.com', cookie: DEMO, body: {} });
+  assert.equal(ap.status, 200);
+  assert.equal(sentMail.length, before, 'demo không gửi email');
+});
+
+test('demo: làm lại dữ liệu mẫu và thoát demo', async () => {
+  await call('POST', '/api/demo/start', { email: 'boss@example.com', body: { role: 'admin' } });
+  await call('PATCH', '/api/admin/projects/DEMO-002', { email: 'boss@example.com', cookie: DEMO, body: { fields: { projectName: 'Đã sửa' } } });
+  const rs = await call('POST', '/api/demo/reset', { email: 'boss@example.com', cookie: DEMO, body: {} });
+  assert.equal(rs.status, 200); assert.equal(rs.data.role, 'admin');
+  const p = await call('GET', '/api/projects', { email: 'boss@example.com', cookie: DEMO });
+  assert.notEqual(p.data.projects.find(x => x.wbs === 'DEMO-002').projectName, 'Đã sửa');
+  const noDemo = await call('POST', '/api/demo/reset', { email: 'boss@example.com', body: {} });
+  assert.equal(noDemo.status, 400, 'reset chỉ dùng được khi đang ở demo');
+  const stop = await call('POST', '/api/demo/stop', { email: 'boss@example.com', cookie: DEMO, body: {} });
+  assert.match(stop.setCookie, /Max-Age=0/);
+});
+
+test('demo: máy chủ không có DB_DEMO → báo chưa bật, cookie bị bỏ qua', async () => {
+  const r = await call('POST', '/api/demo/start', { email: 'boss@example.com', body: { role: 'admin' }, envOver: { DB_DEMO: undefined } });
+  assert.equal(r.status, 503);
+  const me = await call('GET', '/api/me', { email: 'boss@example.com', cookie: DEMO, envOver: { DB_DEMO: undefined } });
+  assert.equal(me.data.demo, false);
+  const st = await call('GET', '/api/demo/status', { email: 'boss@example.com', envOver: { DB_DEMO: undefined } });
+  assert.equal(st.data.available, false);
 });

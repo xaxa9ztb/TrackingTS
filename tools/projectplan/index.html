@@ -9,7 +9,8 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
 <script src="../../js/pwa.js?v=36" defer></script>
-<script src="../../js/session.js?v=43"></script>
+<script src="../../js/demo.js?v=1"></script>
+<script src="../../js/session.js?v=44"></script>
 <script>Session.guard('projectplan');</script>
 <script src="../../js/config.js?v=37"></script>
 <script src="../../js/db.js?v=37"></script>
@@ -35,6 +36,7 @@
         <button type="button" role="menuitem" id="miReload" hidden>Tải lại dữ liệu chung từ Drive</button>
         <button type="button" role="menuitem" id="miImport">Nhập Excel (Nhân sự + Plan)…</button>
         <button type="button" role="menuitem" id="btnExport">Xuất Excel (dự phòng / gửi người ngoài)</button>
+        <button type="button" role="menuitem" id="miAutofill">Điền thông số thang từ dữ liệu dự án chung</button>
         <button type="button" role="menuitem" id="miSample">Tạo dữ liệu mẫu</button>
         <button type="button" role="menuitem" id="miClear" class="danger">Xóa toàn bộ dữ liệu trên máy</button>
       </div>
@@ -49,6 +51,7 @@
     <nav class="pp-tabs" role="tablist">
       <button type="button" role="tab" id="tabAlloc" aria-controls="viewAlloc" aria-selected="true">Điều phối nhân sự</button>
       <button type="button" role="tab" id="tabPlan" aria-controls="viewPlan" aria-selected="false">Lịch trình dự án</button>
+      <button type="button" role="tab" id="tabActual" aria-controls="viewActual" aria-selected="false">Thực tế &amp; bám kế hoạch</button>
     </nav>
   </div>
 </header>
@@ -96,10 +99,36 @@
         <select id="planStatus"><option value="open">Đang theo dõi</option><option value="done">Đã hoàn thành</option><option value="all">Tất cả</option></select>
       </label>
       <label class="pp-field-inline">Giám sát <select id="planSup"><option value="">Tất cả</option></select></label>
+      <button type="button" class="btn" id="planMine" title="Chỉ các dự án do tôi giám sát" hidden>Dự án của tôi</button>
+      <div class="seg-btns" role="group" aria-label="Cách xem lịch trình">
+        <button type="button" id="planViewList" aria-pressed="true">Danh sách</button><button type="button" id="planViewGantt" aria-pressed="false">Lịch trình (Gantt)</button>
+      </div>
       <button type="button" class="btn btn-primary" id="addProject">+ Dự án</button>
     </div>
     <div class="pp-upcoming" id="upcoming"></div>
     <div id="planList"></div>
+    <div id="planGantt" hidden></div>
+  </section>
+
+  <!-- ===== Thực tế & bám kế hoạch ===== -->
+  <section id="viewActual" role="tabpanel" aria-labelledby="tabActual" hidden>
+    <div class="pp-toolbar">
+      <div class="pp-range">
+        <button type="button" class="btn btn-icon" id="actPrev" aria-label="Tháng trước">‹</button>
+        <button type="button" class="btn" id="actNow">Tháng này</button>
+        <button type="button" class="btn btn-icon" id="actNext" aria-label="Tháng sau">›</button>
+        <span class="pp-range-label" id="actLabel"></span>
+      </div>
+      <label class="pp-field-inline">Hiển thị
+        <select id="actMode"><option value="compare">So sánh với kế hoạch</option><option value="gantt">Gantt thực tế (theo chấm công)</option></select>
+      </label>
+      <button type="button" class="btn" id="actLoad" title="Tải bảng công (Theo dõi giờ công) mới nhất từ máy chủ / Drive">⟳ Tải bảng công mới nhất</button>
+    </div>
+    <div class="pp-status"><div class="st" id="actInfo"></div></div>
+    <div class="pp-today" id="actSummary"></div>
+    <div class="al-scroll" id="actScroll"><table class="al" id="actTable"></table></div>
+    <p class="pp-hint" id="actLegend"></p>
+    <div id="actTables"></div>
   </section>
 </main>
 
@@ -175,6 +204,7 @@
     <div class="pj-grid">
       <fieldset class="pj-sec"><legend>Thông tin dự án</legend>
         <label class="fld">Chọn từ danh sách dự án chung (WBS) <input id="pjShared" type="text" list="sharedProjects" autocomplete="off" placeholder="Gõ tên dự án hoặc WBS"></label>
+        <p class="hint"><button type="button" class="lnk" id="pjFill" hidden>↻ Điền thông số thang từ dự án chung</button> <button type="button" class="lnk" id="pjSuggest" hidden></button></p>
         <datalist id="sharedProjects"></datalist>
         <p class="hint" id="pjSharedHint"></p>
         <label class="fld">Tên dự án <input id="pj_name" type="text" required></label>
@@ -244,6 +274,7 @@
 <script src="../../js/xlsx.full.min.js?v=36"></script>
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="pmio.js?v=2"></script>
-<script src="app.js?v=3"></script>
+<script src="actual.js?v=1"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

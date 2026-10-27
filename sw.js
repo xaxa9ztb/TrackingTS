@@ -7,23 +7,24 @@
 //  - Google Drive / đăng nhập Google: KHÔNG lưu đệm (dữ liệu đã có IndexedDB lo).
 //
 // Khi đổi danh sách file bên dưới hoặc cách lưu đệm: tăng VERSION.
-const VERSION = 'v58';
+const VERSION = 'v62';
 const SHELL = `toolset-shell-${VERSION}`;
 const CDN = 'toolset-cdn-v1';
 const HTML_TIMEOUT = 4000;
 
 const SHELL_FILES = [
-  './', './index.html', './tracking.html', './manifest.webmanifest',
+  './', './index.html', './tracking.html', './admin.html', './manifest.webmanifest',
   './css/style.css',
-  './js/config.js', './js/db.js', './js/cloud.js', './js/session.js', './js/pwa.js', './js/backup.js',
+  './js/demo.js', './js/config.js', './js/db.js', './js/cloud.js', './js/session.js', './js/pwa.js', './js/backup.js',
   './js/importer.js', './js/charts.js', './js/combo.js', './js/tablefilter.js', './js/dashboard.js',
   './js/projects.js', './js/timesheet.js', './js/employees.js', './js/swat.js', './js/main.js', './js/xlsx.full.min.js',
-  './tools/toolset-nav.js', './tools/swat-hour/index.html',
+  './tools/toolset-nav.js', './tools/swat-hour/index.html', './tools/accounts/index.html', './tools/accounts/app.js', './tools/accounts/style.css',
   './tools/timesheet/', './tools/timesheet/index.html', './tools/timesheet/labor.js', './tools/timesheet/tssync.js', './tools/timesheet/app.js',
   './tools/timesheet/tailwind.css', './tools/timesheet/ts-template.xlsx',
   './tools/tiendotm/', './tools/tiendotm/index.html',
-  './tools/projectplan/', './tools/projectplan/index.html', './tools/projectplan/app.js', './tools/projectplan/pmio.js', './tools/projectplan/style.css',
-  './tools/tiendotm/hoso_chatluong_template.docx', './tools/tiendotm/thu_hangve_template.docx',
+  './tools/projectplan/', './tools/projectplan/index.html', './tools/projectplan/app.js', './tools/projectplan/pmio.js', './tools/projectplan/actual.js', './tools/projectplan/style.css',
+  './tools/tiendotm/hoso_chatluong_template.docx', './tools/tiendotm/thu_hangve_template.docx', './tools/tiendotm/chungtu.js',
+  './tools/tiendotm/nhatky_template.docx', './tools/tiendotm/bbxn_hangve_template.docx', './tools/tiendotm/bangiao_template.docx',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png',
 ];
 const CDN_FILES = [
