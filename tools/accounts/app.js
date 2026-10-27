@@ -464,8 +464,8 @@
     }
     const roles = me.roles.map(r => ROLE_LABEL[r] || r).join(', ') || 'Nhân viên';
     $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b>${me.name !== me.email ? ' · ' + esc(me.email) : ''} · ${esc(roles)}`;
-    if (!me.isAdmin && !me.roles.includes('pm')) {
-      gate('Chỉ <b>Admin</b> và <b>Quản lý dự án</b> dùng trang này.');
+    if (!me.isAdmin) {
+      gate('Chỉ <b>Admin</b> dùng trang này (Quản trị → Tài khoản &amp; phân quyền).');
       return;
     }
     $('secStaff').hidden = false;

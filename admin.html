@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản trị — Bộ công cụ dự án</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="js/pwa.js?v=36" defer></script>
+<!-- Chỉ quản trị viên: dữ liệu Nhân viên, Dự án, Bảng công (nạp Excel hàng tháng) và Tài khoản & phân quyền -->
+<script src="js/session.js?v=44"></script>
+<script>Session.guard('admin'); window.PAGE_TOOL = 'admin';</script>
+<link rel="stylesheet" href="css/style.css?v=36">
+<script src="js/xlsx.full.min.js?v=36"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand"><a class="brand-home" href="index.html" title="Về trang chủ Bộ công cụ" aria-label="Về trang chủ Bộ công cụ">‹</a>Quản trị</div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="employees">Nhân viên</button>
+      <button class="tab-btn" data-tab="projects">Dự án</button>
+      <button class="tab-btn" data-tab="timesheet">Bảng công</button>
+      <button class="tab-btn" data-tab="accounts" id="tabAccounts" style="display:none">Tài khoản &amp; phân quyền</button>
+    </nav>
+    <div class="header-actions">
+      <span id="dataStatus" class="data-status">Chưa có dữ liệu</span>
+      <button id="btnImport" class="btn btn-primary admin-only" title="Nạp EE Data, danh sách dự án hoặc bảng công hàng tháng từ file Excel">Cập nhật Data</button>
+      <button id="btnSaveDrive" class="btn btn-primary admin-only" style="display:none">Lưu lên Drive</button>
+      <button id="btnExport" class="btn btn-secondary admin-only">Export Excel</button>
+      <button id="btnAdmin" class="btn btn-secondary" style="display:none">🔒 Admin</button>
+      <span id="whoAmI" class="who-am-i"></span>
+      <button id="btnLogout" class="btn btn-secondary">Đăng xuất</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="admin-note" id="adminNote"></p>
+
+    <!-- ================= EMPLOYEES ================= -->
+    <section id="tab-employees" class="tab-panel active">
+      <div class="panel-toolbar">
+        <input type="text" id="employeeSearch" placeholder="Tìm nhân viên theo tên hoặc mã NV...">
+        <button class="btn btn-primary admin-only" id="btnAddEmployee">+ Thêm nhân viên</button>
+        <button class="btn btn-danger admin-only" id="btnDelSelEmployees" style="display:none">Xoá đã chọn</button>
+      </div>
+      <div class="table-scroll">
+        <table id="employeesTable" class="data-table">
+          <thead>
+            <tr>
+              <th class="chk-col"><input type="checkbox" id="empChkAll" title="Chọn tất cả"></th>
+              <th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Quản lý trực tiếp</th><th>Ngày vào làm</th><th>Ngày bắt đầu</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= PROJECTS ================= -->
+    <section id="tab-projects" class="tab-panel">
+      <div class="panel-toolbar">
+        <input type="text" id="projectSearch" placeholder="Tìm dự án theo tên hoặc WBS...">
+        <button class="btn btn-primary admin-only" id="btnAddProject">+ Thêm dự án</button>
+        <button class="btn btn-danger admin-only" id="btnDelSelProjects" style="display:none">Xoá đã chọn</button>
+      </div>
+      <div class="table-scroll">
+        <table id="projectsTable" class="data-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= TIMESHEET ================= -->
+    <section id="tab-timesheet" class="tab-panel">
+      <div class="panel-toolbar">
+        <input type="month" id="tsMonthFilter" title="Chu kỳ bảng công: từ ngày 16 tháng trước đến ngày 15 của tháng được chọn">
+        <span id="tsCycleLabel" class="cycle-label"></span>
+        <div id="tsEmployeeCombo"></div>
+        <div id="tsProjectCombo"></div>
+        <button class="btn btn-secondary" id="btnFindDupTs" title="Tìm các dòng nghi trùng lặp: cùng nhân viên, cùng ngày và cùng khoảng giờ (From/To) có từ 2 dòng trở lên">🔍 Tìm trùng lặp</button>
+        <span id="tsDupInfo" class="cycle-label"></span>
+        <button class="btn btn-primary admin-only" id="btnAddTimesheet">+ Thêm bảng công</button>
+        <button class="btn btn-danger admin-only" id="btnDelSelTs" style="display:none">Xoá đã chọn</button>
+      </div>
+      <div class="table-scroll">
+        <table id="timesheetTable" class="data-table">
+          <thead>
+            <tr>
+              <th class="chk-col"><input type="checkbox" id="tsChkAll" title="Chọn tất cả"></th>
+              <th>Ngày</th><th>Từ (From)</th><th>Đến (To)</th><th>Mã NV</th><th>Tên NV</th><th>Dự án</th><th>WBS</th><th>Activities</th>
+              <th class="num">Normal</th><th class="num">OT1</th><th class="num">OT2</th><th class="num">OT3</th><th>Chức vụ</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= TÀI KHOẢN & PHÂN QUYỀN (chỉ bản máy chủ) ================= -->
+    <section id="tab-accounts" class="tab-panel">
+      <div class="swat-frame-wrap">
+        <iframe id="accountsFrame" data-src="tools/accounts/index.html?embed=1" title="Tài khoản và phân quyền"></iframe>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+// Trang này không có Dashboard / SWAT: các trang Dự án, Bảng công, Nhân viên vẫn gọi làm mới Dashboard sau khi sửa -> bỏ qua
+window.Dashboard = { init() { return Promise.resolve(); }, reloadAndRefresh() { return Promise.resolve(); } };
+window.SwatPage = { load() { return Promise.resolve(); }, wire() {} };
+</script>
+<script src="js/config.js?v=37"></script>
+<script src="js/db.js?v=37"></script>
+<script src="js/backup.js?v=36"></script>
+<script src="js/cloud.js?v=42"></script>
+<script src="js/importer.js?v=40"></script>
+<script src="js/combo.js?v=36"></script>
+<script src="js/tablefilter.js?v=36"></script>
+<script src="js/projects.js?v=37"></script>
+<script src="js/timesheet.js?v=37"></script>
+<script src="js/employees.js?v=37"></script>
+<script src="js/main.js?v=40"></script>
+</body>
+</html>
