@@ -870,6 +870,7 @@ test('thư: nộp → báo Site Sup; Site Sup duyệt → báo Quản lý dự �
   assert.deepEqual(m.to.map(t => t.email), ['ap1@example.com']);
   assert.match(m.subject, /Thợ Bốn đã nộp kỳ lương 12\/2026 — chờ Site Sup duyệt/);
   assert.equal(m.sender.email, 'noreply@example.com'); assert.equal(m.key, 'test-key');
+  assert.equal(m.sender.name, 'Bộ công cụ'); assert.match(m.htmlContent, /Thư tự động từ Bộ công cụ\./, 'chân thư dùng đúng tên người gửi đã cấu hình');
   assert.match(m.htmlContent, /https:\/\/nihan-ts\.pages\.dev\/tools\/approvals\//);
   sentMail.length = 0;
   assert.equal((await call('POST', '/api/ts/review/TS4/2026-12/approve', { email: 'ap1@example.com', body: {} })).status, 200);
@@ -915,7 +916,7 @@ test('thư thử: chỉ admin; báo rõ khi chưa cấu hình; /api/health cho b
   sentMail.length = 0;
   assert.equal((await call('POST', '/api/admin/mail/test', { email: 'ts1@example.com', body: {} })).status, 403);
   const ok = await call('POST', '/api/admin/mail/test', { email: 'boss@example.com', body: {} });
-  assert.equal(ok.data.ok, true); assert.equal(ok.data.to, 'boss@example.com'); assert.equal(sentMail.length, 1);
+  assert.equal(ok.data.ok, true); assert.match(sentMail[0].subject, /^\[Thử\] Email từ Bộ công cụ$/); assert.equal(ok.data.to, 'boss@example.com'); assert.equal(sentMail.length, 1);
   const none = await call('POST', '/api/admin/mail/test', { email: 'boss@example.com', body: {}, envOver: { MAIL_FROM: '' } });
   assert.equal(none.data.ok, false); assert.equal(none.data.configured, false); assert.match(none.data.error, /BREVO_API_KEY/);
   brevoMode = 'fail';
