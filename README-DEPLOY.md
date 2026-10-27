@@ -168,7 +168,7 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
 Gói miễn phí của Brevo gửi tối đa 300 thư mỗi ngày — dư cho nhóm dưới 20 người.
 1. Tạo tài khoản **brevo.com**, *Senders, Domains & Dedicated IPs → Senders → Add a sender*: tên `Bộ công cụ dự án`, email là một Gmail riêng (vd. `nihan.timesheet@gmail.com`), xác nhận qua mã gửi vào Gmail đó.
 2. *SMTP & API → API Keys → Generate a new API key* (chỉ hiện một lần). Nếu có mục *Security → Authorized IPs* đang bật thì **tắt** (máy chủ Cloudflare đổi IP liên tục).
-3. GitHub → **Settings → Secrets and variables → Actions**: Secret `BREVO_API_KEY` = khoá vừa tạo; Variables `MAIL_FROM` = Gmail đã xác minh, `MAIL_FROM_NAME` = `Bộ công cụ dự án`.
+3. GitHub → **Settings → Secrets and variables → Actions**: Secret `BREVO_API_KEY` = khoá vừa tạo; Variables `MAIL_FROM` = Gmail đã xác minh, `MAIL_FROM_NAME` = tên người gửi hiển thị trong thư, vd. `Phòng NI Hà Nội` (đổi được bất cứ lúc nào: sửa biến này rồi chạy lại workflow).
 4. Khoá Cloudflare dùng để triển khai (`CLOUDFLARE_API_TOKEN`) cần thêm quyền **Account → Workers Scripts → Edit** (Cloudflare → My Profile → API Tokens → Edit). Thiếu quyền này thì bước *Email tự động (Worker theo lịch)* báo lỗi nhưng giao diện vẫn triển khai bình thường.
 5. **Run workflow** (hoặc merge một thay đổi). Vào **Tài khoản & phân quyền → 6. Email tự động** → *Gửi thử một email cho tôi* để kiểm tra.
 

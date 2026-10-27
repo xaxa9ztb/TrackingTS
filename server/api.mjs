@@ -6,7 +6,7 @@ import { verifyAccessJwt, teamHost } from './auth.mjs';
 import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
-import { mailConfigured, sendMail, layout } from './mail.mjs';
+import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, trackingRow } from './tsdoc.mjs';
 
 export class HttpError extends Error {
@@ -793,7 +793,7 @@ async function sendTestMail(env, me, request) {
   const body = await readJson(request);
   const to = str(body.to, 200) || me.email;
   if (!mailConfigured(env)) return json({ ok: false, configured: false, error: 'Chưa cấu hình gửi email: cần BREVO_API_KEY và MAIL_FROM (GitHub → Settings → Secrets and variables → Actions) rồi chạy lại triển khai.' }, 200);
-  const r = await sendMail(env, { to: [{ email: to }], subject: '[Thử] Email từ Bộ công cụ dự án', html: layout('Gửi thử thành công', `<p>Đây là thư thử do ${me.name} bấm trong trang Tài khoản. Nếu bạn đọc được thư này, cấu hình gửi email đã đúng.</p>`) });
+  const r = await sendMail(env, { to: [{ email: to }], subject: `[Thử] Email từ ${senderName(env)}`, html: layout('Gửi thử thành công', `<p>Đây là thư thử do ${me.name} bấm trong trang Tài khoản. Nếu bạn đọc được thư này, cấu hình gửi email đã đúng.</p>`) });
   await audit(env, me, 'mail_test', 'mail', to, undefined, { ok: r.ok });
   return json({ ok: r.ok, configured: true, to, error: r.error || '' });
 }

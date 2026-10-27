@@ -7,6 +7,8 @@ const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+export const senderName = (env) => String((env && env.MAIL_FROM_NAME) || 'Bộ công cụ dự án').trim().slice(0, 100) || 'Bộ công cụ dự án';
+
 export function mailConfigured(env) {
   return !!(env && String(env.BREVO_API_KEY || '').trim() && EMAIL_RE.test(String(env.MAIL_FROM || '').trim()));
 }
@@ -26,8 +28,9 @@ export async function sendMail(env, { to, cc = [], subject, html }) {
   const toList = clean(to), ccList = clean(cc).filter(c => !toList.some(t => t.email === c.email));
   if (!toList.length) return { ok: false, skipped: true, error: 'Không có người nhận hợp lệ' };
   const payload = {
-    sender: { email: String(env.MAIL_FROM).trim(), name: String(env.MAIL_FROM_NAME || 'Bộ công cụ dự án').slice(0, 100) },
-    to: toList, subject: String(subject).slice(0, 250), htmlContent: html,
+    sender: { email: String(env.MAIL_FROM).trim(), name: senderName(env) },
+    to: toList, subject: String(subject).slice(0, 250),
+    htmlContent: html + `<p style="color:#6b7280;font-size:12px;margin-top:20px;font-family:Arial,Helvetica,sans-serif">Thư tự động từ ${esc(senderName(env))}. Vui lòng không trả lời thư này.</p>`,
   };
   if (ccList.length) payload.cc = ccList;
   const doFetch = env.MAIL_FETCH || fetch;
@@ -52,6 +55,5 @@ export async function sendMail(env, { to, cc = [], subject, html }) {
 export function layout(title, bodyHtml, cta) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827;max-width:640px">
 <h2 style="font-size:17px;margin:0 0 10px">${esc(title)}</h2>${bodyHtml}
-${cta && cta.url ? `<p style="margin:18px 0"><a href="${esc(cta.url)}" style="background:#1d4ed8;color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;display:inline-block">${esc(cta.label)}</a></p>` : ''}
-<p style="color:#6b7280;font-size:12px;margin-top:20px">Thư tự động từ Bộ công cụ dự án. Vui lòng không trả lời thư này.</p></div>`;
+${cta && cta.url ? `<p style="margin:18px 0"><a href="${esc(cta.url)}" style="background:#1d4ed8;color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;display:inline-block">${esc(cta.label)}</a></p>` : ''}</div>`;
 }
