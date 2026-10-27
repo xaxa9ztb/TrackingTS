@@ -148,8 +148,10 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
 3. **Access → Applications → Add an application → Self-hosted**:
    - *Application name*: `trackingts` · *Session Duration*: **1 month** (giữ đăng nhập 30 ngày).
    - *Domain*: địa chỉ Pages ở trên (vd. `<tên>.pages.dev`).
-   - *Policy*: tên `Team`, *Action* **Allow**, *Include* → **Emails** → nhập email admin (sau này dán danh sách từ trang
-     **Tài khoản & phân quyền → Danh sách email cho Cloudflare Access**).
+   - *Policy*: tên `Team`, *Action* **Allow**, *Include* → **Everyone** (ai cũng nhận được mã PIN qua email để đăng nhập).
+     **Không cần nhập danh sách email ở Cloudflare**: ai được vào xem dữ liệu do máy chủ quyết định theo trang
+     **Tài khoản & phân quyền** (email chưa gắn nhân viên hoặc đã khoá thì máy chủ từ chối mọi dữ liệu).
+     Đang dùng policy *Emails* cũ thì mở policy → đổi *Include* sang **Everyone** → Save.
    - Lưu. Mở lại ứng dụng vừa tạo → chép **Application Audience (AUD) Tag**.
 4. GitHub → **Settings → Secrets and variables → Actions**:
    - Tab **Variables**: `ACCESS_TEAM_DOMAIN` = team name; `ACCESS_AUD` = AUD Tag vừa chép.
@@ -197,9 +199,9 @@ Khi chưa bật Access, API **từ chối mọi yêu cầu** (chỉ `/api/health
 - Thống kê giờ công: quyền admin theo máy chủ, không còn chữ "Drive". **Chưa chuyển:** Timesheet cá nhân lưu online + luồng duyệt
   (giai đoạn 4).
 
-**Danh sách email ở 2 nơi:** Access (ai mở được trang) và trang Tài khoản (ai là ai, vai trò gì). Thêm / khoá người
-thì sửa cả hai — trang Tài khoản có sẵn danh sách để sao chép. Máy chủ luôn kiểm tra lại: email có trong Access mà
-chưa gắn với nhân viên (hoặc đã bị khoá) vẫn **không** lấy được dữ liệu.
+**Danh sách email chỉ ở một nơi:** trang Tài khoản (ai là ai, vai trò gì, ai bị khoá). Cloudflare Access chỉ xác minh *email này đúng là của bạn*
+(mã PIN gửi qua email) và cho mọi email qua cửa; máy chủ kiểm tra từng yêu cầu: email chưa gắn với nhân viên (hoặc đã bị khoá) **không** lấy được dữ liệu.
+Người lạ có thể thấy trang đăng nhập và giao diện (mã nguồn không chứa dữ liệu) nhưng không thấy nhân viên, dự án, bảng công nào.
 
 ---
 

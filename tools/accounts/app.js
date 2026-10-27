@@ -220,7 +220,6 @@
     $('accountsCount').textContent = `${rows.length} / ${accounts.length} tài khoản · ${accounts.filter(e => e.active).length} đang làm`;
     $('accounts').tBodies[0].innerHTML = rows.map(e => personRow(e, true)).join('')
       || `<tr><td colspan="7" class="ac-note">${accounts.length ? 'Không có tài khoản nào khớp.' : 'Chưa có tài khoản nào — gắn email ở mục 2.'}</td></tr>`;
-    $('accessList').value = accounts.filter(e => e.active).map(e => e.email).join(', ');
   }
 
   function renderPeople() { renderAssign(); renderAccounts(); }
@@ -254,7 +253,7 @@
         const i = employees.findIndex(x => x.empId === tr.dataset.id);
         employees[i] = r.employee;
         renderPeople();
-        toast('Đã lưu ' + r.employee.name + (changes.email !== undefined ? ' — nhớ cập nhật danh sách email ở Cloudflare Access' : ''));
+        toast('Đã lưu ' + r.employee.name + '');
         loadAudit();
       } catch (e) {
         btn.disabled = false;
@@ -268,10 +267,6 @@
     $('qa').addEventListener('input', renderAccounts);
     wirePersonTable($('people').tBodies[0]);
     wirePersonTable($('accounts').tBodies[0]);
-    $('btnCopy').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText($('accessList').value); toast('Đã sao chép danh sách email'); }
-      catch (e) { $('accessList').select(); toast('Bấm Ctrl+C để sao chép'); }
-    });
   }
 
   // ---------- 4. phân công dự án ----------
