@@ -2718,7 +2718,8 @@ async function exportBBXN(){
       "{{BX_CO}}":doc(0,0,"ct_co_so","ct_co_ngay"),"{{BX_CQ}}":doc(0,0,"ct_cq_so","ct_cq_ngay"),
       "{{BX_SL}}":tong?pad2(tong):"….","{{BX_KIEN}}":qv("ct_kien")||"……"
     });
-    const blob=await zipToDocx(zip,t=>fillMap(applyOptional(t,OPT),M));
+    // header: tên nhà thầu thi công (ngắt dòng theo ô) | Quốc hiệu — như các biên bản nghiệm thu
+    const blob=await zipToDocx(zip,t=>fillMap(putBlock(applyOptional(t,OPT),"{{BLOCK_HDR}}",hdrCty(C["{{NHA_THAU}}"])),M));
     saveAs(blob,"BB_hang_ve_cong_truong_"+fileTag()+".docx");
     st.textContent="✓ Đã xuất biên bản hàng về công trường.";
   }catch(e){st.textContent="Lỗi: "+e.message;}

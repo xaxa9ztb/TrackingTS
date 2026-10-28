@@ -56,3 +56,17 @@ test('nhật ký thi công: khối ngày có mốc và token ngày', () => {
 test('biên bản bàn giao riêng: số biên bản ở chân trang', () => {
   assert.ok(text('bangiao_template.docx').includes('{{SO_BB}}'));
 });
+
+test('BB hàng về: header tên nhà thầu | Quốc hiệu như biên bản nghiệm thu; tên nhà thầu lấy theo dữ liệu nhập', () => {
+  const t = text('bbxn_hangve_template.docx').replace(/<[^>]+>/g, '');
+  assert.ok(t.includes('{{BLOCK_HDR}}') && t.includes('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM') && t.includes('{{DIA_DANH}}, {{BX_NGAY_LAP}}'));
+  for (const k of ['{{NHA_THAU_HOA}}', '{{NHA_THAU}}', '{{CHU_DAU_TU}}', '{{BX_NT1_N}}', '{{BX_HBL}}', '{{BX_KIEN}}']) assert.ok(t.includes(k), 'thiếu ' + k);
+  assert.ok(html.includes('"{{BLOCK_HDR}}",hdrCty(C["{{NHA_THAU}}"])'), 'exportBBXN điền header');
+});
+
+test('nhật ký: bìa ghi nhãn và giá trị theo dữ liệu nhập, trang ngày ký "Cán bộ giám sát"', () => {
+  const t = text('nhatky_template.docx').replace(/<[^>]+>/g, '');
+  for (const k of ['{{NHA_THAU_HOA}}', '{{NT_DIACHI}}', '{{NT_LIENHE}}', 'CHỦ ĐẦU TƯ: {{CHU_DAU_TU}}', 'ĐƠN VỊ THI CÔNG: {{NHA_THAU}}', '{{NK_CHT_TEN}}', '{{NK_CB4_DT}}'])
+    assert.ok(t.replace(/\s+/g, ' ').includes(k), 'thiếu ' + k);
+  assert.ok(!t.includes('hoặc CHỦ ĐẦU TƯ'));
+});
