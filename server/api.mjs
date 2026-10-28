@@ -745,8 +745,9 @@ async function reviewDoc(env, me, emp, period) {
   const level = LEVEL_OF[row.status];
   const staff = await projectStaff(env);
   const mine = level && canAct(me, level, wbs, staff, row.supervisor);
-  if (!mine && !me.isAdmin) throw new HttpError(403, 'Bạn không phải người duyệt bảng công này');
-  const text = DOC_JSON_HEAD(row) + `,"name":${JSON.stringify(row.full_name)},"position":${JSON.stringify(row.position)},"level":${JSON.stringify(level || '')},"canAct":${!!mine},` +
+  const resend = row.status === 'approved' && canResend(me, row, wbs, staff);
+  if (!mine && !resend && !me.isAdmin) throw new HttpError(403, 'Bạn không phải người duyệt bảng công này');
+  const text = DOC_JSON_HEAD(row) + `,"name":${JSON.stringify(row.full_name)},"position":${JSON.stringify(row.position)},"level":${JSON.stringify(level || '')},"canAct":${!!mine},"canResend":${resend || (row.status === 'approved' && me.isAdmin)},"pmBy":${JSON.stringify(row.pm_by)},` +
     `"submittedAt":${JSON.stringify(row.submitted_at)},"sitesupBy":${JSON.stringify(row.sitesup_by)},"sitesupAt":${JSON.stringify(row.sitesup_at)},"note":${JSON.stringify(row.note)},"data":${row.data}}`;
   return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
@@ -780,6 +781,44 @@ function cleanFiles(list) {
   if (!Array.isArray(list)) return [];
   return list.slice(0, 2).map(f => ({ name: str(f && f.name, 120).replace(/[^\w.\- ]+/g, '_'), content: String((f && f.content) || '') }))
     .filter(f => /\.xlsx$/i.test(f.name) && f.content.length > 100 && f.content.length <= MAX_FILE_B64 && /^[A-Za-z0-9+/]+={0,2}$/.test(f.content) && f.content.startsWith('UEsD'));
+}
+
+// Gửi lại thư "đã duyệt xong" kèm Excel: chỉ Quản lý dự án đã duyệt bảng công đó (hoặc QLDA / Quản lý trực tiếp phụ trách) và admin.
+// Người gửi lại luôn được CC. Chỉ bảng công đã được PM duyệt xong mới gửi.
+function canResend(me, row, wbs, staff) {
+  if (me.isAdmin) return true;
+  if (!me.roles.includes('pm')) return false;
+  return row.pm_by === me.name || canAct(me, 'pm', wbs, staff, row.supervisor);
+}
+
+// Các bảng công đã duyệt xong gần đây mà người này gửi lại thư được (30 bảng mới nhất)
+async function approvedList(env, me) {
+  need(me, 'pm');
+  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.pm_by, d.pm_at, e.full_name, e.position, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
+    WHERE d.status = 'approved' ORDER BY d.pm_at DESC LIMIT 200`).all();
+  const staff = await projectStaff(env);
+  const w = (await env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status = 'approved'`).all()).results;
+  const wbs = new Map();
+  for (const x of w) { const k = x.emp_id + '|' + x.period; if (!wbs.has(k)) wbs.set(k, []); wbs.get(k).push(x.wbs); }
+  const items = results.filter(d => canResend(me, d, wbs.get(d.emp_id + '|' + d.period) || [], staff)).slice(0, 30)
+    .map(d => ({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, pmBy: d.pm_by, pmAt: d.pm_at, wbs: wbs.get(d.emp_id + '|' + d.period) || [] }));
+  return json({ items });
+}
+
+async function resendApproved(env, me, emp, period, request) {
+  need(me, 'pm');
+  const body = await readJson(request);
+  const { row, wbs } = await loadDocForReview(env, me, emp, period);
+  if (row.status !== 'approved') throw new HttpError(409, 'Chỉ gửi lại được thư của bảng công đã được Quản lý dự án duyệt xong');
+  const staff = await projectStaff(env);
+  if (!canResend(me, row, wbs, staff)) throw new HttpError(403, 'Chỉ Quản lý dự án duyệt bảng công này (hoặc admin) mới gửi lại được');
+  const files = cleanFiles(body.files);
+  if (!files.length) throw new HttpError(400, 'Không có file Excel hợp lệ để đính kèm');
+  if (!mailConfigured(env)) throw new HttpError(503, 'Chưa cấu hình gửi email (BREVO_API_KEY, MAIL_FROM)');
+  const r = await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: row.pm_by || me.name, files, resendBy: me, resend: true });
+  await audit(env, me, 'ts_resend', 'ts_doc', `${emp}:${period}`, undefined, { files: files.length, ok: !!(r && r.ok) });
+  if (!(r && r.ok)) throw new HttpError(502, 'Gửi thư không thành công: ' + ((r && r.error) || 'lỗi không rõ') + ' — thử lại sau ít phút');
+  return json({ ok: true, files: files.length });
 }
 
 async function decideDoc(env, me, emp, period, action, request) {
@@ -816,7 +855,7 @@ async function decideDoc(env, me, emp, period, action, request) {
     throw e;
   }
   await audit(env, me, 'ts_approved', 'ts_doc', `${emp}:${period}`, undefined, { rows: pushed });
-  await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: me.name, pushed, files: cleanFiles(body.files) });
+  await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: me.name, pushed, files: cleanFiles(body.files), resendBy: me });
   return json({ ok: true, status: 'approved', pushed });
 }
 
@@ -946,6 +985,8 @@ export async function handle(request, env, opts = {}) {
     if (path === '/api/ts/approvers' && method === 'GET') return await tsApprovers(env, me, url);
     if (path === '/api/ts/inbox' && method === 'GET') return await tsInbox(env, me);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
+    if (path === '/api/ts/approved' && method === 'GET') return await approvedList(env, me);
+    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/resend$/)) && method === 'POST') return await resendApproved(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), request);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     if (path.startsWith('/api/ts/ot/') || path.startsWith('/api/ts/leave')) {

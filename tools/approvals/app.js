@@ -127,7 +127,34 @@
       await loadLeave();
     } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
   }
-  const loadAll = () => Promise.all([loadOt(), loadLeave(), loadInbox()]);
+  // ---------- đã duyệt xong: gửi lại thư kèm Excel ----------
+  async function loadApproved() {
+    const body = $('apTable').tBodies[0];
+    try {
+      const r = await api('GET', '/api/ts/approved');
+      $('secApproved').hidden = false;
+      body.innerHTML = r.items.map(i => `<tr data-emp="${esc(i.empId)}" data-period="${esc(i.period)}">
+          <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)} · ${esc(i.position)}</div></td>
+          <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}</td>
+          <td>${esc(i.pmBy || '—')}<div class="ac-note">${esc(fmtTime(i.pmAt))}</div></td>
+          <td class="mono">${esc(i.wbs.join(', ') || '—')}</td>
+          <td><button class="btn small" data-resend>Gửi lại thư kèm Excel</button></td></tr>`).join('')
+        || '<tr><td colspan="5" class="ac-note">Chưa có bảng công nào bạn đã duyệt xong.</td></tr>';
+    } catch (e) { $('secApproved').hidden = e.status === 403; if (e.status !== 403) body.innerHTML = `<tr><td colspan="5" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+  }
+  async function resend(emp, period, btn) {
+    const msg = $('apMsg');
+    if (!confirm('Gửi lại thư "đã duyệt xong" kèm bảng chấm công và bảng phụ cấp Excel cho Fitter, Site Sup của dự án và bạn?')) return;
+    btn.disabled = true; msg.className = 'ac-note'; msg.textContent = 'Đang tạo file Excel và gửi thư…';
+    try {
+      const doc = await api('GET', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}`);
+      const files = await buildAttachments(emp, period, doc);
+      const r = await api('POST', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}/resend`, { files });
+      msg.textContent = ''; toast(`✓ Đã gửi lại thư kèm ${r.files} file Excel.`);
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+    finally { btn.disabled = false; }
+  }
+  const loadAll = () => Promise.all([loadOt(), loadLeave(), loadInbox(), loadApproved()]);
 
   // ---------- chi tiết ----------
   const hoursOf = (e) => {
@@ -249,18 +276,18 @@
   // gửi kèm yêu cầu duyệt để máy chủ đính kèm vào thư gửi Fitter và Site Sup của dự án. Lỗi → hỏi có duyệt không kèm file.
   const b64 = (buf) => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
   const tpl = async (name) => { const r = await fetch('../timesheet/' + name); if (!r.ok) throw new Error('không tải được mẫu ' + name + ' (HTTP ' + r.status + ')'); return r.arrayBuffer(); };
-  async function buildAttachments() {
-    const { emp, period, doc } = current;
+  async function buildAttachments(emp, period, doc) {
     if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
     const entries = doc.data.entries || [];
     const out = [];
     const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl('ts-template.xlsx'), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
     out.push({ name: ts.name, content: b64(ts.buffer) });
-    if (current.allow && current.allow.rows.length) {
+    const allow = TsAllowance.compute(entries, doc.data.allow, periodRange(period));
+    if (allow.rows.length) {
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.load(await tpl('phucap-xe-template.xlsx'));
       const d = new Date(), iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      TsAllowance.fillWorkbook(wb, { name: doc.name, empId: emp, computed: current.allow, date: iso });
+      TsAllowance.fillWorkbook(wb, { name: doc.name, empId: emp, computed: allow, date: iso });
       out.push({ name: TsAllowance.fileName(doc.name, period), content: b64(await wb.xlsx.writeBuffer()) });
     }
     return out;
@@ -273,7 +300,7 @@
     if (action === 'approve' && current.doc.level === 'pm') {
       msg.className = 'ac-note'; msg.textContent = 'Đang tạo file Excel để gửi kèm thư…';
       ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = true; });
-      try { files = await buildAttachments(); }
+      try { files = await buildAttachments(emp, period, current.doc); }
       catch (e) {
         ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = false; });
         if (!confirm('Không tạo được file Excel đính kèm: ' + e.message + '\n\nBấm OK để vẫn duyệt (thư gửi KHÔNG kèm file), Huỷ để thử lại.')) { msg.textContent = ''; return; }
@@ -299,6 +326,8 @@
     });
     $('btnReload').addEventListener('click', loadInbox);
     $('btnReloadOt').addEventListener('click', loadOt);
+    $('btnReloadAp').addEventListener('click', loadApproved);
+    $('apTable').tBodies[0].addEventListener('click', (ev) => { const b = ev.target.closest('[data-resend]'); if (b) { const tr = b.closest('tr'); resend(tr.dataset.emp, tr.dataset.period, b); } });
     $('btnReloadLv').addEventListener('click', loadLeave);
     $('otAll').addEventListener('change', (ev) => { $('otTable').tBodies[0].querySelectorAll('input[data-pick]').forEach(c => { c.checked = ev.target.checked; }); otPicked(); });
     $('otTable').tBodies[0].addEventListener('change', otPicked);

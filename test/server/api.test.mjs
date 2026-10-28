@@ -1078,7 +1078,7 @@ test('demo: trọn luồng như thật — Fitter nộp → Site Sup duyệt →
   const done = await call('POST', `/api/ts/review/D101/${per}/approve`, { ...opt, body: {} });
   assert.equal(done.status, 200); assert.equal(done.data.status, 'approved');
   assert.equal(sentMail.length, 1); assert.match(sentMail[0].subject, /^\[DEMO\].*đã được duyệt xong/);
-  assert.match(sentMail[0].htmlContent, /sẽ gửi tới: <b>Phạm Minh Dũng \(CC: Trần Thị Bình\)<\/b>/, 'thật: gửi Fitter, CC Site Sup của dự án');
+  assert.match(sentMail[0].htmlContent, /sẽ gửi tới: <b>Phạm Minh Dũng \(CC: Trần Thị Bình, [^)]*\)<\/b>/, 'thật: gửi Fitter, CC Site Sup của dự án');
   assert.match(sentMail[0].htmlContent, /dòng đã chuyển sang bảng Theo dõi giờ công/);
   // chỉ một người dùng email người thử; đổi vai không tạo trùng email
   const emps = (await call('GET', '/api/employees', opt)).data.employees;
@@ -1358,7 +1358,7 @@ test('duyệt xong: thư kèm Excel gửi Fitter, CC Site Sup của dự án; t�
   assert.equal(sentMail.length, 1);
   const m = sentMail[0];
   assert.deepEqual(m.to.map(t => t.email), ['ts1@example.com']);
-  assert.deepEqual((m.cc || []).map(t => t.email), ['ap1@example.com'], 'CC Site Sup của dự án WA-1, không báo admin');
+  assert.deepEqual((m.cc || []).map(t => t.email).sort(), ['ap1@example.com', 'ap3@example.com'], 'CC Site Sup của dự án WA-1 + Quản lý dự án đã duyệt, không báo admin');
   assert.deepEqual(m.attachment.map(a => a.name), ['Tho_Mot_Thang_03_2027.xlsx'.replace('Tho_Mot', 'Tho Mot'), 'Phu_cap_xe.xlsx'], 'chỉ giữ tệp .xlsx hợp lệ');
   assert.match(m.subject, /Thợ Một — kỳ lương 5\/2027 đã được duyệt xong \(kèm Excel\)/);
   assert.match(m.htmlContent, /Đính kèm/);
@@ -1370,4 +1370,31 @@ test('duyệt xong: thư kèm Excel gửi Fitter, CC Site Sup của dự án; t�
   r = await call('POST', '/api/ts/review/TS2/2027-05/approve', { email: 'ap3@example.com', body: {} });
   assert.equal(r.status, 200);
   assert.equal(sentMail[0].attachment, undefined); assert.match(sentMail[0].htmlContent, /không kèm file Excel/);
+});
+
+test('gửi lại thư duyệt xong: chỉ QLDA đã duyệt / admin; luôn CC người gửi lại; chưa duyệt xong thì không gửi; lỗi Brevo báo rõ', async () => {
+  const zip = 'UEsDBBQAAAAIA' + 'A'.repeat(200);
+  const body = { files: [{ name: 'a.xlsx', content: zip }] };
+  const url = '/api/ts/review/TS1/2027-05/resend';
+  const list = (await call('GET', '/api/ts/approved', { email: 'ap3@example.com' })).data.items;
+  assert.ok(list.some(i => i.empId === 'TS1' && i.period === '2027-05' && i.pmBy === 'Quản Lý Duyệt'));
+  assert.equal((await call('GET', '/api/ts/approved', { email: 'ap1@example.com' })).status, 403, 'Site Sup không có danh sách này');
+  assert.equal((await call('POST', url, { email: 'ap1@example.com', body })).status, 403);
+  assert.equal((await call('POST', url, { email: 'ts1@example.com', body })).status, 403);
+  sentMail.length = 0;
+  const r = await call('POST', url, { email: 'ap3@example.com', body });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.match(sentMail[0].subject, /^\[Gửi lại\] Thợ Một/);
+  assert.deepEqual(sentMail[0].to.map(t => t.email), ['ts1@example.com']);
+  assert.deepEqual(sentMail[0].cc.map(t => t.email).sort(), ['ap1@example.com', 'ap3@example.com'], 'CC Site Sup dự án + PM');
+  assert.equal(sentMail[0].attachment.length, 1);
+  assert.equal((await call('POST', url, { email: 'ap3@example.com', body: { files: [] } })).status, 400);
+  assert.equal((await call('POST', '/api/ts/review/TS3/2026-12/resend', { email: 'ap3@example.com', body })).status, 200, 'bảng công đã duyệt xong khác của QLDA');
+  await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok' WHERE emp_id = 'TS1' AND period = '2027-05'").run();
+  assert.equal((await call('POST', url, { email: 'ap3@example.com', body })).status, 409, 'chưa được PM duyệt xong');
+  await env.DB.prepare("UPDATE ts_docs SET status = 'approved' WHERE emp_id = 'TS1' AND period = '2027-05'").run();
+  brevoMode = 'fail';
+  const bad = await call('POST', url, { email: 'ap3@example.com', body });
+  brevoMode = 'ok';
+  assert.equal(bad.status, 502); assert.match(bad.data.error, /Gửi thư không thành công/);
 });

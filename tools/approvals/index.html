@@ -71,6 +71,16 @@
     <p class="ac-note" id="inboxNote"></p>
   </section>
 
+  <section class="ac-card" id="secApproved" hidden>
+    <div class="ap-head"><h2>✉ Đã duyệt xong — gửi lại thư kèm Excel</h2><button class="btn small" id="btnReloadAp">Tải lại</button></div>
+    <p class="ac-note">Thư báo duyệt xong (kèm bảng chấm công và bảng phụ cấp xe Excel) gửi Fitter, CC Site Sup của dự án và bạn. Nếu thư lần đầu bị lỗi hoặc ai đó chưa nhận được, bấm <b>Gửi lại</b>. Chỉ Quản lý dự án đã duyệt bảng công đó (và admin) gửi lại được.</p>
+    <div class="ac-scroll ac-short"><table class="ac-table" id="apTable">
+      <thead><tr><th>Người nộp</th><th>Kỳ lương</th><th>Duyệt bởi</th><th>Dự án</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="ac-note" id="apMsg"></p>
+  </section>
+
   <section class="ac-card" id="secDetail" hidden aria-live="polite">
     <div class="ap-head"><h2 id="dTitle">Chi tiết</h2><button class="btn small" id="btnClose">Đóng</button></div>
     <div id="dMeta" class="ap-meta"></div>
@@ -102,6 +112,6 @@
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="../timesheet/allowance.js?v=1"></script>
 <script src="../timesheet/tsexcel.js?v=1"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

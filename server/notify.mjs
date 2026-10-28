@@ -100,7 +100,7 @@ async function ownerOf(env, empId) {
 }
 
 // kind: 'submitted' | 'sitesup_ok' | 'approved' | 'rejected'
-export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '', note = '', pushed = 0, files = [] }) {
+export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '', note = '', pushed = 0, files = [], resendBy = null, resend = false }) {
   try {
     if (!mailConfigured(env)) return { ok: false, skipped: true };
     const owner = await ownerOf(env, empId);
@@ -123,10 +123,13 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
       // người nộp (To) + Site Sup của các dự án trong bảng công / Quản lý trực tiếp (CC); không có ai thì không báo admin
       to = owner.email ? [{ email: owner.email, name: owner.full_name }] : [];
       cc = await approversFor(env, 'sitesup', wbs, owner.supervisor, {}, { fallback: false });
+      // thư luôn CC Quản lý dự án đã duyệt bảng công này (hoặc người bấm gửi lại)
+      if (resendBy && resendBy.email) cc = cc.concat([{ email: String(resendBy.email).toLowerCase(), name: resendBy.name || '' }]);
       const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
       let t = null;
       try { t = row ? docTotals(JSON.parse(row.data)) : null; } catch (e) { t = null; }
       subject = `[Bảng công] ${owner.full_name} — ${kp} đã được duyệt xong${files.length ? ' (kèm Excel)' : ''}`;
+      if (resend) subject = '[Gửi lại] ' + subject.replace(/^\[Bảng công\] /, '');
       html = layout('Bảng công đã được duyệt', `<p>Bảng công ${esc(kp)} của <b>${esc(who)}</b> đã được ${esc(by)} duyệt xong.${pushed ? ` ${pushed} dòng đã chuyển sang bảng Theo dõi giờ công.` : ''}</p>
         ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc</p>` : ''}
         ${t && t.allow ? `<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px"><b>Phụ cấp xe:</b> ${esc(t.allow)}</p>` : ''}
