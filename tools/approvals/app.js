@@ -245,15 +245,46 @@
     } catch (e) { toast('✗ ' + e.message); }
   }
 
+  // Duyệt xong (Quản lý dự án): tạo ngay trên trình duyệt 2 file Excel — Bảng chấm công (mẫu Schindler) và Bảng phụ cấp xe (nếu có) —
+  // gửi kèm yêu cầu duyệt để máy chủ đính kèm vào thư gửi Fitter và Site Sup của dự án. Lỗi → hỏi có duyệt không kèm file.
+  const b64 = (buf) => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+  const tpl = async (name) => { const r = await fetch('../timesheet/' + name); if (!r.ok) throw new Error('không tải được mẫu ' + name + ' (HTTP ' + r.status + ')'); return r.arrayBuffer(); };
+  async function buildAttachments() {
+    const { emp, period, doc } = current;
+    if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+    const entries = doc.data.entries || [];
+    const out = [];
+    const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl('ts-template.xlsx'), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
+    out.push({ name: ts.name, content: b64(ts.buffer) });
+    if (current.allow && current.allow.rows.length) {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await tpl('phucap-xe-template.xlsx'));
+      const d = new Date(), iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      TsAllowance.fillWorkbook(wb, { name: doc.name, empId: emp, computed: current.allow, date: iso });
+      out.push({ name: TsAllowance.fileName(doc.name, period), content: b64(await wb.xlsx.writeBuffer()) });
+    }
+    return out;
+  }
+
   async function decide(action, note) {
     const msg = $('dMsg');
     const { emp, period } = current;
+    let files = [];
+    if (action === 'approve' && current.doc.level === 'pm') {
+      msg.className = 'ac-note'; msg.textContent = 'Đang tạo file Excel để gửi kèm thư…';
+      ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = true; });
+      try { files = await buildAttachments(); }
+      catch (e) {
+        ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = false; });
+        if (!confirm('Không tạo được file Excel đính kèm: ' + e.message + '\n\nBấm OK để vẫn duyệt (thư gửi KHÔNG kèm file), Huỷ để thử lại.')) { msg.textContent = ''; return; }
+      }
+    }
     msg.className = 'ac-note'; msg.textContent = 'Đang gửi…';
     ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = true; });
     try {
-      const r = await api('POST', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}/${action}`, action === 'reject' ? { note } : {});
+      const r = await api('POST', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}/${action}`, action === 'reject' ? { note } : (files.length ? { files } : {}));
       const text = action === 'reject' ? 'Đã trả lại bảng công cho người chấm công.'
-        : r.status === 'approved' ? `Đã duyệt xong — ${r.pushed} dòng đã sang bảng Theo dõi giờ công.` : 'Đã duyệt — chuyển sang Quản lý dự án.';
+        : r.status === 'approved' ? `Đã duyệt xong — ${r.pushed} dòng đã sang bảng Theo dõi giờ công${files.length ? '; đã gửi email kèm ' + files.length + ' file Excel cho Fitter và Site Sup' : ''}.` : 'Đã duyệt — chuyển sang Quản lý dự án.';
       toast('✓ ' + text);
       $('secDetail').hidden = true; current = null;
       await loadInbox();

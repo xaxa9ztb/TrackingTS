@@ -1078,7 +1078,7 @@ test('demo: trọn luồng như thật — Fitter nộp → Site Sup duyệt →
   const done = await call('POST', `/api/ts/review/D101/${per}/approve`, { ...opt, body: {} });
   assert.equal(done.status, 200); assert.equal(done.data.status, 'approved');
   assert.equal(sentMail.length, 1); assert.match(sentMail[0].subject, /^\[DEMO\].*đã được duyệt xong/);
-  assert.match(sentMail[0].htmlContent, /sẽ gửi tới: <b>Phạm Minh Dũng<\/b>/);
+  assert.match(sentMail[0].htmlContent, /sẽ gửi tới: <b>Phạm Minh Dũng \(CC: Trần Thị Bình\)<\/b>/, 'thật: gửi Fitter, CC Site Sup của dự án');
   assert.match(sentMail[0].htmlContent, /dòng đã chuyển sang bảng Theo dõi giờ công/);
   // chỉ một người dùng email người thử; đổi vai không tạo trùng email
   const emps = (await call('GET', '/api/employees', opt)).data.employees;
@@ -1342,4 +1342,32 @@ test('báo cáo tối: có mục tăng ca chờ duyệt và đơn nghỉ chờ d
   assert.match(m.htmlContent, /Tăng ca chờ bạn duyệt/); assert.match(m.htmlContent, /Thợ Một/);
   assert.match(m.htmlContent, /Đơn nghỉ chờ bạn duyệt/); assert.match(m.htmlContent, /Cưới em gái/);
   assert.match(m.subject, /ngày OT chờ duyệt/);
+});
+
+// ---------- thư duyệt xong kèm Excel ----------
+test('duyệt xong: thư kèm Excel gửi Fitter, CC Site Sup của dự án; tệp sai bị bỏ; không có tệp vẫn duyệt và báo rõ', async () => {
+  const zip = (n) => 'UEsDBBQAAAAIA' + 'A'.repeat(n);          // giả dạng zip (chữ ký PK) — máy chủ chỉ kiểm tra chữ ký, kích thước, tên
+  const files = [{ name: 'Tho Mot_Thang_03_2027.xlsx', content: zip(200) }, { name: 'Phu_cap_xe.xlsx', content: zip(300) },
+    { name: 'virus.exe', content: zip(200) }, { name: 'x.xlsx', content: 'bad base64!!' }, { name: 'y.xlsx', content: 'QUJD' + 'A'.repeat(200) }];
+  await putDoc('ts1@example.com', '2027-05', [okEntry(4101, '2027-04-20')], 0);
+  assert.equal((await submit('ts1@example.com', '2027-05')).status, 200);
+  assert.equal((await call('POST', '/api/ts/review/TS1/2027-05/approve', { email: 'ap1@example.com', body: {} })).status, 200);
+  sentMail.length = 0;
+  let r = await call('POST', '/api/ts/review/TS1/2027-05/approve', { email: 'ap3@example.com', body: { files } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'approved');
+  assert.equal(sentMail.length, 1);
+  const m = sentMail[0];
+  assert.deepEqual(m.to.map(t => t.email), ['ts1@example.com']);
+  assert.deepEqual((m.cc || []).map(t => t.email), ['ap1@example.com'], 'CC Site Sup của dự án WA-1, không báo admin');
+  assert.deepEqual(m.attachment.map(a => a.name), ['Tho_Mot_Thang_03_2027.xlsx'.replace('Tho_Mot', 'Tho Mot'), 'Phu_cap_xe.xlsx'], 'chỉ giữ tệp .xlsx hợp lệ');
+  assert.match(m.subject, /Thợ Một — kỳ lương 5\/2027 đã được duyệt xong \(kèm Excel\)/);
+  assert.match(m.htmlContent, /Đính kèm/);
+  // không gửi tệp: vẫn duyệt, thư không kèm file và báo rõ
+  await putDoc('ts2@example.com', '2027-05', [okEntry(4102, '2027-04-20')], 0);
+  await submit('ts2@example.com', '2027-05');
+  await call('POST', '/api/ts/review/TS2/2027-05/approve', { email: 'ap1@example.com', body: {} });
+  sentMail.length = 0;
+  r = await call('POST', '/api/ts/review/TS2/2027-05/approve', { email: 'ap3@example.com', body: {} });
+  assert.equal(r.status, 200);
+  assert.equal(sentMail[0].attachment, undefined); assert.match(sentMail[0].htmlContent, /không kèm file Excel/);
 });

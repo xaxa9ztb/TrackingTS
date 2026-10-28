@@ -14,7 +14,8 @@ export function mailConfigured(env) {
 }
 
 // to / cc: [{ email, name? }]; trả về { ok, error?, skipped? }
-export async function sendMail(env, { to, cc = [], subject, html }) {
+// attachments: [{ name, content (base64) }] — Brevo nhận tệp đính kèm dạng base64 (tối đa ~4 MB tổng)
+export async function sendMail(env, { to, cc = [], subject, html, attachments = [] }) {
   if (!mailConfigured(env)) return { ok: false, skipped: true, error: 'Chưa cấu hình gửi email (BREVO_API_KEY, MAIL_FROM)' };
   const clean = (list) => {
     const seen = new Set(), out = [];
@@ -38,6 +39,7 @@ export async function sendMail(env, { to, cc = [], subject, html }) {
     htmlContent: html + `<p style="color:#6b7280;font-size:12px;margin-top:20px;font-family:Arial,Helvetica,sans-serif">Thư tự động từ ${esc(senderName(env))}. Vui lòng không trả lời thư này.</p>`,
   };
   if (ccList.length) payload.cc = ccList;
+  if (attachments.length) payload.attachment = attachments.map(a => ({ name: String(a.name), content: String(a.content) }));
   const doFetch = env.MAIL_FETCH || fetch;
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : null;

@@ -773,6 +773,15 @@ async function pushApprovedRows(env, me, row, period) {
   throw new HttpError(409, 'Máy chủ đang bận khi cập nhật bảng Theo dõi giờ công — bấm Duyệt lại');
 }
 
+// File Excel (bảng công, bảng phụ cấp xe) do trình duyệt của người duyệt tạo khi Quản lý dự án duyệt xong, đính kèm vào thư báo.
+// Máy chủ không dựng Excel (ExcelJS nặng so với giới hạn CPU gói miễn phí) nên chỉ kiểm tra: ≤ 2 tệp .xlsx, tên an toàn, đúng chữ ký zip, ≤ 1,5 MB mỗi tệp.
+const MAX_FILE_B64 = 2000000;
+function cleanFiles(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 2).map(f => ({ name: str(f && f.name, 120).replace(/[^\w.\- ]+/g, '_'), content: String((f && f.content) || '') }))
+    .filter(f => /\.xlsx$/i.test(f.name) && f.content.length > 100 && f.content.length <= MAX_FILE_B64 && /^[A-Za-z0-9+/]+={0,2}$/.test(f.content) && f.content.startsWith('UEsD'));
+}
+
 async function decideDoc(env, me, emp, period, action, request) {
   need(me, 'sitesup', 'pm');
   const body = await readJson(request);
@@ -807,7 +816,7 @@ async function decideDoc(env, me, emp, period, action, request) {
     throw e;
   }
   await audit(env, me, 'ts_approved', 'ts_doc', `${emp}:${period}`, undefined, { rows: pushed });
-  await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: me.name, pushed });
+  await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: me.name, pushed, files: cleanFiles(body.files) });
   return json({ ok: true, status: 'approved', pushed });
 }
 

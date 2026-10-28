@@ -30,7 +30,7 @@ const ph = (n) => Array.from({ length: n }, () => '?').join(', ');
 
 // Người được thông báo ở mỗi cấp duyệt: người được gán cho các dự án trong bảng công, hoặc "Quản lý trực tiếp" của người nộp (cấp Site Sup);
 // không ai thì gửi admin để bảng công không bị bỏ quên.
-export async function approversFor(env, level, wbsList, ownerSupervisor, ctx = {}) {
+export async function approversFor(env, level, wbsList, ownerSupervisor, ctx = {}, { fallback = true } = {}) {
   const out = new Map();
   const add = (e) => { const k = String(e.email || '').toLowerCase(); if (k) out.set(k, { email: k, name: e.full_name || '' }); };
   const wbs = [...new Set((wbsList || []).filter(Boolean))].slice(0, 30);
@@ -43,7 +43,7 @@ export async function approversFor(env, level, wbsList, ownerSupervisor, ctx = {
     if (!ctx.emps) ctx.emps = (await env.DB.prepare("SELECT * FROM employees WHERE active = 1 AND email <> ''").all()).results;
     ctx.emps.filter(e => keyOf(e.full_name) === keyOf(ownerSupervisor) && effectiveRoles(e, e.email, env).includes('sitesup')).forEach(add);
   }
-  if (!out.size) {
+  if (!out.size && fallback) {
     adminEmails(env).forEach(email => out.set(email, { email, name: '' }));
     if (!ctx.admins) ctx.admins = (await env.DB.prepare("SELECT full_name, email FROM employees WHERE active = 1 AND email <> '' AND role_override = 'admin'").all()).results;
     ctx.admins.forEach(add);
@@ -100,14 +100,14 @@ async function ownerOf(env, empId) {
 }
 
 // kind: 'submitted' | 'sitesup_ok' | 'approved' | 'rejected'
-export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '', note = '', pushed = 0 }) {
+export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '', note = '', pushed = 0, files = [] }) {
   try {
     if (!mailConfigured(env)) return { ok: false, skipped: true };
     const owner = await ownerOf(env, empId);
     if (!owner) return { ok: false, skipped: true };
     const who = `${owner.full_name} (${empId})`, kp = `kỳ lương ${periodLabel(period)}`;
     const review = reviewLink(env, empId, period), mine = link(env, '/tools/timesheet/');
-    let to, subject, html;
+    let to, subject, html, cc = [];
     if (kind === 'submitted' || kind === 'sitesup_ok') {
       const level = kind === 'submitted' ? 'sitesup' : 'pm';
       to = await approversFor(env, level, wbs, owner.supervisor);
@@ -120,16 +120,25 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
         ${t && t.allow ? `<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px"><b>Phụ cấp xe:</b> ${esc(t.allow)}</p>` : ''}
         ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}<p>Bấm nút dưới để mở thẳng bảng công này trong <b>Duyệt bảng công</b>: xem chi tiết, duyệt hoặc trả lại kèm lý do.</p>`, { url: review, label: 'Mở bảng công để duyệt' });
     } else if (kind === 'approved') {
+      // người nộp (To) + Site Sup của các dự án trong bảng công / Quản lý trực tiếp (CC); không có ai thì không báo admin
       to = owner.email ? [{ email: owner.email, name: owner.full_name }] : [];
-      subject = `[Bảng công] ${kp} của bạn đã được duyệt xong`;
-      html = layout('Bảng công đã được duyệt', `<p>Bảng công ${esc(kp)} của bạn đã được ${esc(by)} duyệt xong.${pushed ? ` ${pushed} dòng đã chuyển sang bảng Theo dõi giờ công.` : ''}</p>`, { url: mine, label: 'Mở Timesheet' });
+      cc = await approversFor(env, 'sitesup', wbs, owner.supervisor, {}, { fallback: false });
+      const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
+      let t = null;
+      try { t = row ? docTotals(JSON.parse(row.data)) : null; } catch (e) { t = null; }
+      subject = `[Bảng công] ${owner.full_name} — ${kp} đã được duyệt xong${files.length ? ' (kèm Excel)' : ''}`;
+      html = layout('Bảng công đã được duyệt', `<p>Bảng công ${esc(kp)} của <b>${esc(who)}</b> đã được ${esc(by)} duyệt xong.${pushed ? ` ${pushed} dòng đã chuyển sang bảng Theo dõi giờ công.` : ''}</p>
+        ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc</p>` : ''}
+        ${t && t.allow ? `<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px"><b>Phụ cấp xe:</b> ${esc(t.allow)}</p>` : ''}
+        ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}
+        ${files.length ? `<p><b>Đính kèm:</b></p><ul style="margin:0;padding-left:18px">${files.map(f => `<li>${esc(f.name)}</li>`).join('')}</ul>` : `<p style="color:#6b7280">Thư này không kèm file Excel (không tạo được lúc duyệt) — tải bảng công và phụ cấp ngay trong Timesheet (Xuất Excel / Tải form phụ cấp).</p>`}`, { url: mine, label: 'Mở Timesheet' });
     } else if (kind === 'rejected') {
       to = owner.email ? [{ email: owner.email, name: owner.full_name }] : [];
       subject = `[Bảng công] ${kp} bị trả lại — cần sửa`;
       html = layout('Bảng công bị trả lại', `<p>Bảng công ${esc(kp)} của bạn đã bị trả lại.</p><p style="background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:6px"><b>Lý do:</b> ${esc(note)}</p>
         <p>Mở Timesheet, sửa rồi bấm <b>Nộp bảng công</b> lại.</p>`, { url: mine, label: 'Mở Timesheet' });
     } else return { ok: false, skipped: true };
-    return await sendMail(env, { to, subject, html });
+    return await sendMail(env, { to, cc, subject, html, attachments: files });
   } catch (e) { console.error('notifyEvent', e); return { ok: false, error: 'Lỗi soạn thư' }; }
 }
 
