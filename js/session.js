@@ -203,7 +203,9 @@ const Session = (() => {
   // Gọi trong <head> của trang công cụ, trước khi công cụ chạy.
   function redirectFor(toolId) {
     const s = current();
-    return !s ? homeUrl({ next: toolId }) : (!canAccess(toolId, s) ? homeUrl({ denied: toolId }) : null);
+    // giữ phần #… (ví dụ link mở thẳng một bảng công từ email) để mở lại sau khi đăng nhập
+    const h = /^#[\w=\/.%-]{1,80}$/.test(location.hash) ? location.hash.slice(1) : '';
+    return !s ? homeUrl(h ? { next: toolId, h } : { next: toolId }) : (!canAccess(toolId, s) ? homeUrl({ denied: toolId }) : null);
   }
   function leave(to) {
     document.documentElement.style.display = 'none'; // không để lộ giao diện công cụ trong lúc chuyển trang

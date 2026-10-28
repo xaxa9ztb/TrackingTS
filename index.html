@@ -431,7 +431,7 @@
 <script src="js/config.js?v=37"></script>
 <script src="js/db.js?v=37"></script>
 <script src="js/cloud.js?v=42"></script>
-<script src="js/session.js?v=44"></script>
+<script src="js/session.js?v=45"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -748,8 +748,9 @@
   function afterLogin() {
     const s = Session.current();
     const next = params.get('next');
-    if (Session.ready(next) && Session.canAccess(next, s)) { location.href = Session.url(next); return; }
-    params.delete('next');
+    const h = params.get('h');
+    if (Session.ready(next) && Session.canAccess(next, s)) { location.href = Session.url(next) + (h && /^[\w=\/.%-]{1,80}$/.test(h) ? '#' + h : ''); return; }
+    params.delete('next'); params.delete('h');
     history.replaceState(null, '', location.pathname);
     render();
   }

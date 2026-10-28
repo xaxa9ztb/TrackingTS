@@ -182,7 +182,17 @@
     if (!me.isAdmin && !me.roles.includes('pm') && !me.roles.includes('sitesup')) { gate('Chỉ <b>Site Sup</b>, <b>Quản lý dự án</b> và <b>Admin</b> dùng trang này.'); return; }
     $('secInbox').hidden = false;
     wire();
-    loadInbox();
+    await loadInbox();
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
+  }
+
+  // link trong email: #xem=<mã NV>/<kỳ> mở thẳng bảng công đó
+  function openFromHash() {
+    const m = /^#xem=([^/]+)\/(\d{4}-\d{2})$/.exec(location.hash);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    openDoc(decodeURIComponent(m[1]), m[2]);
   }
 
   start();

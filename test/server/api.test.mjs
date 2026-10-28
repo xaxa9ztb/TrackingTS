@@ -872,7 +872,8 @@ test('thư: nộp → báo Site Sup; Site Sup duyệt → báo Quản lý dự �
   assert.match(m.subject, /Thợ Bốn đã nộp kỳ lương 12\/2026 — chờ Site Sup duyệt/);
   assert.equal(m.sender.email, 'noreply@example.com'); assert.equal(m.key, 'test-key');
   assert.equal(m.sender.name, 'Bộ công cụ'); assert.match(m.htmlContent, /Thư tự động từ Bộ công cụ\./, 'chân thư dùng đúng tên người gửi đã cấu hình');
-  assert.match(m.htmlContent, /https:\/\/nihan-ts\.pages\.dev\/tools\/approvals\//);
+  assert.match(m.htmlContent, /https:\/\/nihan-ts\.pages\.dev\/tools\/approvals\/#xem=TS4\/2026-12/, 'nút mở thẳng bảng công vừa nộp');
+  assert.match(m.htmlContent, /8 giờ<\/b> \(thường 8, tăng ca 0\) · 1 ngày làm việc · 1 dòng/, 'thư có tổng giờ của bảng công');
   sentMail.length = 0;
   assert.equal((await call('POST', '/api/ts/review/TS4/2026-12/approve', { email: 'ap1@example.com', body: {} })).status, 200);
   assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [['ap3@example.com']]);
@@ -934,17 +935,30 @@ test('báo cáo tối: mỗi người phụ trách một thư với dòng chấm
   await putDoc(staffEmail(7), '2026-11', [e(701, day, { workNumber: '', projectName: '', report: 'Việc không thuộc dự án' })], 0);
   sentMail.length = 0;
   const sum = await runDigest(env, { now });
-  assert.equal(sum.date, day); assert.equal(sum.entries, 2, 'chỉ dòng của ngày, bỏ mã nghỉ phép'); assert.equal(sum.sent, 3, JSON.stringify(sum));
+  assert.equal(sum.date, day); assert.equal(sum.entries, 2, 'chỉ dòng của ngày, bỏ mã nghỉ phép');
+  assert.equal(sum.sent, sum.recipients, JSON.stringify(sum)); assert.ok(sum.pending >= 1);
   const ap1 = mailsTo('ap1@example.com'), ap3 = mailsTo('ap3@example.com'), ap2 = mailsTo('ap2@example.com');
   assert.equal(ap1.length, 1); assert.equal(ap3.length, 1); assert.equal(ap2.length, 1);
   assert.match(ap1[0].subject, /\[Báo cáo thi công\] Thứ 5 05\/11\/2026 — 1 dòng/);
   assert.match(ap1[0].htmlContent, /Thợ Bốn/); assert.match(ap1[0].htmlContent, /Đã lắp xong ray tầng 5/); assert.match(ap1[0].htmlContent, /8 giờ/);
   assert.doesNotMatch(ap1[0].htmlContent, /hôm qua|nghỉ phép|Thợ Bảy/);
   assert.match(ap2[0].htmlContent, /Thợ Bảy/); assert.doesNotMatch(ap2[0].htmlContent, /Thợ Bốn/, 'AP2 chỉ nhận fitter mình quản lý trực tiếp');
+  // ⏳ bảng công chờ duyệt: TS7 (Quản lý trực tiếp AP2) đã nộp kỳ 12/2026 → thư của AP2 có mục chờ duyệt, bấm mở thẳng bảng công
+  assert.match(ap2[0].subject, /· 1 chờ duyệt$/); assert.match(ap2[0].htmlContent, /Bảng công chờ bạn duyệt/);
+  assert.match(ap2[0].htmlContent, /tools\/approvals\/#xem=TS7\/2026-12/);
+  assert.ok(sentMail.some(m => m.to.some(t => t.email === 'boss@example.com') && /#xem=TS6\/2026-12/.test(m.htmlContent)), 'bảng công không ai phụ trách → admin thấy trong mục chờ duyệt');
   sentMail.length = 0;
   const again = await runDigest(env, { now });
-  assert.equal(again.sent, 0); assert.equal(again.skipped, 3); assert.equal(sentMail.length, 0);
-  assert.equal((await runDigest(env, { now: new Date('2026-11-06T11:30:00Z') })).entries, 0, 'ngày khác không có dòng nào');
+  assert.equal(again.sent, 0); assert.equal(again.skipped, sum.sent); assert.equal(sentMail.length, 0);
+  // ⚠️ ngày 06/11 (T6) TS7 đang dùng Timesheet kỳ 11 nhưng chưa chấm → báo Quản lý trực tiếp (AP2)
+  const s6 = await runDigest(env, { now: new Date('2026-11-06T11:30:00Z') });
+  assert.equal(s6.entries, 0, 'ngày khác không có dòng nào'); assert.ok(s6.missing >= 1, JSON.stringify(s6));
+  const m6 = mailsTo('ap2@example.com');
+  assert.equal(m6.length, 1); assert.match(m6[0].htmlContent, /Hôm nay chưa chấm công<\/h3><p style="margin:0">[^<]*Thợ Bảy/);
+  assert.match(m6[0].subject, /— 0 dòng chấm công/);
+  sentMail.length = 0;
+  const s8 = await runDigest(env, { now: new Date('2026-11-08T11:30:00Z') });     // Chủ nhật
+  assert.equal(s8.missing, 0, 'Chủ nhật không báo chưa chấm công');
   assert.equal((await runDigest({ ...env, BREVO_API_KEY: '' }, { now })).sent, 0);
 });
 

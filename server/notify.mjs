@@ -13,6 +13,8 @@ const fmtH = (h) => (Math.round(h * 10) / 10).toString().replace('.', ',');
 const fmtDMY = (s) => String(s).split('-').reverse().join('/');
 const periodLabel = (p) => `${parseInt(p.slice(5), 10)}/${p.slice(0, 4)}`;
 const link = (env, path) => (env.APP_URL ? String(env.APP_URL).replace(/\/+$/, '') + path : '');
+// mở thẳng bảng công này trong trang Duyệt bảng công (tools/approvals/app.js đọc #xem=…)
+const reviewLink = (env, empId, period) => link(env, `/tools/approvals/#xem=${encodeURIComponent(empId)}/${period}`);
 
 // Ngày giờ Việt Nam (UTC+7) của một thời điểm
 export const vnDate = (d = new Date()) => new Date(d.getTime() + 7 * 36e5).toISOString().slice(0, 10);
@@ -49,6 +51,50 @@ export async function approversFor(env, level, wbsList, ownerSupervisor, ctx = {
   return [...out.values()];
 }
 
+// Như approversFor nhưng dựng sẵn từ MỘT lượt truy vấn (batch) — dùng cho thư hằng ngày, nơi có nhiều bảng công
+// cần tìm người duyệt mà cron gói miễn phí giới hạn số lượt gọi D1.
+async function approverIndex(env) {
+  const [st, em] = await env.DB.batch([
+    env.DB.prepare("SELECT s.wbs, s.role, e.full_name, e.email FROM project_staff s JOIN employees e ON e.emp_id = s.emp_id WHERE e.active = 1 AND e.email <> ''"),
+    env.DB.prepare("SELECT * FROM employees WHERE active = 1 AND email <> ''"),
+  ]);
+  const person = (e) => ({ email: String(e.email).toLowerCase(), name: e.full_name || '' });
+  const byWbs = new Map();     // wbs → { sitesup: [], pm: [] }
+  for (const r of st.results) {
+    const k = String(r.wbs || '').trim();
+    if (!byWbs.has(k)) byWbs.set(k, { sitesup: [], pm: [] });
+    if (byWbs.get(k)[r.role]) byWbs.get(k)[r.role].push(person(r));
+  }
+  const sups = em.results.filter(e => effectiveRoles(e, e.email, env).includes('sitesup'));
+  const admins = [...adminEmails(env).map(email => ({ email, name: '' })), ...em.results.filter(e => e.role_override === 'admin').map(person)];
+  const direct = (name) => (name ? sups.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
+  const uniq = (list) => { const m = new Map(); list.forEach(p => { if (p.email && !m.has(p.email)) m.set(p.email, p); }); return [...m.values()]; };
+  return {
+    direct,
+    staff: (wbs) => { const x = byWbs.get(String(wbs || '').trim()); return x ? uniq([...x.sitesup, ...x.pm]) : []; },
+    approvers(level, wbsList, ownerSupervisor) {
+      let out = (wbsList || []).flatMap(w => (byWbs.get(w) || {})[level] || []);
+      if (level === 'sitesup') out = out.concat(direct(ownerSupervisor));
+      out = uniq(out);
+      return out.length ? out : uniq(admins);
+    },
+  };
+}
+
+// Tổng giờ của một bảng công (theo phân loại giờ bd đã lưu khi nộp)
+function docTotals(data) {
+  let total = 0, normal = 0;
+  const entries = (data && Array.isArray(data.entries)) ? data.entries : [];
+  const days = new Set();
+  for (const e of entries) {
+    const bd = e && e.bd && typeof e.bd === 'object' ? e.bd : null;
+    const h = bd ? Object.values(bd).reduce((a, v) => a + (typeof v === 'number' ? v : 0), 0) : entryHours(e);
+    total += h; normal += bd && typeof bd.NORMAL === 'number' ? bd.NORMAL : (bd ? 0 : h);
+    if (e && e.date && !LEAVE_CODES.includes(String(e.activityCode))) days.add(e.date);
+  }
+  return { total, normal, ot: Math.max(0, total - normal), days: days.size, lines: entries.length };
+}
+
 async function ownerOf(env, empId) {
   return env.DB.prepare('SELECT emp_id, full_name, email, supervisor FROM employees WHERE emp_id = ?').bind(empId).first();
 }
@@ -60,14 +106,18 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
     const owner = await ownerOf(env, empId);
     if (!owner) return { ok: false, skipped: true };
     const who = `${owner.full_name} (${empId})`, kp = `kỳ lương ${periodLabel(period)}`;
-    const review = link(env, '/tools/approvals/'), mine = link(env, '/tools/timesheet/');
+    const review = reviewLink(env, empId, period), mine = link(env, '/tools/timesheet/');
     let to, subject, html;
     if (kind === 'submitted' || kind === 'sitesup_ok') {
       const level = kind === 'submitted' ? 'sitesup' : 'pm';
       to = await approversFor(env, level, wbs, owner.supervisor);
+      const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
+      let t = null;
+      try { t = row ? docTotals(JSON.parse(row.data)) : null; } catch (e) { t = null; }
       subject = `[Bảng công] ${owner.full_name} đã nộp ${kp} — chờ ${level === 'pm' ? 'Quản lý dự án' : 'Site Sup'} duyệt`;
       html = layout(`Có bảng công chờ bạn duyệt`, `<p>${esc(who)} ${kind === 'submitted' ? 'đã nộp' : 'đã được Site Sup ' + esc(by) + ' duyệt'} bảng công ${esc(kp)}.</p>
-        ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}<p>Mở <b>Duyệt bảng công</b> để xem chi tiết, duyệt hoặc trả lại kèm lý do.</p>`, { url: review, label: 'Mở Duyệt bảng công' });
+        ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc · ${t.lines} dòng chấm công</p>` : ''}
+        ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}<p>Bấm nút dưới để mở thẳng bảng công này trong <b>Duyệt bảng công</b>: xem chi tiết, duyệt hoặc trả lại kèm lý do.</p>`, { url: review, label: 'Mở bảng công để duyệt' });
     } else if (kind === 'approved') {
       to = owner.email ? [{ email: owner.email, name: owner.full_name }] : [];
       subject = `[Bảng công] ${kp} của bạn đã được duyệt xong`;
@@ -93,61 +143,78 @@ async function logKeys(env, keys) {
   await env.DB.batch(keys.map(k => env.DB.prepare('INSERT OR IGNORE INTO mail_log (key, sent_at) VALUES (?, ?)').bind(k, t)));
 }
 
-// Mỗi Site Sup / Quản lý dự án một thư: các dòng chấm công trong ngày của fitter thuộc dự án của họ, kèm báo cáo thi công.
-// Chỉ đọc đúng các dòng của ngày (json_each trong D1) nên nhẹ hơn nhiều so với đọc cả bảng công về xử lý.
+// Mỗi Site Sup / Quản lý dự án một thư hằng ngày (18:30), gồm:
+//   📝 các dòng chấm công trong ngày của fitter thuộc dự án họ phụ trách (kèm báo cáo thi công),
+//   ⏳ bảng công đang chờ CHÍNH họ duyệt (bấm là mở thẳng bảng công đó),
+//   ⚠️ fitter họ quản lý trực tiếp đang dùng Timesheet mà hôm nay chưa chấm công (T2–T7).
+// Chỉ đọc đúng các dòng của ngày (json_each trong D1); mọi tra cứu khác gom vào 2 lượt batch (giới hạn lượt gọi của cron).
 export async function runDigest(env, { now = new Date() } = {}) {
-  const summary = { date: vnDate(now), entries: 0, recipients: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
+  const summary = { date: vnDate(now), entries: 0, pending: 0, missing: 0, recipients: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
   try {
     if (!mailConfigured(env)) { summary.skipped = 1; summary.errors.push('Chưa cấu hình gửi email'); return summary; }
-    const date = summary.date, period = periodOfDate(date);
-    const { results: rows } = await env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor,
-        json_extract(x.value, '$.projectName') pn, json_extract(x.value, '$.workNumber') wbs, json_extract(x.value, '$.startTime') st,
-        json_extract(x.value, '$.endTime') et, json_extract(x.value, '$.breakTime') br, json_extract(x.value, '$.activityCode') ac,
-        json_extract(x.value, '$.report') rp, json_extract(x.value, '$.remarks') rm
-      FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id, json_each(d.data, '$.entries') x
-      WHERE d.period = ? AND json_extract(x.value, '$.date') = ?`).bind(period, date).all();
-    const work = rows.filter(r => !LEAVE_CODES.includes(String(r.ac)));
+    const date = summary.date, period = periodOfDate(date), workday = weekdayOf(date) !== 0;
+    const [rowsQ, pendQ, wbsQ, openQ] = await env.DB.batch([
+      env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor,
+          json_extract(x.value, '$.projectName') pn, json_extract(x.value, '$.workNumber') wbs, json_extract(x.value, '$.startTime') st,
+          json_extract(x.value, '$.endTime') et, json_extract(x.value, '$.breakTime') br, json_extract(x.value, '$.activityCode') ac,
+          json_extract(x.value, '$.report') rp, json_extract(x.value, '$.remarks') rm
+        FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id, json_each(d.data, '$.entries') x
+        WHERE d.period = ? AND json_extract(x.value, '$.date') = ?`).bind(period, date),
+      env.DB.prepare(`SELECT d.emp_id, d.period, d.status, d.submitted_at, e.full_name, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
+        WHERE d.status IN ('submitted', 'sitesup_ok') ORDER BY d.submitted_at`),
+      env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status IN ('submitted', 'sitesup_ok')`),
+      env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
+        WHERE d.period = ? AND d.status IN ('draft', 'rejected') AND e.active = 1`).bind(period),
+    ]);
+    const rows = rowsQ.results, work = rows.filter(r => !LEAVE_CODES.includes(String(r.ac)));
     summary.entries = work.length;
-    if (!work.length) return summary;
+    const idx = await approverIndex(env);
 
-    const wbsList = [...new Set(work.map(r => String(r.wbs || '').trim()).filter(Boolean))].slice(0, 40);
-    const staff = new Map();     // wbs → [{email,name}]
-    if (wbsList.length) {
-      const { results } = await env.DB.prepare(`SELECT s.wbs, e.full_name, e.email FROM project_staff s JOIN employees e ON e.emp_id = s.emp_id
-        WHERE s.wbs IN (${ph(wbsList.length)}) AND e.active = 1 AND e.email <> ''`).bind(...wbsList).all();
-      for (const r of results) { if (!staff.has(r.wbs)) staff.set(r.wbs, []); staff.get(r.wbs).push({ email: r.email.toLowerCase(), name: r.full_name }); }
-    }
-    let sups = null;     // Site Sup có email (để tìm "Quản lý trực tiếp"), tải khi cần
-    const direct = async (name) => {
-      if (!name) return [];
-      if (!sups) sups = (await env.DB.prepare("SELECT * FROM employees WHERE active = 1 AND email <> ''").all()).results.filter(e => effectiveRoles(e, e.email, env).includes('sitesup'));
-      return sups.filter(e => keyOf(e.full_name) === keyOf(name)).map(e => ({ email: e.email.toLowerCase(), name: e.full_name }));
-    };
-
-    // người nhận → dự án → fitter → các dòng
-    const byPerson = new Map();
+    const byPerson = new Map();     // email → { person, projects: Map, pending: [], missing: [] }
+    const recOf = (p) => { let r = byPerson.get(p.email); if (!r) { r = { person: p, projects: new Map(), pending: [], missing: [] }; byPerson.set(p.email, r); } return r; };
+    // 📝 chấm công trong ngày → người phụ trách dự án (không có dự án: Quản lý trực tiếp)
     for (const r of work) {
       const w = String(r.wbs || '').trim();
-      const people = (w && staff.get(w)) || await direct(r.supervisor);
+      const people = (w && idx.staff(w).length) ? idx.staff(w) : idx.direct(r.supervisor);
       for (const p of people) {
-        const rec = byPerson.get(p.email) || { person: p, projects: new Map() };
-        byPerson.set(p.email, rec);
-        const pk = (w || '—') + '|' + (r.pn || '');
+        const rec = recOf(p), pk = (w || '—') + '|' + (r.pn || '');
         const proj = rec.projects.get(pk) || { name: r.pn || '(không ghi dự án)', wbs: w, rows: [] };
-        rec.projects.set(pk, proj);
-        proj.rows.push(r);
+        rec.projects.set(pk, proj); proj.rows.push(r);
       }
     }
+    // ⏳ bảng công chờ duyệt → đúng người duyệt ở cấp hiện tại
+    const wbsOf = new Map();
+    wbsQ.results.forEach(r => { const k = r.emp_id + '|' + r.period; if (!wbsOf.has(k)) wbsOf.set(k, []); wbsOf.get(k).push(r.wbs); });
+    for (const d of pendQ.results) {
+      const level = d.status === 'submitted' ? 'sitesup' : 'pm';
+      summary.pending++;
+      for (const p of idx.approvers(level, wbsOf.get(d.emp_id + '|' + d.period) || [], d.supervisor)) recOf(p).pending.push({ ...d, level });
+    }
+    // ⚠️ chưa chấm công hôm nay (chỉ người đang dùng Timesheet kỳ này, chưa nộp; Chủ nhật bỏ qua)
+    if (workday) {
+      const present = new Set(rows.map(r => r.emp_id));
+      for (const d of openQ.results) {
+        if (present.has(d.emp_id)) continue;
+        const sups = idx.direct(d.supervisor);
+        if (sups.length) summary.missing++;
+        sups.forEach(p => recOf(p).missing.push(d));
+      }
+    }
+
     summary.recipients = byPerson.size;
+    if (!byPerson.size) return summary;
     const done = await loggedKeys(env, `digest:${date}:`);
     const sentKeys = [];
     let mails = 0;
     const url = link(env, '/tools/approvals/');
+    const dayLabel = `${WEEKDAY[weekdayOf(date)]} ${fmtDMY(date)}`;
+    const h3 = (t) => `<h3 style="font-size:15px;margin:18px 0 6px">${t}</h3>`;
     for (const [email, rec] of byPerson) {
       const key = `digest:${date}:${email}`;
       if (done.has(key)) { summary.skipped++; continue; }
       if (mails >= MAX_MAILS_PER_RUN) { summary.errors.push('Đã đạt giới hạn số thư mỗi lần chạy'); break; }
       mails++;
+      const nRows = [...rec.projects.values()].reduce((n, p) => n + p.rows.length, 0);
       const blocks = [...rec.projects.values()].map(p => {
         const lines = p.rows.map(r => {
           const h = entryHours({ startTime: r.st, endTime: r.et, breakTime: r.br });
@@ -155,10 +222,20 @@ export async function runDigest(env, { now = new Date() } = {}) {
             + (r.rp ? `<span style="color:#1e40af">📝 ${esc(r.rp)}</span>` : `<span style="color:#9ca3af">(chưa có báo cáo thi công)</span>`)
             + (r.rm ? `<br><span style="color:#6b7280">Ghi chú: ${esc(r.rm)}</span>` : '') + '</li>';
         }).join('');
-        return `<h3 style="font-size:14px;margin:14px 0 4px">${esc(p.name)}${p.wbs ? ` <span style="color:#6b7280;font-weight:normal">(${esc(p.wbs)})</span>` : ''}</h3><ul style="margin:0;padding-left:18px">${lines}</ul>`;
+        return `<h4 style="font-size:14px;margin:12px 0 4px">${esc(p.name)}${p.wbs ? ` <span style="color:#6b7280;font-weight:normal">(${esc(p.wbs)})</span>` : ''}</h4><ul style="margin:0;padding-left:18px">${lines}</ul>`;
       }).join('');
-      const subject = `[Báo cáo thi công] ${WEEKDAY[weekdayOf(date)]} ${fmtDMY(date)} — ${[...rec.projects.values()].reduce((n, p) => n + p.rows.length, 0)} dòng chấm công`;
-      const html = layout(`Báo cáo thi công ${WEEKDAY[weekdayOf(date)]} ${fmtDMY(date)}`, `<p>Các dòng chấm công trong ngày của fitter thuộc dự án bạn phụ trách:</p>${blocks}`, { url, label: 'Mở Duyệt bảng công' });
+      const pend = rec.pending.map(d => `<li><a href="${esc(reviewLink(env, d.emp_id, d.period))}" style="color:#1d4ed8;font-weight:bold">${esc(d.full_name)} — kỳ ${esc(periodLabel(d.period))}</a>`
+        + ` <span style="color:#6b7280">· ${d.level === 'pm' ? 'Site Sup đã duyệt, chờ bạn duyệt lần 2' : 'chờ bạn duyệt'}${d.submitted_at ? ` · nộp ${esc(fmtDMY(String(d.submitted_at).slice(0, 10)))}` : ''}</span></li>`).join('');
+      const miss = rec.missing.map(d => esc(d.full_name)).join(', ');
+      const top = [nRows ? `<b>${nRows}</b> dòng chấm công` : 'chưa có dòng chấm công nào ở dự án của bạn',
+        rec.pending.length ? `<b style="color:#b45309">${rec.pending.length}</b> bảng công chờ bạn duyệt` : '',
+        rec.missing.length ? `<b style="color:#b91c1c">${rec.missing.length}</b> fitter chưa chấm công` : ''].filter(Boolean).join(' · ');
+      const body = `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px">Hôm nay: ${top}.</p>`
+        + (nRows ? h3('📝 Chấm công trong ngày — dự án bạn phụ trách') + blocks : '')
+        + (rec.pending.length ? h3('⏳ Bảng công chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${pend}</ul><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Bấm tên để mở thẳng bảng công đó.</p>` : '')
+        + (rec.missing.length ? h3('⚠️ Hôm nay chưa chấm công') + `<p style="margin:0">${miss}</p><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Fitter bạn quản lý trực tiếp đang dùng Timesheet kỳ này — nhắc chấm công trước khi hết ngày.</p>` : '');
+      const subject = `[Báo cáo thi công] ${dayLabel} — ${nRows} dòng chấm công${rec.pending.length ? ` · ${rec.pending.length} chờ duyệt` : ''}`;
+      const html = layout(`Báo cáo thi công ${dayLabel}`, body, { url, label: 'Mở Duyệt bảng công' });
       const r = await sendMail(env, { to: [rec.person], subject, html });
       if (r.ok) { summary.sent++; sentKeys.push(key); } else { summary.failed++; summary.errors.push(`${email}: ${r.error}`); }
     }
