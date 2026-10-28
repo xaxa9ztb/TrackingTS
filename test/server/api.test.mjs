@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getPlatformProxy } from 'wrangler';
 import { handle } from '../../server/api.mjs';
+import OtLeave from '../../tools/timesheet/otleave.js';
+import TsSync from '../../tools/timesheet/tssync.js';
+import LaborVN from '../../tools/timesheet/labor.js';
+
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const TEAM = 'team-test';
@@ -748,6 +752,15 @@ test('nộp: thiếu / sai phân loại giờ bị từ chối; hợp lệ thì 
   r = await call('POST', '/api/ts/docs/2026-12/submit', { email: 'ts2@example.com', body: { baseVersion: 1 } });
   assert.equal(r.status, 409); assert.equal(r.data.conflict, true, 'số phiên bản cũ');
   r = await submit('ts2@example.com', '2026-12');
+  assert.equal(r.status, 400); assert.match(r.data.error, /1 ngày tăng ca chưa được Site Sup duyệt \(17\/11\)/);
+  // fitter gửi ngày tăng ca → Site Sup duyệt → nộp được
+  const entries = (await docOf('ts2@example.com', '2026-12')).data.entries;
+  const days = OtLeave.otDays(entries, e => e.bd);
+  r = await call('PUT', '/api/ts/ot/mine', { email: 'ts2@example.com', body: { period: '2026-12', days } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.days['2026-11-17'].status, 'pending');
+  r = await call('POST', '/api/ts/ot/decide', { email: 'ap1@example.com', body: { action: 'approve', items: [{ emp: 'TS2', date: '2026-11-17', sig: days[0].sig }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.done, 1);
+  r = await submit('ts2@example.com', '2026-12');
   assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'submitted');
   assert.equal((await submit('ts2@example.com', '2026-12')).status, 409, 'nộp lần hai');
   const put = await putDoc('ts2@example.com', '2026-12', [okEntry(1, '2026-11-16')], 3);
@@ -851,7 +864,7 @@ test('gợi ý người nhận mail báo cáo: Site Sup / QLDA của đúng các
 });
 
 // ---------- thư tự động (Brevo) ----------
-import { runDigest, runReminders } from '../../server/notify.mjs';
+import { runDigest, runReminders, vnDate } from '../../server/notify.mjs';
 const staffEmail = (n) => `ts${n}@example.com`;
 
 test('thư: chuẩn bị TS4–TS6 (cùng phụ trách dự án WA-1) và TS7 (chỉ có Quản lý trực tiếp)', async () => {
@@ -1139,4 +1152,194 @@ test('phụ cấp xe: còn lỗi thì không nộp được; hợp lệ thì n�
   assert.match(sentMail[0].htmlContent, /Phụ cấp xe:<\/b> Xăng xe 2 ngày = 120\.000 đ — tổng 120\.000 đ/);
   const rv = await call('GET', '/api/ts/review/TS1/2027-02', { email: 'ap1@example.com' });
   assert.equal(rv.status, 200); assert.equal(rv.data.data.allow.rows[0].type, 'fuel');
+});
+
+// ---------- duyệt tăng ca hằng ngày ----------
+const otDaysOf = (entries) => OtLeave.otDays(entries, e => e.bd);
+const putOt = (email, period, days) => call('PUT', '/api/ts/ot/mine', { email, body: { period, days } });
+const decideOt = (email, action, items, note) => call('POST', '/api/ts/ot/decide', { email, body: { action, items, note } });
+const otEntry = (id, date, end = '19:00', extra = {}) => okEntry(id, date, { endTime: end, bd: { NORMAL: 8, OT1: end === '19:00' ? 2 : 1 }, ...extra });
+
+test('tăng ca: fitter gửi ngày OT → chờ duyệt; chỉ Site Sup của dự án / Quản lý trực tiếp thấy; dữ liệu sai bị từ chối', async () => {
+  const entries = [otEntry(3001, '2027-02-17'), otEntry(3002, '2027-02-18', '18:00'), okEntry(3003, '2027-02-19')];
+  const days = otDaysOf(entries);
+  assert.deepEqual(days.map(d => [d.date, d.ot]), [['2027-02-17', 2], ['2027-02-18', 1]]);
+  let r = await putOt('ts1@example.com', '2027-03', days);
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.added, 2);
+  assert.deepEqual(Object.values(r.data.days).map(d => d.status), ['pending', 'pending']);
+  assert.equal((await call('GET', '/api/ts/ot/mine?period=2027-03', { email: 'ts1@example.com' })).data.days['2027-02-18'].ot, 1);
+  const inbox = (await call('GET', '/api/ts/ot/inbox', { email: 'ap1@example.com' })).data.items.filter(i => i.empId === 'TS1');
+  assert.deepEqual(inbox.map(i => [i.date, i.ot, i.wbs]), [['2027-02-17', 2, ['WA-1']], ['2027-02-18', 1, ['WA-1']]]);
+  assert.equal(inbox[0].items[0].report, 'Lắp ray tầng 3', 'người duyệt xem được báo cáo thi công của ngày');
+  assert.equal((await call('GET', '/api/ts/ot/inbox', { email: 'ap2@example.com' })).data.items.filter(i => i.empId === 'TS1').length, 0, 'Site Sup khác không thấy');
+  assert.equal((await call('GET', '/api/ts/ot/inbox', { email: 'ts2@example.com' })).status, 403);
+  const counts = (await call('GET', '/api/ts/inbox', { email: 'ap1@example.com' })).data;
+  assert.ok(counts.ot >= 2, 'huy hiệu trang chủ có số ngày tăng ca chờ duyệt');
+  // dữ liệu sai
+  assert.equal((await putOt('ts1@example.com', '2027-03', [{ ...days[0], date: '2027-03-20' }])).status, 400, 'ngoài kỳ');
+  assert.equal((await putOt('ts1@example.com', '2027-03', [{ ...days[0], ot: 0 }])).status, 400);
+  assert.equal((await putOt('ts1@example.com', '2027-03', [{ ...days[0], sig: '' }])).status, 400);
+  assert.equal((await putOt('ts1@example.com', '2027-99', days)).status, 400);
+  assert.equal((await call('GET', '/api/ts/ot/mine?period=2027-03', { email: 'ts2@example.com' })).data.days['2027-02-17'], undefined, 'mỗi người chỉ thấy của mình');
+});
+
+test('tăng ca: không duyệt cần lý do + thư báo fitter; sửa giờ → chờ duyệt lại; duyệt → thư báo; bỏ OT → xoá yêu cầu', async () => {
+  const entries = [otEntry(3001, '2027-02-17'), otEntry(3002, '2027-02-18', '18:00'), okEntry(3003, '2027-02-19')];
+  let days = otDaysOf(entries);
+  const item = (d) => ({ emp: 'TS1', date: d.date, sig: d.sig });
+  assert.equal((await decideOt('ap1@example.com', 'reject', [item(days[1])], '')).status, 400, 'thiếu lý do');
+  assert.equal((await decideOt('ap2@example.com', 'approve', [item(days[0])])).data.skipped[0].reason, 'bạn không phải người duyệt');
+  sentMail.length = 0;
+  let r = await decideOt('ap1@example.com', 'reject', [item(days[1])], 'Ngày 18 không có lệnh tăng ca');
+  assert.equal(r.status, 200); assert.equal(r.data.done, 1);
+  assert.equal(sentMail.length, 1); assert.deepEqual(sentMail[0].to.map(t => t.email), ['ts1@example.com']);
+  assert.match(sentMail[0].subject, /KHÔNG được duyệt/); assert.match(sentMail[0].htmlContent, /Ngày 18 không có lệnh tăng ca/);
+  // fitter sửa giờ ngày 18 → dấu vân tay đổi → chờ duyệt lại; duyệt bằng dấu vân tay cũ bị bỏ qua
+  const edited = [entries[0], otEntry(3002, '2027-02-18', '18:00', { startTime: '08:30', bd: { NORMAL: 8, OT1: 0.5 } }), entries[2]];
+  const days2 = otDaysOf(edited);
+  r = await putOt('ts1@example.com', '2027-03', days2);
+  assert.equal(r.data.reset, 1); assert.equal(r.data.days['2027-02-18'].status, 'pending'); assert.equal(r.data.days['2027-02-18'].note, '');
+  r = await decideOt('ap1@example.com', 'approve', [item(days[1])]);
+  assert.equal(r.data.done, 0); assert.match(r.data.skipped[0].reason, /vừa sửa giờ/);
+  sentMail.length = 0;
+  r = await decideOt('ap1@example.com', 'approve', days2.map(item));
+  assert.equal(r.data.done, 2);
+  assert.equal(sentMail.length, 1, 'một thư cho nhiều ngày'); assert.match(sentMail[0].subject, /Đã duyệt 2 ngày tăng ca \(2,5 giờ\)/);
+  // gửi lại y nguyên: vẫn đã duyệt
+  r = await putOt('ts1@example.com', '2027-03', days2);
+  assert.deepEqual(Object.values(r.data.days).map(d => [d.status, d.by]), [['approved', 'Giám Sát Duyệt'], ['approved', 'Giám Sát Duyệt']]);
+  // bỏ tăng ca ngày 17 → yêu cầu của ngày đó bị xoá
+  r = await putOt('ts1@example.com', '2027-03', days2.slice(1));
+  assert.equal(r.data.removed, 1); assert.deepEqual(Object.keys(r.data.days), ['2027-02-18']);
+  const log = (await call('GET', '/api/admin/audit?limit=30', { email: 'boss@example.com' })).data.entries.map(e => e.action);
+  assert.ok(log.includes('ot_approve') && log.includes('ot_reject'));
+});
+
+test('tăng ca: nộp bảng công bị chặn khi còn ngày OT chưa duyệt / đã sửa sau khi duyệt; bảng công đã nộp thì OT khoá', async () => {
+  const entries = [otEntry(3101, '2027-03-17'), otEntry(3102, '2027-03-18')];
+  await putDoc('ts2@example.com', '2027-04', entries, 0);
+  let r = await submit('ts2@example.com', '2027-04');
+  assert.equal(r.status, 400); assert.match(r.data.error, /Còn 2 ngày tăng ca chưa được Site Sup duyệt \(17\/03, 18\/03\)/);
+  const days = otDaysOf(entries);
+  await putOt('ts2@example.com', '2027-04', days);
+  await decideOt('ap1@example.com', 'approve', [{ emp: 'TS2', date: days[0].date, sig: days[0].sig }]);
+  await decideOt('ap1@example.com', 'reject', [{ emp: 'TS2', date: days[1].date, sig: days[1].sig }], 'Không có lệnh');
+  r = await submit('ts2@example.com', '2027-04');
+  assert.equal(r.status, 400); assert.match(r.data.error, /Còn 1 ngày.*\(18\/03\).*1 ngày bị từ chối/);
+  // sửa giờ ngày 17 sau khi đã duyệt (trên máy chủ) mà chưa duyệt lại → cũng bị chặn
+  const edited = [otEntry(3101, '2027-03-17', '18:00'), okEntry(3102, '2027-03-18')];
+  await putDoc('ts2@example.com', '2027-04', edited, 1);
+  r = await submit('ts2@example.com', '2027-04');
+  assert.equal(r.status, 400); assert.match(r.data.error, /\(17\/03\)/);
+  const d2 = otDaysOf(edited);
+  await putOt('ts2@example.com', '2027-04', d2);
+  await decideOt('ap1@example.com', 'approve', d2.map(d => ({ emp: 'TS2', date: d.date, sig: d.sig })));
+  r = await submit('ts2@example.com', '2027-04');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  // đã nộp: gửi OT khác không đổi gì, duyệt / từ chối bị bỏ qua
+  r = await putOt('ts2@example.com', '2027-04', []);
+  assert.equal(r.data.locked, true); assert.equal(Object.keys(r.data.days).length, 1);
+  r = await decideOt('ap1@example.com', 'reject', d2.map(d => ({ emp: 'TS2', date: d.date, sig: d.sig })), 'thử');
+  assert.equal(r.data.done, 0); assert.equal(r.data.skipped[0].reason, 'bảng công đã nộp');
+});
+
+// ---------- đơn nghỉ phép / ốm ----------
+const TsSyncPeriod = (d) => TsSync.periodOf(d);
+const addD = (n) => OtLeave.addDay(vnDate(), n);
+const leaveReq = (email, body) => call('POST', '/api/ts/leave', { email, body: { sch: 'mon-fri', ...body } });
+
+test('đơn nghỉ: phải làm trước ngày bắt đầu; loại / ngày sai bị từ chối; trùng đơn → 409; thư tới Site Sup, QLDA, Quản lý trực tiếp', async () => {
+  assert.equal((await leaveReq('ts3@example.com', { type: '6010', from: vnDate(), to: vnDate() })).status, 400, 'nghỉ hôm nay: quá muộn');
+  assert.match((await leaveReq('ts3@example.com', { type: '6010', from: addD(-2), to: addD(1) })).data.error, /TRƯỚC ngày bắt đầu/);
+  assert.equal((await leaveReq('ts3@example.com', { type: '1110', from: addD(7), to: addD(8) })).status, 400, 'không phải mã nghỉ');
+  assert.equal((await leaveReq('ts3@example.com', { type: '6010', from: addD(8), to: addD(7) })).status, 400);
+  assert.equal((await leaveReq('ts3@example.com', { type: '6010', from: addD(7), to: addD(60) })).status, 400, 'quá 31 ngày');
+  sentMail.length = 0;
+  const from = addD(7), to = addD(13);
+  const r = await leaveReq('ts3@example.com', { type: '6020', from, to, reason: 'Sốt xuất huyết' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const want = OtLeave.leaveDays(from, to, 'mon-fri', LaborVN);
+  assert.deepEqual(r.data.leave.days, want); assert.equal(r.data.leave.status, 'pending'); assert.equal(r.data.leave.label, 'Nghỉ ốm');
+  assert.ok(want.length >= 4 && want.length <= 5, 'chỉ tính ngày làm việc');
+  assert.equal(sentMail.length, 1);
+  assert.deepEqual(sentMail[0].to.map(t => t.email).sort(), ['ap1@example.com', 'ap2@example.com', 'ap3@example.com']);
+  assert.match(sentMail[0].subject, /\[Đơn nghỉ\] Thợ Ba xin Nghỉ ốm/); assert.match(sentMail[0].htmlContent, /Sốt xuất huyết/);
+  assert.equal((await leaveReq('ts3@example.com', { type: '6010', from: addD(9), to: addD(20) })).status, 409, 'trùng đơn đang chờ');
+  const mine = (await call('GET', '/api/ts/leave/mine', { email: 'ts3@example.com' })).data.leaves;
+  assert.equal(mine.length, 1); assert.equal(mine[0].count, want.length);
+});
+
+test('đơn nghỉ: người duyệt thấy đơn; không duyệt cần lý do; duyệt → tự ghi dòng nghỉ vào bảng công, ghi lại không nhân đôi, thư báo fitter', async () => {
+  const id = (await call('GET', '/api/ts/leave/mine', { email: 'ts3@example.com' })).data.leaves[0].id;
+  for (const e of ['ap1@example.com', 'ap2@example.com', 'ap3@example.com']) {
+    assert.ok((await call('GET', '/api/ts/leave/inbox', { email: e })).data.items.some(x => x.id === id), e);
+  }
+  assert.equal((await call('GET', '/api/ts/leave/inbox', { email: 'ts1@example.com' })).status, 403);
+  assert.ok((await call('GET', '/api/ts/inbox', { email: 'ap2@example.com' })).data.leave >= 1);
+  assert.equal((await call('POST', `/api/ts/leave/${id}/reject`, { email: 'ap2@example.com', body: { note: '' } })).status, 400);
+  assert.equal((await call('POST', `/api/ts/leave/${id}/approve`, { email: 'ts1@example.com', body: {} })).status, 403);
+  // bảng công của các kỳ nghỉ: làm trống để kiểm tra
+  const leave = (await call('GET', '/api/ts/leave/mine', { email: 'ts3@example.com' })).data.leaves[0];
+  const periods = [...new Set(leave.days.map(d => TsSyncPeriod(d.date)))];
+  for (const p of periods) await env.DB.prepare('DELETE FROM ts_docs WHERE emp_id = ? AND period = ?').bind('TS3', p).run();
+  sentMail.length = 0;
+  let r = await call('POST', `/api/ts/leave/${id}/approve`, { email: 'ap2@example.com', body: {} });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.written, leave.days.length);
+  const got = [];
+  for (const p of periods) got.push(...(await docOf('ts3@example.com', p)).data.entries);
+  assert.deepEqual(got.map(e => e.date).sort(), leave.days.map(d => d.date));
+  assert.ok(got.every(e => e.activityCode === '6020' && e.lv === String(id) && e.startTime === '08:00' && e.endTime === '17:00' && e.projectName === 'Nghỉ ốm'));
+  assert.equal(sentMail.length, 1); assert.deepEqual(sentMail[0].to.map(t => t.email), ['ts3@example.com']);
+  assert.match(sentMail[0].subject, /Đã duyệt: Nghỉ ốm/); assert.match(sentMail[0].htmlContent, /tự ghi vào bảng công/);
+  // bấm duyệt lần nữa: không nhân đôi, không gửi thư nữa
+  sentMail.length = 0;
+  r = await call('POST', `/api/ts/leave/${id}/approve`, { email: 'ap2@example.com', body: {} });
+  assert.equal(r.status, 200); assert.equal(r.data.written, 0); assert.equal(sentMail.length, 0);
+  let n = 0;
+  for (const p of periods) n += (await docOf('ts3@example.com', p)).data.entries.length;
+  assert.equal(n, leave.days.length);
+  assert.equal((await call('POST', `/api/ts/leave/${id}/cancel`, { email: 'ts3@example.com', body: {} })).status, 409, 'đã duyệt thì không tự huỷ được');
+  assert.equal((await call('GET', '/api/ts/leave/inbox', { email: 'ap1@example.com' })).data.items.filter(x => x.id === id).length, 0);
+});
+
+test('đơn nghỉ: không duyệt → thư có lý do; fitter huỷ đơn chờ; quá ngày bắt đầu không duyệt được; kỳ đã nộp thì không ghi', async () => {
+  let r = await leaveReq('ts3@example.com', { type: '6010', from: addD(43), to: addD(45) });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  sentMail.length = 0;
+  assert.equal((await call('POST', `/api/ts/leave/${r.data.leave.id}/reject`, { email: 'ap1@example.com', body: { note: 'Đang gấp tiến độ' } })).status, 200);
+  assert.match(sentMail[0].subject, /Không được duyệt: Nghỉ phép năm/); assert.match(sentMail[0].htmlContent, /Đang gấp tiến độ/);
+  r = await leaveReq('ts3@example.com', { type: '6090', from: addD(43), to: addD(46) });
+  assert.equal(r.status, 200, 'đơn bị từ chối không tính trùng');
+  assert.equal((await call('POST', `/api/ts/leave/${r.data.leave.id}/cancel`, { email: 'ts1@example.com', body: {} })).status, 409, 'đơn của người khác');
+  assert.equal((await call('POST', `/api/ts/leave/${r.data.leave.id}/cancel`, { email: 'ts3@example.com', body: {} })).status, 200);
+  // đơn đã tới ngày bắt đầu mà chưa duyệt
+  const late = await env.DB.prepare("INSERT INTO ts_leave (emp_id, type, date_from, date_to, days, reason, wbs, status, created_at) VALUES ('TS3', '6010', ?, ?, ?, '', 'WA-1', 'pending', '') RETURNING id")
+    .bind(vnDate(), vnDate(), JSON.stringify([{ date: vnDate(), half: false }])).first();
+  assert.equal((await call('GET', '/api/ts/leave/inbox', { email: 'ap1@example.com' })).data.items.find(x => x.id === late.id).expired, true);
+  r = await call('POST', `/api/ts/leave/${late.id}/approve`, { email: 'ap1@example.com', body: {} });
+  assert.equal(r.status, 409); assert.match(r.data.error, /không duyệt được nữa/);
+  assert.equal((await call('POST', `/api/ts/leave/${late.id}/reject`, { email: 'ap1@example.com', body: { note: 'Quá hạn' } })).status, 200);
+  // kỳ đã nộp: duyệt vẫn thành công nhưng không ghi, báo lại
+  r = await leaveReq('ts3@example.com', { type: '6010', from: addD(50), to: addD(50 + (OtLeave.leaveDays(addD(50), addD(50), 'mon-fri', LaborVN).length ? 0 : 2)) });
+  const p = TsSyncPeriod(r.data.leave.days[0].date);
+  await env.DB.prepare('DELETE FROM ts_docs WHERE emp_id = ? AND period = ?').bind('TS3', p).run();
+  await env.DB.prepare("INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by) VALUES ('TS3', ?, 1, 'submitted', '{\"entries\":[],\"deleted\":{}}', 0, '', '')").bind(p).run();
+  r = await call('POST', `/api/ts/leave/${r.data.leave.id}/approve`, { email: 'ap1@example.com', body: {} });
+  assert.equal(r.status, 200); assert.equal(r.data.written, 0); assert.match(r.data.note, /đã nộp/);
+});
+
+test('báo cáo tối: có mục tăng ca chờ duyệt và đơn nghỉ chờ duyệt', async () => {
+  const entries = [otEntry(3201, '2027-02-24')];
+  await putOt('ts1@example.com', '2027-03', otDaysOf(entries));
+  const lv = await leaveReq('ts3@example.com', { type: '6010', from: addD(60), to: addD(63), reason: 'Cưới em gái' });
+  assert.equal(lv.status, 200, JSON.stringify(lv.data));
+  await env.DB.prepare("DELETE FROM mail_log WHERE key LIKE 'digest:%'").run();
+  sentMail.length = 0;
+  const sum = await runDigest(env, { now: new Date() });
+  assert.ok(sum.ot >= 1 && sum.leave >= 1, JSON.stringify(sum));
+  const m = mailsTo('ap1@example.com')[0];
+  assert.ok(m, 'Site Sup nhận thư');
+  assert.match(m.htmlContent, /Tăng ca chờ bạn duyệt/); assert.match(m.htmlContent, /Thợ Một/);
+  assert.match(m.htmlContent, /Đơn nghỉ chờ bạn duyệt/); assert.match(m.htmlContent, /Cưới em gái/);
+  assert.match(m.subject, /ngày OT chờ duyệt/);
 });

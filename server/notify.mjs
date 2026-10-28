@@ -133,6 +133,68 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
   } catch (e) { console.error('notifyEvent', e); return { ok: false, error: 'Lỗi soạn thư' }; }
 }
 
+const LEAVE_LABEL = { '6010': 'Nghỉ phép năm', '6020': 'Nghỉ ốm', '6090': 'Nghỉ không lương' };
+const box = (bg, bd, html) => `<p style="background:${bg};border:1px solid ${bd};padding:10px;border-radius:6px">${html}</p>`;
+const leaveSpan = (l) => l.date_from === l.date_to ? fmtDMY(l.date_from) : `${fmtDMY(l.date_from)} → ${fmtDMY(l.date_to)}`;
+function leaveCount(l) {
+  let days = [];
+  try { days = JSON.parse(l.days || '[]'); } catch (e) { days = []; }
+  return days.reduce((a, d) => a + (d.half ? 0.5 : 1), 0);
+}
+
+// Kết quả duyệt tăng ca → fitter (một thư cho các ngày được duyệt / không duyệt cùng lúc)
+export async function notifyOt(env, { empId, action, by, note = '', days = [] }) {
+  try {
+    if (!mailConfigured(env) || !days.length) return { ok: false, skipped: true };
+    const owner = await ownerOf(env, empId);
+    if (!owner || !owner.email) return { ok: false, skipped: true };
+    const ok = action === 'approve', list = days.slice().sort((a, b) => a.date.localeCompare(b.date));
+    const lines = list.map(d => `<li>${esc(WEEKDAY[weekdayOf(d.date)])} ${esc(fmtDMY(d.date))} — tăng ca <b>${fmtH(d.ot)} giờ</b></li>`).join('');
+    const total = list.reduce((a, d) => a + (+d.ot || 0), 0);
+    const subject = ok ? `[Tăng ca] Đã duyệt ${list.length} ngày tăng ca (${fmtH(total)} giờ)` : `[Tăng ca] ${list.length} ngày tăng ca KHÔNG được duyệt — cần sửa`;
+    const html = layout(ok ? 'Tăng ca đã được duyệt' : 'Tăng ca không được duyệt', `<p>${esc(by)} đã ${ok ? 'duyệt' : '<b>không duyệt</b>'} tăng ca của bạn:</p><ul>${lines}</ul>`
+      + (ok ? '<p>Nếu sửa giờ của các ngày này, tăng ca sẽ phải duyệt lại.</p>'
+        : box('#fef2f2', '#fecaca', `<b>Lý do:</b> ${esc(note)}`) + '<p>Mở Timesheet, sửa giờ của các ngày này (bỏ phần tăng ca hoặc ghi rõ báo cáo thi công) — tăng ca sẽ tự gửi duyệt lại.</p>'),
+      { url: link(env, '/tools/timesheet/'), label: 'Mở Timesheet' });
+    return await sendMail(env, { to: [{ email: owner.email, name: owner.full_name }], subject, html });
+  } catch (e) { console.error('notifyOt', e); return { ok: false, error: 'Lỗi soạn thư' }; }
+}
+
+// Đơn nghỉ: 'request' → người duyệt (Site Sup / QLDA của dự án + Quản lý trực tiếp); 'approved' | 'rejected' → fitter
+export async function notifyLeave(env, kind, { leave, written = '' }) {
+  try {
+    if (!mailConfigured(env)) return { ok: false, skipped: true };
+    const owner = await ownerOf(env, leave.emp_id);
+    if (!owner) return { ok: false, skipped: true };
+    const what = `${LEAVE_LABEL[leave.type] || 'Nghỉ'} ${leaveSpan(leave)} (${fmtH(leaveCount(leave))} ngày công)`;
+    let to, subject, html;
+    if (kind === 'request') {
+      const wbs = String(leave.wbs || '').split(',').filter(Boolean), ctx = {};
+      const sup = await approversFor(env, 'sitesup', wbs, owner.supervisor, ctx);
+      const pm = wbs.length ? (await env.DB.prepare(`SELECT e.full_name, e.email FROM project_staff s JOIN employees e ON e.emp_id = s.emp_id
+        WHERE s.role = 'pm' AND s.wbs IN (${ph(wbs.length)}) AND e.active = 1 AND e.email <> ''`).bind(...wbs).all()).results : [];
+      const m = new Map();
+      [...sup, ...pm.map(e => ({ email: String(e.email).toLowerCase(), name: e.full_name }))].forEach(p => { if (p.email && !m.has(p.email)) m.set(p.email, p); });
+      to = [...m.values()];
+      subject = `[Đơn nghỉ] ${owner.full_name} xin ${what} — cần duyệt trước ${fmtDMY(leave.date_from)}`;
+      html = layout('Có đơn nghỉ chờ bạn duyệt', `<p>${esc(owner.full_name)} (${esc(owner.emp_id)}) xin <b>${esc(what)}</b>.</p>`
+        + (leave.reason ? box('#f8fafc', '#e5e7eb', `<b>Lý do:</b> ${esc(leave.reason)}`) : '')
+        + `<p>Đơn phải được duyệt <b>trước ngày ${esc(fmtDMY(leave.date_from))}</b>. Duyệt xong, các ngày nghỉ tự ghi vào bảng công của ${esc(owner.full_name)}.</p>`,
+        { url: link(env, '/tools/approvals/#nghi'), label: 'Mở Duyệt bảng công' });
+    } else if (kind === 'approved' || kind === 'rejected') {
+      if (!owner.email) return { ok: false, skipped: true };
+      to = [{ email: owner.email, name: owner.full_name }];
+      const ok = kind === 'approved';
+      subject = ok ? `[Đơn nghỉ] Đã duyệt: ${what}` : `[Đơn nghỉ] Không được duyệt: ${what}`;
+      html = layout(ok ? 'Đơn nghỉ đã được duyệt' : 'Đơn nghỉ không được duyệt', `<p>${esc(leave.decided_by)} đã ${ok ? 'duyệt' : '<b>không duyệt</b>'} đơn <b>${esc(what)}</b> của bạn.</p>`
+        + (ok ? box('#f0fdf4', '#bbf7d0', `Các ngày nghỉ đã tự ghi vào bảng công của bạn${written ? ` (${esc(written)})` : ''}. Không cần chấm công những ngày này.`)
+          : box('#fef2f2', '#fecaca', `<b>Lý do:</b> ${esc(leave.note)}`)),
+        { url: link(env, '/tools/timesheet/'), label: 'Mở Timesheet' });
+    } else return { ok: false, skipped: true };
+    return await sendMail(env, { to, subject, html });
+  } catch (e) { console.error('notifyLeave', e); return { ok: false, error: 'Lỗi soạn thư' }; }
+}
+
 // ---------- báo cáo thi công cuối ngày ----------
 async function loggedKeys(env, prefix) {
   const { results } = await env.DB.prepare('SELECT key FROM mail_log WHERE key LIKE ?').bind(prefix + '%').all();
@@ -147,14 +209,15 @@ async function logKeys(env, keys) {
 // Mỗi Site Sup / Quản lý dự án một thư hằng ngày (18:30), gồm:
 //   📝 các dòng chấm công trong ngày của fitter thuộc dự án họ phụ trách (kèm báo cáo thi công),
 //   ⏳ bảng công đang chờ CHÍNH họ duyệt (bấm là mở thẳng bảng công đó),
+//   ⏱ ngày tăng ca chờ họ duyệt (Site Sup duyệt hằng ngày), 🏖 đơn nghỉ chờ họ duyệt (phải duyệt trước ngày bắt đầu),
 //   ⚠️ fitter họ quản lý trực tiếp đang dùng Timesheet mà hôm nay chưa chấm công (T2–T7).
 // Chỉ đọc đúng các dòng của ngày (json_each trong D1); mọi tra cứu khác gom vào 2 lượt batch (giới hạn lượt gọi của cron).
 export async function runDigest(env, { now = new Date() } = {}) {
-  const summary = { date: vnDate(now), entries: 0, pending: 0, missing: 0, recipients: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
+  const summary = { date: vnDate(now), entries: 0, pending: 0, ot: 0, leave: 0, missing: 0, recipients: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
   try {
     if (!mailConfigured(env)) { summary.skipped = 1; summary.errors.push('Chưa cấu hình gửi email'); return summary; }
     const date = summary.date, period = periodOfDate(date), workday = weekdayOf(date) !== 0;
-    const [rowsQ, pendQ, wbsQ, openQ] = await env.DB.batch([
+    const [rowsQ, pendQ, wbsQ, openQ, otQ, leaveQ] = await env.DB.batch([
       env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor,
           json_extract(x.value, '$.projectName') pn, json_extract(x.value, '$.workNumber') wbs, json_extract(x.value, '$.startTime') st,
           json_extract(x.value, '$.endTime') et, json_extract(x.value, '$.breakTime') br, json_extract(x.value, '$.activityCode') ac,
@@ -166,13 +229,17 @@ export async function runDigest(env, { now = new Date() } = {}) {
       env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status IN ('submitted', 'sitesup_ok')`),
       env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
         WHERE d.period = ? AND d.status IN ('draft', 'rejected') AND e.active = 1`).bind(period),
+      env.DB.prepare(`SELECT o.emp_id, o.date, o.ot, o.wbs, e.full_name, e.supervisor FROM ts_ot o JOIN employees e ON e.emp_id = o.emp_id
+        WHERE o.status = 'pending' ORDER BY o.date LIMIT 400`),
+      env.DB.prepare(`SELECT l.*, e.full_name, e.supervisor FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id
+        WHERE l.status = 'pending' AND l.date_from > ? ORDER BY l.date_from LIMIT 200`).bind(date),
     ]);
     const rows = rowsQ.results, work = rows.filter(r => !LEAVE_CODES.includes(String(r.ac)));
     summary.entries = work.length;
     const idx = await approverIndex(env);
 
     const byPerson = new Map();     // email → { person, projects: Map, pending: [], missing: [] }
-    const recOf = (p) => { let r = byPerson.get(p.email); if (!r) { r = { person: p, projects: new Map(), pending: [], missing: [] }; byPerson.set(p.email, r); } return r; };
+    const recOf = (p) => { let r = byPerson.get(p.email); if (!r) { r = { person: p, projects: new Map(), pending: [], missing: [], ot: [], leave: [] }; byPerson.set(p.email, r); } return r; };
     // 📝 chấm công trong ngày → người phụ trách dự án (không có dự án: Quản lý trực tiếp)
     for (const r of work) {
       const w = String(r.wbs || '').trim();
@@ -190,6 +257,15 @@ export async function runDigest(env, { now = new Date() } = {}) {
       const level = d.status === 'submitted' ? 'sitesup' : 'pm';
       summary.pending++;
       for (const p of idx.approvers(level, wbsOf.get(d.emp_id + '|' + d.period) || [], d.supervisor)) recOf(p).pending.push({ ...d, level });
+    }
+    // ⏱ tăng ca chờ duyệt → Site Sup của dự án trong ngày / Quản lý trực tiếp; 🏖 đơn nghỉ → thêm QLDA của dự án
+    const wl = (s) => String(s || '').split(',').filter(Boolean);
+    summary.ot = otQ.results.length; summary.leave = leaveQ.results.length;
+    for (const o of otQ.results) for (const p of idx.approvers('sitesup', wl(o.wbs), o.supervisor)) recOf(p).ot.push(o);
+    for (const l of leaveQ.results) {
+      const ppl = idx.approvers('sitesup', wl(l.wbs), l.supervisor).concat(idx.approvers('pm', wl(l.wbs), ''));
+      const seen = new Set();
+      for (const p of ppl) { if (seen.has(p.email)) continue; seen.add(p.email); recOf(p).leave.push(l); }
     }
     // ⚠️ chưa chấm công hôm nay (chỉ người đang dùng Timesheet kỳ này, chưa nộp; Chủ nhật bỏ qua)
     if (workday) {
@@ -228,14 +304,21 @@ export async function runDigest(env, { now = new Date() } = {}) {
       const pend = rec.pending.map(d => `<li><a href="${esc(reviewLink(env, d.emp_id, d.period))}" style="color:#1d4ed8;font-weight:bold">${esc(d.full_name)} — kỳ ${esc(periodLabel(d.period))}</a>`
         + ` <span style="color:#6b7280">· ${d.level === 'pm' ? 'Site Sup đã duyệt, chờ bạn duyệt lần 2' : 'chờ bạn duyệt'}${d.submitted_at ? ` · nộp ${esc(fmtDMY(String(d.submitted_at).slice(0, 10)))}` : ''}</span></li>`).join('');
       const miss = rec.missing.map(d => esc(d.full_name)).join(', ');
+      const otList = rec.ot.map(o => `<li><b>${esc(o.full_name)}</b> · ${esc(WEEKDAY[weekdayOf(o.date)])} ${esc(fmtDMY(o.date))} · tăng ca <b>${fmtH(o.ot)} giờ</b>${o.wbs ? ` · ${esc(o.wbs)}` : ''}</li>`).join('');
+      const lvList = rec.leave.map(l => `<li><b>${esc(l.full_name)}</b> · ${esc(LEAVE_LABEL[l.type] || 'Nghỉ')} ${esc(leaveSpan(l))} (${fmtH(leaveCount(l))} ngày)`
+        + ` · <span style="color:#b45309">duyệt trước ${esc(fmtDMY(l.date_from))}</span>${l.reason ? `<br><span style="color:#6b7280">${esc(l.reason)}</span>` : ''}</li>`).join('');
       const top = [nRows ? `<b>${nRows}</b> dòng chấm công` : 'chưa có dòng chấm công nào ở dự án của bạn',
         rec.pending.length ? `<b style="color:#b45309">${rec.pending.length}</b> bảng công chờ bạn duyệt` : '',
+        rec.ot.length ? `<b style="color:#b45309">${rec.ot.length}</b> ngày tăng ca chờ duyệt` : '',
+        rec.leave.length ? `<b style="color:#b45309">${rec.leave.length}</b> đơn nghỉ chờ duyệt` : '',
         rec.missing.length ? `<b style="color:#b91c1c">${rec.missing.length}</b> fitter chưa chấm công` : ''].filter(Boolean).join(' · ');
       const body = `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px">Hôm nay: ${top}.</p>`
         + (nRows ? h3('📝 Chấm công trong ngày — dự án bạn phụ trách') + blocks : '')
         + (rec.pending.length ? h3('⏳ Bảng công chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${pend}</ul><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Bấm tên để mở thẳng bảng công đó.</p>` : '')
+        + (rec.ot.length ? h3('⏱ Tăng ca chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${otList}</ul><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Mở <b>Duyệt bảng công → Tăng ca chờ duyệt</b> để duyệt (chọn nhiều ngày một lần). Fitter chỉ nộp được bảng công khi mọi ngày tăng ca đã duyệt.</p>` : '')
+        + (rec.leave.length ? h3('🏖 Đơn nghỉ chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${lvList}</ul>` : '')
         + (rec.missing.length ? h3('⚠️ Hôm nay chưa chấm công') + `<p style="margin:0">${miss}</p><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Fitter bạn quản lý trực tiếp đang dùng Timesheet kỳ này — nhắc chấm công trước khi hết ngày.</p>` : '');
-      const subject = `[Báo cáo thi công] ${dayLabel} — ${nRows} dòng chấm công${rec.pending.length ? ` · ${rec.pending.length} chờ duyệt` : ''}`;
+      const subject = `[Báo cáo thi công] ${dayLabel} — ${nRows} dòng chấm công${rec.pending.length ? ` · ${rec.pending.length} chờ duyệt` : ''}${rec.ot.length ? ` · ${rec.ot.length} ngày OT chờ duyệt` : ''}${rec.leave.length ? ` · ${rec.leave.length} đơn nghỉ` : ''}`;
       const html = layout(`Báo cáo thi công ${dayLabel}`, body, { url, label: 'Mở Duyệt bảng công' });
       const r = await sendMail(env, { to: [rec.person], subject, html });
       if (r.ok) { summary.sent++; sentKeys.push(key); } else { summary.failed++; summary.errors.push(`${email}: ${r.error}`); }

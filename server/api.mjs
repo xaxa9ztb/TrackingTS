@@ -9,6 +9,7 @@ import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
 import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
+import { routeOtLeave, otSubmitError, otLeaveCounts } from './otleave.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -665,6 +666,8 @@ async function submitMyDoc(env, me, period, request) {
   if (bad) throw new HttpError(400, bad);
   const allow = checkSubmitAllowance(period, data);
   if (allow.error) throw new HttpError(400, allow.error);
+  const otErr = await otSubmitError(env, emp, period, entries);      // tăng ca phải được Site Sup duyệt từng ngày
+  if (otErr) throw new HttpError(400, otErr);
   const wbsList = [...new Set(entries.map(e => String(e.workNumber || '').trim()).filter(Boolean))].slice(0, 40);
   const t = now();
   const r = await env.DB.prepare(`UPDATE ts_docs SET status = 'submitted', submitted_at = ?, sitesup_by = '', sitesup_at = '', pm_by = '', pm_at = '', note = '' WHERE emp_id = ? AND period = ? AND version = ? AND status IN ('draft', 'rejected')`)
@@ -713,7 +716,7 @@ async function pendingDocs(env) {
   return { docs: results, wbs };
 }
 
-// Hộp thư duyệt: các bảng công đang chờ người này duyệt
+// Hộp thư duyệt: các bảng công đang chờ người này duyệt (+ số ngày tăng ca, đơn nghỉ chờ duyệt cho huy hiệu)
 async function tsInbox(env, me) {
   need(me, 'sitesup', 'pm');
   const { docs, wbs } = await pendingDocs(env);
@@ -725,7 +728,7 @@ async function tsInbox(env, me) {
     out.push({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, version: d.version, status: d.status, level, entries: d.entry_count,
       submittedAt: d.submitted_at, sitesupBy: d.sitesup_by, sitesupAt: d.sitesup_at, wbs: list });
   }
-  return json({ items: out });
+  return json({ items: out, ...(await otLeaveCounts(H, env, me, staff)) });
 }
 
 async function loadDocForReview(env, me, emp, period) {
@@ -860,6 +863,9 @@ async function listAudit(env, me, url) {
   return json({ entries: results.map(r => ({ ...r, before: r.before ? JSON.parse(r.before) : null, after: r.after ? JSON.parse(r.after) : null })) });
 }
 
+// các hàm dùng chung truyền cho server/otleave.mjs (duyệt tăng ca, đơn nghỉ)
+const H = { HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES };
+
 // ---------- điểm vào ----------
 
 // opts.getKeys: chỉ dùng khi kiểm thử (thay nguồn khoá công khai của Access)
@@ -933,6 +939,10 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
+    if (path.startsWith('/api/ts/ot/') || path.startsWith('/api/ts/leave')) {
+      const r = await routeOtLeave(H, env, me, path, method, url, request);
+      if (r) return r;
+    }
     throw new HttpError(404, 'Không có đường dẫn này');
   } catch (e) {
     if (e && e.status) return json({ error: e.message }, e.status);
