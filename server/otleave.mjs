@@ -1,8 +1,10 @@
 // Duyệt tăng ca (OT) hằng ngày và đơn nghỉ phép / ốm / không lương của Timesheet cá nhân.
 //
 // Tăng ca: máy khách (Timesheet) tính các ngày có giờ OT (tools/timesheet/otleave.js · otDays) và gửi lên sau mỗi lần đồng bộ;
-//   mỗi ngày là một yêu cầu chờ Site Sup duyệt. Sửa dòng của ngày đã duyệt → dấu vân tay (sig) đổi → chờ duyệt lại.
-//   Nộp bảng công: mọi ngày có OT phải được duyệt đúng sig (otSubmitError, gọi từ submitMyDoc).
+//   mỗi ngày là một yêu cầu chờ duyệt. Sửa dòng của ngày đã duyệt → dấu vân tay (sig) đổi → chờ duyệt lại.
+//   Fitter: Site Sup duyệt hằng ngày. Giám sát (Site Sup / QLDA — "trưởng nhóm", isLead): chỉ chấm giờ OT, đăng ký TRƯỚC khi làm,
+//   Quản lý dự án duyệt (thư báo ngay cho QLDA).
+//   Nộp bảng công KHÔNG bị chặn khi còn ngày OT chưa duyệt: vẫn nhận, thư nhắc người nộp + người duyệt (otPendingDays, gọi từ submitMyDoc).
 // Nghỉ: fitter làm đơn TRƯỚC ngày bắt đầu; Site Sup / QLDA của dự án hoặc Quản lý trực tiếp duyệt trước ngày bắt đầu;
 //   duyệt xong máy chủ tự ghi một dòng nghỉ cho mỗi ngày làm việc vào bảng công (ts_docs) của kỳ tương ứng.
 // Các hàm dùng chung của api.mjs (HttpError, json, need, …) được truyền vào qua `h` để tránh nhập vòng.
@@ -10,7 +12,7 @@ import OtLeave from '../tools/timesheet/otleave.js';
 import Labor from '../tools/timesheet/labor.js';
 import { keyOf } from './supervisors.mjs';
 import { PERIOD_RE, periodRange, checkDoc } from './tsdoc.mjs';
-import { vnDate, periodOfDate, notifyOt, notifyLeave } from './notify.mjs';
+import { vnDate, periodOfDate, isLead, notifyOt, notifyOtRequest, notifyLeave } from './notify.mjs';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SCHEDULES = ['mon-sat-am', 'mon-fri', 'mon-sat'];
@@ -20,6 +22,12 @@ const ph = (n) => Array.from({ length: n }, () => '?').join(', ');
 const r2 = (n) => Math.round(n * 100) / 100;
 const parse = (s, d) => { try { return JSON.parse(s); } catch (e) { return d; } };
 const daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5);
+
+export { isLead };
+const otLevel = (env, r) => (isLead(env, r) ? 'pm' : 'sitesup');
+// người này duyệt được ngày OT r (dòng ts_ot JOIN employees) không — không tự duyệt OT của mình
+const canOt = (h, env, me, r, staff) => (me.isAdmin || me.empId !== r.emp_id) && h.canAct(me, otLevel(env, r), otWbs(r), staff, r.supervisor);
+const EMP_COLS = 'e.full_name, e.position, e.supervisor, e.role_override, e.email';
 
 // ---------- tăng ca ----------
 const otOut = (r) => ({ status: r.status, ot: r.ot, total: r.total, sig: r.sig, note: r.note, by: r.decided_by, at: r.decided_at, requestedAt: r.requested_at });
@@ -86,6 +94,14 @@ async function putMyOt(h, env, me, request) {
   const gone = cur.filter(r => !want.has(r.date)).map(r => r.date);
   if (gone.length) stmts.push(env.DB.prepare(`DELETE FROM ts_ot WHERE emp_id = ? AND date IN (${ph(gone.length)})`).bind(emp, ...gone));
   if (stmts.length) await env.DB.batch(stmts);
+  // giám sát đăng ký OT trước khi làm → báo ngay Quản lý dự án (một thư cho các ngày vừa gửi)
+  if (added + reset) {
+    const owner = await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(emp).first();
+    if (isLead(env, owner)) {
+      const fresh = [...want.values()].filter(c => { const r = have.get(c.date); return !r || r.sig !== c.sig; });
+      await notifyOtRequest(env, { owner, days: fresh.map(c => ({ date: c.date, ot: c.ot, wbs: c.wbs, items: parse(c.detail, []) })) });
+    }
+  }
   return h.json({ ok: true, period, added, reset, removed: gone.length, days: await otStatuses(env, emp, period) });
 }
 
@@ -99,23 +115,29 @@ async function getMyOt(h, env, me, url) {
 const otWbs = (r) => String(r.wbs || '').split(',').filter(Boolean);
 
 async function pendingOt(env) {
-  const { results } = await env.DB.prepare(`SELECT o.*, e.full_name, e.position, e.supervisor FROM ts_ot o JOIN employees e ON e.emp_id = o.emp_id
+  const { results } = await env.DB.prepare(`SELECT o.*, ${EMP_COLS} FROM ts_ot o JOIN employees e ON e.emp_id = o.emp_id
     WHERE o.status = 'pending' ORDER BY o.date, e.full_name LIMIT 500`).all();
   return results;
 }
 
-// Các ngày OT đang chờ người này duyệt (Site Sup của dự án trong ngày, hoặc Quản lý trực tiếp; admin thấy hết)
+// Các ngày OT đang chờ người này duyệt: OT của fitter → Site Sup của dự án / Quản lý trực tiếp;
+// OT của giám sát → Quản lý dự án của dự án / Quản lý trực tiếp; admin thấy hết
 async function otInboxRows(h, env, me, staff) {
   const rows = await pendingOt(env);
-  return rows.filter(r => h.canAct(me, 'sitesup', otWbs(r), staff, r.supervisor));
+  return rows.filter(r => canOt(h, env, me, r, staff));
 }
 
 async function otInbox(h, env, me) {
   h.need(me, 'sitesup', 'pm');
   const staff = await h.projectStaff(env);
   const rows = await otInboxRows(h, env, me, staff);
-  return h.json({ items: rows.map(r => ({ empId: r.emp_id, name: r.full_name, position: r.position, date: r.date, period: r.period, ot: r.ot, total: r.total,
-    sig: r.sig, wbs: otWbs(r), items: parse(r.detail, []), requestedAt: r.requested_at })) });
+  return h.json({ items: rows.map(r => {
+    const lead = isLead(env, r);
+    // giám sát phải đăng ký trước khi làm: gửi sau ngày làm → đánh dấu đăng ký muộn
+    const late = lead && vnDate(new Date(r.requested_at)) > r.date;
+    return { empId: r.emp_id, name: r.full_name, position: r.position, date: r.date, period: r.period, ot: r.ot, total: r.total,
+      sig: r.sig, wbs: otWbs(r), items: parse(r.detail, []), requestedAt: r.requested_at, lead, late };
+  }) });
 }
 
 // POST /api/ts/ot/decide {items:[{emp, date, sig}], action:'approve'|'reject', note}
@@ -132,19 +154,20 @@ async function decideOt(h, env, me, request) {
   const keys = list.map(x => ({ emp: h.str(x && x.emp, 40), date: h.str(x && x.date, 10), sig: String((x && x.sig) || '') }));
   if (keys.some(k => !k.emp || !DATE_RE.test(k.date))) throw new h.HttpError(400, 'Ngày tăng ca không hợp lệ');
   const emps = [...new Set(keys.map(k => k.emp))];
-  const { results } = await env.DB.prepare(`SELECT o.*, e.supervisor, e.full_name FROM ts_ot o JOIN employees e ON e.emp_id = o.emp_id WHERE o.emp_id IN (${ph(emps.length)})`).bind(...emps).all();
+  const { results } = await env.DB.prepare(`SELECT o.*, ${EMP_COLS} FROM ts_ot o JOIN employees e ON e.emp_id = o.emp_id WHERE o.emp_id IN (${ph(emps.length)})`).bind(...emps).all();
   const rowOf = new Map(results.map(r => [r.emp_id + '|' + r.date, r]));
   const periods = [...new Set(results.map(r => r.emp_id + '|' + r.period))];
   const locked = new Set();
   if (periods.length) {
     const docs = (await env.DB.prepare(`SELECT emp_id, period, status FROM ts_docs WHERE emp_id IN (${ph(emps.length)})`).bind(...emps).all()).results;
-    docs.forEach(d => { if (h.LOCKED_STATUSES.includes(d.status)) locked.add(d.emp_id + '|' + d.period); });
+    // bảng công đã nộp vẫn duyệt OT được (nộp không bị chặn khi còn OT chờ duyệt); chỉ khoá khi đã duyệt xong
+    docs.forEach(d => { if (d.status === 'approved') locked.add(d.emp_id + '|' + d.period); });
   }
   const t = h.now(), status = action === 'approve' ? 'approved' : 'rejected', done = [], skipped = [], stmts = [];
   for (const k of keys) {
     const r = rowOf.get(k.emp + '|' + k.date);
-    const why = !r ? 'không còn yêu cầu' : r.sig !== k.sig ? 'fitter vừa sửa giờ — tải lại' : locked.has(r.emp_id + '|' + r.period) ? 'bảng công đã nộp'
-      : !h.canAct(me, 'sitesup', otWbs(r), staff, r.supervisor) ? 'bạn không phải người duyệt' : '';
+    const why = !r ? 'không còn yêu cầu' : r.sig !== k.sig ? 'fitter vừa sửa giờ — tải lại' : locked.has(r.emp_id + '|' + r.period) ? 'bảng công đã duyệt xong'
+      : !canOt(h, env, me, r, staff) ? 'bạn không phải người duyệt' : '';
     if (why) { skipped.push({ emp: k.emp, date: k.date, reason: why }); continue; }
     stmts.push(env.DB.prepare('UPDATE ts_ot SET status = ?, decided_by = ?, decided_at = ?, note = ? WHERE emp_id = ? AND date = ? AND sig = ?')
       .bind(status, me.name, t, action === 'reject' ? note : '', r.emp_id, r.date, r.sig));
@@ -161,18 +184,32 @@ async function decideOt(h, env, me, request) {
   return h.json({ ok: true, status, done: done.length, skipped });
 }
 
-// Nộp bảng công: ngày nào có OT (theo phân loại giờ bd đã gửi) phải được duyệt đúng các dòng hiện tại. Trả về lỗi hoặc ''.
-export async function otSubmitError(env, emp, period, entries) {
+// Các ngày có OT (theo phân loại giờ bd của bảng công) chưa được duyệt đúng các dòng hiện tại → [{date, ot, status}]
+// status: 'pending' (chờ duyệt / chưa gửi / sửa sau khi duyệt) | 'rejected'. Không chặn nộp — dùng để nhắc.
+// Yêu cầu chưa có trên máy chủ (máy khách chưa kịp gửi) thì tạo luôn ở trạng thái chờ duyệt để người duyệt thấy.
+export async function otPendingDays(env, emp, period, entries) {
   const days = OtLeave.otDays(entries, (e) => (e.bd && typeof e.bd === 'object' ? e.bd : {}));
-  if (!days.length) return '';
+  if (!days.length) return [];
   const { results } = await env.DB.prepare('SELECT date, sig, status FROM ts_ot WHERE emp_id = ? AND period = ?').bind(emp, period).all();
   const by = new Map(results.map(r => [r.date, r]));
-  const fmt = (d) => d.slice(8, 10) + '/' + d.slice(5, 7);
   const bad = days.filter(d => { const r = by.get(d.date); return !r || r.status !== 'approved' || r.sig !== d.sig; });
-  if (!bad.length) return '';
-  const rej = bad.filter(d => (by.get(d.date) || {}).status === 'rejected');
-  const list = bad.slice(0, 5).map(d => fmt(d.date)).join(', ') + (bad.length > 5 ? ` và ${bad.length - 5} ngày khác` : '');
-  return `Còn ${bad.length} ngày tăng ca chưa được Site Sup duyệt (${list})${rej.length ? ` — trong đó ${rej.length} ngày bị từ chối, cần sửa giờ` : ''}. Chờ duyệt xong rồi nộp lại.`;
+  const t = new Date().toISOString();
+  const add = bad.filter(d => { const r = by.get(d.date); return !r || r.sig !== d.sig; }).map(d => env.DB.prepare(`INSERT INTO ts_ot (emp_id, date, period, ot, total, sig, wbs, detail, status, requested_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?) ON CONFLICT(emp_id, date) DO UPDATE SET period = excluded.period, ot = excluded.ot, total = excluded.total, sig = excluded.sig,
+      wbs = excluded.wbs, detail = excluded.detail, status = 'pending', requested_at = excluded.requested_at, decided_by = '', decided_at = '', note = ''`)
+    .bind(emp, d.date, period, d.ot, d.total, d.sig, d.wbs.join(','), JSON.stringify(d.items), t));
+  if (add.length) await env.DB.batch(add);
+  return bad.map(d => { const r = by.get(d.date); return { date: d.date, ot: d.ot, status: r && r.sig === d.sig && r.status === 'rejected' ? 'rejected' : 'pending' }; });
+}
+
+// Trang duyệt bảng công: các ngày OT còn chưa duyệt của bảng công đã nộp (chỉ đọc)
+export async function otPendingOfDoc(env, emp, period, entries) {
+  const days = OtLeave.otDays(entries, (e) => (e.bd && typeof e.bd === 'object' ? e.bd : {}));
+  if (!days.length) return [];
+  const { results } = await env.DB.prepare('SELECT date, sig, status FROM ts_ot WHERE emp_id = ? AND period = ?').bind(emp, period).all();
+  const by = new Map(results.map(r => [r.date, r]));
+  return days.filter(d => { const r = by.get(d.date); return !r || r.status !== 'approved' || r.sig !== d.sig; })
+    .map(d => { const r = by.get(d.date); return { date: d.date, ot: d.ot, status: r && r.sig === d.sig ? r.status : 'pending' }; });
 }
 
 // ---------- đơn nghỉ ----------
@@ -236,17 +273,20 @@ async function cancelLeave(h, env, me, id) {
 }
 
 // Người duyệt đơn nghỉ: admin; hoặc Site Sup / QLDA là Quản lý trực tiếp của fitter, hoặc được gán cho dự án fitter đang làm.
-function canLeave(me, row, staff) {
+// Đơn của giám sát: chỉ Quản lý dự án (của dự án / Quản lý trực tiếp) duyệt.
+function canLeave(me, row, staff, env) {
   if (me.isAdmin) return true;
   if (!me.empId || me.empId === row.emp_id || !(me.roles.includes('sitesup') || me.roles.includes('pm'))) return false;
+  const lead = isLead(env, row);
+  if (lead && !me.roles.includes('pm')) return false;
   if (row.supervisor && keyOf(row.supervisor) === keyOf(me.name)) return true;
-  return String(row.wbs || '').split(',').filter(Boolean).some(w => { const s = staff.get(w); return s && (s.sitesup.includes(me.empId) || s.pm.includes(me.empId)); });
+  return String(row.wbs || '').split(',').filter(Boolean).some(w => { const s = staff.get(w); return s && ((!lead && s.sitesup.includes(me.empId)) || s.pm.includes(me.empId)); });
 }
 
 async function leaveInboxRows(env, me, staff) {
-  const { results } = await env.DB.prepare(`SELECT l.*, e.full_name, e.position, e.supervisor FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id
+  const { results } = await env.DB.prepare(`SELECT l.*, ${EMP_COLS} FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id
     WHERE l.status = 'pending' ORDER BY l.date_from LIMIT 300`).all();
-  return results.filter(r => canLeave(me, r, staff));
+  return results.filter(r => canLeave(me, r, staff, env));
 }
 
 async function leaveInbox(h, env, me) {
@@ -292,10 +332,10 @@ async function writeLeave(env, row, by) {
 async function decideLeave(h, env, me, id, action, request) {
   h.need(me, 'sitesup', 'pm');
   const body = await h.readJson(request);
-  const row = await env.DB.prepare('SELECT l.*, e.full_name, e.position, e.supervisor FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id WHERE l.id = ?').bind(id).first();
+  const row = await env.DB.prepare(`SELECT l.*, ${EMP_COLS} FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id WHERE l.id = ?`).bind(id).first();
   if (!row) throw new h.HttpError(404, 'Không có đơn nghỉ này');
   const staff = await h.projectStaff(env);
-  if (!canLeave(me, row, staff)) throw new h.HttpError(403, 'Bạn không phải người duyệt đơn nghỉ này');
+  if (!canLeave(me, row, staff, env)) throw new h.HttpError(403, 'Bạn không phải người duyệt đơn nghỉ này');
   const t = h.now(), today = vnDate();
   if (action === 'reject') {
     const note = h.str(body.note, 300);

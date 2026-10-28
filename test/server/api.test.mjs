@@ -53,7 +53,9 @@ async function call(method, p, { email, token, body, contentType, envOver, cooki
 const sentMail = []; let brevoMode = 'ok';
 const fakeBrevo = async (url, init) => {
   const body = JSON.parse(init.body);
-  sentMail.push({ url, key: init.headers['api-key'], ...body });
+  // thư gửi hàng loạt (messageVersions): tách thành từng thư như người nhận thấy
+  if (body.messageVersions) body.messageVersions.forEach(v => sentMail.push({ url, key: init.headers['api-key'], sender: body.sender, ...v }));
+  else sentMail.push({ url, key: init.headers['api-key'], ...body });
   return brevoMode === 'ok' ? { ok: true, status: 201, json: async () => ({ messageId: 'x' }) } : { ok: false, status: 401, json: async () => ({ message: 'Key not found' }) };
 };
 const mailsTo = (email) => sentMail.filter(m => m.to.some(t => t.email === email));
@@ -751,14 +753,12 @@ test('nộp: thiếu / sai phân loại giờ bị từ chối; hợp lệ thì 
   await putDoc('ts2@example.com', '2026-12', [okEntry(1, '2026-11-16'), okEntry(2, '2026-11-17', { bd: { NORMAL: 6, OT1: 2 } })], 2);
   r = await call('POST', '/api/ts/docs/2026-12/submit', { email: 'ts2@example.com', body: { baseVersion: 1 } });
   assert.equal(r.status, 409); assert.equal(r.data.conflict, true, 'số phiên bản cũ');
-  r = await submit('ts2@example.com', '2026-12');
-  assert.equal(r.status, 400); assert.match(r.data.error, /1 ngày tăng ca chưa được Site Sup duyệt \(17\/11\)/);
-  // fitter gửi ngày tăng ca → Site Sup duyệt → nộp được
+  // tăng ca chưa duyệt KHÔNG chặn nộp: vẫn nhận, có thư nhắc người nộp và Site Sup
   const entries = (await docOf('ts2@example.com', '2026-12')).data.entries;
   const days = OtLeave.otDays(entries, e => e.bd);
   r = await call('PUT', '/api/ts/ot/mine', { email: 'ts2@example.com', body: { period: '2026-12', days } });
   assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.days['2026-11-17'].status, 'pending');
-  r = await call('POST', '/api/ts/ot/decide', { email: 'ap1@example.com', body: { action: 'approve', items: [{ emp: 'TS2', date: '2026-11-17', sig: days[0].sig }] } });
+  r = await decideOt('ap1@example.com', 'approve', [{ emp: 'TS2', date: '2026-11-17', sig: days[0].sig }]);
   assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.done, 1);
   r = await submit('ts2@example.com', '2026-12');
   assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'submitted');
@@ -1215,32 +1215,33 @@ test('tăng ca: không duyệt cần lý do + thư báo fitter; sửa giờ → 
   assert.ok(log.includes('ot_approve') && log.includes('ot_reject'));
 });
 
-test('tăng ca: nộp bảng công bị chặn khi còn ngày OT chưa duyệt / đã sửa sau khi duyệt; bảng công đã nộp thì OT khoá', async () => {
+test('tăng ca: nộp bảng công KHÔNG bị chặn khi còn ngày OT chưa duyệt — vẫn nhận, thư nhắc người nộp + Site Sup; sửa sau khi duyệt thì tính lại; đã duyệt xong thì OT khoá', async () => {
   const entries = [otEntry(3101, '2027-03-17'), otEntry(3102, '2027-03-18')];
   await putDoc('ts2@example.com', '2027-04', entries, 0);
-  let r = await submit('ts2@example.com', '2027-04');
-  assert.equal(r.status, 400); assert.match(r.data.error, /Còn 2 ngày tăng ca chưa được Site Sup duyệt \(17\/03, 18\/03\)/);
   const days = otDaysOf(entries);
   await putOt('ts2@example.com', '2027-04', days);
   await decideOt('ap1@example.com', 'approve', [{ emp: 'TS2', date: days[0].date, sig: days[0].sig }]);
   await decideOt('ap1@example.com', 'reject', [{ emp: 'TS2', date: days[1].date, sig: days[1].sig }], 'Không có lệnh');
-  r = await submit('ts2@example.com', '2027-04');
-  assert.equal(r.status, 400); assert.match(r.data.error, /Còn 1 ngày.*\(18\/03\).*1 ngày bị từ chối/);
-  // sửa giờ ngày 17 sau khi đã duyệt (trên máy chủ) mà chưa duyệt lại → cũng bị chặn
-  const edited = [otEntry(3101, '2027-03-17', '18:00'), okEntry(3102, '2027-03-18')];
-  await putDoc('ts2@example.com', '2027-04', edited, 1);
-  r = await submit('ts2@example.com', '2027-04');
-  assert.equal(r.status, 400); assert.match(r.data.error, /\(17\/03\)/);
-  const d2 = otDaysOf(edited);
-  await putOt('ts2@example.com', '2027-04', d2);
-  await decideOt('ap1@example.com', 'approve', d2.map(d => ({ emp: 'TS2', date: d.date, sig: d.sig })));
-  r = await submit('ts2@example.com', '2027-04');
-  assert.equal(r.status, 200, JSON.stringify(r.data));
-  // đã nộp: gửi OT khác không đổi gì, duyệt / từ chối bị bỏ qua
-  r = await putOt('ts2@example.com', '2027-04', []);
-  assert.equal(r.data.locked, true); assert.equal(Object.keys(r.data.days).length, 1);
-  r = await decideOt('ap1@example.com', 'reject', d2.map(d => ({ emp: 'TS2', date: d.date, sig: d.sig })), 'thử');
-  assert.equal(r.data.done, 0); assert.equal(r.data.skipped[0].reason, 'bảng công đã nộp');
+  sentMail.length = 0;
+  const r = await submit('ts2@example.com', '2027-04');
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'submitted'); assert.equal(r.data.otPending, 1);
+  const own = mailsTo('ts2@example.com'), sup = mailsTo('ap1@example.com');
+  assert.ok(own.some(m => /còn 1 ngày tăng ca chưa được duyệt/.test(m.subject) && /18\/03\/2027[\s\S]*bị từ chối/.test(m.htmlContent)), 'thư nhắc người nộp, nêu ngày bị từ chối');
+  assert.ok(sup.some(m => /còn 1 ngày tăng ca chờ bạn duyệt/.test(m.subject) && /#tangca/.test(m.htmlContent)), 'thư nhắc Site Sup');
+  assert.ok(sup.some(m => /đã nộp kỳ lương 4\/2027/.test(m.subject)), 'thư nộp bảng công vẫn gửi như thường');
+  // bảng công đã nộp: Site Sup vẫn duyệt OT được (ngày bị từ chối đã sửa & gửi lại thì không còn ở đây vì bảng công đã khoá)
+  const d2 = days.slice(1);
+  const rr = await decideOt('ap1@example.com', 'approve', d2.map(d => ({ emp: 'TS2', date: d.date, sig: d.sig })));
+  assert.equal(rr.data.done, 1, 'duyệt OT sau khi đã nộp');
+  // OT chưa gửi lên máy chủ lúc nộp (máy khách chưa kịp): máy chủ tạo yêu cầu chờ duyệt để người duyệt thấy
+  await putDoc('ts3@example.com', '2027-04', [otEntry(3201, '2027-03-19')], 0);
+  const r3 = await submit('ts3@example.com', '2027-04');
+  assert.equal(r3.status, 200); assert.equal(r3.data.otPending, 1);
+  assert.equal((await call('GET', '/api/ts/ot/inbox', { email: 'ap1@example.com' })).data.items.filter(i => i.empId === 'TS3').length, 1);
+  // bảng công đã duyệt xong: OT khoá
+  await env.DB.prepare("UPDATE ts_docs SET status = 'approved' WHERE emp_id = 'TS2' AND period = '2027-04'").run();
+  const x = await decideOt('ap1@example.com', 'reject', d2.map(d => ({ emp: 'TS2', date: d.date, sig: d.sig })), 'thử');
+  assert.equal(x.data.done, 0); assert.equal(x.data.skipped[0].reason, 'bảng công đã duyệt xong');
 });
 
 // ---------- đơn nghỉ phép / ốm ----------
@@ -1397,4 +1398,70 @@ test('gửi lại thư duyệt xong: chỉ QLDA đã duyệt / admin; luôn CC n
   const bad = await call('POST', url, { email: 'ap3@example.com', body });
   brevoMode = 'ok';
   assert.equal(bad.status, 502); assert.match(bad.data.error, /Gửi thư không thành công/);
+});
+
+// ---------- nhắc chấm công, chấm bù, giám sát chỉ chấm OT ----------
+test('báo cáo tối: nhắc fitter chưa chấm hôm nay (kèm ngày thiếu); ngày chấm bù gộp vào MỘT thư của giám sát; giám sát không bị nhắc; không gửi trùng', async () => {
+  const day = '2027-06-10', now = new Date('2027-06-10T11:30:00Z');                // Thứ 5, 18:30 giờ Việt Nam
+  const todayU = Date.parse('2027-06-10T09:00:00+07:00');
+  await putDoc('ts1@example.com', '2027-06', [okEntry(6101, '2027-06-08', { u: 1 })], 0);                                  // chưa chấm hôm nay
+  await putDoc('ts2@example.com', '2027-06', [okEntry(6201, day, { u: todayU }), okEntry(6202, '2027-06-07', { u: todayU, report: 'bù thứ 2' }),
+    okEntry(6203, '2027-06-08', { u: todayU, report: 'bù thứ 3' })], 0);
+  await putDoc('ap1@example.com', '2027-06', [okEntry(6301, '2027-06-08', { u: 1, bd: { OT1: 2 } })], 0);                 // giám sát: không bị nhắc
+  sentMail.length = 0;
+  const sum = await runDigest(env, { now });
+  assert.equal(sum.late, 3 - 1, JSON.stringify(sum)); assert.ok(sum.fitterReminders >= 1);
+  const rem = (e) => mailsTo(e).filter(m => /bạn chưa chấm công/.test(m.subject));
+  assert.equal(rem('ts1@example.com').length, 1); assert.match(rem('ts1@example.com')[0].subject, /Hôm nay \(10\/06\/2027\) bạn chưa chấm công/);
+  assert.match(rem('ts1@example.com')[0].htmlContent, /còn thiếu cả: <b>[^<]*17\/05[^<]*<\/b>/, 'liệt kê ngày còn thiếu trong kỳ');
+  assert.equal(rem('ts2@example.com').length, 0, 'đã chấm hôm nay');
+  assert.equal(rem('ap1@example.com').length, 0, 'giám sát không bị nhắc chấm công hằng ngày');
+  // giám sát nhận MỘT thư tổng hợp: có phần chấm bù của Thợ Hai (2 ngày) và báo Thợ Một chưa chấm; AP1 (giám sát) không nằm trong danh sách chưa chấm
+  const ap1 = mailsTo('ap1@example.com').filter(m => /Báo cáo thi công/.test(m.subject));
+  assert.equal(ap1.length, 1, 'một thư duy nhất');
+  assert.match(ap1[0].htmlContent, /Chấm công bù hôm nay[\s\S]*Thợ Hai<\/b> chấm bù 2 ngày: 07\/06, 08\/06/);
+  assert.match(ap1[0].htmlContent, /bù thứ 2/); assert.match(ap1[0].subject, /\+ 2 dòng chấm bù/);
+  assert.doesNotMatch(ap1[0].htmlContent, /Hôm nay chưa chấm công<\/h3><p style="margin:0">[^<]*Giám Sát Duyệt/);
+  sentMail.length = 0;
+  const again = await runDigest(env, { now });
+  assert.equal(again.fitterReminders, 0); assert.equal(sentMail.length, 0, 'chạy lại không gửi trùng');
+});
+
+test('giám sát: bảng công chỉ giờ OT nộp thẳng Quản lý dự án; đăng ký OT báo ngay QLDA; QLDA duyệt OT; không tự duyệt của mình', async () => {
+  const lead = 'ap1@example.com', pm = 'ap3@example.com';
+  const ot = (id, date) => okEntry(id, date, { startTime: '17:00', endTime: '19:00', breakTime: '0', bd: { OT1: 2 } });
+  // dòng giờ thường → không nộp được
+  await putDoc(lead, '2027-07', [okEntry(7001, '2027-06-17')], 0);
+  let r = await submit(lead, '2027-07');
+  assert.equal(r.status, 400); assert.match(r.data.error, /Giám sát chỉ nộp giờ tăng ca/);
+  // đăng ký OT (trước khi làm: ngày trong tương lai) → thư tới QLDA, yêu cầu vào hộp OT của QLDA, không vào hộp của Site Sup khác
+  await putDoc(lead, '2027-07', [ot(7101, '2027-06-17'), ot(7102, '2027-06-18')], 1);
+  const days = otDaysOf([ot(7101, '2027-06-17'), ot(7102, '2027-06-18')]);
+  sentMail.length = 0;
+  r = await putOt(lead, '2027-07', days);
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const m = mailsTo(pm).find(x => /đăng ký 2 ngày tăng ca/.test(x.subject));
+  assert.ok(m, 'thư đăng ký OT tới Quản lý dự án'); assert.match(m.htmlContent, /Giám sát đăng ký tăng ca/);
+  const inbox = (e) => call('GET', '/api/ts/ot/inbox', { email: e });
+  assert.equal((await inbox(pm)).data.items.filter(i => i.empId === 'AP1').length, 2, 'QLDA thấy OT của giám sát');
+  assert.equal((await inbox('ap2@example.com')).data.items.filter(i => i.empId === 'AP1').length, 0, 'Site Sup khác không duyệt OT của giám sát');
+  assert.equal((await inbox(lead)).data.items.filter(i => i.empId === 'AP1').length, 0, 'không tự duyệt OT của mình');
+  assert.equal((await decideOt(lead, 'approve', days.map(d => ({ emp: 'AP1', date: d.date, sig: d.sig })))).data.done, 0);
+  const before = (await inbox(pm)).data.items.filter(i => i.empId === 'AP1');
+  assert.ok(before.every(i => i.lead === true && i.late === false), 'đăng ký trước ngày làm');
+  await env.DB.prepare("UPDATE ts_ot SET requested_at = '2027-06-19T01:00:00.000Z' WHERE emp_id = 'AP1' AND date = '2027-06-18'").run();
+  assert.equal((await inbox(pm)).data.items.find(i => i.empId === 'AP1' && i.date === '2027-06-18').late, true, 'đăng ký sau ngày làm được đánh dấu');
+  assert.equal((await decideOt(pm, 'approve', days.map(d => ({ emp: 'AP1', date: d.date, sig: d.sig })))).data.done, 2);
+  // nộp: nộp thẳng QLDA (bỏ cấp Site Sup)
+  sentMail.length = 0;
+  r = await submit(lead, '2027-07');
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'sitesup_ok'); assert.equal(r.data.otPending, 0);
+  assert.ok(mailsTo(pm).some(x => /đã nộp kỳ lương 7\/2027 \(giờ tăng ca\)/.test(x.subject) && /chỉ gồm giờ tăng ca/.test(x.htmlContent)));
+  assert.equal(mailsTo('ap2@example.com').length, 0);
+  assert.equal((await call('GET', '/api/ts/inbox', { email: pm })).data.items.filter(i => i.empId === 'AP1' && i.level === 'pm').length, 1);
+  assert.equal((await call('GET', '/api/ts/inbox', { email: 'ap2@example.com' })).data.items.filter(i => i.empId === 'AP1').length, 0);
+  assert.equal((await call('POST', '/api/ts/review/AP1/2027-07/approve', { email: lead, body: {} })).status, 403, 'không tự duyệt bảng công của mình');
+  assert.equal((await call('POST', '/api/ts/docs/2027-07/withdraw', { email: lead, body: {} })).status, 200, 'thu hồi được khi QLDA chưa duyệt');
+  assert.equal((await submit(lead, '2027-07')).status, 200);
+  assert.equal((await call('POST', '/api/ts/review/AP1/2027-07/approve', { email: pm, body: {} })).data.status, 'approved');
 });
