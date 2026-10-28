@@ -43,6 +43,11 @@
     <div class="ap-kpis" id="dKpis"></div>
     <h3>Theo dự án</h3>
     <div class="ac-scroll"><table class="ac-table" id="dProjects"><thead><tr><th>Dự án</th><th>WBS</th><th class="r">Ngày</th><th class="r">Thường</th><th class="r">OT</th><th class="r">Tổng</th></tr></thead><tbody></tbody></table></div>
+    <div id="dAllow" hidden>
+      <div class="ap-head"><h3>Phụ cấp xe nộp kèm</h3><button class="btn small" id="btnAllowExcel">Tải Bảng phụ cấp xe (Excel)</button></div>
+      <div class="ac-scroll"><table class="ac-table" id="dAllowTable"><thead><tr><th>Loại</th><th>Dự án</th><th>WBS</th><th>Thời gian</th><th>Địa điểm</th><th class="r">Ngày</th><th class="r">Số tiền (đ)</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
+      <p class="ac-note">Số ngày tính lại từ chính các dòng chấm công của dự án trong khoảng ngày đã khai. Hãy xác nhận khoảng cách dự án (xăng xe: 25 – dưới 35 km từ trụ sở) / việc tự mang xe đi tỉnh trước khi duyệt.</p>
+    </div>
     <h3>Từng ngày</h3>
     <div class="ac-scroll ac-tall"><table class="ac-table" id="dDays"><thead><tr><th>Ngày</th><th>Giờ</th><th class="r">Tổng</th><th>Loại giờ</th><th>Mã CV</th><th>Dự án / báo cáo thi công</th></tr></thead><tbody></tbody></table></div>
     <div class="ap-actions" id="dActions">
@@ -60,6 +65,7 @@
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="app.js?v=2"></script>
+<script src="../timesheet/allowance.js?v=1"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@ import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
 import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
-import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, trackingRow } from './tsdoc.mjs';
+import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -663,6 +663,8 @@ async function submitMyDoc(env, me, period, request) {
   const entries = Array.isArray(data.entries) ? data.entries : [];
   const bad = checkSubmitEntries(entries);
   if (bad) throw new HttpError(400, bad);
+  const allow = checkSubmitAllowance(period, data);
+  if (allow.error) throw new HttpError(400, allow.error);
   const wbsList = [...new Set(entries.map(e => String(e.workNumber || '').trim()).filter(Boolean))].slice(0, 40);
   const t = now();
   const r = await env.DB.prepare(`UPDATE ts_docs SET status = 'submitted', submitted_at = ?, sitesup_by = '', sitesup_at = '', pm_by = '', pm_at = '', note = '' WHERE emp_id = ? AND period = ? AND version = ? AND status IN ('draft', 'rejected')`)
@@ -671,7 +673,7 @@ async function submitMyDoc(env, me, period, request) {
   const stmts = [env.DB.prepare('DELETE FROM ts_doc_wbs WHERE emp_id = ? AND period = ?').bind(emp, period)];
   if (wbsList.length) stmts.push(env.DB.prepare(`INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbsList.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbsList.flatMap(w => [emp, period, w])));
   await env.DB.batch(stmts);
-  await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length });
+  await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length, allowance: allow.computed.totals.amount });
   await notifyEvent(env, 'submitted', { empId: emp, period, wbs: wbsList });
   return json({ ok: true, status: 'submitted', version: row.version, submittedAt: t });
 }

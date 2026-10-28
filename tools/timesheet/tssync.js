@@ -44,6 +44,13 @@
     return { entries, tomb, differs };
   }
 
+  // Phụ cấp xe của kỳ ({rows, u}): cả khối, bản có thời điểm sửa (u) sau thắng; bằng nhau thì bản trên máy thắng
+  function mergeAllow(local, remote) {
+    if (!remote) return local || null;
+    if (!local) return remote;
+    return stamp(local) >= stamp(remote) ? local : remote;
+  }
+
   // Áp kết quả đồng bộ lên mảng dòng HIỆN TẠI (người dùng có thể đã sửa tiếp trong lúc đồng bộ):
   // chỉ thay các dòng của kỳ đã đồng bộ khi dòng đó chưa bị sửa tiếp sau thời điểm bắt đầu.
   function applyChanges(current, period, merged, startedAt) {
@@ -72,6 +79,11 @@
   function markDirty(dates) {
     const s = load();
     [].concat(dates).forEach(d => { if (d) { const p = periodOf(d); s.dirty[p] = (s.dirty[p] || 0) + 1; } });
+    save(s);
+  }
+  function markPeriodDirty(period) {   // phụ cấp xe của kỳ vừa sửa
+    const s = load();
+    s.dirty[period] = (s.dirty[period] || 0) + 1;
     save(s);
   }
   function markDeleted(entry) {
@@ -107,8 +119,9 @@
 
   // Đồng bộ toàn bộ: lấy danh sách kỳ trên máy chủ, tải kỳ mới hơn, gộp, gửi kỳ có thay đổi.
   // getEntries(): mảng dòng hiện tại; onMerged(period, mergedEntries, startedAt): cập nhật giao diện;
+  // getAllow(period) / onAllow(period, allow): phụ cấp xe của kỳ trên máy / nhận bản gộp (bản trên máy chủ mới hơn);
   // trả { ok, statuses:{period:status}, error?, offline?, pushed, pulled }
-  function sync({ getEntries, onMerged, getSch }) {
+  function sync({ getEntries, onMerged, getSch, getAllow, onAllow }) {
     if (running) return running;
     running = (async () => {
       const result = { ok: false, statuses: {}, notes: {}, pushed: 0, pulled: 0 };
@@ -140,17 +153,21 @@
           }
           for (let attempt = 0; attempt < 3; attempt++) {
             const localOfP = getEntries().filter(e => periodOf(e.date) === p);
-            let merged;
+            const localAllow = getAllow ? getAllow(p) || null : null;
+            let merged, allow = localAllow;
             if (base) {
               merged = mergeDoc(localOfP, load().tomb, base);
               onMerged(p, merged.entries, startedAt);
               st = load(); st.tomb = { ...st.tomb, ...merged.tomb }; save(st);
+              allow = mergeAllow(localAllow, base.allow);
+              if (allow !== localAllow && onAllow) onAllow(p, allow);
+              if (JSON.stringify(allow || null) !== JSON.stringify(base.allow || null)) merged.differs = true;
             } else merged = { entries: localOfP, tomb: load().tomb, differs: seq > 0 };
             result.statuses[p] = status;
             if (LOCKED.includes(status) || (!seq && !merged.differs)) {
               st = load(); st.versions[p] = version; st.status[p] = status; save(st); break;
             }
-            const put = await call('PUT', '/api/ts/docs/' + p, { baseVersion: version, data: { entries: merged.entries, deleted: merged.tomb, sch: getSch ? getSch() : undefined } });
+            const put = await call('PUT', '/api/ts/docs/' + p, { baseVersion: version, data: { entries: merged.entries, deleted: merged.tomb, sch: getSch ? getSch() : undefined, allow: allow || undefined } });
             if (put.status === 200) {
               result.pushed++;
               st = load(); st.versions[p] = put.data.version; st.status[p] = status;
@@ -188,6 +205,6 @@
   }
 
   const LOCKED = ['submitted', 'sitesup_ok', 'approved'];
-  const api = { periodOf, mergeDoc, applyChanges, markDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED };
+  const api = { periodOf, mergeDoc, mergeAllow, applyChanges, markDirty, markPeriodDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsSync = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -3,7 +3,7 @@
 // Mọi hàm ở đây KHÔNG ném lỗi ra ngoài — thư hỏng không được làm hỏng nộp / duyệt bảng công.
 import { effectiveRoles, adminEmails } from './roles.mjs';
 import { keyOf } from './supervisors.mjs';
-import { entryHours } from './tsdoc.mjs';
+import { entryHours, allowanceSummary } from './tsdoc.mjs';
 import { mailConfigured, sendMail, esc, layout } from './mail.mjs';
 
 const LEAVE_CODES = ['6010', '6020', '6090'];
@@ -92,7 +92,7 @@ function docTotals(data) {
     total += h; normal += bd && typeof bd.NORMAL === 'number' ? bd.NORMAL : (bd ? 0 : h);
     if (e && e.date && !LEAVE_CODES.includes(String(e.activityCode))) days.add(e.date);
   }
-  return { total, normal, ot: Math.max(0, total - normal), days: days.size, lines: entries.length };
+  return { total, normal, ot: Math.max(0, total - normal), days: days.size, lines: entries.length, allow: allowanceSummary(data) };
 }
 
 async function ownerOf(env, empId) {
@@ -117,6 +117,7 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
       subject = `[Bảng công] ${owner.full_name} đã nộp ${kp} — chờ ${level === 'pm' ? 'Quản lý dự án' : 'Site Sup'} duyệt`;
       html = layout(`Có bảng công chờ bạn duyệt`, `<p>${esc(who)} ${kind === 'submitted' ? 'đã nộp' : 'đã được Site Sup ' + esc(by) + ' duyệt'} bảng công ${esc(kp)}.</p>
         ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc · ${t.lines} dòng chấm công</p>` : ''}
+        ${t && t.allow ? `<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px"><b>Phụ cấp xe:</b> ${esc(t.allow)}</p>` : ''}
         ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}<p>Bấm nút dưới để mở thẳng bảng công này trong <b>Duyệt bảng công</b>: xem chi tiết, duyệt hoặc trả lại kèm lý do.</p>`, { url: review, label: 'Mở bảng công để duyệt' });
     } else if (kind === 'approved') {
       to = owner.email ? [{ email: owner.email, name: owner.full_name }] : [];

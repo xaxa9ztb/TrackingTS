@@ -13,6 +13,7 @@ timesheet-data.json
 
 # Mẫu bảng chấm công TRẮNG của Timesheet (không chứa dữ liệu) — tải khi bấm Xuất Excel.
 !tools/timesheet/ts-template.xlsx
+!tools/timesheet/phucap-xe-template.xlsx
 
 # Công cụ build của Timesheet (cài bằng npm install, không commit)
 node_modules/

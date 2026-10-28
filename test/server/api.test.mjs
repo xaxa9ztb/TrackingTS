@@ -1112,3 +1112,31 @@ test('demo: máy chủ không có DB_DEMO → báo chưa bật, cookie bị bỏ
   const st = await call('GET', '/api/demo/status', { email: 'boss@example.com', envOver: { DB_DEMO: undefined } });
   assert.equal(st.data.available, false);
 });
+
+test('phụ cấp xe: lưu cùng bảng công (đã làm sạch), dữ liệu sai bị từ chối', async () => {
+  const fuel = (extra = {}) => ({ id: '501', type: 'fuel', wbs: 'WA-1', project: 'Dự án duyệt', from: '2027-01-16', to: '2027-02-15', location: 'Thủ Đức', remarks: '', ...extra });
+  const put = (allow, base) => call('PUT', '/api/ts/docs/2027-02', { email: 'ts1@example.com', body: { baseVersion: base, data: { entries: [okEntry(901, '2027-01-18'), okEntry(902, '2027-01-19')], deleted: {}, allow } } });
+  let r = await put({ rows: [fuel({ hack: 1, ownVehicle: true })], u: 77 }, 0);
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const got = (await docOf('ts1@example.com', '2027-02')).data.allow;
+  assert.equal(got.u, 77); assert.equal(got.rows[0].hack, undefined); assert.equal(got.rows[0].ownVehicle, false);
+  assert.equal((await put({ rows: [fuel({ type: 'taxi' })] }, 1)).status, 400);
+  assert.equal((await put({ rows: [fuel({ from: '2027-01-10' })] }, 1)).status, 400, 'ngoài kỳ lương');
+  assert.equal((await put('abc', 1)).status, 400);
+  assert.equal((await docOf('ts1@example.com', '2027-02')).version, 1, 'không ghi bản sai');
+});
+
+test('phụ cấp xe: còn lỗi thì không nộp được; hợp lệ thì nộp, thư báo Site Sup có số tiền, người duyệt thấy phụ cấp', async () => {
+  const prov = { id: '502', type: 'province', wbs: 'WA-1', project: 'Dự án duyệt', from: '2027-01-16', to: '2027-02-15', ownVehicle: true };
+  await call('PUT', '/api/ts/docs/2027-02', { email: 'ts1@example.com', body: { baseVersion: 1, data: { entries: [okEntry(901, '2027-01-18'), okEntry(902, '2027-01-19')], deleted: {}, allow: { rows: [prov], u: 80 } } } });
+  let r = await submit('ts1@example.com', '2027-02');
+  assert.equal(r.status, 400); assert.match(r.data.error, /Phụ cấp xe chưa hợp lệ.*trên 20 ngày/);
+  await call('PUT', '/api/ts/docs/2027-02', { email: 'ts1@example.com', body: { baseVersion: 2, data: { entries: [okEntry(901, '2027-01-18'), okEntry(902, '2027-01-19')], deleted: {},
+    allow: { rows: [{ id: '501', type: 'fuel', wbs: 'WA-1', project: 'Dự án duyệt', from: '2027-01-16', to: '2027-02-15' }], u: 90 } } } });
+  sentMail.length = 0;
+  r = await submit('ts1@example.com', '2027-02');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.match(sentMail[0].htmlContent, /Phụ cấp xe:<\/b> Xăng xe 2 ngày = 120\.000 đ — tổng 120\.000 đ/);
+  const rv = await call('GET', '/api/ts/review/TS1/2027-02', { email: 'ap1@example.com' });
+  assert.equal(rv.status, 200); assert.equal(rv.data.data.allow.rows[0].type, 'fuel');
+});
