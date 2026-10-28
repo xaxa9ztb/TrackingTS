@@ -123,6 +123,14 @@
   .card ol li { margin: 4px 0; }
   .card .ft { font-size: 13px; color: var(--muted); padding: 0 14px 12px; }
 
+  /* video */
+  .videos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .vid { background: #fff; border: 1px solid var(--line); border-top: 5px solid var(--c); border-radius: 16px; padding: 14px; }
+  .vid h3 { margin: 0 0 8px; padding: 0; border: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .vid h3 small { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .vid video { display: block; width: 100%; height: auto; border-radius: 10px; background: #0b1220; aspect-ratio: 16 / 9; }
+  .vid p { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
+  @media (max-width: 760px) { .videos { grid-template-columns: 1fr; } }
   footer.ft { max-width: 1080px; margin: 0 auto; padding: 0 16px 40px; color: var(--muted); font-size: 13px; }
 
   dialog.zoom { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh; }
@@ -185,6 +193,7 @@
       <div class="rule" style="--c: var(--c-sup)"><span class="n">3</span><div><b>Giám sát duyệt SỚM</b><span>Sai thì trả lại, ghi lý do cụ thể.</span></div></div>
     </div>
     <nav class="toc" aria-label="Mục lục">
+      <a href="#video" class="noprint">🎬 Video</a>
       <a href="#toan-canh">1. Toàn cảnh</a>
       <a href="#ky-luong">2. Lịch kỳ lương</a>
       <a href="#moi-ngay" style="--c: var(--c-fitter)">3. Chấm công mỗi ngày<span class="who">Fitter</span></a>
@@ -200,6 +209,28 @@
 </div>
 
 <main>
+
+  <!-- ============ VIDEO ============ -->
+  <section class="noprint" id="video" style="margin-bottom:20px" aria-label="Video hướng dẫn">
+    <div class="videos">
+      <div class="vid" style="--c: var(--c-fitter)">
+        <h3>🎬 Video cho Fitter <small>· 3 phút 15 giây</small></h3>
+        <video controls preload="none" playsinline poster="docs/video/Video-Timesheet-Fitter.jpg">
+          <source src="docs/video/Video-Timesheet-Fitter.mp4" type="video/mp4">
+          <track kind="subtitles" srclang="vi" label="Tiếng Việt" src="docs/video/Video-Timesheet-Fitter.vtt">
+        </video>
+        <p>Mở app · thêm chấm công · mất sóng vẫn chấm · nộp cuối kỳ · khi bị trả lại. <a href="docs/video/Video-Timesheet-Fitter.mp4" download>Tải video</a></p>
+      </div>
+      <div class="vid" style="--c: var(--c-sup)">
+        <h3>🎬 Video cho Giám sát <small>· 2 phút 43 giây</small></h3>
+        <video controls preload="none" playsinline poster="docs/video/Video-Timesheet-Giam-sat.jpg">
+          <source src="docs/video/Video-Timesheet-Giam-sat.mp4" type="video/mp4">
+          <track kind="subtitles" srclang="vi" label="Tiếng Việt" src="docs/video/Video-Timesheet-Giam-sat.vtt">
+        </video>
+        <p>Email báo cáo 18:30 · bảng công chờ duyệt · kiểm tra 5 điểm · trả lại kèm lý do · duyệt. <a href="docs/video/Video-Timesheet-Giam-sat.mp4" download>Tải video</a></p>
+      </div>
+    </div>
+  </section>
 
   <!-- ============ 1. TOÀN CẢNH ============ -->
   <section class="part" id="toan-canh" style="--c: #111827">

@@ -10,7 +10,7 @@ const OUT = path.join(ROOT, 'dist');
 const INCLUDE = ['index.html', 'tracking.html', 'admin.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons', 'tools',
   'docs/Huong-dan-su-dung-nguoi-dung.pdf', // trang chủ + Thống kê giờ công có link tới file này
   'huong-dan.html', 'docs/huong-dan', // tài liệu hướng dẫn sử dụng + ảnh minh họa
-  'huong-dan-timesheet.html', 'docs/Huong-dan-Timesheet-ca-nhan.pdf']; // tài liệu training Timesheet cá nhân
+  'huong-dan-timesheet.html', 'docs/Huong-dan-Timesheet-ca-nhan.pdf', 'docs/video']; // tài liệu training + video Timesheet cá nhân
 const SKIP = /(^|\/)(node_modules|package(-lock)?\.json)(\/|$)/;
 
 rmSync(OUT, { recursive: true, force: true });
