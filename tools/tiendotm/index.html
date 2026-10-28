@@ -1913,26 +1913,28 @@ function sigYeuCau(parties){
     +'<w:tc><w:tcPr><w:tcW w:w="3200" w:type="dxa"/>'+TCMAR+'</w:tcPr>'+wPar("")+'</w:tc>'
     +'<w:tc><w:tcPr><w:tcW w:w="6438" w:type="dxa"/>'+TCMAR+'</w:tcPr>'+inner+'</w:tc></w:tr></w:tbl>';
 }
+/* Mỗi hàng `cols` bên. Hàng thiếu bên (vd 2 bên trong mẫu 3 cột, hoặc bên lẻ ở hàng cuối) chia đều
+   bề ngang cho đúng số bên của hàng -> các ô ký cân giữa trang. Tiêu đề canh trên, tiêu đề ngắn được
+   bù dòng trống để "(Ký, ghi rõ họ tên)" ... tên người ký của các bên nằm thẳng hàng. */
 function sigTable(list,cols,kyText){
   if(!list.length)return wPar("");
-  const w=Math.floor(9638/cols),widths=Array.from({length:cols},()=>w);
-  let rows="";
+  const out=[];
   for(let i=0;i<list.length;i+=cols){
-    let cells="";
-    for(let c=0;c<cols;c++){
-      const pt=list[i+c];let inner="";
-      if(pt){
-        // chỉ ghi vai trò, KHÔNG ghi tên công ty -> chừa nhiều chỗ ký hơn
-        inner+=wPar(wRunLines(xuongDong("ĐẠI DIỆN "+(pt.role||"").toUpperCase(),w),true),PCEN);
-        inner+=wPar(wRun(kyText),PCEN)+wPar("",PCEN)+wPar("",PCEN)+wPar("",PCEN)+wPar("",PCEN);
-        const pe=(pt.people||[]).find(z=>(z.n||"").trim());
-        if(pe){inner+=wPar(wRun(pe.n,true),PCEN);if((pe.p||"").trim())inner+=wPar(wRun(pe.p),PCEN);}
-      }else inner=wPar("",PCEN);
-      cells+='<w:tc><w:tcPr><w:tcW w:w="'+w+'" w:type="dxa"/>'+TCMAR+'<w:vAlign w:val="bottom"/></w:tcPr>'+inner+'</w:tc>';
-    }
-    rows+='<w:tr><w:trPr><w:cantSplit/></w:trPr>'+cells+'</w:tr>';
+    const row=list.slice(i,i+cols),w=Math.floor(9638/row.length);
+    // chỉ ghi vai trò, KHÔNG ghi tên công ty -> chừa nhiều chỗ ký hơn
+    const heads=row.map(pt=>xuongDong("ĐẠI DIỆN "+(pt.role||"").toUpperCase(),w));
+    const hMax=Math.max(...heads.map(h=>h.length));
+    const cells=row.map((pt,c)=>{
+      let inner=wPar(wRunLines(heads[c],true),PCEN)+wPar(wRun(kyText),PCEN);
+      for(let k=0;k<4+hMax-heads[c].length;k++)inner+=wPar("",PCEN);
+      const pe=(pt.people||[]).find(z=>(z.n||"").trim());
+      if(pe){inner+=wPar(wRun(pe.n,true),PCEN);if((pe.p||"").trim())inner+=wPar(wRun(pe.p),PCEN);}
+      return '<w:tc><w:tcPr><w:tcW w:w="'+w+'" w:type="dxa"/>'+TCMAR+'<w:vAlign w:val="top"/></w:tcPr>'+inner+'</w:tc>';
+    }).join("");
+    out.push("<w:tbl>"+tblPr(row.map(()=>w))+'<w:tr><w:trPr><w:cantSplit/></w:trPr>'+cells+"</w:tr></w:tbl>");
   }
-  return "<w:tbl>"+tblPr(widths)+rows+"</w:tbl>";
+  // đoạn trống giữa các hàng: Word không gộp 2 bảng khác lưới cột
+  return out.join(wPar(""));
 }
 // dòng bảng "Nơi nhận yêu cầu nghiệm thu"
 function nnRows(list,nam){
@@ -2453,6 +2455,9 @@ async function exportQuality(){
     });
     doc=putBlock(doc,"{{BLOCK_TP}}",tp||wPar(""));
     doc=putBlock(doc,"{{BLOCK_KY}}",sigTable(parties.filter(p=>p.kn!==false),2,"(Ký, ghi rõ họ tên)"));
+    // biên bản bàn giao (PHẦN X): cùng thành phần tham gia và khối ký như các biên bản nghiệm thu
+    doc=putBlock(doc,"{{BLOCK_TP_BBG}}",tp||wPar(""));
+    doc=putBlock(doc,"{{BLOCK_KY_BBG}}",sigTable(parties.filter(p=>p.kn!==false),2,"(Ký, ghi rõ họ tên)"));
     doc=putBlock(doc,"{{BLOCK_KY_KT}}",sigTable(parties.filter(p=>p.kt),3,"(Ký, ghi rõ họ tên)"));
     const kg=parties.filter(p=>p.kg);
     doc=putBlock(doc,"{{BLOCK_KG}}",kg.map(pt=>wPar(wRun("- "+(pt.role||"")+": "+(pt.name||DOTL)),PLIST)).join("")||wPar(""));
@@ -2713,7 +2718,8 @@ async function exportBBXN(){
       "{{BX_CO}}":doc(0,0,"ct_co_so","ct_co_ngay"),"{{BX_CQ}}":doc(0,0,"ct_cq_so","ct_cq_ngay"),
       "{{BX_SL}}":tong?pad2(tong):"….","{{BX_KIEN}}":qv("ct_kien")||"……"
     });
-    const blob=await zipToDocx(zip,t=>fillMap(applyOptional(t,OPT),M));
+    // header: tên nhà thầu thi công (ngắt dòng theo ô) | Quốc hiệu — như các biên bản nghiệm thu
+    const blob=await zipToDocx(zip,t=>fillMap(putBlock(applyOptional(t,OPT),"{{BLOCK_HDR}}",hdrCty(C["{{NHA_THAU}}"])),M));
     saveAs(blob,"BB_hang_ve_cong_truong_"+fileTag()+".docx");
     st.textContent="✓ Đã xuất biên bản hàng về công trường.";
   }catch(e){st.textContent="Lỗi: "+e.message;}

@@ -37,9 +37,14 @@ test('mẫu hồ sơ: có điểm chèn hạng mục bổ sung ở cả Phần I
   for (const t of ['{{XUAT_XU}}', '{{CT_COCQ}}', '{{CT_VANDON}}', '{{KL_TEN}}', '{{KL_SPEC}}']) assert.ok(x.includes(t), 'thiếu ' + t);
 });
 
-test('biên bản bàn giao nhúng trong hồ sơ dùng Bên Mua / Bên Bán', () => {
-  const t = text('hoso_chatluong_template.docx').replace(/<[^>]+>/g, '');
-  assert.ok(t.includes('Bên Mua') && t.includes('The Seller') && t.includes('Phụ lục Hợp đồng số {{SO_PL}}'));
+test('biên bản bàn giao nhúng trong hồ sơ: header, thành phần và khối ký như biên bản nghiệm thu', () => {
+  const x = text('hoso_chatluong_template.docx');
+  const seg = x.slice(x.indexOf('{{BBG_BEGIN}}'), x.indexOf('{{BBG_END}}'));
+  const t = seg.replace(/<[^>]+>/g, '');
+  assert.ok(t.includes('Bên Mua') && t.includes('Phụ lục Hợp đồng số {{SO_PL}}'));
+  assert.ok(t.includes('{{BLOCK_HDR}}') && t.includes('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'), 'header như biên bản nghiệm thu');
+  assert.ok(t.includes('{{BLOCK_TP_BBG}}') && t.includes('{{BLOCK_KY_BBG}}'), 'thành phần + khối ký do mã sinh');
+  assert.ok(!t.includes('On behalf of the Seller') && !t.includes('{{CDT_GIAYTO}}'), 'bỏ bảng Bên Mua / Bên Bán cố định');
 });
 
 test('nhật ký thi công: khối ngày có mốc và token ngày', () => {
@@ -50,4 +55,18 @@ test('nhật ký thi công: khối ngày có mốc và token ngày', () => {
 
 test('biên bản bàn giao riêng: số biên bản ở chân trang', () => {
   assert.ok(text('bangiao_template.docx').includes('{{SO_BB}}'));
+});
+
+test('BB hàng về: header tên nhà thầu | Quốc hiệu như biên bản nghiệm thu; tên nhà thầu lấy theo dữ liệu nhập', () => {
+  const t = text('bbxn_hangve_template.docx').replace(/<[^>]+>/g, '');
+  assert.ok(t.includes('{{BLOCK_HDR}}') && t.includes('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM') && t.includes('{{DIA_DANH}}, {{BX_NGAY_LAP}}'));
+  for (const k of ['{{NHA_THAU_HOA}}', '{{NHA_THAU}}', '{{CHU_DAU_TU}}', '{{BX_NT1_N}}', '{{BX_HBL}}', '{{BX_KIEN}}']) assert.ok(t.includes(k), 'thiếu ' + k);
+  assert.ok(html.includes('"{{BLOCK_HDR}}",hdrCty(C["{{NHA_THAU}}"])'), 'exportBBXN điền header');
+});
+
+test('nhật ký: bìa ghi nhãn và giá trị theo dữ liệu nhập, trang ngày ký "Cán bộ giám sát"', () => {
+  const t = text('nhatky_template.docx').replace(/<[^>]+>/g, '');
+  for (const k of ['{{NHA_THAU_HOA}}', '{{NT_DIACHI}}', '{{NT_LIENHE}}', 'CHỦ ĐẦU TƯ: {{CHU_DAU_TU}}', 'ĐƠN VỊ THI CÔNG: {{NHA_THAU}}', '{{NK_CHT_TEN}}', '{{NK_CB4_DT}}'])
+    assert.ok(t.replace(/\s+/g, ' ').includes(k), 'thiếu ' + k);
+  assert.ok(!t.includes('hoặc CHỦ ĐẦU TƯ'));
 });
