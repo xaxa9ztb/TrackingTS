@@ -25,8 +25,13 @@ export async function sendMail(env, { to, cc = [], subject, html }) {
     }
     return out;
   };
-  const toList = clean(to), ccList = clean(cc).filter(c => !toList.some(t => t.email === c.email));
+  let toList = clean(to), ccList = clean(cc).filter(c => !toList.some(t => t.email === c.email));
   if (!toList.length) return { ok: false, skipped: true, error: 'Không có người nhận hợp lệ' };
+  if (env.DEMO) {
+    const d = await demoMail(env, toList, ccList, subject, html);
+    if (!d.ok) return d;
+    ({ subject, html } = d); toList = d.to; ccList = [];
+  }
   const payload = {
     sender: { email: String(env.MAIL_FROM).trim(), name: senderName(env) },
     to: toList, subject: String(subject).slice(0, 250),
@@ -49,6 +54,27 @@ export async function sendMail(env, { to, cc = [], subject, html }) {
   } catch (e) {
     return { ok: false, error: e && e.name === 'AbortError' ? 'Brevo không phản hồi (quá 8 giây)' : 'Không kết nối được Brevo' };
   } finally { if (timer) clearTimeout(timer); }
+}
+
+// ---------- chế độ demo ----------
+// Mọi thư chỉ tới email của người đang thử (env.DEMO_EMAIL); tiêu đề có [DEMO], đầu thư ghi rõ đây là thư demo
+// và trong hệ thống thật thư sẽ gửi tới ai. Giới hạn số thư demo mỗi ngày để không dùng hết hạn mức Brevo của thư thật.
+export const DEMO_MAILS_PER_DAY = 60;
+async function demoMail(env, toList, ccList, subject, html) {
+  const me = String(env.DEMO_EMAIL || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(me)) return { ok: false, skipped: true, error: 'Demo: không rõ email người đang thử' };
+  const day = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
+  try {
+    const row = await env.DB.prepare('SELECT COUNT(*) n FROM mail_log WHERE key LIKE ?').bind(`demoq:${day}:%`).first();
+    if (row && row.n >= DEMO_MAILS_PER_DAY) return { ok: false, skipped: true, error: `Demo: đã gửi đủ ${DEMO_MAILS_PER_DAY} thư hôm nay` };
+    await env.DB.prepare('INSERT OR IGNORE INTO mail_log (key, sent_at) VALUES (?, ?)').bind(`demoq:${day}:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, new Date().toISOString()).run();
+  } catch (e) { /* không đếm được thì vẫn gửi */ }
+  const who = (list) => list.map(p => p.email === me ? (p.name ? `${p.name} — vai bạn đang đóng` : 'bạn') : (p.name || (/@demo\.invalid$/.test(p.email) ? 'nhân viên mẫu' : p.email))).join(', ');
+  const real = who(toList) + (ccList.length ? ` (CC: ${who(ccList)})` : '');
+  const banner = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;background:#fef3c7;border:2px solid #f59e0b;color:#78350f;border-radius:8px;padding:10px 12px;margin:0 0 14px">
+<b>🧪 THƯ DEMO — chế độ chạy thử.</b> Đây là dữ liệu mẫu, không phải bảng công thật; không cần xử lý.<br>
+Trong hệ thống thật, thư này sẽ gửi tới: <b>${esc(real)}</b>. Ở chế độ demo, mọi thư chỉ gửi về email của bạn.</div>`;
+  return { ok: true, to: [{ email: me }], subject: '[DEMO] ' + String(subject), html: banner + html };
 }
 
 // Khung thư HTML đơn giản (hiển thị tốt trên điện thoại)

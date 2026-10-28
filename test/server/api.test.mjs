@@ -981,13 +981,14 @@ test('demo: trạng thái và vào demo (đặt cookie, dựng dữ liệu mẫu
   const r = await call('POST', '/api/demo/start', { email: 'boss@example.com', body: { role: 'sitesup' } });
   assert.equal(r.status, 200);
   assert.match(r.setCookie, /ts_demo=1/); assert.match(r.setCookie, /HttpOnly/); assert.match(r.setCookie, /Secure/);
-  assert.equal(r.data.role, 'sitesup'); assert.ok(r.data.employees >= 9 && r.data.timesheets > 50 && r.data.docs === 3);
+  assert.equal(r.data.role, 'sitesup'); assert.ok(r.data.employees >= 9 && r.data.timesheets > 50 && r.data.docs === 4);
   const me = await call('GET', '/api/me', { email: 'boss@example.com', cookie: DEMO });
   assert.equal(me.data.demo, true);
-  assert.equal(me.data.empId, 'DEMO');
+  assert.equal(me.data.empId, 'D002', 'vai Site Sup = nhân viên mẫu Trần Thị Bình');
+  assert.equal(me.data.name, 'Trần Thị Bình');
   assert.deepEqual(me.data.roles, ['sitesup']);
   assert.equal(me.data.isAdmin, false, 'admin khởi tạo (ADMIN_EMAILS) không có hiệu lực trong demo — vai trò do người dùng chọn');
-  assert.ok(me.data.projects.length === 4, 'người thử Site Sup được gán các dự án mẫu');
+  assert.equal(me.data.projects.length, 2, 'Site Sup mẫu phụ trách 2 dự án');
 });
 
 test('demo: dữ liệu demo tách hẳn dữ liệu thật (đọc và ghi)', async () => {
@@ -1014,16 +1015,66 @@ test('demo: vai trò nhân viên không có quyền admin; vai trò đúng như 
   assert.equal(deny.status, 403);
 });
 
-test('demo: nộp / duyệt bảng công trong demo không gửi thư', async () => {
-  await call('POST', '/api/demo/start', { email: 'tester@example.com', body: { role: 'sitesup' } });
-  const before = sentMail.length;
-  const inbox = await call('GET', '/api/ts/inbox', { email: 'tester@example.com', cookie: DEMO });
-  assert.equal(inbox.status, 200);
-  assert.ok(inbox.data.items.length >= 1, 'Site Sup demo có bảng công chờ duyệt');
-  const it = inbox.data.items[0];
-  const ap = await call('POST', `/api/ts/review/${it.empId}/${it.period}/approve`, { email: 'tester@example.com', cookie: DEMO, body: {} });
-  assert.equal(ap.status, 200);
-  assert.equal(sentMail.length, before, 'demo không gửi email');
+test('demo: trọn luồng như thật — Fitter nộp → Site Sup duyệt → QLDA duyệt; thư chỉ gửi về người thử, có [DEMO]', async () => {
+  const T = 'tester@example.com', opt = { email: T, cookie: DEMO };
+  await call('POST', '/api/demo/start', { email: T, body: { role: 'staff' } });
+  sentMail.length = 0;
+  const me = (await call('GET', '/api/me', opt)).data;
+  assert.equal(me.empId, 'D101'); assert.deepEqual(me.roles, []);
+  // gợi ý người nhận mail báo cáo ngày: về chính người thử, không lộ địa chỉ giả
+  const ap = await call('GET', '/api/ts/approvers?wbs=DEMO-001', opt);
+  assert.ok(ap.data.approvers.length >= 2); assert.ok(ap.data.approvers.every(a => a.email === T));
+  assert.ok(ap.data.approvers.some(a => a.name === 'Trần Thị Bình' && a.level === 'sitesup'));
+  // kỳ trước đã chấm đủ, chưa nộp → nộp
+  const docs = (await call('GET', '/api/ts/docs', opt)).data;
+  const per = (docs.docs || docs.items || []).map(d => d.period).sort()[0];
+  const d = (await call('GET', '/api/ts/docs/' + per, opt)).data;
+  assert.equal(d.status, 'draft');
+  assert.equal((await call('POST', `/api/ts/docs/${per}/submit`, { ...opt, body: { baseVersion: d.version } })).status, 200);
+  assert.equal(sentMail.length, 1);
+  let m = sentMail[0];
+  assert.deepEqual(m.to, [{ email: T }], 'thư demo chỉ tới người thử'); assert.equal(m.cc, undefined);
+  assert.match(m.subject, /^\[DEMO\] \[Bảng công\] Phạm Minh Dũng đã nộp/);
+  assert.match(m.htmlContent, /THƯ DEMO/); assert.match(m.htmlContent, /sẽ gửi tới: <b>Trần Thị Bình<\/b>/);
+  // đổi vai Site Sup: dữ liệu giữ nguyên, thấy bảng công vừa nộp
+  const sw = await call('POST', '/api/demo/role', { ...opt, body: { role: 'sitesup' } });
+  assert.equal(sw.status, 200); assert.equal(sw.data.empId, 'D002');
+  const inbox = (await call('GET', '/api/ts/inbox', opt)).data.items;
+  assert.ok(inbox.some(x => x.empId === 'D101' && x.period === per), 'Site Sup thấy bảng công Fitter vừa nộp');
+  sentMail.length = 0;
+  assert.equal((await call('POST', `/api/ts/review/D101/${per}/approve`, { ...opt, body: {} })).status, 200);
+  assert.equal(sentMail.length, 1); assert.deepEqual(sentMail[0].to, [{ email: T }]);
+  assert.match(sentMail[0].subject, /^\[DEMO\].*chờ Quản lý dự án duyệt/); assert.match(sentMail[0].htmlContent, /Nguyễn Văn An/);
+  // đổi vai Quản lý dự án → duyệt xong → báo người nộp (chính người thử, vai Phạm Minh Dũng)
+  assert.equal((await call('POST', '/api/demo/role', { ...opt, body: { role: 'pm' } })).data.empId, 'D001');
+  sentMail.length = 0;
+  const done = await call('POST', `/api/ts/review/D101/${per}/approve`, { ...opt, body: {} });
+  assert.equal(done.status, 200); assert.equal(done.data.status, 'approved');
+  assert.equal(sentMail.length, 1); assert.match(sentMail[0].subject, /^\[DEMO\].*đã được duyệt xong/);
+  assert.match(sentMail[0].htmlContent, /sẽ gửi tới: <b>Phạm Minh Dũng<\/b>/);
+  assert.match(sentMail[0].htmlContent, /dòng đã chuyển sang bảng Theo dõi giờ công/);
+  // chỉ một người dùng email người thử; đổi vai không tạo trùng email
+  const emps = (await call('GET', '/api/employees', opt)).data.employees;
+  assert.equal(emps.filter(e => e.email === T).length, 1);
+  assert.ok(emps.filter(e => e.email !== T).every(e => /@demo\.invalid$/.test(e.email)), 'nhân viên mẫu khác chỉ có email giả');
+  // không thư nào rời khỏi người thử
+  const real = await call('POST', '/api/demo/role', { email: T, body: { role: 'pm' } });
+  assert.equal(real.status, 400, 'đổi vai chỉ dùng trong demo');
+});
+
+test('demo: giới hạn số thư demo mỗi ngày', async () => {
+  const T = 'quota@example.com', opt = { email: T, cookie: DEMO };
+  await call('POST', '/api/demo/start', { email: T, body: { role: 'admin' } });
+  const { DEMO_MAILS_PER_DAY } = await import('../../server/mail.mjs');
+  sentMail.length = 0;
+  let last;
+  for (let i = 0; i < DEMO_MAILS_PER_DAY + 2; i++) last = await call('POST', '/api/admin/mail/test', { ...opt, body: { to: 'x@example.com' } });
+  assert.ok(sentMail.length <= DEMO_MAILS_PER_DAY, 'không vượt giới hạn');
+  assert.ok(sentMail.every(m => m.to.length === 1 && m.to[0].email === T), 'thư thử trong demo cũng chỉ về người thử');
+  assert.equal(last.data.ok, false);
+  await call('POST', '/api/demo/reset', { ...opt, body: {} });
+  const after = await call('POST', '/api/admin/mail/test', { ...opt, body: { to: 'x@example.com' } });
+  assert.equal(after.data.ok, false, 'làm mới dữ liệu demo không mở lại giới hạn trong ngày');
 });
 
 test('demo: làm lại dữ liệu mẫu và thoát demo', async () => {

@@ -7,7 +7,7 @@ import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
-import { demoRequested, demoCookie, demoEnv, seedDemo, DEMO_ROLES } from './demo.mjs';
+import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, trackingRow } from './tsdoc.mjs';
 
 export class HttpError extends Error {
@@ -92,6 +92,14 @@ async function demoStart(realEnv, email, request) {
   const role = DEMO_ROLES.includes(body.role) ? body.role : 'staff';
   const r = await seedDemo(realEnv.DB_DEMO, { email }, role);
   return json({ ok: true, role, ...r }, 200, { 'set-cookie': demoCookie(true) });
+}
+// đổi vai trò trong demo, giữ nguyên dữ liệu (bảng công đã nộp / duyệt…)
+async function demoRole(env, email, request) {
+  const body = await readJson(request);
+  if (!DEMO_ROLES.includes(body.role)) throw new HttpError(400, 'Vai trò không hợp lệ');
+  const p = await switchPersona(env.DB, email, body.role);
+  if (!p) throw new HttpError(409, 'Dữ liệu demo chưa có — bấm Làm mới dữ liệu demo');
+  return json({ ok: true, ...p });
 }
 
 async function listEmployees(env, me) {
@@ -632,7 +640,8 @@ async function tsApprovers(env, me, url) {
   const by = new Map();
   for (const r of results) {
     const k = r.emp_id + '|' + r.role;
-    if (!by.has(k)) by.set(k, { empId: r.emp_id, name: r.full_name, email: r.email, level: r.role, wbs: [] });
+    // demo: thư do fitter tự gửi cũng về email của người đang thử (không gửi tới địa chỉ giả)
+    if (!by.has(k)) by.set(k, { empId: r.emp_id, name: r.full_name, email: env.DEMO ? env.DEMO_EMAIL : r.email, level: r.role, wbs: [] });
     by.get(k).wbs.push(r.wbs);
   }
   return json({ approvers: [...by.values()] });
@@ -870,16 +879,21 @@ export async function handle(request, env, opts = {}) {
     const realEnv = env;
     // Chế độ demo: cookie ts_demo=1 → toàn bộ yêu cầu dùng cơ sở dữ liệu demo riêng, không đụng dữ liệu thật
     const demo = !!(env.DB_DEMO && demoRequested(request));
-    if (demo) env = demoEnv(env);
+    if (demo) env = demoEnv(env);   // email người thử gắn vào sau khi xác thực (thư demo chỉ gửi về email này)
     // Yêu cầu ghi bắt buộc là JSON: trang lạ không gửi được kiểu này sang (chặn giả mạo yêu cầu)
     if (method !== 'GET' && method !== 'HEAD') {
       const ct = (request.headers.get('content-type') || '').toLowerCase();
       if (!ct.startsWith('application/json')) throw new HttpError(415, 'Yêu cầu ghi phải gửi dạng JSON');
     }
     const { email } = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), env, opts);
+    if (demo) env.DEMO_EMAIL = String(email || '').toLowerCase();
     if (path === '/api/demo/status' && method === 'GET') return json({ available: !!realEnv.DB_DEMO, active: demo });
     if (path === '/api/demo/start' && method === 'POST') return await demoStart(realEnv, email, request);
     if (path === '/api/demo/stop' && method === 'POST') return json({ ok: true }, 200, { 'set-cookie': demoCookie(false) });
+    if (path === '/api/demo/role' && method === 'POST') {
+      if (!demo) throw new HttpError(400, 'Chỉ dùng trong chế độ demo');
+      return await demoRole(env, email, request);
+    }
     const me = await loadMe(env, email);
     if (path === '/api/demo/reset' && method === 'POST') {       // dựng lại dữ liệu mẫu (giữ nguyên vai trò đang thử)
       if (!demo) throw new HttpError(400, 'Chỉ dùng trong chế độ demo');

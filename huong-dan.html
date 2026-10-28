@@ -311,12 +311,20 @@
     </div>
 
     <h3 id="demo">1.4. Chạy thử (Demo) — tập dùng không sợ sai</h3>
-    <p>Muốn thử bấm các nút mà không ảnh hưởng dữ liệu thật? Bấm <span class="btnlike">🧪 Chạy thử (Demo)</span> ở <b>chân trang chủ</b>, chọn vai trò muốn thử.</p>
+    <p>Muốn thử bấm các nút mà không ảnh hưởng dữ liệu thật? Bấm <span class="btnlike">🧪 Chạy thử (Demo)</span> ở <b>chân trang chủ</b> (dùng được cả khi email chưa được cấp quyền), chọn vai trò muốn thử. Mỗi vai trò là một nhân viên mẫu: <b>Fitter</b> — Phạm Minh Dũng, <b>Site Sup</b> — Trần Thị Bình, <b>Quản lý dự án</b> — Nguyễn Văn An.</p>
     <div class="pair">
       <figure class="shot"><img src="docs/huong-dan/demo-dialog.jpg" alt="Hộp chọn vai trò chạy thử" loading="lazy" width="1280" height="800"><figcaption>Chọn vai trò muốn thử</figcaption></figure>
       <figure class="shot"><img src="docs/huong-dan/demo-banner.jpg" alt="Thanh vàng CHẾ ĐỘ DEMO" loading="lazy" width="1280" height="420"><figcaption>Đang ở chế độ demo: thanh vàng luôn hiện ở đầu trang</figcaption></figure>
     </div>
-    <ol class="legend"><li>Thanh vàng <b>CHẾ ĐỘ DEMO</b>: dữ liệu mẫu riêng, <b>không ảnh hưởng dữ liệu thật</b>, không gửi email. Có nút <span class="btnlike">Làm mới dữ liệu demo</span>, <span class="btnlike">Đổi vai trò</span>, <span class="btnlike">Thoát demo</span>.</li></ol>
+    <ol class="legend"><li>Thanh vàng <b>CHẾ ĐỘ DEMO</b>: dữ liệu mẫu riêng, <b>không ảnh hưởng dữ liệu thật</b>. Có nút <span class="btnlike">Làm mới dữ liệu demo</span>, <span class="btnlike">Đổi vai trò</span>, <span class="btnlike">Thoát demo</span>.</li></ol>
+    <p><b>Demo chạy như thật</b> — thử trọn một vòng bảng công:</p>
+    <ol class="steps">
+      <li>Vai <b>Fitter</b>: mở <i>Timesheet cá nhân</i>, bấm <span class="btnlike">‹</span> về kỳ trước (đã chấm đủ) → <span class="btnlike">Nộp bảng công</span>.</li>
+      <li><span class="btnlike">Đổi vai trò</span> → <b>Site Sup</b>: mở <i>Duyệt bảng công</i>, duyệt hoặc trả lại kèm lý do.</li>
+      <li><span class="btnlike">Đổi vai trò</span> → <b>Quản lý dự án</b>: duyệt lần 2 → bảng công tự vào <i>Thống kê giờ công</i>.</li>
+    </ol>
+    <p>Đổi vai trò <b>giữ nguyên dữ liệu</b> đã làm. Muốn làm lại từ đầu: <span class="btnlike">Làm mới dữ liệu demo</span>.</p>
+    <div class="note info"><p>📧 <b>Email trong demo vẫn gửi thật, nhưng chỉ về hộp thư của bạn</b> (email đang đăng nhập). Tiêu đề bắt đầu bằng <b>[DEMO]</b>, đầu thư có khung vàng <b>“THƯ DEMO”</b> ghi rõ trong hệ thống thật thư sẽ gửi tới ai. Thư tự soạn trong Timesheet (Gửi mail, Báo cáo ngày) cũng có <b>[DEMO]</b> ở tiêu đề.</p></div>
     <div class="note warn"><p>Nhớ bấm <b>Thoát demo</b> khi thử xong — chấm công thật phải làm ngoài chế độ demo.</p></div>
   </section>
 
@@ -654,7 +662,7 @@
     <details class="faq"><summary>Không thấy chức năng Duyệt bảng công / Quản lý dự án?</summary><p>Các chức năng này theo <b>vai trò</b> (từ chức danh). Nếu chức danh của bạn đã thay đổi, báo quản trị viên cập nhật; đăng xuất rồi đăng nhập lại.</p></details>
     <details class="faq"><summary>Không nhận được mã đăng nhập?</summary><p>Xem thư mục Spam / Quảng cáo; kiểm tra gõ đúng email; đợi 1 phút rồi bấm gửi lại. Vẫn không được → báo quản trị viên.</p></details>
     <details class="faq"><summary>Site Sup / Quản lý không nhận được bảng công tôi nộp?</summary><p>Người duyệt được xác định theo <b>dự án (WBS)</b> trên các dòng chấm công. Kiểm tra dòng chấm công đã ghi đúng dự án và WBS; báo quản trị viên kiểm tra phân công Site Sup / Quản lý dự án cho dự án đó.</p></details>
-    <details class="faq"><summary>Chế độ Demo có làm mất dữ liệu thật không?</summary><p>Không. Demo dùng cơ sở dữ liệu riêng và tách riêng dữ liệu trên trình duyệt. Bấm <b>Thoát demo</b> là về đúng tài khoản và dữ liệu thật.</p></details>
+    <details class="faq"><summary>Chế độ Demo có làm mất dữ liệu thật không?</summary><p>Không. Demo dùng cơ sở dữ liệu riêng và tách riêng dữ liệu trên trình duyệt. Email demo chỉ gửi về chính bạn (tiêu đề <b>[DEMO]</b>), không tới giám sát / quản lý thật. Bấm <b>Thoát demo</b> là về đúng tài khoản và dữ liệu thật.</p></details>
     <details class="faq"><summary>Muốn in tài liệu hướng dẫn này?</summary><p>Bấm <b>🖨 In / Lưu PDF</b> ở góc trên, chọn máy in hoặc “Lưu dưới dạng PDF”. Mỗi phần in bắt đầu từ trang mới.</p></details>
   </section>
 
