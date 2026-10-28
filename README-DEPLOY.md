@@ -202,8 +202,10 @@ Cách hoạt động: thư báo nộp / duyệt / trả lại gửi ngay từ AP
   người đó trong kỳ (duyệt lại không nhân đôi); admin nạp lại bảng công từ Excel thì dòng đã duyệt **được giữ** ở những ngày bản nạp mới chưa có dòng của người đó.
   Phân loại giờ (thường / OT) do trình duyệt tính bằng `labor.js` (chạy trên máy chủ gói miễn phí quá giới hạn CPU) và máy chủ kiểm tra tổng; người duyệt thấy
   cảnh báo nếu phân loại khác kết quả tính lại.
-- **Email tự động qua Brevo** (xem mục *Email tự động* bên dưới): thông báo khi có bảng công chờ duyệt / được duyệt / bị trả lại; báo cáo thi công cuối
-  ngày (18:30) gửi Site Sup & Quản lý dự án; nhắc hạn nộp (8:00 ngày 9 và 11). Chưa cấu hình Brevo thì hệ thống vẫn chạy bình thường, chỉ không gửi thư;
+- **Email tự động qua Brevo** (xem mục *Email tự động* bên dưới): thông báo khi có bảng công chờ duyệt (kèm tổng giờ và nút mở thẳng bảng công:
+  `/tools/approvals/#xem=<mã NV>/<kỳ>`) / được duyệt / bị trả lại; email hằng ngày 18:30 gửi Site Sup & Quản lý dự án gồm chấm công + báo cáo thi công
+  trong ngày ở dự án mình, bảng công đang chờ chính họ duyệt và fitter (Quản lý trực tiếp) đang dùng Timesheet mà hôm nay chưa chấm (T2–T7);
+  nhắc hạn nộp (8:00 ngày 9 và 11). Chưa cấu hình Brevo thì hệ thống vẫn chạy bình thường, chỉ không gửi thư;
   fitter vẫn tự gửi thư được bằng nút **Báo cáo ngày** / **Gửi mail** trong Timesheet. Sao lưu dữ liệu: D1 có sẵn *Time Travel* (khôi phục về bất kỳ phút nào
   trong 30 ngày gần nhất, không tốn thêm phí — Cloudflare → D1 → cơ sở dữ liệu → *Time Travel*).
 - **Sửa / xoá dự án và Swat Hour Target** (tab Dự án, tab SWAT) ghi thẳng lên máy chủ (`PATCH /api/admin/projects/:wbs`, `POST /api/admin/projects/delete`,

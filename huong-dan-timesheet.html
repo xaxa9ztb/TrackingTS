@@ -151,10 +151,11 @@
     main { padding: 0; }
     .hero .in { padding: 0 0 10px; }
     section.part { border: 0; border-top: 4px solid var(--c, #111827); border-radius: 0; padding: 8px 0 0; margin: 0 0 7mm; }
-    #toan-canh, #moi-ngay, #duyet, #the-nho { break-before: page; }
+    #toan-canh, #duyet, #the-nho { break-before: page; }
     .hero .toc { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 8mm; }
     .hero .toc a { font-size: 11pt; border-radius: 8px; }
     h2, h3 { break-after: avoid; }
+    .pair, .vs { grid-template-columns: 1fr 1fr !important; }
     .diagram { border: 0; padding: 0; break-inside: avoid; }
     .diagram .scroll { overflow: visible; }
     .diagram svg.dg { min-width: 0 !important; max-height: 235mm; }
@@ -185,7 +186,7 @@
   <div class="in">
     <span class="tag">Tài liệu training · Fitter &amp; Giám sát</span>
     <h1>Timesheet cá nhân — chấm công, nộp &amp; duyệt bảng công</h1>
-    <p class="lead">Tài liệu ngắn gọn, đi theo <b>sơ đồ khối</b> từng bước. Fitter đọc phần <b>3–4</b>, Giám sát đọc phần <b>6</b>; ai cũng nên xem phần <b>1, 2, 5</b>.
+    <p class="lead">Tài liệu ngắn gọn, đi theo <b>sơ đồ khối</b> từng bước. Fitter đọc phần <b>3–4</b>, Giám sát đọc phần <b>6</b>; ai cũng xem phần <b>1, 2, 5</b>.
       Ảnh trong tài liệu dùng <b>dữ liệu mẫu</b>. Bấm vào ảnh để phóng to.</p>
     <div class="rules">
       <div class="rule" style="--c: var(--c-fitter)"><span class="n">1</span><div><b>Chấm công MỖI NGÀY</b><span>Hết ca là chấm, kèm vài dòng báo cáo thi công.</span></div></div>
@@ -202,8 +203,7 @@
       <a href="#duyet" style="--c: var(--c-sup)">6. Duyệt bảng công<span class="who">Giám sát</span></a>
       <a href="#loi">7. Lỗi thường gặp</a>
       <a href="#tap-luyen">8. Tập luyện bằng Demo</a>
-      <a href="#kiem-tra">9. Câu hỏi kiểm tra</a>
-      <a href="#the-nho">10. Thẻ nhớ (in 1 trang)</a>
+      <a href="#the-nho">9. Thẻ nhớ (in 1 trang)</a>
     </nav>
   </div>
 </div>
@@ -214,7 +214,7 @@
   <section class="noprint" id="video" style="margin-bottom:20px" aria-label="Video hướng dẫn">
     <div class="videos">
       <div class="vid" style="--c: var(--c-fitter)">
-        <h3>🎬 Video cho Fitter <small>· 3 phút 15 giây</small></h3>
+        <h3>🎬 Video cho Fitter <small>· 2 phút 24 giây</small></h3>
         <video controls preload="none" playsinline poster="docs/video/Video-Timesheet-Fitter.jpg">
           <source src="docs/video/Video-Timesheet-Fitter.mp4" type="video/mp4">
           <track kind="subtitles" srclang="vi" label="Tiếng Việt" src="docs/video/Video-Timesheet-Fitter.vtt">
@@ -222,7 +222,7 @@
         <p>Mở app · thêm chấm công · mất sóng vẫn chấm · nộp cuối kỳ · khi bị trả lại. <a href="docs/video/Video-Timesheet-Fitter.mp4" download>Tải video</a></p>
       </div>
       <div class="vid" style="--c: var(--c-sup)">
-        <h3>🎬 Video cho Giám sát <small>· 2 phút 43 giây</small></h3>
+        <h3>🎬 Video cho Giám sát <small>· 1 phút 58 giây</small></h3>
         <video controls preload="none" playsinline poster="docs/video/Video-Timesheet-Giam-sat.jpg">
           <source src="docs/video/Video-Timesheet-Giam-sat.mp4" type="video/mp4">
           <track kind="subtitles" srclang="vi" label="Tiếng Việt" src="docs/video/Video-Timesheet-Giam-sat.vtt">
@@ -235,222 +235,127 @@
   <!-- ============ 1. TOÀN CẢNH ============ -->
   <section class="part" id="toan-canh" style="--c: #111827">
     <h2><span class="no">1</span>Bức tranh toàn cảnh</h2>
-    <p class="for">Một kỳ lương đi qua <b>3 người</b>: Fitter chấm và nộp → Giám sát duyệt cấp 1 → Quản lý dự án duyệt cấp 2.</p>
+    <p class="for">Fitter chấm công và nộp → <b>Giám sát</b> duyệt cấp 1 → <b>Quản lý dự án</b> duyệt cấp 2 → giờ công tự vào Thống kê giờ công.</p>
     <div class="diagram">
       <div class="scroll"><svg class="dg" viewBox="0 0 900 800" style="min-width:700px" role="img" aria-label="Sơ đồ toàn cảnh quy trình bảng công: Fitter chấm công và nộp, Giám sát duyệt cấp 1, Quản lý dự án duyệt cấp 2" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"><title>Sơ đồ toàn cảnh quy trình bảng công: Fitter chấm công và nộp, Giám sát duyệt cấp 1, Quản lý dự án duyệt cấp 2</title><defs><marker id="d1a047857" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#047857"/></marker><marker id="d1a0891b2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0891b2"/></marker><marker id="d1a475569" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker><marker id="d1abe123c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#be123c"/></marker><marker id="d1aea580c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/></marker></defs><rect x="4" y="4" width="292" height="792" rx="14" fill="#f0fdf4" stroke="#059669" stroke-opacity=".35"/><rect x="4" y="4" width="292" height="40" rx="14" fill="#059669"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="150" y="29.2" font-weight="700">👷 FITTER</tspan></text><rect x="304" y="4" width="292" height="792" rx="14" fill="#f0fdfa" stroke="#0891b2" stroke-opacity=".35"/><rect x="304" y="4" width="292" height="40" rx="14" fill="#0891b2"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="450" y="29.2" font-weight="700">🦺 GIÁM SÁT (Site Sup)</tspan></text><rect x="604" y="4" width="292" height="792" rx="14" fill="#fff7ed" stroke="#ea580c" stroke-opacity=".35"/><rect x="604" y="4" width="292" height="40" rx="14" fill="#ea580c"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="750" y="29.2" font-weight="700">📋 QUẢN LÝ DỰ ÁN</tspan></text><rect x="50" y="64" width="200" height="40" rx="20.0" fill="#475569" stroke="#475569" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#fff"><tspan x="150.0" y="88.9" font-weight="600">Ngày 16: bắt đầu kỳ lương</tspan></text><path d="M150,104 L150,128" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d1a475569)"/><rect x="40" y="130" width="220" height="60" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="150.0" y="155.9" font-weight="600">Chấm công MỖI NGÀY</tspan><tspan x="150.0" y="173.9" font-weight="400">+ ghi báo cáo thi công</tspan></text><rect x="340" y="130" width="220" height="60" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="450.0" y="156.1" font-weight="600">Nhận email tổng hợp</tspan><tspan x="450.0" y="173.1" font-weight="400">báo cáo thi công lúc 18:30</tspan></text><path d="M260,160 L338,160" fill="none" stroke="#0891b2" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#d1a0891b2)"/><rect x="269.5" y="135.2" width="59.0" height="21.6" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="12" fill="#0891b2"><tspan x="299.0" y="150.2" font-weight="700">tự động</tspan></text><path d="M150,190 L150,220" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d1a475569)"/><rect x="40" y="222" width="220" height="50" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="150.0" y="243.1" font-weight="600">Cuối kỳ: xem lịch,</tspan><tspan x="150.0" y="260.1" font-weight="400">không còn ngày đỏ</tspan></text><path d="M150,272 L150,300" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d1a475569)"/><rect x="40" y="302" width="220" height="60" rx="10" fill="#1d4ed8" stroke="#1d4ed8" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#fff"><tspan x="150.0" y="327.9" font-weight="600">NỘP BẢNG CÔNG</tspan><tspan x="150.0" y="345.9" font-weight="400">trước ngày 12</tspan></text><path d="M260,332 L338,332" fill="none" stroke="#0891b2" stroke-width="2" marker-end="url(#d1a0891b2)"/><rect x="262.8" y="307.2" width="72.5" height="21.6" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="12" fill="#0891b2"><tspan x="299.0" y="322.2" font-weight="700">email báo</tspan></text><rect x="340" y="302" width="220" height="60" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="450.0" y="327.9" font-weight="600">Mở “Duyệt bảng công”</tspan><tspan x="450.0" y="345.9" font-weight="400">→ Xem &amp; kiểm tra</tspan></text><path d="M450,362 L450,384" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d1a475569)"/><polygon points="450,386.0 525.0,430 450,474.0 375.0,430" fill="#fff" stroke="#0891b2" stroke-width="2.2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="450" y="434.9" font-weight="600">Đúng hết?</tspan></text><rect x="40" y="400" width="220" height="62" rx="10" fill="#fff1f2" stroke="#be123c" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="150.0" y="426.9" font-weight="600">BỊ TRẢ LẠI</tspan><tspan x="150.0" y="444.9" font-weight="400">Đọc lý do → sửa → nộp lại</tspan></text><path d="M375,430 L262,430" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d1abe123c)"/><rect x="268.3" y="384.1" width="99.4" height="39.8" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="318.0" y="400.1" font-weight="700">Sai: Trả lại</tspan><tspan x="318.0" y="417.1" font-weight="700">+ ghi lý do</tspan></text><path d="M150,400 L150,364" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d1abe123c)"/><path d="M450,474 L450,500" fill="none" stroke="#047857" stroke-width="2" marker-end="url(#d1a047857)"/><rect x="474.0" y="475.6" width="41.1" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#047857"><tspan x="494.56" y="491.6" font-weight="700">Đúng</tspan></text><rect x="340" y="502" width="220" height="50" rx="10" fill="#0891b2" stroke="#0891b2" stroke-width="2"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="450.0" y="532.2" font-weight="600">DUYỆT (cấp 1)</tspan></text><path d="M560,527 L638,527" fill="none" stroke="#ea580c" stroke-width="2" marker-end="url(#d1aea580c)"/><rect x="562.8" y="502.2" width="72.5" height="21.6" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="12" fill="#ea580c"><tspan x="599.0" y="517.2" font-weight="700">email báo</tspan></text><rect x="640" y="502" width="220" height="50" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="750.0" y="531.9" font-weight="600">Xem &amp; kiểm tra lần 2</tspan></text><path d="M750,552 L750,574" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d1a475569)"/><polygon points="750,576.0 825.0,620 750,664.0 675.0,620" fill="#fff" stroke="#ea580c" stroke-width="2.2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="750" y="624.9" font-weight="600">Đúng hết?</tspan></text><path d="M675,620 L150,620 L150,464" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d1abe123c)"/><rect x="341.2" y="608.5" width="157.6" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="420.0" y="624.5" font-weight="700">Sai: Trả lại + lý do</tspan></text><path d="M750,664 L750,690" fill="none" stroke="#047857" stroke-width="2" marker-end="url(#d1a047857)"/><rect x="774.0" y="665.5" width="41.1" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#047857"><tspan x="794.56" y="681.5" font-weight="700">Đúng</tspan></text><rect x="640" y="692" width="220" height="46" rx="10" fill="#ea580c" stroke="#ea580c" stroke-width="2"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="750.0" y="720.2" font-weight="600">DUYỆT (cấp 2)</tspan></text><path d="M750,738 L750,752" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d1a475569)"/><rect x="324" y="752" width="552" height="38" rx="19" fill="#047857"/><text text-anchor="middle" font-size="14" fill="#fff"><tspan x="600" y="775.9" font-weight="700">✅ ĐÃ DUYỆT XONG → giờ công tự vào “Thống kê giờ công”</tspan></text><rect x="40" y="690" width="220" height="62" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="150.0" y="717.0" font-weight="600">Nhận email</tspan><tspan x="150.0" y="734.0" font-weight="400">“đã được duyệt xong”</tspan></text><path d="M324,771 L150,771 L150,754" fill="none" stroke="#047857" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#d1a047857)"/></svg></div>
-      <div class="cap"><span><b>Sơ đồ 1.</b> Đường đi của một bảng công. Mũi tên đỏ: bị trả lại → fitter sửa rồi nộp lại.</span><span class="swipe">← kéo ngang →</span></div>
+      <div class="cap"><span><b>Sơ đồ 1.</b> Mũi tên đỏ: bị trả lại → fitter sửa rồi nộp lại. Mỗi bước hệ thống tự gửi email.</span><span class="swipe">← kéo ngang →</span></div>
     </div>
-    <div class="tblwrap"><table class="tbl">
-      <tr><th>Ai</th><th>Làm gì</th><th>Khi nào</th></tr>
-      <tr><td><b style="color:var(--c-fitter)">👷 Fitter</b></td><td>Chấm công + ghi báo cáo thi công. Cuối kỳ bấm <b>Nộp bảng công</b>.</td><td>Mỗi ngày · nộp <b>trước ngày 12</b></td></tr>
-      <tr><td><b style="color:var(--c-sup)">🦺 Giám sát (Site Sup)</b></td><td>Đọc báo cáo thi công; kiểm tra và <b>duyệt / trả lại</b> bảng công của fitter ở dự án mình.</td><td>Email 18:30 mỗi ngày · duyệt ngay khi có email “đã nộp”</td></tr>
-      <tr><td><b style="color:var(--c-pm)">📋 Quản lý dự án</b></td><td>Duyệt lần 2. Duyệt xong, giờ công tự vào <b>Thống kê giờ công</b>.</td><td>Sau khi giám sát duyệt</td></tr>
-      <tr><td><b>⚙️ Hệ thống</b></td><td>Tự lưu, tự gửi email báo nộp / duyệt / trả lại, email nhắc hạn, email báo cáo thi công.</td><td>Tự động</td></tr>
-    </table></div>
-    <div class="note info"><p>Giám sát cũng <b>chấm công cá nhân</b> giống Fitter (phần 3–4).</p></div>
   </section>
 
   <!-- ============ 2. KỲ LƯƠNG ============ -->
   <section class="part" id="ky-luong" style="--c: #be123c">
     <h2><span class="no">2</span>Lịch một kỳ lương</h2>
-    <p class="for">Kỳ lương mang tên <b>tháng kết thúc</b>: kỳ 11/2026 = <b>16/10 → 15/11</b>. Hạn nộp là <b>ngày 12</b> của tháng đó.</p>
+    <p class="for">Kỳ lương mang tên <b>tháng kết thúc</b>: kỳ 11/2026 = 16/10 → 15/11, <b>hạn nộp 12/11</b>. Ngày 13–15 chấm trước theo kế hoạch.</p>
     <div class="diagram">
       <div class="scroll"><svg class="dg" viewBox="0 0 900 290" style="min-width:720px" role="img" aria-label="Lịch một kỳ lương: từ ngày 16 tháng trước đến ngày 15 tháng này; nhắc ngày 9 và 11; hạn nộp ngày 12" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"><title>Lịch một kỳ lương: từ ngày 16 tháng trước đến ngày 15 tháng này; nhắc ngày 9 và 11; hạn nộp ngày 12</title><defs></defs><text text-anchor="middle" font-size="15" fill="#111827"><tspan x="450" y="27.2" font-weight="700">Ví dụ: Kỳ lương tháng 11/2026 = 16/10/2026 → 15/11/2026</tspan></text><rect x="50.0" y="110" width="511.25" height="36" rx="8" fill="#d1fae5" stroke="#059669"/><text text-anchor="middle" font-size="14" fill="#065f46"><tspan x="285.0" y="132.9" font-weight="700">Chấm công mỗi ngày (làm xong ca là chấm)</tspan></text><rect x="561.25" y="110" width="123.75" height="36" fill="#fef3c7" stroke="#b45309"/><text text-anchor="middle" font-size="13" fill="#92400e"><tspan x="623.125" y="132.6" font-weight="700">Nộp ngay!</tspan></text><rect x="685.0" y="110" width="41.25" height="36" fill="#fecdd3" stroke="#be123c"/><defs><pattern id="d2h" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#f1f5f9"/><line x1="0" y1="0" x2="0" y2="8" stroke="#cbd5e1" stroke-width="4"/></pattern></defs><rect x="726.25" y="110" width="123.75" height="36" rx="8" fill="url(#d2h)" stroke="#94a3b8"/><text text-anchor="middle" font-size="13" fill="#334155"><tspan x="788.125" y="132.6" font-weight="700">chấm trước</tspan></text><line x1="376.95652173913044" y1="100" x2="376.95652173913044" y2="110" stroke="#475569" stroke-width="2.5"/><line x1="50.0" y1="100" x2="50.0" y2="156" stroke="#475569" stroke-width="2.5"/><line x1="561.25" y1="100" x2="561.25" y2="156" stroke="#b45309" stroke-width="2.5"/><line x1="643.75" y1="100" x2="643.75" y2="156" stroke="#b45309" stroke-width="2.5"/><line x1="685.0" y1="100" x2="685.0" y2="156" stroke="#be123c" stroke-width="2.5"/><line x1="850.0" y1="100" x2="850.0" y2="156" stroke="#475569" stroke-width="2.5"/><text text-anchor="middle" font-size="13" fill="#475569"><tspan x="50.0" y="92.5" font-weight="700">16/10</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="50.0" y="68.2" font-weight="700">Bắt đầu kỳ</tspan></text><text text-anchor="middle" font-size="13" fill="#475569"><tspan x="376.95652173913044" y="92.5" font-weight="700">1/11</tspan></text><text text-anchor="middle" font-size="13" fill="#b45309"><tspan x="643.75" y="92.5" font-weight="700">11/11</tspan></text><text text-anchor="middle" font-size="12" fill="#b45309"><tspan x="633.75" y="68.2" font-weight="700">📧 Nhắc lần 2 (cả người duyệt)</tspan></text><text text-anchor="middle" font-size="13" fill="#475569"><tspan x="850.0" y="92.5" font-weight="700">15/11</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="850.0" y="68.2" font-weight="700">Hết kỳ</tspan></text><text text-anchor="middle" font-size="13" fill="#b45309"><tspan x="561.25" y="176.6" font-weight="700">9/11</tspan></text><text text-anchor="middle" font-size="12" fill="#b45309"><tspan x="531.25" y="198.2" font-weight="700">⏰ App nhắc · 📧 Email 8:00</tspan></text><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="685.0" y="220.6" font-weight="700">12/11</tspan></text><line x1="685.0" y1="156" x2="685.0" y2="202" stroke="#be123c" stroke-width="1.5" stroke-dasharray="3 3"/><text text-anchor="middle" font-size="14" fill="#be123c"><tspan x="685.0" y="242.9" font-weight="800">⛔ HẠN NỘP</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="802.125" y="176.2" font-weight="700">13 – 15/11</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="802.125" y="194.2" font-weight="400">chấm trước theo kế hoạch</tspan></text><rect x="50" y="254" width="800" height="30" rx="8" fill="#ecfeff" stroke="#0891b2"/><text text-anchor="middle" font-size="13" fill="#155e75"><tspan x="450" y="273.6" font-weight="600">📧 Mỗi ngày 18:30: hệ thống tự gửi email tổng hợp báo cáo thi công cho Giám sát / Quản lý dự án</tspan></text></svg></div>
       <div class="cap"><span><b>Sơ đồ 2.</b> Các mốc trong một kỳ lương.</span><span class="swipe">← kéo ngang →</span></div>
     </div>
-    <div class="note warn"><p><b>Ngày 13, 14, 15</b> nằm sau hạn nộp: fitter <b>chấm trước theo kế hoạch</b> rồi nộp cùng cả kỳ. Nếu thực tế khác kế hoạch, báo giám sát.</p></div>
   </section>
 
   <!-- ============ 3. MỖI NGÀY ============ -->
   <section class="part" id="moi-ngay" style="--c: var(--c-fitter)">
     <h2><span class="no">3</span>Fitter: chấm công mỗi ngày</h2>
-    <p class="for">Dành cho <b>Fitter</b> (và giám sát tự chấm công). Mất khoảng <b>1 phút</b> mỗi ngày.</p>
+    <p class="for">Trang chủ → <b>Timesheet cá nhân</b> → nút <b>＋</b>. Khoảng <b>1 phút</b> mỗi ngày; <b>mất sóng vẫn chấm được</b>, có mạng app tự gửi.</p>
     <div class="diagram">
       <div class="scroll"><svg class="dg" viewBox="0 0 760 560" style="min-width:620px" role="img" aria-label="Fitter chấm công mỗi ngày: thêm chấm công, điền 5 ô, lưu; mất mạng vẫn lưu trên máy" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"><title>Fitter chấm công mỗi ngày: thêm chấm công, điền 5 ô, lưu; mất mạng vẫn lưu trên máy</title><defs><marker id="d3a047857" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#047857"/></marker><marker id="d3a475569" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker><marker id="d3ab45309" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker></defs><rect x="270" y="10" width="220" height="40" rx="20.0" fill="#059669" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#fff"><tspan x="380.0" y="34.9" font-weight="600">Hết ca làm việc</tspan></text><path d="M380,50 L380,72" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d3a475569)"/><rect x="230" y="74" width="300" height="44" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="380.0" y="100.9" font-weight="600">Mở app → Timesheet cá nhân</tspan></text><path d="M380,118 L380,140" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d3a475569)"/><rect x="230" y="142" width="300" height="44" rx="10" fill="#1d4ed8" stroke="#1d4ed8" stroke-width="2"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="380.0" y="169.2" font-weight="600">Bấm  ＋ Thêm chấm công</tspan></text><path d="M380,186 L380,208" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d3a475569)"/><rect x="190" y="210" width="380" height="128" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="380.0" y="233.9" font-weight="600">Điền 5 ô:</tspan><tspan x="380.0" y="251.9" font-weight="400">① Ngày (mặc định hôm nay)</tspan><tspan x="380.0" y="269.9" font-weight="400">② Giờ vào – Giờ ra – Nghỉ (thường 1 giờ)</tspan><tspan x="380.0" y="287.9" font-weight="400">③ Mã công việc (vd 1110 – giờ lắp đặt)</tspan><tspan x="380.0" y="305.9" font-weight="400">④ Dự án → WBS tự điền</tspan><tspan x="380.0" y="323.9" font-weight="400">⑤ Báo cáo thi công: hôm nay làm gì, vướng gì</tspan></text><path d="M380,338 L380,360" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d3a475569)"/><rect x="290" y="362" width="180" height="40" rx="10" fill="#1d4ed8" stroke="#1d4ed8" stroke-width="2"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="380.0" y="387.2" font-weight="600">Bấm LƯU</tspan></text><path d="M380,402 L380,420" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d3a475569)"/><polygon points="380,420.0 460.0,460 380,500.0 300.0,460" fill="#fff" stroke="#475569" stroke-width="2.2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="380" y="464.9" font-weight="600">Có mạng?</tspan></text><path d="M460,460 L530,460 L530,500" fill="none" stroke="#047857" stroke-width="2" marker-end="url(#d3a047857)"/><rect x="484.7" y="434.6" width="26.6" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#047857"><tspan x="498.0" y="450.6" font-weight="700">Có</tspan></text><rect x="420" y="502" width="260" height="50" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="2"/><text text-anchor="middle" font-size="15" fill="#111827"><tspan x="550.0" y="532.2" font-weight="600">✓ Đã lưu trên máy chủ</tspan></text><path d="M300,460 L230,460 L230,500" fill="none" stroke="#b45309" stroke-width="2" marker-end="url(#d3ab45309)"/><rect x="237.8" y="434.6" width="48.4" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#b45309"><tspan x="262.0" y="450.6" font-weight="700">Không</tspan></text><rect x="80" y="502" width="260" height="50" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="210.0" y="522.9" font-weight="600">Lưu trên điện thoại,</tspan><tspan x="210.0" y="540.9" font-weight="400">có mạng lại TỰ GỬI</tspan></text><rect x="580" y="222" width="170" height="104" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2" stroke-dasharray="6 4"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="665.0" y="253.1" font-weight="600">Làm 2 dự án</tspan><tspan x="665.0" y="270.1" font-weight="600">trong 1 ngày?</tspan><tspan x="665.0" y="287.1" font-weight="400">→ thêm 2 dòng,</tspan><tspan x="665.0" y="304.1" font-weight="400">mỗi dòng 1 khoảng giờ</tspan></text><rect x="10" y="222" width="170" height="104" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2" stroke-dasharray="6 4"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="95.0" y="253.1" font-weight="600">Nhập sai?</tspan><tspan x="95.0" y="270.1" font-weight="400">Bấm ✏️ để sửa,</tspan><tspan x="95.0" y="287.1" font-weight="400">🗑 để xoá</tspan><tspan x="95.0" y="304.1" font-weight="400">(xoá nhầm: Hoàn tác)</tspan></text></svg></div>
-      <div class="cap"><span><b>Sơ đồ 3.</b> Chấm công trong ngày. Không có mạng vẫn chấm được.</span><span class="swipe">← kéo ngang →</span></div>
+      <div class="cap"><span><b>Sơ đồ 3.</b> Chấm công trong ngày.</span><span class="swipe">← kéo ngang →</span></div>
     </div>
-
-    <h3>Trên màn hình trông như thế nào?</h3>
-    <div class="side">
-      <figure class="shot phone"><img src="docs/huong-dan/ts-phone.jpg" alt="Timesheet trên điện thoại" loading="lazy" width="780" height="1688"><figcaption>Timesheet trên điện thoại</figcaption></figure>
-      <div>
-        <ol class="legend">
-          <li><span class="btnlike pri">Nộp bảng công</span> nằm ngay đầu trang (dùng ở cuối kỳ — phần 4).</li>
-          <li>Nút tròn <b>＋</b> ở góc dưới: bấm để <b>thêm chấm công</b>. Nút luôn hiện khi cuộn trang.</li>
-        </ol>
-        <p>Mở bằng cách: trang chủ → thẻ <b>Timesheet cá nhân</b>. Nên <b>cài app lên điện thoại</b> (thẻ “Cài Bộ công cụ lên máy” ở cuối trang chủ) để mở nhanh như một ứng dụng.</p>
-        <div class="note tip"><p><b>Mất sóng ở công trường?</b> Cứ chấm bình thường. Dữ liệu lưu ngay trên điện thoại, có mạng lại thì <b>tự gửi lên máy chủ</b>. Thấy dòng <b>“✓ Đã lưu trên máy chủ”</b> là yên tâm.</p></div>
-      </div>
-    </div>
-
-    <h3>Điền form “Thêm chấm công”</h3>
     <div class="pair">
       <figure class="shot"><img src="docs/huong-dan/ts-form.jpg" alt="Form thêm chấm công: thời gian" loading="lazy" width="1280" height="800"><figcaption>Phần trên: thời gian</figcaption></figure>
       <figure class="shot"><img src="docs/huong-dan/ts-form2.jpg" alt="Form thêm chấm công: công việc, báo cáo" loading="lazy" width="1280" height="800"><figcaption>Phần dưới: công việc, báo cáo</figcaption></figure>
     </div>
     <ol class="legend">
-      <li><b>Ngày</b> — mặc định là hôm nay. Chấm bù ngày khác thì chọn lại ngày.</li>
-      <li><b>Từ – Đến – Nghỉ</b> — giờ vào, giờ ra, số giờ nghỉ (thường 1 giờ nghỉ trưa). Số giờ tính công tự hiện bên dưới.</li>
-      <li><b>Tự tính giờ thường / OT theo Luật Lao động</b> — <b>để nguyên dấu tick</b>, hệ thống tự chia giờ thường, OT 150% / 200% / 300%, ban đêm, ngày lễ.</li>
-      <li><b>Mã công việc</b> — chọn đúng loại việc (ví dụ <i>1110 – NI Prod. Hours Fitter</i> cho giờ lắp đặt).</li>
-      <li><b>Tên dự án</b> — gõ vài chữ rồi chọn trong gợi ý; <b>Work Number / WBS</b> tự điền.</li>
-      <li><b>Báo cáo thi công trong ngày</b> — hôm nay làm gì, vướng gì. Giám sát đọc nội dung này trong email 18:30.</li>
-      <li><span class="btnlike pri">Lưu</span>.</li>
+      <li><b>Ngày</b> — mặc định hôm nay.</li>
+      <li><b>Từ – Đến – Nghỉ</b> — giờ vào, giờ ra, giờ nghỉ.</li>
+      <li><b>Tự tính giờ thường / OT</b> — <b>để nguyên dấu tick</b>.</li>
+      <li><b>Mã công việc</b> — ví dụ <i>1110</i> cho giờ lắp đặt; nghỉ phép chọn <b>mã nghỉ</b>.</li>
+      <li><b>Dự án</b> — gõ vài chữ, chọn gợi ý; WBS tự điền. Làm 2 dự án/ngày → thêm 2 dòng.</li>
+      <li><b>Báo cáo thi công</b> — hôm nay làm gì, vướng gì.</li>
+      <li><span class="btnlike pri">Lưu</span>. Sửa ✏️ / xoá 🗑 ở cuối mỗi dòng trong danh sách.</li>
     </ol>
-    <div class="tblwrap"><table class="tbl">
-      <tr><th>Tình huống</th><th>Làm thế nào</th></tr>
-      <tr><td>Một ngày làm <b>2 dự án</b></td><td>Thêm <b>2 dòng</b>, mỗi dòng một khoảng giờ và một dự án.</td></tr>
-      <tr><td>Nghỉ phép / ốm</td><td>Thêm dòng cho ngày đó, chọn <b>mã nghỉ</b> tương ứng trong ô Mã công việc.</td></tr>
-      <tr><td>Nhập sai</td><td>Bấm ✏️ ở cuối dòng để sửa, 🗑 để xoá. Xoá nhầm: bấm <b>Hoàn tác</b> trên thông báo hiện ra.</td></tr>
-      <tr><td>Quên chấm hôm qua</td><td>Bấm <b>＋</b>, đổi ô <b>Ngày</b> về hôm qua rồi chấm như thường.</td></tr>
-    </table></div>
   </section>
 
   <!-- ============ 4. CUỐI KỲ ============ -->
   <section class="part" id="cuoi-ky" style="--c: var(--c-fitter)">
     <h2><span class="no">4</span>Fitter: nộp bảng công cuối kỳ</h2>
-    <p class="for">Làm <b>một lần mỗi kỳ</b>, trước <b>ngày 12</b>.</p>
+    <p class="for">Lịch kỳ lương <b>không còn ngày chấm đỏ</b> → <span class="btnlike pri">Nộp bảng công</span> trước <b>ngày 12</b>.</p>
     <div class="diagram">
       <div class="scroll"><svg class="dg" viewBox="0 0 760 600" style="min-width:620px" role="img" aria-label="Fitter cuối kỳ: kiểm tra lịch, chấm bù, nộp bảng công, thu hồi nếu nộp nhầm" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"><title>Fitter cuối kỳ: kiểm tra lịch, chấm bù, nộp bảng công, thu hồi nếu nộp nhầm</title><defs><marker id="d4a047857" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#047857"/></marker><marker id="d4a475569" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker><marker id="d4ab45309" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker><marker id="d4abe123c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#be123c"/></marker></defs><rect x="180" y="10" width="300" height="40" rx="20.0" fill="#059669" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#fff"><tspan x="330.0" y="34.9" font-weight="600">Từ ngày 9: app nhắc ⏰ hạn nộp</tspan></text><path d="M330,50 L330,74" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d4a475569)"/><polygon points="330,76.0 430.0,126 330,176.0 230.0,126" fill="#fff" stroke="#059669" stroke-width="2.2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330" y="121.9" font-weight="600">Lịch kỳ lương</tspan><tspan x="330" y="139.9" font-weight="600">còn ngày ĐỎ?</tspan></text><path d="M430,126 L500,126" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d4abe123c)"/><rect x="448.1" y="100.5" width="33.8" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="465.0" y="116.5" font-weight="700">Còn</tspan></text><rect x="502" y="96" width="240" height="60" rx="10" fill="#fff1f2" stroke="#be123c" stroke-width="2"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="622.0" y="122.0" font-weight="600">Chấm bù ngày còn thiếu</tspan><tspan x="622.0" y="139.1" font-weight="400">Nghỉ phép: chấm mã nghỉ</tspan></text><path d="M622,96 L622,62 L370,62 L370,88" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d4abe123c)"/><path d="M330,176 L330,206" fill="none" stroke="#047857" stroke-width="2" marker-end="url(#d4a047857)"/><rect x="354.0" y="179.6" width="33.8" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#047857"><tspan x="370.92" y="195.6" font-weight="700">Hết</tspan></text><rect x="180" y="208" width="300" height="54" rx="10" fill="#1d4ed8" stroke="#1d4ed8" stroke-width="2"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="330.0" y="230.2" font-weight="600">Bấm NỘP BẢNG CÔNG</tspan><tspan x="330.0" y="250.2" font-weight="400">→ Xác nhận</tspan></text><path d="M330,262 L330,288" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d4a475569)"/><rect x="180" y="290" width="300" height="56" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330.0" y="313.9" font-weight="600">Đã nộp — chờ giám sát</tspan><tspan x="330.0" y="331.9" font-weight="400">(bảng công bị KHOÁ sửa)</tspan></text><path d="M330,346 L330,372" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d4a475569)"/><polygon points="330,374.0 420.0,418 330,462.0 240.0,418" fill="#fff" stroke="#b45309" stroke-width="2.2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330" y="422.9" font-weight="600">Nộp nhầm?</tspan></text><path d="M240,418 L160,418" fill="none" stroke="#b45309" stroke-width="2" marker-end="url(#d4ab45309)"/><rect x="186.7" y="392.6" width="26.6" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#b45309"><tspan x="200.0" y="408.6" font-weight="700">Có</tspan></text><rect x="10" y="388" width="150" height="60" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="2"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="85.0" y="414.1" font-weight="600">Thu hồi để sửa</tspan><tspan x="85.0" y="431.1" font-weight="400">(khi chưa duyệt)</tspan></text><path d="M85,388 L85,235 L178,235" fill="none" stroke="#b45309" stroke-width="2" marker-end="url(#d4ab45309)"/><rect x="49.9" y="290.1" width="70.2" height="39.8" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#b45309"><tspan x="85.0" y="306.1" font-weight="700">sửa xong</tspan><tspan x="85.0" y="323.1" font-weight="700">nộp lại</tspan></text><path d="M330,462 L330,490" fill="none" stroke="#047857" stroke-width="2" marker-end="url(#d4a047857)"/><rect x="360.0" y="464.6" width="48.4" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#047857"><tspan x="384.2" y="480.6" font-weight="700">Không</tspan></text><rect x="140" y="492" width="380" height="50" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330.0" y="521.9" font-weight="600">Chờ duyệt — theo dõi email &amp; trạng thái</tspan></text><path d="M330,542 L330,560" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d4a475569)"/><text text-anchor="middle" font-size="13" fill="#334155"><tspan x="330" y="582.5" font-weight="700">Bị trả lại → sửa theo lý do → Nộp lại   |   Duyệt xong → không cần làm gì thêm</tspan></text></svg></div>
       <div class="cap"><span><b>Sơ đồ 4.</b> Kiểm tra – nộp – thu hồi nếu nộp nhầm.</span><span class="swipe">← kéo ngang →</span></div>
     </div>
-
-    <h3>Bước 1 — Kiểm tra lịch kỳ lương: không còn ngày đỏ</h3>
-    <figure class="shot"><img src="docs/huong-dan/ts-list.jpg" alt="Lịch kỳ lương và danh sách chấm công" loading="lazy" width="1280" height="800"><figcaption>Lịch kỳ lương (trái) và danh sách chấm công (phải)</figcaption></figure>
-    <ol class="legend">
-      <li><b>Lịch kỳ lương</b> — ngày có <b>chấm đỏ</b> là ngày làm việc <b>chưa chấm</b>. Bấm vào ngày đó để chấm bù.</li>
-      <li><b>Chấm công trong kỳ</b> — xem lại từng dòng: giờ, dự án, 📝 báo cáo thi công.</li>
-    </ol>
-
-    <h3>Bước 2 — Bấm “Nộp bảng công”</h3>
     <figure class="shot"><img src="docs/huong-dan/ts-submitted.jpg" alt="Sau khi nộp bảng công" loading="lazy" width="1280" height="330"><figcaption>Sau khi nộp</figcaption></figure>
     <ol class="legend">
-      <li>Trạng thái chuyển thành <span class="chip amber">Đã nộp — chờ giám sát</span>. Bảng công bị <b>khoá</b> trong lúc chờ duyệt.</li>
-      <li><span class="btnlike">Thu hồi để sửa</span> — nộp nhầm thì bấm để lấy về sửa (chỉ được khi giám sát <b>chưa duyệt</b>), sửa xong nộp lại.</li>
+      <li><span class="chip amber">Đã nộp — chờ giám sát</span> — bảng công <b>khoá sửa</b> trong lúc chờ duyệt.</li>
+      <li><span class="btnlike">Thu hồi để sửa</span> — nộp nhầm thì lấy về sửa (khi giám sát chưa duyệt).</li>
     </ol>
-
-    <h3>Nếu bị trả lại</h3>
-    <figure class="shot"><img src="docs/huong-dan/ts-rejected.jpg" alt="Bảng công bị trả lại" loading="lazy" width="1280" height="380"><figcaption>Bảng công bị trả lại</figcaption></figure>
-    <ol class="legend">
-      <li>Trạng thái <span class="chip rose">Bị trả lại — cần sửa</span>; bạn cũng nhận email báo.</li>
-      <li><b>Lý do</b> của người duyệt hiện ngay bên cạnh — đọc kỹ, sửa đúng chỗ.</li>
-      <li>Sửa xong bấm <span class="btnlike pri">Nộp bảng công</span> lại.</li>
-    </ol>
+    <p>Bị <span class="chip rose">trả lại</span>: lý do hiện ngay cạnh trạng thái (và có email) → sửa đúng dòng → nộp lại.</p>
   </section>
 
   <!-- ============ 5. TRẠNG THÁI ============ -->
   <section class="part" id="trang-thai" style="--c: #b45309">
     <h2><span class="no">5</span>Các trạng thái của bảng công</h2>
-    <p class="for">Nhìn nhãn trạng thái là biết bảng công đang ở đâu và <b>ai đang phải làm</b>.</p>
     <div class="diagram">
       <div class="scroll"><svg class="dg" viewBox="0 0 900 300" style="min-width:720px" role="img" aria-label="Các trạng thái của bảng công: Đang chấm, Đã nộp, Giám sát đã duyệt, Đã duyệt xong, Bị trả lại" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"><title>Các trạng thái của bảng công: Đang chấm, Đã nộp, Giám sát đã duyệt, Đã duyệt xong, Bị trả lại</title><defs><marker id="d5a1d4ed8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/></marker><marker id="d5a475569" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker><marker id="d5ab45309" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker><marker id="d5abe123c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#be123c"/></marker></defs><rect x="20" y="76" width="185" height="70" rx="12" fill="#f8fafc" stroke="#475569" stroke-width="2.5"/><text text-anchor="middle" font-size="14" fill="#475569"><tspan x="112.5" y="106.9" font-weight="700">Đang chấm</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="112.5" y="138.2" font-weight="400">Fitter sửa thoải mái</tspan></text><rect x="245" y="76" width="185" height="70" rx="12" fill="#fffbeb" stroke="#b45309" stroke-width="2.5"/><text text-anchor="middle" font-size="14" fill="#b45309"><tspan x="337.5" y="98.4" font-weight="700">Đã nộp —</tspan><tspan x="337.5" y="115.4" font-weight="700">chờ giám sát</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="337.5" y="138.2" font-weight="400">khoá sửa</tspan></text><rect x="470" y="76" width="185" height="70" rx="12" fill="#fffbeb" stroke="#b45309" stroke-width="2.5"/><text text-anchor="middle" font-size="14" fill="#b45309"><tspan x="562.5" y="98.4" font-weight="700">Giám sát đã duyệt</tspan><tspan x="562.5" y="115.4" font-weight="700">— chờ quản lý</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="562.5" y="138.2" font-weight="400">khoá sửa</tspan></text><rect x="695" y="76" width="185" height="70" rx="12" fill="#ecfdf5" stroke="#047857" stroke-width="2.5"/><text text-anchor="middle" font-size="14" fill="#047857"><tspan x="787.5" y="106.9" font-weight="700">Đã duyệt xong</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="787.5" y="138.2" font-weight="400">vào Thống kê giờ công</tspan></text><path d="M205,111.0 L243,111.0" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d5a475569)"/><rect x="208.9" y="53.2" width="32.2" height="21.6" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="12" fill="#334155"><tspan x="225.0" y="68.2" font-weight="700">Nộp</tspan></text><path d="M430,111.0 L468,111.0" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d5a475569)"/><rect x="397.0" y="53.2" width="106.1" height="21.6" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="12" fill="#334155"><tspan x="450.0" y="68.2" font-weight="700">Site Sup duyệt</tspan></text><path d="M655,111.0 L693,111.0" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d5a475569)"/><rect x="635.4" y="53.2" width="79.2" height="21.6" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="12" fill="#334155"><tspan x="675.0" y="68.2" font-weight="700">QLDA duyệt</tspan></text><path d="M285,76 L285,42 L112.5,42 L112.5,74" fill="none" stroke="#b45309" stroke-width="2" marker-end="url(#d5ab45309)"/><rect x="102.3" y="11.2" width="220.3" height="21.6" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="12" fill="#b45309"><tspan x="212.5" y="26.2" font-weight="700">Thu hồi để sửa (khi chưa duyệt)</tspan></text><rect x="300" y="222" width="300" height="56" rx="12" fill="#fff1f2" stroke="#be123c" stroke-width="2.5"/><text text-anchor="middle" font-size="14" fill="#be123c"><tspan x="450" y="246.9" font-weight="700">Bị trả lại — cần sửa</tspan></text><text text-anchor="middle" font-size="12" fill="#475569"><tspan x="450" y="266.2" font-weight="400">Fitter đọc lý do, sửa được</tspan></text><path d="M400,146 L400,220" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d5abe123c)"/><rect x="368.5" y="174.6" width="63.0" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="400.0" y="190.6" font-weight="700">Trả lại</tspan></text><path d="M520,146 L520,220" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d5abe123c)"/><rect x="488.5" y="174.6" width="63.0" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="520.0" y="190.6" font-weight="700">Trả lại</tspan></text><path d="M300,250 L275,250 L275,148" fill="none" stroke="#1d4ed8" stroke-width="2" marker-end="url(#d5a1d4ed8)"/><rect x="171.7" y="238.6" width="106.6" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#1d4ed8"><tspan x="225.0" y="254.6" font-weight="700">Sửa → Nộp lại</tspan></text></svg></div>
-      <div class="cap"><span><b>Sơ đồ 5.</b> Trạng thái bảng công và các bước chuyển.</span><span class="swipe">← kéo ngang →</span></div>
+      <div class="cap"><span><b>Sơ đồ 5.</b> Nhìn nhãn là biết bảng công đang chờ ai.</span><span class="swipe">← kéo ngang →</span></div>
     </div>
-    <div class="tblwrap"><table class="tbl">
-      <tr><th>Nhãn</th><th>Ý nghĩa</th><th>Ai cần làm gì</th></tr>
-      <tr><td><span class="chip gray">Đang chấm</span></td><td>Chưa nộp, sửa thoải mái.</td><td><b>Fitter</b>: chấm đủ, nộp trước ngày 12.</td></tr>
-      <tr><td><span class="chip amber">Đã nộp — chờ giám sát</span></td><td>Đã nộp, khoá sửa.</td><td><b>Giám sát</b>: kiểm tra, duyệt hoặc trả lại. Fitter nộp nhầm: <i>Thu hồi để sửa</i>.</td></tr>
-      <tr><td><span class="chip amber">Giám sát đã duyệt — chờ quản lý</span></td><td>Đã qua cấp 1.</td><td><b>Quản lý dự án</b>: duyệt lần 2.</td></tr>
-      <tr><td><span class="chip green">Đã duyệt xong</span></td><td>Hoàn tất. Giờ công đã vào <b>Thống kê giờ công</b>.</td><td>Không ai cần làm gì.</td></tr>
-      <tr><td><span class="chip rose">Bị trả lại — cần sửa</span></td><td>Có sai sót, kèm lý do.</td><td><b>Fitter</b>: đọc lý do, sửa, nộp lại.</td></tr>
-    </table></div>
   </section>
 
   <!-- ============ 6. DUYỆT ============ -->
   <section class="part" id="duyet" style="--c: var(--c-sup)">
     <h2><span class="no">6</span>Giám sát: duyệt bảng công</h2>
-    <p class="for">Dành cho <b>Giám sát (Site Sup)</b>. Bạn chỉ thấy bảng công của fitter làm ở <b>dự án mình phụ trách</b>. Nên duyệt <b>trong ngày</b> nhận email để Quản lý dự án kịp duyệt.</p>
+    <p class="for">Fitter nộp → bạn nhận <b>email có nút mở thẳng bảng công</b>. Mỗi tối <b>18:30</b> có email tổng hợp: chấm công trong ngày, bảng công chờ bạn duyệt, fitter chưa chấm công. Nên duyệt <b>trong ngày</b>.</p>
     <div class="diagram">
       <div class="scroll"><svg class="dg" viewBox="0 0 800 640" style="min-width:640px" role="img" aria-label="Giám sát duyệt bảng công: nhận thông báo, mở chi tiết, kiểm tra 5 điểm, duyệt hoặc trả lại kèm lý do" font-family="system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"><title>Giám sát duyệt bảng công: nhận thông báo, mở chi tiết, kiểm tra 5 điểm, duyệt hoặc trả lại kèm lý do</title><defs><marker id="d6a047857" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#047857"/></marker><marker id="d6a475569" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker><marker id="d6abe123c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#be123c"/></marker></defs><rect x="190" y="10" width="280" height="40" rx="20.0" fill="#059669" stroke="#059669" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#fff"><tspan x="330.0" y="34.9" font-weight="600">Fitter nộp bảng công</tspan></text><path d="M330,50 L330,72" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d6a475569)"/><rect x="130" y="74" width="400" height="56" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330.0" y="97.9" font-weight="600">Nhận email + nhãn đỏ “N chờ duyệt”</tspan><tspan x="330.0" y="115.9" font-weight="400">trên thẻ Duyệt bảng công ở trang chủ</tspan></text><path d="M330,130 L330,152" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d6a475569)"/><rect x="130" y="154" width="400" height="46" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330.0" y="181.9" font-weight="600">Mở Duyệt bảng công → bấm Xem &amp; duyệt</tspan></text><path d="M330,200 L330,222" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d6a475569)"/><rect x="130" y="224" width="400" height="132" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330.0" y="249.9" font-weight="600">Kiểm tra 5 điểm:</tspan><tspan x="330.0" y="267.9" font-weight="400">① Không thiếu ngày (dòng cảnh báo vàng)</tspan><tspan x="330.0" y="285.9" font-weight="400">② Đúng dự án / WBS nơi fitter làm thực tế</tspan><tspan x="330.0" y="303.9" font-weight="400">③ Giờ vào – ra, tăng ca hợp lý</tspan><tspan x="330.0" y="321.9" font-weight="400">④ Có báo cáo thi công đầy đủ</tspan><tspan x="330.0" y="339.9" font-weight="400">⑤ Không có dòng tô ĐỎ</tspan></text><path d="M330,356 L330,380" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d6a475569)"/><polygon points="330,382.0 415.0,430 330,478.0 245.0,430" fill="#fff" stroke="#0891b2" stroke-width="2.2"/><text text-anchor="middle" font-size="14" fill="#111827"><tspan x="330" y="434.9" font-weight="600">Có sai?</tspan></text><path d="M415,430 L498,430" fill="none" stroke="#be123c" stroke-width="2" marker-end="url(#d6abe123c)"/><rect x="442.7" y="404.6" width="26.6" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="456.0" y="420.6" font-weight="700">Có</tspan></text><rect x="500" y="396" width="290" height="70" rx="10" fill="#fff1f2" stroke="#be123c" stroke-width="2"/><text text-anchor="middle" font-size="13" fill="#111827"><tspan x="645.0" y="418.6" font-weight="600">Trả lại… → ghi lý do CỤ THỂ</tspan><tspan x="645.0" y="435.6" font-weight="400">(ngày nào, sai gì, sửa thế nào)</tspan><tspan x="645.0" y="452.6" font-weight="400">→ Trả lại bảng công</tspan></text><path d="M645,396 L645,30 L472,30" fill="none" stroke="#be123c" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#d6abe123c)"/><rect x="602.6" y="200.1" width="84.8" height="39.8" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#be123c"><tspan x="645.0" y="216.1" font-weight="700">Fitter sửa</tspan><tspan x="645.0" y="233.1" font-weight="700">&amp; nộp lại</tspan></text><path d="M330,478 L330,506" fill="none" stroke="#047857" stroke-width="2" marker-end="url(#d6a047857)"/><rect x="360.0" y="480.6" width="48.4" height="22.9" rx="6" fill="#fff" opacity=".95"/><text text-anchor="middle" font-size="13" fill="#047857"><tspan x="384.2" y="496.6" font-weight="700">Không</tspan></text><rect x="130" y="508" width="400" height="50" rx="10" fill="#0891b2" stroke="#0891b2" stroke-width="2"/><text text-anchor="middle" font-size="15" fill="#fff"><tspan x="330.0" y="538.2" font-weight="600">DUYỆT (chuyển sang Quản lý dự án)</tspan></text><path d="M330,558 L330,580" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#d6a475569)"/><rect x="90" y="582" width="480" height="40" rx="20" fill="#047857"/><text text-anchor="middle" font-size="14" fill="#fff"><tspan x="330" y="606.9" font-weight="700">QLDA duyệt lần 2 → Đã duyệt xong</tspan></text></svg></div>
       <div class="cap"><span><b>Sơ đồ 6.</b> Duyệt hoặc trả lại một bảng công.</span><span class="swipe">← kéo ngang →</span></div>
     </div>
-
-    <h3>Checklist 5 điểm trước khi bấm Duyệt</h3>
     <div class="tblwrap"><table class="tbl">
-      <tr><th style="width:36px">#</th><th>Kiểm tra</th><th>Xem ở đâu</th><th>Sai thì</th></tr>
-      <tr><td>①</td><td><b>Không thiếu ngày</b> làm việc</td><td>Dòng cảnh báo vàng “ngày chưa chấm” ở phần Tổng quan</td><td>Trả lại: “Thiếu ngày …”</td></tr>
-      <tr><td>②</td><td><b>Đúng dự án / WBS</b> nơi fitter làm thực tế</td><td>Bảng <b>Theo dự án</b> và cột Dự án ở <b>Từng ngày</b></td><td>Trả lại, ghi ngày + dự án đúng</td></tr>
-      <tr><td>③</td><td><b>Giờ vào – ra, tăng ca</b> hợp lý, đúng thực tế</td><td>Cột giờ và loại giờ (Thường / OT) ở <b>Từng ngày</b></td><td>Trả lại, ghi ngày + giờ đúng</td></tr>
-      <tr><td>④</td><td>Có <b>báo cáo thi công</b> đủ ý</td><td>Dòng 📝 dưới mỗi ngày</td><td>Nhắc fitter; trả lại nếu thiếu nhiều</td></tr>
-      <tr><td>⑤</td><td>Không có <b>dòng tô đỏ</b></td><td>Bảng <b>Từng ngày</b></td><td>Trả lại: “Mở lại Timesheet (tải lại trang) rồi nộp lại”</td></tr>
+      <tr><th style="width:36px">#</th><th>Kiểm tra trước khi Duyệt</th><th>Sai thì trả lại, ghi rõ</th></tr>
+      <tr><td>①</td><td><b>Không thiếu ngày</b> (dòng cảnh báo vàng)</td><td>“Thiếu ngày …”</td></tr>
+      <tr><td>②</td><td><b>Đúng dự án / WBS</b> nơi fitter làm thực tế</td><td>Ngày + dự án đúng</td></tr>
+      <tr><td>③</td><td><b>Giờ vào – ra, tăng ca</b> hợp lý</td><td>Ngày + giờ đúng</td></tr>
+      <tr><td>④</td><td>Có <b>báo cáo thi công</b> (dòng 📝)</td><td>Nhắc bổ sung</td></tr>
+      <tr><td>⑤</td><td>Không có <b>dòng tô đỏ</b></td><td>“Tải lại Timesheet rồi nộp lại”</td></tr>
     </table></div>
-
-    <h3>Trên màn hình</h3>
-    <figure class="shot"><img src="docs/huong-dan/appr-inbox.jpg" alt="Danh sách bảng công chờ duyệt" loading="lazy" width="1280" height="800"><figcaption>Hộp “Chờ bạn duyệt”</figcaption></figure>
-    <ol class="legend">
-      <li>Mỗi dòng: <b>người nộp, kỳ lương, cấp duyệt, dự án</b>, số dòng, thời điểm nộp.</li>
-      <li><span class="btnlike pri">Xem &amp; duyệt</span> — mở chi tiết.</li>
-    </ol>
-    <figure class="shot mid"><img src="docs/huong-dan/appr-detail.jpg" alt="Chi tiết bảng công" loading="lazy" width="1280" height="1370"><figcaption>Chi tiết một bảng công</figcaption></figure>
-    <ol class="legend">
-      <li><b>Tổng quan</b>: giờ công, giờ thường, tăng ca, số ngày; dòng vàng liệt kê ngày chưa chấm (điểm ①).</li>
-      <li><b>Theo dự án</b>: ngày, giờ thường, OT của từng dự án (điểm ②).</li>
-      <li><b>Từng ngày</b>: giờ vào – ra, loại giờ, mã công việc, dự án, báo cáo thi công (điểm ③④⑤).</li>
-    </ol>
     <figure class="shot"><img src="docs/huong-dan/appr-reject.jpg" alt="Duyệt hoặc trả lại" loading="lazy" width="1280" height="800"><figcaption>Cuối trang chi tiết: Duyệt hoặc Trả lại</figcaption></figure>
     <ol class="legend">
-      <li><span class="btnlike pri">Duyệt (chuyển sang Quản lý dự án)</span> — đúng hết thì bấm.</li>
-      <li>Có sai: bấm <span class="btnlike red">Trả lại…</span>, ghi <b>lý do</b> (bắt buộc).</li>
-      <li><span class="btnlike red">Trả lại bảng công</span> để gửi. Fitter nhận email kèm lý do.</li>
+      <li><span class="btnlike pri">Duyệt</span> — đúng hết thì bấm.</li>
+      <li><span class="btnlike red">Trả lại…</span> → ghi lý do (bắt buộc).</li>
+      <li><span class="btnlike red">Trả lại bảng công</span> — fitter nhận email kèm lý do.</li>
     </ol>
-
-    <h3>Viết lý do trả lại sao cho fitter sửa được ngay</h3>
     <div class="vs">
-      <div class="bad"><b>❌ Chưa tốt</b><q>Sai, sửa lại.</q><q>Kiểm tra lại giờ.</q>Fitter không biết sai ở đâu → hỏi lại, mất thời gian.</div>
-      <div class="good"><b>✅ Tốt</b><q>Ngày 21/10 ghi nhầm dự án Sao Mai, đúng là Hoà Bình (DEMO-001).</q><q>Ngày 24/10 về lúc 17:00, không có tăng ca — sửa giờ ra.</q>Ghi rõ <b>ngày nào – sai gì – sửa thành gì</b>.</div>
+      <div class="bad"><b>❌ Lý do chưa tốt</b><q>Sai, sửa lại.</q></div>
+      <div class="good"><b>✅ Lý do tốt</b><q>Ngày 21/10 ghi nhầm dự án Sao Mai, đúng là Hoà Bình.</q></div>
     </div>
-    <div class="note tip"><p>Hằng tối <b>18:30</b> bạn nhận email tổng hợp <b>báo cáo thi công trong ngày</b> của fitter ở dự án mình — đọc hằng ngày thì cuối kỳ duyệt rất nhanh. Sáng <b>ngày 11</b> có email nhắc nếu còn bảng công chờ bạn duyệt.</p></div>
   </section>
 
   <!-- ============ 7. LỖI THƯỜNG GẶP ============ -->
   <section class="part" id="loi" style="--c: #475569">
-    <h2><span class="no">7</span>Lỗi thường gặp &amp; cách xử lý</h2>
+    <h2><span class="no">7</span>Lỗi thường gặp</h2>
     <div class="tblwrap"><table class="tbl">
-      <tr><th>Hiện tượng</th><th>Nguyên nhân</th><th>Cách xử lý</th></tr>
-      <tr><td>Lịch còn <b>ngày chấm đỏ</b></td><td>Quên chấm ngày đó</td><td>Bấm vào ngày trên lịch → chấm bù (nghỉ thì chấm mã nghỉ).</td></tr>
-      <tr><td>Dòng trạng thái báo <b>“Mất mạng / Chưa gửi”</b></td><td>Đang không có sóng</td><td>Không cần làm gì — có mạng lại app tự gửi. Đừng xoá dữ liệu trình duyệt.</td></tr>
-      <tr><td>Không bấm sửa / thêm được</td><td>Bảng công <b>đã nộp</b> (bị khoá)</td><td>Chưa duyệt: <i>Thu hồi để sửa</i>. Đã duyệt: báo giám sát.</td></tr>
-      <tr><td>Không tìm thấy dự án khi gõ tên</td><td>Dự án chưa có trong danh sách / dữ liệu cũ</td><td>Bấm <b>Đồng bộ ngay</b> ở trang chủ; vẫn không có thì báo giám sát / quản trị viên.</td></tr>
-      <tr><td>Giờ tăng ca tính lạ</td><td>Bỏ dấu tick <i>Tự tính giờ thường / OT</i></td><td>Mở dòng đó, <b>tick lại</b> ô Tự tính, Lưu.</td></tr>
-      <tr><td>Giám sát thấy <b>dòng tô đỏ</b></td><td>Phân loại giờ cũ không khớp quy định</td><td>Trả lại; fitter <b>tải lại trang</b> Timesheet rồi nộp lại.</td></tr>
-      <tr><td>Giám sát không thấy bảng công của fitter</td><td>Fitter chưa nộp, hoặc giám sát chưa được gán dự án đó</td><td>Hỏi fitter đã nộp chưa; báo quản trị viên gán dự án.</td></tr>
-      <tr><td>Quá ngày 12 chưa nộp</td><td>—</td><td>Nộp <b>ngay</b> (app vẫn cho nộp) và báo giám sát để duyệt gấp.</td></tr>
+      <tr><th>Hiện tượng</th><th>Cách xử lý</th></tr>
+      <tr><td>Lịch còn <b>ngày chấm đỏ</b></td><td>Bấm ngày đó trên lịch → chấm bù (nghỉ thì chấm mã nghỉ).</td></tr>
+      <tr><td>Báo <b>“Mất mạng / Chưa gửi”</b></td><td>Không cần làm gì — có mạng app tự gửi.</td></tr>
+      <tr><td>Không sửa được</td><td>Đã nộp (bị khoá): <i>Thu hồi để sửa</i> nếu chưa duyệt, nếu đã duyệt thì báo giám sát.</td></tr>
+      <tr><td>Không tìm thấy dự án</td><td>Trang chủ → <b>Đồng bộ ngay</b>; vẫn không có thì báo quản trị viên.</td></tr>
+      <tr><td>Quá ngày 12 chưa nộp</td><td>Nộp <b>ngay</b> (app vẫn cho nộp) và báo giám sát.</td></tr>
     </table></div>
   </section>
 
   <!-- ============ 8. TẬP LUYỆN ============ -->
   <section class="part" id="tap-luyen" style="--c: #7c3aed">
-    <h2><span class="no">8</span>Buổi tập 15 phút bằng chế độ Demo</h2>
-    <p class="for">Dành cho <b>người hướng dẫn</b>. Chế độ Demo dùng <b>dữ liệu mẫu riêng</b> — bấm thoải mái, không ảnh hưởng dữ liệu thật. Email trong demo chỉ gửi về hộp thư của chính người đang thử, tiêu đề có <b>[DEMO]</b>.</p>
+    <h2><span class="no">8</span>Tập luyện bằng chế độ Demo</h2>
+    <p class="for">Trang chủ → chân trang <span class="btnlike">🧪 Chạy thử (Demo)</span>: dữ liệu mẫu riêng, không ảnh hưởng dữ liệu thật; email chỉ về hộp thư của bạn, tiêu đề <b>[DEMO]</b>.</p>
     <ol class="steps" style="--c: #7c3aed">
-      <li><b>Vào demo:</b> trang chủ → chân trang bấm <span class="btnlike">🧪 Chạy thử (Demo)</span> → chọn <b>Fitter</b> (Phạm Minh Dũng).</li>
-      <li><b>Chấm 1 ngày</b> (phần 3): mở <i>Timesheet cá nhân</i> → <b>＋</b> → điền 5 ô → Lưu. Quan sát dòng “✓ Đã lưu trên máy chủ”.</li>
-      <li><b>Nộp</b> (phần 4): bấm <b>‹</b> về <b>kỳ trước</b> (đã chấm đủ sẵn) → <span class="btnlike pri">Nộp bảng công</span>. Mở hộp thư: có email <b>[DEMO] … chờ Site Sup duyệt</b>.</li>
-      <li><b>Đổi vai Giám sát:</b> thanh vàng → <span class="btnlike">Đổi vai trò</span> → <b>Site Sup</b> (Trần Thị Bình). Mở <i>Duyệt bảng công</i> → chọn bảng công của Phạm Minh Dũng → <b>Trả lại</b> với lý do cụ thể (phần 6).</li>
-      <li><b>Đổi lại vai Fitter:</b> thấy <span class="chip rose">Bị trả lại — cần sửa</span> và lý do → sửa → nộp lại.</li>
-      <li><b>Vai Giám sát</b> → kiểm tra 5 điểm → <span class="btnlike pri">Duyệt</span>. <b>Vai Quản lý dự án</b> (Nguyễn Văn An) → duyệt lần 2.</li>
-      <li><b>Vai Fitter</b>: trạng thái <span class="chip green">Đã duyệt xong</span>. Kết thúc: bấm <span class="btnlike">Thoát demo</span>.</li>
+      <li>Vai <b>Fitter</b>: chấm 1 ngày, lùi về <b>kỳ trước</b> → <b>Nộp bảng công</b>.</li>
+      <li><b>Đổi vai trò → Site Sup</b>: mở bảng công → <b>Trả lại</b> với lý do cụ thể.</li>
+      <li>Vai <b>Fitter</b>: sửa → nộp lại. Vai <b>Site Sup</b> → Duyệt; vai <b>Quản lý dự án</b> → Duyệt lần 2. Xong bấm <b>Thoát demo</b>.</li>
     </ol>
-    <div class="note warn"><p>Nhớ <b>Thoát demo</b> sau khi tập — chấm công thật phải làm ngoài chế độ demo.</p></div>
-  </section>
-
-  <!-- ============ 9. KIỂM TRA ============ -->
-  <section class="part" id="kiem-tra" style="--c: #0f766e">
-    <h2><span class="no">9</span>Câu hỏi kiểm tra nhanh</h2>
-    <p class="for">Dùng cuối buổi training. Bấm vào câu hỏi để xem đáp án.</p>
-    <details class="faq"><summary>1. Kỳ lương tháng 12/2026 bắt đầu và kết thúc ngày nào? Hạn nộp ngày nào?</summary><p>Từ <b>16/11/2026</b> đến <b>15/12/2026</b>. Hạn nộp <b>12/12/2026</b>.</p></details>
-    <details class="faq"><summary>2. Một ngày làm sáng ở dự án A, chiều ở dự án B thì chấm thế nào?</summary><p>Thêm <b>2 dòng</b>: dòng 1 giờ buổi sáng – dự án A; dòng 2 giờ buổi chiều – dự án B.</p></details>
-    <details class="faq"><summary>3. Ở công trường không có sóng, có chấm công được không?</summary><p>Được. Dữ liệu lưu trên điện thoại, có mạng lại <b>tự gửi</b> lên máy chủ.</p></details>
-    <details class="faq"><summary>4. Ô “Tự tính giờ thường / OT theo Luật Lao động” nên để thế nào?</summary><p><b>Luôn để tick.</b> Hệ thống tự chia giờ thường và các loại OT.</p></details>
-    <details class="faq"><summary>5. Đã nộp rồi mới thấy sai, làm sao?</summary><p>Nếu giám sát <b>chưa duyệt</b>: bấm <b>Thu hồi để sửa</b>, sửa rồi nộp lại. Nếu đã duyệt: báo giám sát / quản lý để trả lại.</p></details>
-    <details class="faq"><summary>6. (Giám sát) Trước khi bấm Duyệt cần kiểm tra những gì?</summary><p>5 điểm: không thiếu ngày · đúng dự án / WBS · giờ và tăng ca hợp lý · có báo cáo thi công · không có dòng tô đỏ.</p></details>
-    <details class="faq"><summary>7. (Giám sát) Viết lý do trả lại thế nào cho đúng?</summary><p>Ghi rõ <b>ngày nào – sai gì – sửa thành gì</b>. Ví dụ: “Ngày 21/10 ghi nhầm dự án, đúng là Hoà Bình”.</p></details>
-    <details class="faq"><summary>8. Khi nào giờ công của fitter vào “Thống kê giờ công”?</summary><p>Khi bảng công <b>Đã duyệt xong</b> (Quản lý dự án duyệt lần 2) — hệ thống tự chuyển, không cần nhập tay.</p></details>
+    <p><b>Hỏi nhanh cuối buổi:</b> Kỳ 12/2026 từ ngày nào đến ngày nào, hạn nộp ngày nào? <i>(16/11 → 15/12, hạn 12/12)</i> · Mất sóng có chấm được không? <i>(Được, app tự gửi)</i> · Giám sát kiểm tra gì trước khi duyệt? <i>(5 điểm ở phần 6)</i></p>
   </section>
 
   <!-- ============ 10. THẺ NHỚ ============ -->
   <section class="part" id="the-nho" style="--c: #111827">
-    <h2><span class="no">10</span>Thẻ nhớ — in và dán ở văn phòng công trường</h2>
+    <h2><span class="no">9</span>Thẻ nhớ — in và dán ở văn phòng công trường</h2>
     <div class="cards">
       <div class="card" style="--c: var(--c-fitter)">
         <h4>👷 FITTER — Timesheet cá nhân</h4>
@@ -468,8 +373,8 @@
       <div class="card" style="--c: var(--c-sup)">
         <h4>🦺 GIÁM SÁT — Duyệt bảng công</h4>
         <ol>
-          <li>Đọc email <b>báo cáo thi công 18:30</b> mỗi ngày.</li>
-          <li>Có email “đã nộp” / nhãn đỏ <b>N chờ duyệt</b> → mở <b>Duyệt bảng công</b>.</li>
+          <li>Đọc email <b>18:30</b> mỗi ngày: chấm công trong ngày, bảng công chờ duyệt, ai chưa chấm.</li>
+          <li>Có email “đã nộp” → bấm <b>Mở bảng công để duyệt</b> (hoặc nhãn đỏ <b>N chờ duyệt</b> ở trang chủ).</li>
           <li><b>Xem &amp; duyệt</b> → kiểm tra <b>5 điểm</b>:<br>① đủ ngày ② đúng dự án ③ giờ &amp; OT hợp lý ④ có báo cáo ⑤ không dòng đỏ.</li>
           <li>Đúng → <b>Duyệt</b> (chuyển Quản lý dự án).</li>
           <li>Sai → <b>Trả lại</b> + lý do: <b>ngày nào – sai gì – sửa thành gì</b>.</li>
