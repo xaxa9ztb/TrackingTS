@@ -117,12 +117,48 @@
     if (mismatches.length) flags.push(`<div class="ap-flag err">⚠ Phân loại giờ (thường / OT) khác kết quả tính lại từ giờ vào – ra ở các ngày: ${[...new Set(mismatches)].map(fmtDM).join(', ')} (dòng tô đỏ). Nên hỏi lại người chấm công.</div>`);
     if (!missing.length && !mismatches.length) flags.push('<div class="ap-flag ok">✓ Đủ ngày làm việc; phân loại giờ khớp kết quả tính lại.</div>');
     if (doc.note) flags.push(`<div class="ap-flag">Ghi chú lần trả lại trước: ${esc(doc.note)}</div>`);
+    renderAllowance(doc, period, flags);
     $('dFlags').innerHTML = flags.join('');
     $('dActions').hidden = !doc.canAct;
     $('rejectBox').hidden = true; $('dMsg').textContent = '';
     $('btnApprove').textContent = doc.level === 'pm' ? 'Duyệt (chuyển sang Theo dõi giờ công)' : 'Duyệt (chuyển sang Quản lý dự án)';
     $('secDetail').hidden = false;
     $('secDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- phụ cấp xe (data.allow — xem tools/timesheet/allowance.js) ----------
+  const money = (n) => TsAllowance.money(n);
+  function renderAllowance(doc, period, flags) {
+    const c = TsAllowance.compute(doc.data.entries || [], doc.data.allow, periodRange(period));
+    current.allow = c;
+    $('dAllow').hidden = !c.rows.length;
+    if (!c.rows.length) return;
+    $('dAllowTable').tBodies[0].innerHTML = c.rows.map(x => `<tr class="${x.problems.length ? 'bad' : ''}"><td>${esc(TsAllowance.TYPES[x.type].short)}${x.type === 'province' ? (x.ownVehicle ? '<div class="ac-note">tự mang xe</div>' : '') : ''}</td>
+      <td>${esc(x.project)}${x.remarks ? `<div class="ac-note">${esc(x.remarks)}</div>` : ''}${x.problems.map(p => `<div class="ac-note" style="color:#b91c1c">⚠ ${esc(p)}</div>`).join('')}</td>
+      <td class="mono">${esc(x.wbs)}</td><td>${esc(fmtDM(x.from))} – ${esc(fmtDM(x.to))}</td><td>${esc(x.location)}</td>
+      <td class="r">${x.days}${x.overlap ? `<div class="ac-note">trùng ${x.overlap}</div>` : ''}</td><td class="r"><b>${money(x.amount)}</b></td></tr>`).join('');
+    $('dAllowTable').tFoot.innerHTML = `<tr><td colspan="6"><b>Tổng phụ cấp xe</b></td><td class="r"><b>${money(c.totals.amount)}</b></td></tr>`;
+    flags.push(c.ok ? `<div class="ap-flag">🚗 Phụ cấp xe: ${esc(TsAllowance.summary(c))}</div>`
+      : `<div class="ap-flag err">⚠ Phụ cấp xe chưa khớp chấm công: ${esc(c.problems.join('; '))}</div>`);
+  }
+  const loadJs = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('không tải được thư viện Excel')); document.head.appendChild(s); });
+  async function downloadAllowance() {
+    if (!current || !current.allow) return;
+    const btn = $('btnAllowExcel'); btn.disabled = true;
+    try {
+      if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+      const res = await fetch('../timesheet/phucap-xe-template.xlsx');
+      if (!res.ok) throw new Error('không tải được mẫu (HTTP ' + res.status + ')');
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await res.arrayBuffer());
+      const d = current.doc.submittedAt ? new Date(current.doc.submittedAt) : new Date();
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      TsAllowance.fillWorkbook(wb, { name: current.doc.name, empId: current.emp, computed: current.allow, date: iso });
+      const blob = new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = TsAllowance.fileName(current.doc.name, current.period);
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch (e) { toast('✗ Không tạo được file: ' + e.message); }
+    finally { btn.disabled = false; }
   }
 
   async function openDoc(emp, period) {
@@ -155,6 +191,7 @@
       if (tr && ev.target.closest('[data-open]')) openDoc(tr.dataset.emp, tr.dataset.period);
     });
     $('btnReload').addEventListener('click', loadInbox);
+    $('btnAllowExcel').addEventListener('click', downloadAllowance);
     $('btnClose').addEventListener('click', () => { $('secDetail').hidden = true; current = null; });
     $('btnApprove').addEventListener('click', () => {
       const lv = current.doc.level === 'pm' ? 'Quản lý dự án' : 'Site Sup';

@@ -1,5 +1,6 @@
 // Quy tắc cho bảng công cá nhân (Timesheet): kỳ lương và kiểm tra dữ liệu gửi lên.
 // Kỳ lương 'YYYY-MM' = từ 16 của tháng trước đến 15 của tháng đó (khớp getSalaryPeriod trong tools/timesheet).
+import TsAllowance from '../tools/timesheet/allowance.js';   // phụ cấp xe: dùng chung với trình duyệt
 
 export const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -41,7 +42,11 @@ export function checkDoc(period, input) {
     const keys = Object.keys(input.deleted).filter(k => /^\d{1,16}$/.test(k) && Number.isFinite(Number(input.deleted[k]))).slice(-MAX_TOMBS);
     keys.forEach(k => { deleted[k] = Number(input.deleted[k]); });
   }
-  const data = JSON.stringify(sch ? { entries: out, deleted, sch } : { entries: out, deleted });
+  const allow = TsAllowance.sanitize(input.allow, { start, end });
+  const doc = { entries: out, deleted };
+  if (sch) doc.sch = sch;
+  if (allow && (allow.rows.length || allow.u)) doc.allow = allow;
+  const data = JSON.stringify(doc);
   if (data.length > MAX_DOC_CHARS) throw new Error('Bảng công quá lớn');
   return { data, count: out.length };
 }
@@ -77,6 +82,13 @@ export function checkSubmitEntries(entries) {
   }
   return '';
 }
+
+// Phụ cấp xe lúc nộp: số ngày / số tiền tính lại từ chấm công; còn lỗi thì không cho nộp. Trả về {computed, error}.
+export function checkSubmitAllowance(period, data) {
+  const computed = TsAllowance.compute(data.entries || [], data.allow, periodRange(period));
+  return { computed, error: computed.ok ? '' : `Phụ cấp xe chưa hợp lệ — ${computed.problems[0]}` };
+}
+export const allowanceSummary = (data) => TsAllowance.summary(TsAllowance.compute((data && data.entries) || [], data && data.allow, null));
 
 // Dòng của bảng Theo dõi giờ công (cùng cấu trúc dòng nhập từ Excel: xem mapTimesheets trong js/importer.js)
 export function trackingRow(e, owner, period) {

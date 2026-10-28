@@ -72,12 +72,12 @@ function fakeServer() {
     if (url === '/api/ts/docs' && method === 'GET') return reply(200, { docs: [...docs].map(([period, d]) => ({ period, version: d.version, status: d.status, entries: d.entries.length })) });
     if ((m = url.match(/^\/api\/ts\/docs\/(.+)$/))) {
       const p = m[1], d = docs.get(p);
-      if (method === 'GET') return reply(200, { period: p, version: d ? d.version : 0, status: d ? d.status : 'draft', data: d ? { entries: d.entries, deleted: d.deleted } : { entries: [], deleted: {} } });
+      if (method === 'GET') return reply(200, { period: p, version: d ? d.version : 0, status: d ? d.status : 'draft', data: d ? { entries: d.entries, deleted: d.deleted, ...(d.allow ? { allow: d.allow } : {}) } : { entries: [], deleted: {} } });
       if (method === 'PUT') {
         const cur = d ? d.version : 0;
         if (d && ['submitted', 'sitesup_ok', 'approved'].includes(d.status)) return reply(423, { locked: true, version: cur, status: d.status });
-        if (body.baseVersion !== cur) return reply(409, { conflict: true, version: cur, status: d ? d.status : 'draft', data: d ? { entries: d.entries, deleted: d.deleted } : { entries: [], deleted: {} } });
-        docs.set(p, { version: cur + 1, status: d ? d.status : 'draft', entries: body.data.entries, deleted: body.data.deleted });
+        if (body.baseVersion !== cur) return reply(409, { conflict: true, version: cur, status: d ? d.status : 'draft', data: d ? { entries: d.entries, deleted: d.deleted, ...(d.allow ? { allow: d.allow } : {}) } : { entries: [], deleted: {} } });
+        docs.set(p, { version: cur + 1, status: d ? d.status : 'draft', entries: body.data.entries, deleted: body.data.deleted, allow: body.data.allow });
         return reply(200, { ok: true, version: cur + 1 });
       }
     }
@@ -90,13 +90,15 @@ function fakeServer() {
 function device(server) {
   const store = new Map();
   const ls = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
-  const dev = { entries: [] };
+  const dev = { entries: [], allow: {} };
   dev.run = async () => {
     globalThis.localStorage = ls; globalThis.fetch = server.handler;
-    return TsSync.sync({ getEntries: () => dev.entries, onMerged: (p, merged, startedAt) => { dev.entries = TsSync.applyChanges(dev.entries, p, merged, startedAt); } });
+    return TsSync.sync({ getEntries: () => dev.entries, onMerged: (p, merged, startedAt) => { dev.entries = TsSync.applyChanges(dev.entries, p, merged, startedAt); },
+      getAllow: (p) => dev.allow[p], onAllow: (p, a) => { dev.allow[p] = a; } });
   };
   dev.add = (e) => { globalThis.localStorage = ls; dev.entries = [...dev.entries, { ...e, u: Date.now() }]; TsSync.markDirty(e.date); };
   dev.del = (id) => { globalThis.localStorage = ls; const e = dev.entries.find(x => x.id === id); dev.entries = dev.entries.filter(x => x.id !== id); TsSync.markDeleted(e); TsSync.markDirty(e.date); };
+  dev.setAllow = (p, rows, u) => { globalThis.localStorage = ls; dev.allow[p] = { rows, u }; TsSync.markPeriodDirty(p); };
   dev.state = () => { globalThis.localStorage = ls; return TsSync.load(); };
   return dev;
 }
@@ -160,4 +162,32 @@ test('đồng bộ: gửi cùng lúc bị 409 thì gộp lại và gửi tiếp'
   assert.equal(r.ok, true);
   assert.deepEqual(srv.docs.get('2026-11').entries.map(e => e.id).sort(), [1, 2, 3]);
   assert.deepEqual(a.entries.map(e => e.id).sort(), [1, 2, 3]);
+});
+
+test('phụ cấp xe: bản sửa sau thắng (bằng nhau thì bản trên máy)', () => {
+  const a = { rows: [{ id: '1' }], u: 5 }, b = { rows: [], u: 9 };
+  assert.equal(TsSync.mergeAllow(a, b), b);
+  assert.equal(TsSync.mergeAllow(b, a), b);
+  assert.equal(TsSync.mergeAllow(a, { rows: [], u: 5 }), a);
+  assert.equal(TsSync.mergeAllow(null, a), a);
+  assert.equal(TsSync.mergeAllow(a, undefined), a);
+  assert.equal(TsSync.mergeAllow(null, undefined), null);
+});
+
+test('đồng bộ: phụ cấp xe đi cùng bảng công của kỳ, sang được máy khác, sửa sau thắng', async () => {
+  const srv = fakeServer(), phone = device(srv), laptop = device(srv);
+  phone.add(E(1, '2026-11-02')); await phone.run();
+  phone.setAllow('2026-11', [{ id: '7', type: 'fuel', wbs: 'W1' }], 100);
+  srv.log.length = 0;
+  await phone.run();
+  assert.ok(srv.log.includes('PUT /api/ts/docs/2026-11'), 'chỉ sửa phụ cấp cũng gửi lên');
+  assert.deepEqual(srv.docs.get('2026-11').allow.rows.map(r => r.id), ['7']);
+  await laptop.run();
+  assert.equal(laptop.allow['2026-11'].u, 100, 'máy khác nhận phụ cấp');
+  laptop.setAllow('2026-11', [], 200); await laptop.run();
+  await phone.run();
+  assert.deepEqual(phone.allow['2026-11'].rows, [], 'bản xoá sau (u lớn hơn) thắng');
+  srv.log.length = 0;
+  await phone.run();
+  assert.deepEqual(srv.log, ['GET /api/ts/docs'], 'không đổi thì không gửi lại');
 });
