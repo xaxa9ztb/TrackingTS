@@ -205,6 +205,6 @@
   }
 
   const LOCKED = ['submitted', 'sitesup_ok', 'approved'];
-  const api = { periodOf, mergeDoc, mergeAllow, applyChanges, markDirty, markPeriodDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED };
+  const api = { periodOf, mergeDoc, mergeAllow, applyChanges, markDirty, markPeriodDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED, request: call };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsSync = api;
 })(typeof window !== 'undefined' ? window : globalThis);

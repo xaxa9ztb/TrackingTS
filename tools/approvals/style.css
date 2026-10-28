@@ -21,3 +21,8 @@
 .ac-table tr.bad td { background: #fef2f2; }
 .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 12px; margin-right: 4px; }
 .pill.ot { background: #fff7ed; color: #c2410c; }
+.ap-count { display: inline-block; min-width: 22px; padding: 0 7px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 13px; text-align: center; vertical-align: middle; }
+.ap-count:empty { display: none; }
+.ac-table td.ot-items div { white-space: nowrap; }
+.ac-table td.ot-items .rep { white-space: normal; }
+.ap-exp { color: var(--muted); font-size: 12px; }

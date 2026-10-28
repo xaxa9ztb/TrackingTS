@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#111827">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="stylesheet" href="../accounts/style.css?v=5">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 <script src="../../js/demo.js?v=2"></script>
 <script src="../../js/session.js?v=45"></script>
 <script>Session.guard('approvals');</script>
@@ -18,8 +18,9 @@
 <header class="ac-top">
   <div class="ac-wrap">
     <h1>Duyệt bảng công <span class="ac-badge">Máy chủ mới</span></h1>
-    <p class="ac-sub">Bảng công fitter đã nộp cuối kỳ. <b>Site Sup</b> duyệt trước, rồi <b>Quản lý dự án</b> duyệt; duyệt xong dữ liệu tự sang bảng <i>Theo dõi giờ công các công trình</i>.
-      Thấy có chỗ chưa đúng thì <b>Trả lại</b> kèm lý do để người chấm công sửa và nộp lại.</p>
+    <p class="ac-sub"><b>Hằng ngày:</b> Site Sup duyệt <b>tăng ca</b> của fitter (từng ngày) và duyệt <b>đơn nghỉ</b> trước ngày bắt đầu nghỉ — duyệt xong, ngày nghỉ tự ghi vào bảng công.
+      <b>Cuối kỳ:</b> bảng công fitter đã nộp — <b>Site Sup</b> duyệt trước, rồi <b>Quản lý dự án</b> duyệt; duyệt xong dữ liệu tự sang bảng <i>Theo dõi giờ công các công trình</i>.
+      Thấy có chỗ chưa đúng thì <b>Trả lại</b> / <b>Không duyệt</b> kèm lý do (fitter nhận email).</p>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
   </div>
 </header>
@@ -27,8 +28,42 @@
 <main class="ac-wrap">
   <div class="ac-msg" id="gate" hidden></div>
 
+  <section class="ac-card" id="secOt" hidden>
+    <div class="ap-head"><h2>⏱ Tăng ca chờ duyệt <span class="ap-count" id="otCount"></span></h2><button class="btn small" id="btnReloadOt">Tải lại</button></div>
+    <p class="ac-note">Mỗi ngày fitter chấm công có giờ OT là một yêu cầu. Xem giờ vào – ra và báo cáo thi công rồi duyệt (chọn nhiều ngày một lần). Fitter sửa giờ của ngày đã duyệt thì ngày đó quay lại chờ duyệt.</p>
+    <div class="ac-scroll ac-tall ac-short"><table class="ac-table" id="otTable">
+      <thead><tr><th><input type="checkbox" id="otAll" aria-label="Chọn tất cả"></th><th>Fitter</th><th>Ngày</th><th class="r">Tăng ca</th><th>Giờ làm / dự án / báo cáo thi công</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="ap-actions">
+      <button class="btn primary" id="btnOtApprove" disabled>Duyệt các ngày đã chọn</button>
+      <button class="btn danger" id="btnOtRejectOpen" disabled>Không duyệt…</button>
+      <span id="otMsg" class="ac-note"></span>
+    </div>
+    <div class="ap-reject" id="otRejectBox" hidden>
+      <label for="otRejectNote">Lý do không duyệt tăng ca (fitter nhận email)</label>
+      <textarea id="otRejectNote" rows="2" maxlength="300" placeholder="Ví dụ: Ngày này không có lệnh tăng ca / giờ ra không đúng…"></textarea>
+      <div class="ac-row"><button class="btn danger" id="btnOtReject">Không duyệt các ngày đã chọn</button><button class="btn" id="btnOtRejectCancel">Huỷ</button></div>
+    </div>
+  </section>
+
+  <section class="ac-card" id="secLeave" hidden>
+    <div class="ap-head"><h2>🏖 Đơn nghỉ chờ duyệt <span class="ap-count" id="lvCount"></span></h2><button class="btn small" id="btnReloadLv">Tải lại</button></div>
+    <p class="ac-note">Đơn phải được duyệt <b>trước ngày bắt đầu nghỉ</b>. Duyệt xong, mỗi ngày nghỉ tự thêm một dòng (mã 6010 / 6020 / 6090) vào bảng công của fitter.</p>
+    <div class="ac-scroll ac-short"><table class="ac-table" id="lvTable">
+      <thead><tr><th>Người xin nghỉ</th><th>Loại</th><th>Thời gian</th><th class="r">Ngày công</th><th>Lý do</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="ap-reject" id="lvRejectBox" hidden>
+      <label for="lvRejectNote" id="lvRejectLabel">Lý do không duyệt</label>
+      <textarea id="lvRejectNote" rows="2" maxlength="300" placeholder="Ví dụ: Đang gấp tiến độ bàn giao, đề nghị dời sang tuần sau…"></textarea>
+      <div class="ac-row"><button class="btn danger" id="btnLvReject">Không duyệt đơn</button><button class="btn" id="btnLvRejectCancel">Huỷ</button></div>
+    </div>
+    <p class="ac-note" id="lvMsg"></p>
+  </section>
+
   <section class="ac-card" id="secInbox" hidden>
-    <div class="ap-head"><h2>Chờ bạn duyệt</h2><button class="btn small" id="btnReload">Tải lại</button></div>
+    <div class="ap-head"><h2>📋 Bảng công chờ bạn duyệt</h2><button class="btn small" id="btnReload">Tải lại</button></div>
     <div class="ac-scroll ac-tall ac-short"><table class="ac-table" id="inbox">
       <thead><tr><th>Người nộp</th><th>Kỳ lương</th><th>Cấp duyệt</th><th>Dự án</th><th class="r">Số dòng</th><th>Nộp lúc</th><th></th></tr></thead>
       <tbody></tbody>
@@ -66,6 +101,6 @@
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="../timesheet/allowance.js?v=1"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

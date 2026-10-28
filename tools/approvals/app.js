@@ -1,4 +1,5 @@
-// Duyệt bảng công — giao diện cho /api/ts/inbox, /api/ts/review (xem server/api.mjs).
+// Duyệt bảng công — giao diện cho /api/ts/inbox, /api/ts/review (xem server/api.mjs),
+// duyệt tăng ca hằng ngày /api/ts/ot/* và đơn nghỉ /api/ts/leave/* (xem server/otleave.mjs).
 // Đăng nhập do Cloudflare Access lo; máy chủ kiểm tra từng yêu cầu. Trang này chỉ hiển thị và gửi quyết định.
 (function () {
   'use strict';
@@ -56,6 +57,77 @@
       $('inboxNote').textContent = r.items.length ? `${r.items.length} bảng công đang chờ bạn.` : '';
     } catch (e) { body.innerHTML = `<tr><td colspan="7" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
   }
+
+  // ---------- tăng ca chờ duyệt (từng ngày) ----------
+  let otItems = [];
+  const otKey = (i) => i.empId + '|' + i.date;
+  async function loadOt() {
+    const body = $('otTable').tBodies[0];
+    try {
+      otItems = (await api('GET', '/api/ts/ot/inbox')).items;
+      body.innerHTML = otItems.map(i => `<tr data-k="${esc(otKey(i))}">
+          <td><input type="checkbox" data-pick aria-label="Chọn ${esc(i.name)} ${esc(fmtDM(i.date))}"></td>
+          <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)}</div></td>
+          <td>${esc(WEEKDAYS[dow(i.date)])} ${esc(fmtDMY(i.date))}</td>
+          <td class="r"><b>${fmtH(i.ot)} giờ</b><div class="ac-note">tổng ${fmtH(i.total)} giờ</div></td>
+          <td class="ot-items">${i.items.map(x => `<div>${esc(x.start)}–${esc(x.end)} · ${esc(x.project || '—')} <span class="mono">${esc(x.wbs)}</span></div>${x.report ? `<div class="rep">📝 ${esc(x.report)}</div>` : ''}`).join('')}</td></tr>`).join('')
+        || '<tr><td colspan="5" class="ac-note">Không có ngày tăng ca nào chờ bạn duyệt.</td></tr>';
+      $('otCount').textContent = otItems.length || '';
+      $('otAll').checked = false;
+      otPicked();
+    } catch (e) { body.innerHTML = `<tr><td colspan="5" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+  }
+  const pickedOt = () => [...$('otTable').tBodies[0].querySelectorAll('input[data-pick]:checked')].map(c => otItems.find(i => otKey(i) === c.closest('tr').dataset.k)).filter(Boolean);
+  function otPicked() {
+    const n = pickedOt().length;
+    $('btnOtApprove').disabled = $('btnOtRejectOpen').disabled = !n;
+    $('btnOtApprove').textContent = n ? `Duyệt ${n} ngày đã chọn` : 'Duyệt các ngày đã chọn';
+  }
+  async function decideOt(action, note) {
+    const items = pickedOt();
+    if (!items.length) return;
+    const msg = $('otMsg');
+    msg.className = 'ac-note'; msg.textContent = 'Đang gửi…';
+    try {
+      const r = await api('POST', '/api/ts/ot/decide', { action, note, items: items.map(i => ({ emp: i.empId, date: i.date, sig: i.sig })) });
+      const skip = r.skipped.length ? ` ${r.skipped.length} ngày bỏ qua (${r.skipped.map(x => `${fmtDM(x.date)}: ${x.reason}`).join('; ')}).` : '';
+      toast(`✓ Đã ${action === 'approve' ? 'duyệt' : 'không duyệt'} ${r.done} ngày tăng ca — đã gửi email báo fitter.${skip}`);
+      msg.textContent = skip;
+      $('otRejectBox').hidden = true; $('otRejectNote').value = '';
+      await loadOt();
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+  }
+
+  // ---------- đơn nghỉ chờ duyệt ----------
+  let lvItems = [], lvRejectId = 0;
+  async function loadLeave() {
+    const body = $('lvTable').tBodies[0];
+    try {
+      lvItems = (await api('GET', '/api/ts/leave/inbox')).items;
+      body.innerHTML = lvItems.map(l => `<tr data-id="${l.id}">
+          <td><b>${esc(l.name)}</b><div class="ac-note">${esc(l.empId)}</div></td>
+          <td>${esc(l.label)} <span class="mono">${esc(l.type)}</span></td>
+          <td>${esc(fmtDMY(l.from))}${l.to !== l.from ? ` → ${esc(fmtDMY(l.to))}` : ''}${l.expired ? '<div class="ap-exp">Đã tới ngày nghỉ — không duyệt được nữa</div>' : `<div class="ac-note">duyệt trước ${esc(fmtDMY(l.from))}</div>`}</td>
+          <td class="r"><b>${fmtH(l.count)}</b></td>
+          <td>${esc(l.reason || '—')}</td>
+          <td style="white-space:nowrap">${l.expired ? '' : '<button class="btn small primary" data-lv="approve">Duyệt</button> '}<button class="btn small" data-lv="reject">Không duyệt</button></td></tr>`).join('')
+        || '<tr><td colspan="6" class="ac-note">Không có đơn nghỉ nào chờ bạn duyệt.</td></tr>';
+      $('lvCount').textContent = lvItems.length || '';
+    } catch (e) { body.innerHTML = `<tr><td colspan="6" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+  }
+  async function decideLeave(id, action, note) {
+    const l = lvItems.find(x => x.id === id);
+    const msg = $('lvMsg');
+    msg.className = 'ac-note'; msg.textContent = 'Đang gửi…';
+    try {
+      const r = await api('POST', `/api/ts/leave/${id}/${action}`, action === 'reject' ? { note } : {});
+      toast(action === 'approve' ? `✓ Đã duyệt đơn nghỉ của ${l ? l.name : ''} — ${r.written} ngày nghỉ đã ghi vào bảng công.` : '✓ Đã không duyệt đơn — đã gửi email báo fitter.');
+      msg.textContent = action === 'approve' && r.note ? `Ghi vào bảng công: ${r.note}` : '';
+      $('lvRejectBox').hidden = true; $('lvRejectNote').value = '';
+      await loadLeave();
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+  }
+  const loadAll = () => Promise.all([loadOt(), loadLeave(), loadInbox()]);
 
   // ---------- chi tiết ----------
   const hoursOf = (e) => {
@@ -116,6 +188,10 @@
     if (missing.length) flags.push(`<div class="ap-flag err">⚠ ${missing.length} ngày làm việc chưa chấm: ${missing.map(fmtDM).join(', ')}</div>`);
     if (mismatches.length) flags.push(`<div class="ap-flag err">⚠ Phân loại giờ (thường / OT) khác kết quả tính lại từ giờ vào – ra ở các ngày: ${[...new Set(mismatches)].map(fmtDM).join(', ')} (dòng tô đỏ). Nên hỏi lại người chấm công.</div>`);
     if (!missing.length && !mismatches.length) flags.push('<div class="ap-flag ok">✓ Đủ ngày làm việc; phân loại giờ khớp kết quả tính lại.</div>');
+    const noForm = entries.filter(e => isLeave(e) && !e.lv).map(e => e.date);
+    if (noForm.length) flags.push(`<div class="ap-flag err">⚠ Có ngày nghỉ không theo đơn nghỉ đã duyệt: ${[...new Set(noForm)].map(fmtDM).join(', ')} — hỏi lại fitter.</div>`);
+    const otDays = new Set(entries.filter(e => !isLeave(e) && Object.keys(e.bd || {}).some(k => k !== 'NORMAL' && e.bd[k] > 0)).map(e => e.date));
+    if (otDays.size) flags.push(`<div class="ap-flag">⏱ ${otDays.size} ngày tăng ca (${fmtH(ot)} giờ) — đã được Site Sup duyệt từng ngày trước khi nộp.</div>`);
     if (doc.note) flags.push(`<div class="ap-flag">Ghi chú lần trả lại trước: ${esc(doc.note)}</div>`);
     renderAllowance(doc, period, flags);
     $('dFlags').innerHTML = flags.join('');
@@ -191,6 +267,34 @@
       if (tr && ev.target.closest('[data-open]')) openDoc(tr.dataset.emp, tr.dataset.period);
     });
     $('btnReload').addEventListener('click', loadInbox);
+    $('btnReloadOt').addEventListener('click', loadOt);
+    $('btnReloadLv').addEventListener('click', loadLeave);
+    $('otAll').addEventListener('change', (ev) => { $('otTable').tBodies[0].querySelectorAll('input[data-pick]').forEach(c => { c.checked = ev.target.checked; }); otPicked(); });
+    $('otTable').tBodies[0].addEventListener('change', otPicked);
+    $('btnOtApprove').addEventListener('click', () => decideOt('approve'));
+    $('btnOtRejectOpen').addEventListener('click', () => { $('otRejectBox').hidden = false; $('otRejectNote').focus(); });
+    $('btnOtRejectCancel').addEventListener('click', () => { $('otRejectBox').hidden = true; });
+    $('btnOtReject').addEventListener('click', () => {
+      const note = $('otRejectNote').value.trim();
+      if (note.length < 3) { $('otMsg').className = 'ac-note err'; $('otMsg').textContent = 'Cần ghi lý do không duyệt.'; return; }
+      decideOt('reject', note);
+    });
+    $('lvTable').tBodies[0].addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-lv]'); if (!b) return;
+      const id = +b.closest('tr').dataset.id, l = lvItems.find(x => x.id === id);
+      if (b.dataset.lv === 'approve') {
+        if (confirm(`Duyệt đơn ${l.label.toLowerCase()} của ${l.name} (${fmtDMY(l.from)}${l.to !== l.from ? ' → ' + fmtDMY(l.to) : ''}, ${fmtH(l.count)} ngày công)?\nCác ngày nghỉ sẽ tự ghi vào bảng công.`)) decideLeave(id, 'approve');
+      } else {
+        lvRejectId = id; $('lvRejectLabel').textContent = `Lý do không duyệt đơn của ${l.name} (fitter nhận email)`;
+        $('lvRejectBox').hidden = false; $('lvRejectNote').focus();
+      }
+    });
+    $('btnLvRejectCancel').addEventListener('click', () => { $('lvRejectBox').hidden = true; });
+    $('btnLvReject').addEventListener('click', () => {
+      const note = $('lvRejectNote').value.trim();
+      if (note.length < 3) { $('lvMsg').className = 'ac-note err'; $('lvMsg').textContent = 'Cần ghi lý do không duyệt.'; return; }
+      decideLeave(lvRejectId, 'reject', note);
+    });
     $('btnAllowExcel').addEventListener('click', downloadAllowance);
     $('btnClose').addEventListener('click', () => { $('secDetail').hidden = true; current = null; });
     $('btnApprove').addEventListener('click', () => {
@@ -217,15 +321,16 @@
     const roleName = { admin: 'Admin', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
     $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ${esc(me.roles.map(r => roleName[r] || r).join(', ') || 'Nhân viên')}`;
     if (!me.isAdmin && !me.roles.includes('pm') && !me.roles.includes('sitesup')) { gate('Chỉ <b>Site Sup</b>, <b>Quản lý dự án</b> và <b>Admin</b> dùng trang này.'); return; }
-    $('secInbox').hidden = false;
+    $('secInbox').hidden = false; $('secOt').hidden = false; $('secLeave').hidden = false;
     wire();
-    await loadInbox();
+    await loadAll();
     openFromHash();
     window.addEventListener('hashchange', openFromHash);
   }
 
   // link trong email: #xem=<mã NV>/<kỳ> mở thẳng bảng công đó
   function openFromHash() {
+    if (location.hash === '#nghi' || location.hash === '#tangca') { $(location.hash === '#nghi' ? 'secLeave' : 'secOt').scrollIntoView({ block: 'start' }); return; }
     const m = /^#xem=([^/]+)\/(\d{4}-\d{2})$/.exec(location.hash);
     if (!m) return;
     history.replaceState(null, '', location.pathname + location.search);

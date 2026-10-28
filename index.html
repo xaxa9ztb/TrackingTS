@@ -404,13 +404,13 @@
     <p id="demoIntro">Dùng thử toàn bộ hệ thống với <b>dữ liệu mẫu bịa</b> trên một cơ sở dữ liệu riêng — <b>không ảnh hưởng dữ liệu thật</b>. Nộp, duyệt, trả lại bảng công chạy <b>như thật</b>; email thông báo chỉ gửi về hộp thư của bạn, tiêu đề có <b>[DEMO]</b>. Chọn vai trò muốn thử:</p>
     <div class="demo-roles">
       <button type="button" data-role="staff"><b>Fitter</b><small>Phạm Minh Dũng · chấm công, nộp bảng công</small></button>
-      <button type="button" data-role="sitesup"><b>Site Sup</b><small>Trần Thị Bình · duyệt bảng công cấp 1</small></button>
+      <button type="button" data-role="sitesup"><b>Site Sup</b><small>Trần Thị Bình · duyệt tăng ca, đơn nghỉ, bảng công cấp 1</small></button>
       <button type="button" data-role="pm"><b>Quản lý dự án</b><small>Nguyễn Văn An · duyệt cấp 2, điều phối</small></button>
       <button type="button" data-role="admin"><b>Quản trị viên</b><small>Nhân viên, dự án, tài khoản, nạp bảng công</small></button>
     </div>
     <ol class="demo-flow">
-      <li><b>Fitter</b>: mở <i>Timesheet cá nhân</i>, lùi về kỳ trước (đã chấm đủ) → bấm <b>Nộp bảng công</b>.</li>
-      <li><b>Đổi vai trò → Site Sup</b>: mở <i>Duyệt bảng công</i> → duyệt (hoặc trả lại kèm lý do).</li>
+      <li><b>Fitter</b>: mở <i>Timesheet cá nhân</i> — kỳ hiện tại có ngày tăng ca <b>chờ duyệt</b>; bấm <b>Xin nghỉ</b> để thử làm đơn. Lùi về kỳ trước (đã chấm đủ, tăng ca đã duyệt) → bấm <b>Nộp bảng công</b>.</li>
+      <li><b>Đổi vai trò → Site Sup</b>: mở <i>Duyệt bảng công</i> → duyệt tăng ca, đơn nghỉ, rồi bảng công (hoặc trả lại kèm lý do).</li>
       <li><b>Đổi vai trò → Quản lý dự án</b>: duyệt lần 2 → bảng công vào <i>Thống kê giờ công</i>.</li>
     </ol>
     <p class="demo-keep" id="demoKeep" hidden>Đổi vai trò <b>giữ nguyên dữ liệu</b> bạn đã làm trong demo. Muốn làm lại từ đầu: bấm <b>Làm mới dữ liệu demo</b> trên thanh vàng.</p>
@@ -482,8 +482,8 @@
       badge: 'Demo',
     },
     approvals: {
-      desc: 'Duyệt bảng công fitter đã nộp cuối kỳ: Site Sup rồi Quản lý dự án',
-      full: 'Xem bảng công fitter nộp cuối kỳ (giờ theo dự án, báo cáo thi công, ngày chưa chấm), duyệt hoặc trả lại kèm lý do. Duyệt xong dữ liệu tự sang bảng Theo dõi giờ công các công trình.',
+      desc: 'Duyệt tăng ca hằng ngày, đơn nghỉ và bảng công cuối kỳ',
+      full: 'Site Sup duyệt tăng ca của fitter từng ngày và đơn nghỉ phép / ốm (trước ngày nghỉ, duyệt xong tự ghi vào bảng công). Cuối kỳ: xem bảng công fitter nộp, duyệt hoặc trả lại kèm lý do; duyệt xong dữ liệu tự sang bảng Theo dõi giờ công các công trình.',
     },
     admin: {
       desc: 'Dữ liệu nhân viên, dự án, bảng công (nạp Excel) và phân quyền tài khoản',
@@ -606,7 +606,7 @@
     loadApprovalBadge();
   }
 
-  // Bản máy chủ: số bảng công đang chờ người này duyệt (hiện trên thẻ "Duyệt bảng công")
+  // Bản máy chủ: số việc đang chờ người này duyệt — bảng công, ngày tăng ca, đơn nghỉ (hiện trên thẻ "Duyệt bảng công")
   async function loadApprovalBadge() {
     if (!Session.SERVER) return;
     const el = document.querySelector('a.tool[data-tool="approvals"]');
@@ -614,7 +614,8 @@
     try {
       const resp = await fetch('/api/ts/inbox', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' });
       if (!resp.ok) return;
-      const n = ((await resp.json()).items || []).length;
+      const d = await resp.json();
+      const n = (d.items || []).length + (d.ot || 0) + (d.leave || 0);     // bảng công + ngày tăng ca + đơn nghỉ chờ duyệt
       let b = el.querySelector('.app-badge');
       if (n > 0) {
         if (!b) { b = document.createElement('span'); b.className = 'app-badge'; el.prepend(b); }
