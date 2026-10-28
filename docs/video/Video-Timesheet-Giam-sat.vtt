@@ -1,0 +1,67 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.158
+Timesheet cá nhân — hướng dẫn cho Giám sát
+
+00:00:06.158 --> 00:00:16.158
+Việc của giám sát: đọc báo cáo 18:30; duyệt sớm; trả lại phải ghi lý do cụ thể.
+
+00:00:16.158 --> 00:00:30.175
+Fitter nộp → Giám sát duyệt cấp 1 → Quản lý dự án duyệt cấp 2 → giờ công tự vào Thống kê giờ công. Sai thì trả lại kèm lý do.
+
+00:00:30.175 --> 00:00:41.692
+Mỗi tối 18:30: email tổng hợp báo cáo thi công của fitter ở dự án mình. Đọc mỗi ngày thì cuối kỳ duyệt rất nhanh.
+
+00:00:41.692 --> 00:00:50.708
+Fitter nộp bảng công: bạn nhận email ngay. Bấm Mở Duyệt bảng công trong email hoặc mở từ trang chủ.
+
+00:00:50.708 --> 00:00:56.325
+Trang chủ: thẻ Duyệt bảng công có nhãn đỏ “N chờ duyệt”.
+
+00:00:56.325 --> 00:01:02.575
+Danh sách chờ bạn duyệt: người nộp, kỳ lương, dự án, số dòng. Chỉ thấy fitter ở dự án bạn phụ trách.
+
+00:01:02.575 --> 00:01:06.717
+Bấm Xem & duyệt để mở chi tiết.
+
+00:01:06.717 --> 00:01:13.500
+① Không thiếu ngày — nếu thiếu, dòng cảnh báo vàng liệt kê ngày chưa chấm.
+
+00:01:13.500 --> 00:01:19.792
+② Đúng dự án / WBS — so với nơi fitter làm thực tế.
+
+00:01:19.792 --> 00:01:27.958
+③ Giờ vào–ra, tăng ca hợp lý · ④ Có báo cáo thi công (dòng 📝) · ⑤ Không có dòng tô đỏ.
+
+00:01:27.958 --> 00:01:32.958
+Ví dụ phát hiện: ngày 22/09 ghi nhầm dự án → trả lại cho fitter sửa.
+
+00:01:32.958 --> 00:01:36.433
+Có sai: bấm Trả lại…
+
+00:01:36.433 --> 00:01:41.058
+Ghi lý do cụ thể: ngày nào – sai gì – sửa thành gì. Fitter sẽ đọc lý do này.
+
+00:01:41.058 --> 00:01:45.158
+Bấm Trả lại bảng công. Fitter nhận email + thấy lý do trên app.
+
+00:01:45.158 --> 00:01:50.783
+Bảng công rời khỏi danh sách. Fitter sửa, nộp lại → bạn lại nhận email để duyệt.
+
+00:01:50.783 --> 00:01:57.917
+Bảng công đúng hết → Duyệt. Ví dụ bảng công của Hoàng Văn Em.
+
+00:01:57.917 --> 00:02:02.642
+Kiểm tra xong 5 điểm → bấm Duyệt (chuyển sang Quản lý dự án).
+
+00:02:02.642 --> 00:02:08.533
+Xong! QLDA nhận email để duyệt lần 2. Duyệt xong, giờ công tự vào Thống kê giờ công.
+
+00:02:08.533 --> 00:02:21.033
+Lý do trả lại tốt: ghi rõ ngày nào, sai gì, sửa thành gì.
+
+00:02:21.033 --> 00:02:34.783
+Ghi nhớ: đọc email 18:30; duyệt trong ngày; kiểm tra 5 điểm trước khi duyệt.
+
+00:02:34.783 --> 00:02:42.550
+Cần xem lại? Bấm nút Hướng dẫn trong Duyệt bảng công, hoặc tập thử bằng chế độ Demo.

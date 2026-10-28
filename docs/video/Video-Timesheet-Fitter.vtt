@@ -1,0 +1,106 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.158
+Timesheet cá nhân — hướng dẫn cho Fitter
+
+00:00:06.158 --> 00:00:16.158
+3 điều cần nhớ: chấm công mỗi ngày; nộp trước ngày 12; mất sóng vẫn chấm được.
+
+00:00:16.158 --> 00:00:27.675
+Kỳ lương từ ngày 16 tháng trước đến ngày 15 tháng này. Ngày 9 app nhắc, ngày 11 nhắc lần 2, ngày 12 là hạn nộp.
+
+00:00:27.675 --> 00:00:32.317
+Mở Timesheet cá nhân — Mở Bộ công cụ dự án trên điện thoại (đăng nhập bằng email, mã gửi về hộp thư).
+
+00:00:32.317 --> 00:00:36.417
+Ở trang chủ, bấm thẻ Timesheet cá nhân.
+
+00:00:36.417 --> 00:00:40.167
+Màn hình Timesheet — Mọi thứ của kỳ lương đang xem nằm trên một màn hình.
+
+00:00:40.167 --> 00:00:44.542
+Kỳ lương đang xem. Bấm ‹ › để xem kỳ trước / kỳ sau.
+
+00:00:44.542 --> 00:00:48.917
+Nút Nộp bảng công — chỉ dùng ở cuối kỳ (phần 5).
+
+00:00:48.917 --> 00:00:53.958
+✓ Đã lưu trên máy chủ = dữ liệu đã an toàn.
+
+00:00:53.958 --> 00:00:59.000
+Bên dưới: lộ trình kỳ lương — mỗi ngày làm dự án nào, bao nhiêu giờ.
+
+00:00:59.000 --> 00:01:03.908
+Và các ô thống kê: giờ thường, tăng ca, tổng giờ, số ngày đã chấm.
+
+00:01:03.908 --> 00:01:07.383
+Thêm chấm công — Hết ca, bấm nút tròn ＋ ở góc dưới.
+
+00:01:07.383 --> 00:01:10.508
+① Ngày — mặc định là hôm nay.
+
+00:01:10.508 --> 00:01:13.508
+② Giờ vào – giờ ra – nghỉ. Ví dụ sáng nay làm 08:00 → 12:00 ở dự án Hoà Bình.
+
+00:01:13.508 --> 00:01:18.508
+③ Tự tính giờ thường / OT — để nguyên dấu tick, app tự chia giờ thường, tăng ca.
+
+00:01:18.508 --> 00:01:22.883
+④ Mã công việc — chọn đúng loại việc (ví dụ 1110 – giờ lắp đặt).
+
+00:01:22.883 --> 00:01:28.567
+⑤ Dự án — gõ vài chữ rồi chọn trong gợi ý, WBS tự điền.
+
+00:01:28.567 --> 00:01:31.608
+⑥ Báo cáo thi công — hôm nay làm gì, vướng gì. Giám sát đọc trong email 18:30.
+
+00:01:31.608 --> 00:01:33.833
+Bấm Lưu.
+
+00:01:33.833 --> 00:01:38.208
+Xong! Dòng chấm công đã lưu trên máy chủ. Mất khoảng 1 phút mỗi ngày.
+
+00:01:38.208 --> 00:01:46.008
+Mất sóng vẫn chấm được — Chiều làm dự án khác? Thêm dòng thứ 2. Thử khi điện thoại mất sóng…
+
+00:01:46.008 --> 00:01:51.008
+Không có mạng: dữ liệu vẫn lưu trên điện thoại, không mất.
+
+00:01:51.008 --> 00:01:56.808
+Có mạng lại — app tự gửi lên máy chủ. Không cần làm gì thêm.
+
+00:01:56.808 --> 00:02:03.583
+Danh sách chấm công trong kỳ: hôm nay có 2 dòng, 2 dự án. Sửa ✏️ / xoá 🗑 ở cuối mỗi dòng.
+
+00:02:03.583 --> 00:02:07.775
+Cuối kỳ: kiểm tra rồi nộp — Ví dụ kỳ 10/2026 đã chấm đủ. Trước khi nộp, xem lịch kỳ lương.
+
+00:02:07.775 --> 00:02:14.692
+Chấm đỏ = ngày làm việc chưa chấm → bấm vào ngày đó để chấm bù. Kỳ này không còn ngày đỏ.
+
+00:02:14.692 --> 00:02:18.792
+Bấm Nộp bảng công → xác nhận. Hạn chót: ngày 12.
+
+00:02:18.792 --> 00:02:24.417
+Đã nộp! Bảng công khoá sửa trong lúc chờ giám sát duyệt. Giám sát nhận email ngay.
+
+00:02:24.417 --> 00:02:30.033
+Nộp nhầm? Bấm Thu hồi để sửa (chỉ được khi giám sát chưa duyệt).
+
+00:02:30.033 --> 00:02:36.550
+Nếu bị trả lại — Giám sát thấy sai sẽ trả lại kèm lý do. Bạn nhận email và thấy ngay trên app.
+
+00:02:36.550 --> 00:02:42.800
+Đọc kỹ lý do: ngày nào, sai gì. Sửa đúng dòng đó (✏️ trong danh sách)…
+
+00:02:42.800 --> 00:02:46.625
+…rồi bấm Nộp bảng công lại.
+
+00:02:46.625 --> 00:02:53.142
+Giám sát và Quản lý dự án duyệt xong → giờ công tự chuyển vào Thống kê giờ công. Bạn không cần làm gì thêm.
+
+00:02:53.142 --> 00:03:06.892
+Ghi nhớ: mỗi ngày bấm ＋ thêm chấm công; cuối kỳ hết ngày đỏ thì nộp trước ngày 12; bị trả lại thì sửa và nộp lại.
+
+00:03:06.892 --> 00:03:14.658
+Cần xem lại? Bấm nút Hướng dẫn trong app.
