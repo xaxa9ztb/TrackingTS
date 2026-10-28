@@ -13,8 +13,9 @@
   if (!script || !document.body || document.querySelector('.tsn-bar')) return;
 
   var home = new URL('../index.html', script.src).href;
-  // tài liệu hướng dẫn (huong-dan.html) — data-help="#mục" mở thẳng phần của công cụ này
-  var help = new URL('../huong-dan.html', script.src).href + (script.getAttribute('data-help') || '');
+  // tài liệu hướng dẫn: data-help="#mục" mở thẳng phần đó trong huong-dan.html; "trang.html#mục" mở tài liệu riêng
+  var dh = script.getAttribute('data-help') || '';
+  var help = dh && dh.charAt(0) !== '#' ? new URL('../' + dh, script.src).href : new URL('../huong-dan.html', script.src).href + dh;
   var name = script.getAttribute('data-tool') || document.title;
   var session = (typeof Session !== 'undefined') ? Session.current() : null;
 
