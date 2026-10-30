@@ -777,6 +777,7 @@ function App() {
   });
   const [docStatuses, setDocStatuses] = useState({});
   const [docNotes, setDocNotes] = useState({});
+  const [docAdmin, setDocAdmin] = useState({}); // { period: {by, at, note} } — lần sửa gần nhất của quản trị viên
   const [submitting, setSubmitting] = useState(false);
   const entriesRef = useRef([]);
   // Phụ cấp xe theo kỳ: { 'YYYY-MM': { rows, u } } — trên máy + đồng bộ cùng bảng công của kỳ (tssync.js)
@@ -935,6 +936,10 @@ function App() {
     if (r.notes) setDocNotes(prev => ({
       ...prev,
       ...r.notes
+    }));
+    if (r.admin) setDocAdmin(prev => ({
+      ...prev,
+      ...r.admin
     }));
     setSyncInfo(r.ok ? {
       state: 'ok',
@@ -1156,6 +1161,7 @@ function App() {
     const {
       bd: _bd,
       cat: _cat,
+      ae: _ae,
       rangeTo,
       skipOff,
       ...data
@@ -1582,7 +1588,13 @@ function App() {
     className: "hidden xl:inline"
   }, "Sao l\u01B0u"))))), SERVER && /*#__PURE__*/React.createElement("div", {
     className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6"
-  }, /*#__PURE__*/React.createElement(SyncBar, {
+  }, docAdmin[currentMonth] && /*#__PURE__*/React.createElement("div", {
+    id: "tsAdminNote",
+    role: "status",
+    className: "mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+  }, /*#__PURE__*/React.createElement("b", null, "Qu\u1EA3n tr\u1ECB vi\xEAn ", docAdmin[currentMonth].by, " \u0111\xE3 s\u1EEDa b\u1EA3ng c\xF4ng k\u1EF3 n\xE0y"), docAdmin[currentMonth].at ? ` lúc ${new Date(docAdmin[currentMonth].at).toLocaleString('vi-VN')}` : '', ": ", docAdmin[currentMonth].note, /*#__PURE__*/React.createElement("span", {
+    className: "block text-xs text-amber-800 mt-0.5"
+  }, "C\xE1c d\xF2ng b\u1ECB s\u1EEDa c\xF3 nh\xE3n \"Admin s\u1EEDa\". Ch\u01B0a \u0111\xFAng th\xEC li\xEAn h\u1EC7 qu\u1EA3n tr\u1ECB vi\xEAn.")), /*#__PURE__*/React.createElement(SyncBar, {
     info: syncInfo,
     status: periodStatus,
     note: docNotes[currentMonth] || '',
@@ -2910,7 +2922,9 @@ function EntryTable({
       title: e.projectName
     }, e.projectName || '—'), e.workNumber && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 font-mono truncate"
-    }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
+    }, e.workNumber), e.ae ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center"
+    }, "Admin s\u1EEDa")) : null, e.remarks && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 italic truncate",
       title: e.remarks
     }, e.remarks), e.report && /*#__PURE__*/React.createElement("div", {
@@ -3005,7 +3019,9 @@ function EntryCards({
       className: "font-mono text-blue-700"
     }, "[", e.activityCode, "]"), " ", e.projectName), e.workNumber && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 font-mono truncate"
-    }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
+    }, e.workNumber), e.ae ? /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center"
+    }, "Admin s\u1EEDa") : null, e.remarks && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 truncate"
     }, "Ghi ch\xFA: ", e.remarks), e.report && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-blue-800 truncate"

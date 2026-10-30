@@ -29,7 +29,8 @@ export function effectiveRoles(emp, email, env) {
   const isBootAdmin = adminEmails(env).includes(String(email || '').toLowerCase());
   if (isBootAdmin || (emp && emp.role_override === 'admin')) return ['admin'];
   if (!emp) return [];
-  if (emp.role_override === 'staff') return [];
+  if (emp.extra_role === 'projadmin') return ['projadmin'];       // Admin dự án (cột extra_role)
+  if (emp.role_override === 'staff') return [];     // role_override: admin | projadmin (Admin dự án) | pm | sitesup | staff
   if (emp.role_override) return [emp.role_override];
   return rolesFromPosition(emp.position);
 }

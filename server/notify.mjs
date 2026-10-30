@@ -125,6 +125,13 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
     const who = `${owner.full_name} (${empId})`, kp = `kỳ lương ${periodLabel(period)}`;
     const review = reviewLink(env, empId, period), mine = link(env, '/tools/timesheet/');
     let to, subject, html, cc = [];
+    if (kind === 'admin_edit') {
+      // báo người chủ bảng công: Quản trị viên đã sửa (kèm ghi chú); người không có tài khoản (không có email) thì thôi
+      if (!owner.email) return { ok: false, skipped: true };
+      return await sendMail(env, { to: [{ email: owner.email, name: owner.full_name }], subject: `[Bảng công] Quản trị viên đã sửa bảng công ${kp} của bạn`,
+        html: layout('Quản trị viên đã sửa bảng công', `<p><b>${esc(by)}</b> (quản trị viên) đã sửa bảng công ${esc(kp)} của bạn.</p>${box('#fffbeb', '#fde68a', `<b>Ghi chú:</b> ${esc(note)}`)}
+          <p>Mở Timesheet để xem các dòng bị sửa (đánh dấu <b>Admin sửa</b>). Nếu chưa đúng, liên hệ quản trị viên.</p>`, { url: mine, label: 'Mở Timesheet' }) });
+    }
     if (kind === 'ot_unapproved') {
       // Bảng công đã nộp nhưng còn ngày tăng ca chưa duyệt: nhắc người nộp và người duyệt OT (Site Sup; giám sát → Quản lý dự án)
       const days = otPending.slice().sort((a, b) => a.date.localeCompare(b.date));

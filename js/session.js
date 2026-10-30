@@ -36,6 +36,7 @@ const Session = (() => {
     leave: { name: 'Nghỉ phép / ốm', path: 'tools/leave/', serverOnly: true },       // mọi nhân viên; chỉ có ở bản máy chủ
     approvals: { name: 'Duyệt bảng công', path: 'tools/approvals/', serverOnly: true, ...PM_TEAM },       // chỉ có ở bản máy chủ
     materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
+    tsadmin: { name: 'Quản lý bảng công', path: 'tools/tsadmin/', serverOnly: true, roles: ['projadmin'], rolesLabel: 'Admin và Admin dự án' },
     admin: { name: 'Quản trị', path: 'admin.html', roles: ['admin'], rolesLabel: 'Quản trị viên' },  // nhân viên, dự án, bảng công (Excel), tài khoản & phân quyền
   };
   // chức năng đã có trang để mở
@@ -47,7 +48,7 @@ const Session = (() => {
     pm: /project ?manager|quan ly du an/,
     sitesup: /superv|site ?sup|project ?engineer|giam sat/,
   };
-  const ROLE_LABELS = { admin: 'Quản trị viên', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
+  const ROLE_LABELS = { admin: 'Quản trị viên', projadmin: 'Admin dự án', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
 
   // bỏ dấu, chữ thường, gom khoảng trắng — dùng cho chức danh
   function plain(s) {
@@ -61,7 +62,7 @@ const Session = (() => {
   function roles(s) {
     if (!s) return [];
     if (s.admin) return ['admin'];
-    if (SERVER_MODE && Array.isArray(s.roles)) return s.roles.filter(r => r === 'pm' || r === 'sitesup'); // vai trò do máy chủ quyết định
+    if (SERVER_MODE && Array.isArray(s.roles)) return s.roles.filter(r => r === 'pm' || r === 'sitesup' || r === 'projadmin'); // vai trò do máy chủ quyết định
     const pos = plain(s.position);
     return Object.keys(ROLE_RULES).filter(r => ROLE_RULES[r].test(pos));
   }

@@ -4,39 +4,42 @@
   'use strict';
   const LaborVN = typeof require === 'function' && typeof module !== 'undefined' ? require('./labor.js') : root.LaborVN;
 
-  // Mã công việc -> cột dấu "x" của mẫu (U..AX = 21..50), khớp ACTIVITY_META của Timesheet
-  const ACT_COL = {
-    '100': 21,
-    '1193': 22,
-    '1110': 23,
-    '1731': 24,
-    '1194': 25,
-    '1720': 26,
-    '1900': 27,
-    '1191': 28,
-    '1192-0': 29,
-    '1192-1': 30,
-    '1393': 31,
-    '1394': 32,
-    '1310': 33,
-    '1392-0': 34,
-    '1400': 35,
-    '1500': 36,
-    '1600': 37,
-    '1710': 38,
-    '1715': 39,
-    '1725': 40,
-    '1700': 41,
-    '5010': 42,
-    '5021': 43,
-    '5022': 44,
-    '5040': 45,
-    '5060': 46,
-    '5090': 47,
-    '6010': 48,
-    '6020': 49,
-    '6090': 50
-  };
+  // Mã công việc: [mã, nhóm (cat), cột dấu "x" của mẫu (U..AX = 21..50), mô tả] — khớp ACTIVITY_META của Timesheet
+  const ACT = [
+    ['100', 'NI', 21, "100 - Travel (thời gian đi đường đến công trình tỉnh)"],
+    ['1193', 'NI', 22, "1193 - NI Quality hour ( pre-work)"],
+    ['1110', 'NI', 23, "1110 - NI Prod. Hours Fitter (thời gian lắp đặt)"],
+    ['1731', 'NI', 24, "1731 - T&C (Thời gian thử nghiệm và vận hành)"],
+    ['1194', 'NI', 25, "1194 - NI Quality Hour ( open item) (Thời gian sửa lỗi và các hạng mục dỡ dang)"],
+    ['1720', 'NI', 26, "1720 - NI Inspection (NI/EI handover) - Kiểm tra công trường"],
+    ['1900', 'Other', 27, "1900 - Customer Legal Audit"],
+    ['1191', 'NI', 28, "1191 - Temporary Maintenance (trực Bảo trì tạm thời trước khi bàn giao EI)"],
+    ['1192-0', 'NI', 29, "1192-0 - NI Quality hours-logistics"],
+    ['1192-1', 'NI', 30, "1192-1 - NI Quality hours-Material / FI / LPCA / Site Cause"],
+    ['1393', 'MOD', 31, "1393 - MOD Quality hour ( Pre-work)"],
+    ['1394', 'MOD', 32, "1394 - MOD Quality Hour ( open item)"],
+    ['1310', 'MOD', 33, "1310 - MOD Prod. Hours Fitter"],
+    ['1392-0', 'MOD', 34, "1392-0 - MOD Quality hours - Logistics"],
+    ['1400', 'EI', 35, "1400 - Maintenance (Bảo trì)"],
+    ['1500', 'EI', 36, "1500 - Call back"],
+    ['1600', 'EI', 37, "1600 - Repair"],
+    ['1710', 'TF', 38, "1710 - SAIS Acceptance Test"],
+    ['1715', 'TF', 39, "1715 - SAIS Re-Inspection"],
+    ['1725', 'TF', 40, "1725 - CPSI"],
+    ['1700', 'SAF', 41, "1700 - Safety"],
+    ['5010', 'HR', 42, "5010 - Meetings (Họp)"],
+    ['5021', 'HR', 43, "5021 - Training-Classroom (Huấn luyện - trong lớp)"],
+    ['5022', 'HR', 44, "5022 - Training-On the job (Huấn luyện tại công trường)"],
+    ['5040', 'HR', 45, "5040 - Other Administrative Task (nhiệm vụ khác không thuộc công trình)"],
+    ['5060', 'HR', 46, "5060 - Safety / Tools Box Meeting (Họp giao ban an toàn)"],
+    ['5090', 'NI', 47, "5090/ ES1 (NI) Supervisor, Safety, Travelling time"],
+    ['6010', 'HR', 48, "6010/1 - Holiday / Public Holiday / Annual Leave day/hr (Nghỉ hưởng lương)"],
+    ['6020', 'HR', 49, "6020 - Illness (day) / Medical / Accident (nghỉ ốm, nghỉ tai nạn)"],
+    ['6090', 'HR', 50, "6090 - Unpaid leave (Nghỉ không hưởng lương)"]
+  ];
+  const ACT_META = ACT.map(([id, cat, col, desc]) => ({ id, cat, col, desc }));
+  const ACT_COL = {}; ACT.forEach(([id, , col]) => { ACT_COL[id] = col; });
+  const catOf = (code) => (ACT_META.find(a => a.id === code) || { cat: 'Other' }).cat;
   const OT_COL = { OT1: 9, OT2: 10, OT3: 11, OT4: 12, OT5: 13, OT6: 14, OT7: 15 };   // cột I..O của mẫu
   const activityToCol = (code) => {
     if (ACT_COL[code] !== undefined) return ACT_COL[code];
@@ -174,6 +177,6 @@
   const plainName = (s) => String(s || 'NHAN VIEN').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^A-Za-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase() || 'NHAN VIEN';
   const fileName = (name) => plainName(name) + '.xlsx';
 
-  const api = { plainName, fileName, buildTimesheet, activityToCol, ACT_COL, OT_COL, calculateHours, removeAccents };
+  const api = { plainName, fileName, buildTimesheet, activityToCol, ACT_COL, ACT_META, catOf, OT_COL, calculateHours, removeAccents };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);

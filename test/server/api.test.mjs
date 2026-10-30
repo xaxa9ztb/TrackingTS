@@ -1487,3 +1487,78 @@ test('giám sát: bảng công chỉ giờ OT nộp thẳng Quản lý dự án;
   assert.equal((await submit(lead, '2027-07')).status, 200);
   assert.equal((await call('POST', '/api/ts/review/AP1/2027-07/approve', { email: pm, body: {} })).data.status, 'approved');
 });
+
+// ---------- Admin / Admin dự án xem và sửa mọi bảng công ----------
+test('Admin dự án: tạo vai trò; không quản lý tài khoản nhưng phân công dự án và dùng chức năng bảng công', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [{ empId: 'PA1', fullName: 'Admin Dự Án', position: 'Project Administrator' }, { empId: 'NA1', fullName: 'Fitter Không Tài Khoản', position: 'Fitter' }] } });
+  assert.equal((await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [{ empId: 'PA1', email: 'pa1@example.com' }] } })).data.applied, 1);
+  assert.equal((await call('PATCH', '/api/admin/employees/PA1', { email: 'boss@example.com', body: { roleOverride: 'projadmin' } })).status, 200);
+  const me = (await call('GET', '/api/me', { email: 'pa1@example.com' })).data;
+  assert.deepEqual(me.roles, ['projadmin']); assert.equal(me.isAdmin, false); assert.equal(me.isProjAdmin, true);
+  assert.equal((await call('PATCH', '/api/admin/employees/TS1', { email: 'pa1@example.com', body: { roleOverride: 'admin' } })).status, 403, 'không đổi vai trò / tài khoản');
+  assert.equal((await call('POST', '/api/admin/emails', { email: 'pa1@example.com', body: { items: [] } })).status, 403);
+  assert.equal((await call('PUT', '/api/projects/WA-1/staff', { email: 'pa1@example.com', body: { sitesup: ['AP1'], pm: ['AP3'] } })).status, 200, 'phân công dự án');
+  assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'pa1@example.com' })).status, 200);
+  assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'ap1@example.com' })).status, 403, 'Site Sup không dùng');
+  assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'ts1@example.com' })).status, 403);
+});
+
+test('Admin sửa bảng công: bắt buộc ghi chú; đánh dấu dòng bị sửa; người chủ thấy ghi chú + nhận thư; người không có tài khoản vẫn tạo / sửa được', async () => {
+  const get = (e, p) => call('GET', `/api/admin/ts/doc/${e}/${p}`, { email: 'pa1@example.com' });
+  const put = (e, p, body, who = 'pa1@example.com') => call('PUT', `/api/admin/ts/doc/${e}/${p}`, { email: who, body });
+  // Thợ Một (TS1) kỳ 2027-08: bản nháp
+  await putDoc('ts1@example.com', '2027-08', [okEntry(8101, '2027-07-20'), okEntry(8102, '2027-07-21')], 0);
+  let d = (await get('TS1', '2027-08')).data;
+  assert.equal(d.version, 1); assert.equal(d.data.entries.length, 2); assert.equal(d.account, true);
+  const e1 = d.data.entries.map(e => e.id === 8101 ? { ...e, endTime: '18:00', remarks: 'Admin sửa giờ ra' } : e);
+  assert.equal((await put('TS1', '2027-08', { baseVersion: 1, data: { entries: e1 } })).status, 400, 'thiếu ghi chú');
+  assert.equal((await put('TS1', '2027-08', { baseVersion: 1, note: 'x', data: { entries: e1 } })).status, 400, 'ghi chú quá ngắn');
+  assert.equal((await put('TS1', '2027-08', { baseVersion: 1, note: 'Không đổi gì', data: { entries: d.data.entries } })).status, 400, 'chưa có thay đổi');
+  assert.equal((await put('TS1', '2027-08', { baseVersion: 1, note: 'Sửa giờ ra', data: { entries: e1 } }, 'ts1@example.com')).status, 403);
+  sentMail.length = 0;
+  let r = await put('TS1', '2027-08', { baseVersion: 1, note: 'Giờ ra thực tế 18:00 theo nhật ký công trình', data: { entries: e1.filter(e => e.id !== 8102).concat([okEntry(8103, '2027-07-22')]) } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.version, 2); assert.equal(r.data.changed, 2); assert.equal(r.data.removed, 1);
+  assert.equal((await put('TS1', '2027-08', { baseVersion: 1, note: 'Sửa tiếp', data: { entries: e1 } })).status, 409, 'phiên bản cũ');
+  d = (await get('TS1', '2027-08')).data;
+  assert.deepEqual(d.data.entries.map(e => [e.id, !!e.ae]).sort(), [[8101, true], [8103, true]]);
+  assert.ok(d.data.deleted['8102'] > 0, 'dòng bị xoá được nhớ để máy người chủ gộp đúng');
+  assert.equal(d.adminBy, 'Admin Dự Án'); assert.match(d.adminNote, /Giờ ra thực tế/);
+  const mine = (await call('GET', '/api/ts/docs', { email: 'ts1@example.com' })).data.docs.find(x => x.period === '2027-08');
+  assert.equal(mine.adminBy, 'Admin Dự Án'); assert.match(mine.adminNote, /nhật ký công trình/); assert.equal(mine.version, 2);
+  assert.ok(mailsTo('ts1@example.com').some(m => /Quản trị viên đã sửa bảng công/.test(m.subject) && /nhật ký công trình/.test(m.htmlContent)), 'thư báo người chủ');
+  const log = (await call('GET', '/api/admin/audit?limit=5', { email: 'boss@example.com' })).data.entries.find(x => x.action === 'ts_admin_edit');
+  assert.equal(log.after.note.slice(0, 10), 'Giờ ra thự');
+  // người không có tài khoản: tạo bảng công mới (version 0)
+  sentMail.length = 0;
+  r = await put('NA1', '2027-08', { baseVersion: 0, note: 'Nhập hộ từ bảng giấy', data: { entries: [okEntry(9001, '2027-07-20'), okEntry(9002, '2027-07-21')] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.changed, 2);
+  assert.equal((await get('NA1', '2027-08')).data.account, false); assert.equal(sentMail.length, 0, 'không có email → không gửi thư');
+  const list = (await call('GET', '/api/admin/ts/docs?period=2027-08', { email: 'pa1@example.com' })).data;
+  assert.ok(list.docs.some(x => x.empId === 'NA1' && !x.account && x.entries === 2) && list.docs.some(x => x.empId === 'TS1' && x.adminBy));
+  assert.ok(list.others.some(x => x.empId === 'TS2'), 'danh sách người chưa có bảng công kỳ này');
+  assert.equal((await get('KHONG-CO', '2027-08')).status, 404);
+});
+
+test('Admin sửa bảng công đã nộp / đã duyệt: phải có phân loại giờ hợp lệ; đã duyệt thì đẩy lại sang bảng Theo dõi giờ công', async () => {
+  const put = (e, p, body) => call('PUT', `/api/admin/ts/doc/${e}/${p}`, { email: 'boss@example.com', body });
+  await putDoc('ts2@example.com', '2027-08', [okEntry(8201, '2027-07-20'), okEntry(8202, '2027-07-21')], 0);
+  assert.equal((await submit('ts2@example.com', '2027-08')).status, 200);
+  const d = (await call('GET', '/api/admin/ts/doc/TS2/2027-08', { email: 'boss@example.com' })).data;
+  assert.equal(d.status, 'submitted');
+  const noBd = d.data.entries.map(e => e.id === 8201 ? { ...e, endTime: '18:00', bd: undefined } : e);
+  let r = await put('TS2', '2027-08', { baseVersion: d.version, note: 'Sửa giờ ra', data: { entries: noBd } });
+  assert.equal(r.status, 400); assert.match(r.data.error, /chưa có phân loại giờ/);
+  const ok = d.data.entries.map(e => e.id === 8201 ? { ...e, endTime: '18:00', bd: { NORMAL: 8, OT1: 1 } } : e);
+  r = await put('TS2', '2027-08', { baseVersion: d.version, note: 'Giờ ra 18:00, có 1 giờ OT', data: { entries: ok } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'submitted');
+  assert.equal((await docOf('ts2@example.com', '2027-08')).status, 'submitted', 'trạng thái giữ nguyên, người nộp không tự sửa được');
+  // duyệt xong rồi sửa lại → đẩy lại
+  assert.equal((await call('POST', '/api/ts/review/TS2/2027-08/approve', { email: 'ap1@example.com', body: {} })).status, 200);
+  assert.equal((await call('POST', '/api/ts/review/TS2/2027-08/approve', { email: 'ap3@example.com', body: {} })).data.pushed, 2);
+  const d2 = (await call('GET', '/api/admin/ts/doc/TS2/2027-08', { email: 'boss@example.com' })).data;
+  const fixed = d2.data.entries.map(e => e.id === 8202 ? { ...e, endTime: '19:00', bd: { NORMAL: 8, OT1: 2 } } : e);
+  r = await put('TS2', '2027-08', { baseVersion: d2.version, note: 'Bổ sung OT ngày 21', data: { entries: fixed } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'approved'); assert.equal(r.data.pushed, 2);
+  const row = (await tsRowsOf()).find(x => x.empId === 'TS2' && x.date === '2027-07-21');
+  assert.equal(row.ot1, 2, 'bảng Theo dõi giờ công cập nhật theo bản đã sửa');
+});

@@ -259,6 +259,7 @@
             const [syncInfo, setSyncInfo] = useState({ state: SERVER ? 'syncing' : 'off', at: '', error: '' });
             const [docStatuses, setDocStatuses] = useState({});
             const [docNotes, setDocNotes] = useState({});
+            const [docAdmin, setDocAdmin] = useState({});       // { period: {by, at, note} } — lần sửa gần nhất của quản trị viên
             const [submitting, setSubmitting] = useState(false);
             const entriesRef = useRef([]);
             // Phụ cấp xe theo kỳ: { 'YYYY-MM': { rows, u } } — trên máy + đồng bộ cùng bảng công của kỳ (tssync.js)
@@ -358,6 +359,7 @@
                 });
                 if (r.statuses) setDocStatuses(prev => ({ ...prev, ...r.statuses }));
                 if (r.notes) setDocNotes(prev => ({ ...prev, ...r.notes }));
+                if (r.admin) setDocAdmin(prev => ({ ...prev, ...r.admin }));
                 setSyncInfo(r.ok ? { state: 'ok', at: new Date().toISOString(), error: '' }
                     : r.offline ? { state: 'offline', at: '', error: '' } : { state: 'error', at: '', error: r.error || 'Không đồng bộ được' });
                 if (r.ok) setTimeout(syncOtLeave, 50);     // sau khi bảng công đã gộp xong (giờ OT tính trên bản mới nhất)
@@ -490,7 +492,7 @@
             const handleSaveEntry = (formData) => {
                 const editing = drawer && drawer.entry;
                 const u = Date.now();      // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
-                const { bd: _bd, cat: _cat, rangeTo, skipOff, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+                const { bd: _bd, cat: _cat, ae: _ae, rangeTo, skipOff, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
                 // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
                 const dates = (!editing && rangeTo && rangeTo > data.date) ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
                 if (dates) {
@@ -727,6 +729,13 @@
 
                     {SERVER && (
                         <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6">
+                            {docAdmin[currentMonth] && (
+                                <div id="tsAdminNote" role="status" className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                                    <b>Quản trị viên {docAdmin[currentMonth].by} đã sửa bảng công kỳ này</b>
+                                    {docAdmin[currentMonth].at ? ` lúc ${new Date(docAdmin[currentMonth].at).toLocaleString('vi-VN')}` : ''}: {docAdmin[currentMonth].note}
+                                    <span className="block text-xs text-amber-800 mt-0.5">Các dòng bị sửa có nhãn "Admin sửa". Chưa đúng thì liên hệ quản trị viên.</span>
+                                </div>
+                            )}
                             <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth} period={period} lead={IS_LEAD}
                                 onRetry={runSync} onSubmit={handleSubmit} onWithdraw={handleWithdraw}/>
                         </div>
@@ -1382,6 +1391,7 @@
                                         <td className="px-3 py-2.5 align-top max-w-0">
                                             <div className="truncate" title={e.projectName}>{e.projectName || '—'}</div>
                                             {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
+                                            {e.ae ? <div><span className="inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center">Admin sửa</span></div> : null}
                                             {e.remarks && <div className="text-xs text-slate-500 italic truncate" title={e.remarks}>{e.remarks}</div>}
                                             {e.report && <div className="text-xs text-blue-800 truncate" title={e.report}>📝 {e.report}</div>}
                                         </td>
@@ -1433,6 +1443,7 @@
                                                 </div>
                                                 <div className="mt-1 text-sm truncate"><span className="font-mono text-blue-700">[{e.activityCode}]</span> {e.projectName}</div>
                                                 {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
+                                                {e.ae ? <span className="inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center">Admin sửa</span> : null}
                                                 {e.remarks && <div className="text-xs text-slate-500 truncate">Ghi chú: {e.remarks}</div>}
                                                 {e.report && <div className="text-xs text-blue-800 truncate">📝 {e.report}</div>}
                                             </button>

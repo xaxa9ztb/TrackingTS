@@ -9,6 +9,7 @@ import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
 import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
+import { routeTsAdmin } from './tsadmin.mjs';
 import { routeOtLeave, otPendingDays, otPendingOfDoc, otLeaveCounts, isLead } from './otleave.mjs';
 
 export class HttpError extends Error {
@@ -46,6 +47,7 @@ async function loadMe(env, email) {
   return {
     email, roles,
     isAdmin: roles.includes('admin'),
+    isProjAdmin: roles.includes('projadmin'),         // Admin dự án: xử lý bảng công / dự án như admin nhưng không quản lý tài khoản, vai trò, hệ thống
     empId: emp ? emp.emp_id : '',
     name: emp ? emp.full_name : email,
     position: emp ? emp.position : '',
@@ -61,8 +63,8 @@ function employeeOut(e, full) {
   const base = { empId: e.emp_id, name: e.full_name, position: e.position, supervisor: e.supervisor, hireDate: e.hire_date || '', startDate: e.start_date || '' };
   if (!full) return base;
   return {
-    ...base, email: e.email || '', roleOverride: e.role_override,
-    active: !!e.active, roles: e.role_override ? (e.role_override === 'staff' ? [] : [e.role_override]) : rolesFromPosition(e.position),
+    ...base, email: e.email || '', roleOverride: e.extra_role === 'projadmin' ? 'projadmin' : e.role_override,
+    active: !!e.active, roles: e.extra_role === 'projadmin' ? ['projadmin'] : e.role_override ? (e.role_override === 'staff' ? [] : [e.role_override]) : rolesFromPosition(e.position),
     updatedAt: e.updated_at,
   };
 }
@@ -104,7 +106,7 @@ async function demoRole(env, email, request) {
 }
 
 async function listEmployees(env, me) {
-  const full = me.isAdmin || me.roles.includes('pm');
+  const full = me.isAdmin || me.roles.includes('pm') || me.isProjAdmin;
   const sql = full ? 'SELECT * FROM employees ORDER BY full_name' : 'SELECT * FROM employees WHERE active = 1 ORDER BY full_name';
   const { results } = await env.DB.prepare(sql).all();
   return json({ employees: results.map(e => employeeOut(e, full)) });
@@ -127,7 +129,7 @@ async function listProjects(env) {
 }
 
 async function putProjectStaff(env, me, wbs, request) {
-  need(me, 'pm');
+  need(me, 'pm', 'projadmin');
   const body = await readJson(request);
   const project = await env.DB.prepare('SELECT wbs FROM projects WHERE wbs = ?').bind(wbs).first();
   if (!project) throw new HttpError(404, 'Không có dự án ' + wbs);
@@ -286,7 +288,7 @@ async function supervisorGroups(env) {
 }
 
 async function listSupervisors(env, me) {
-  need(me, 'pm');
+  need(me, 'pm', 'projadmin');
   const { groups, emps, alias } = await supervisorGroups(env);
   const out = groups.map(g => {
     const m = matchSupervisor(g.label, emps, alias.get(g.key));
@@ -301,7 +303,7 @@ async function listSupervisors(env, me) {
 
 // items: [{ key, empId }]; onlyEmpty (mặc định true): chỉ dự án chưa có Site Sup
 async function applySupervisors(env, me, request) {
-  need(me, 'pm');
+  need(me, 'pm', 'projadmin');
   const body = await readJson(request);
   const items = Array.isArray(body.items) ? body.items : [];
   const onlyEmpty = body.onlyEmpty !== false;
@@ -359,7 +361,7 @@ async function applySupervisors(env, me, request) {
 // Gán MỘT Quản lý dự án cho nhiều dự án một lần (thường: mọi dự án do cùng một người quản lý).
 // onlyEmpty (mặc định true): chỉ dự án chưa có Quản lý dự án.
 async function assignPmAll(env, me, request) {
-  need(me, 'pm');
+  need(me, 'pm', 'projadmin');
   const body = await readJson(request);
   const empId = str(body.empId, 50);
   const onlyEmpty = body.onlyEmpty !== false;
@@ -587,9 +589,10 @@ function periodParam(p) {
 
 async function listMyDocs(env, me) {
   const emp = needOwnEmp(me);
-  const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at, submitted_at, sitesup_by, sitesup_at, pm_by, pm_at, note FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
+  const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at, submitted_at, sitesup_by, sitesup_at, pm_by, pm_at, note, admin_by, admin_at, admin_note FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
   return json({ docs: results.map(r => ({ period: r.period, version: r.version, status: r.status, entries: r.entry_count, savedAt: r.saved_at,
-    submittedAt: r.submitted_at, sitesupBy: r.sitesup_by, sitesupAt: r.sitesup_at, pmBy: r.pm_by, pmAt: r.pm_at, note: r.note })) });
+    submittedAt: r.submitted_at, sitesupBy: r.sitesup_by, sitesupAt: r.sitesup_at, pmBy: r.pm_by, pmAt: r.pm_at, note: r.note,
+    adminBy: r.admin_by, adminAt: r.admin_at, adminNote: r.admin_note })) });
 }
 
 async function getMyDoc(env, me, period) {
@@ -892,7 +895,7 @@ async function patchEmployee(env, me, empId, request) {
   const emp = await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(empId).first();
   if (!emp) throw new HttpError(404, 'Không có nhân viên ' + empId);
   const isSelf = me.empId && me.empId === empId;
-  const next = { email: emp.email, role_override: emp.role_override, active: emp.active };
+  const next = { email: emp.email, role_override: emp.role_override, extra_role: emp.extra_role || '', active: emp.active };
   if ('email' in body) {
     const e = str(body.email, 200).toLowerCase();
     if (e && !EMAIL_RE.test(e)) throw new HttpError(400, 'Email không hợp lệ');
@@ -900,21 +903,23 @@ async function patchEmployee(env, me, empId, request) {
   }
   if ('roleOverride' in body) {
     const r = str(body.roleOverride, 20);
-    if (!['', 'admin', 'pm', 'sitesup', 'staff'].includes(r)) throw new HttpError(400, 'Vai trò không hợp lệ');
-    next.role_override = r;
+    if (!['', 'admin', 'projadmin', 'pm', 'sitesup', 'staff'].includes(r)) throw new HttpError(400, 'Vai trò không hợp lệ');
+    // 'projadmin' (Admin dự án) lưu ở cột extra_role; các vai trò khác ở role_override
+    next.extra_role = r === 'projadmin' ? 'projadmin' : '';
+    next.role_override = r === 'projadmin' ? '' : r;
   }
   if ('active' in body) next.active = body.active ? 1 : 0;
-  if (isSelf && (next.active !== emp.active || next.role_override !== emp.role_override || next.email !== emp.email)) {
+  if (isSelf && (next.active !== emp.active || next.role_override !== emp.role_override || next.extra_role !== (emp.extra_role || '') || next.email !== emp.email)) {
     throw new HttpError(400, 'Không tự đổi email, vai trò hay khoá tài khoản của chính mình — nhờ admin khác làm');
   }
   try {
-    await env.DB.prepare('UPDATE employees SET email = ?, role_override = ?, active = ?, updated_at = ? WHERE emp_id = ?')
-      .bind(next.email, next.role_override, next.active, now(), empId).run();
+    await env.DB.prepare('UPDATE employees SET email = ?, role_override = ?, extra_role = ?, active = ?, updated_at = ? WHERE emp_id = ?')
+      .bind(next.email, next.role_override, next.extra_role, next.active, now(), empId).run();
   } catch (e) {
     if (/UNIQUE/i.test(String(e && e.message))) throw new HttpError(409, 'Email này đã gắn cho nhân viên khác');
     throw e;
   }
-  const pick = (r) => ({ email: r.email || '', roleOverride: r.role_override, active: !!r.active });
+  const pick = (r) => ({ email: r.email || '', roleOverride: r.extra_role === 'projadmin' ? 'projadmin' : r.role_override, active: !!r.active });
   await audit(env, me, 'update', 'employee', empId, pick(emp), pick(next));
   const after = await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(empId).first();
   return json({ ok: true, employee: employeeOut(after, true) });
@@ -928,7 +933,7 @@ async function listAudit(env, me, url) {
 }
 
 // các hàm dùng chung truyền cho server/otleave.mjs (duyệt tăng ca, đơn nghỉ)
-const H = { HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES };
+const H = { HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES, periodParam, loadDocForReview, pushApprovedRows, mailConfigured };
 
 // ---------- điểm vào ----------
 
@@ -1005,6 +1010,10 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/resend$/)) && method === 'POST') return await resendApproved(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), request);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
+    if (path.startsWith('/api/admin/ts/')) {
+      const r = await routeTsAdmin(H, env, me, path, method, url, request);
+      if (r) return r;
+    }
     if (path.startsWith('/api/ts/ot/') || path.startsWith('/api/ts/leave')) {
       const r = await routeOtLeave(H, env, me, path, method, url, request);
       if (r) return r;
