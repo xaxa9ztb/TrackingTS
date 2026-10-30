@@ -48,7 +48,7 @@
       body.innerHTML = r.items.map(i => `<tr data-emp="${esc(i.empId)}" data-period="${esc(i.period)}">
           <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)} · ${esc(i.position)}</div></td>
           <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}</td>
-          <td>${esc(LEVEL_LABEL[i.level])}${i.level === 'pm' && i.sitesupBy ? `<div class="ac-note">Site Sup: ${esc(i.sitesupBy)}</div>` : ''}</td>
+          <td>${esc(LEVEL_LABEL[i.level])}${i.level === 'pm' && i.sitesupBy ? `<div class="ac-note">Site Sup: ${esc(i.sitesupBy)}</div>` : ''}${i.level === 'pm' && !i.sitesupBy ? '<div class="ac-note">Giám sát nộp thẳng (chỉ giờ OT)</div>' : ''}</td>
           <td class="mono">${esc(i.wbs.join(', ') || '—')}</td>
           <td class="r">${i.entries}</td>
           <td>${esc(fmtTime(i.submittedAt))}</td>
@@ -67,8 +67,8 @@
       otItems = (await api('GET', '/api/ts/ot/inbox')).items;
       body.innerHTML = otItems.map(i => `<tr data-k="${esc(otKey(i))}">
           <td><input type="checkbox" data-pick aria-label="Chọn ${esc(i.name)} ${esc(fmtDM(i.date))}"></td>
-          <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)}</div></td>
-          <td>${esc(WEEKDAYS[dow(i.date)])} ${esc(fmtDMY(i.date))}</td>
+          <td><b>${esc(i.name)}</b>${i.lead ? ' <span class="pill">Giám sát</span>' : ''}<div class="ac-note">${esc(i.empId)}</div></td>
+          <td>${esc(WEEKDAYS[dow(i.date)])} ${esc(fmtDMY(i.date))}${i.late ? '<div class="ap-exp">đăng ký sau ngày làm</div>' : ''}</td>
           <td class="r"><b>${fmtH(i.ot)} giờ</b><div class="ac-note">tổng ${fmtH(i.total)} giờ</div></td>
           <td class="ot-items">${i.items.map(x => `<div>${esc(x.start)}–${esc(x.end)} · ${esc(x.project || '—')} <span class="mono">${esc(x.wbs)}</span></div>${x.report ? `<div class="rep">📝 ${esc(x.report)}</div>` : ''}`).join('')}</td></tr>`).join('')
         || '<tr><td colspan="5" class="ac-note">Không có ngày tăng ca nào chờ bạn duyệt.</td></tr>';
@@ -217,6 +217,8 @@
     if (!missing.length && !mismatches.length) flags.push('<div class="ap-flag ok">✓ Đủ ngày làm việc; phân loại giờ khớp kết quả tính lại.</div>');
     const noForm = entries.filter(e => isLeave(e) && !e.lv).map(e => e.date);
     if (noForm.length) flags.push(`<div class="ap-flag err">⚠ Có ngày nghỉ không theo đơn nghỉ đã duyệt: ${[...new Set(noForm)].map(fmtDM).join(', ')} — hỏi lại fitter.</div>`);
+    if ((doc.otPending || []).length) flags.push(`<div class="ap-flag err">⚠ Còn ${doc.otPending.length} ngày tăng ca CHƯA được duyệt: ${doc.otPending.map(d => `${fmtDM(d.date)} (${fmtH(d.ot)}h${d.status === 'rejected' ? ', bị từ chối' : ''})`).join(', ')}. Giờ chưa duyệt có thể không được tính — duyệt ở mục <b>Tăng ca chờ duyệt</b> hoặc trả lại bảng công.</div>`);
+    if (doc.direct) flags.push('<div class="ap-flag">Bảng công của giám sát — chỉ gồm giờ tăng ca, nộp thẳng Quản lý dự án (không qua Site Sup).</div>');
     const otDays = new Set(entries.filter(e => !isLeave(e) && Object.keys(e.bd || {}).some(k => k !== 'NORMAL' && e.bd[k] > 0)).map(e => e.date));
     if (otDays.size) flags.push(`<div class="ap-flag">⏱ ${otDays.size} ngày tăng ca (${fmtH(ot)} giờ) — đã được Site Sup duyệt từng ngày trước khi nộp.</div>`);
     if (doc.note) flags.push(`<div class="ap-flag">Ghi chú lần trả lại trước: ${esc(doc.note)}</div>`);

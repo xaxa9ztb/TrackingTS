@@ -715,6 +715,15 @@ const isWorkday = (s, sch) => {
 const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
 // Bản máy chủ (Cloudflare): Timesheet đồng bộ lên máy chủ theo kỳ lương (xem tssync.js); bản github.io: chỉ trên máy
 const SERVER = typeof Session !== 'undefined' && !!Session.SERVER && typeof TsSync !== 'undefined';
+// Giám sát (Site Sup / Quản lý dự án): chỉ chấm giờ OT, đăng ký OT trước khi làm, Quản lý dự án duyệt, bảng công cuối kỳ nộp thẳng Quản lý dự án
+const IS_LEAD = SERVER && (() => {
+  try {
+    return Session.roles(Session.current()).some(r => r === 'sitesup' || r === 'pm');
+  } catch (e) {
+    return false;
+  }
+})();
+const SALARY_KEY = 'ts_salary_v1'; // lương cơ bản: chỉ lưu trên máy này, không đồng bộ, không nằm trong sao lưu / báo cáo / email
 const STATUS_LABEL = {
   draft: 'Đang chấm',
   rejected: 'Bị trả lại — cần sửa',
@@ -786,6 +795,20 @@ function App() {
   const [otAll, setOtAll] = useState({}); // { 'YYYY-MM': { date: {status, note, by, at, ot, sig} } }
   const [leaves, setLeaves] = useState(null); // đơn nghỉ của tôi (null: chưa tải)
   const bdsRef = useRef(null);
+  // Lương cơ bản (người dùng tự nhập): CHỈ trên máy này — không gửi máy chủ, không nằm trong sao lưu / báo cáo / email
+  const [salary, setSalary] = useState(() => {
+    try {
+      return TsIncome.parseMoney(localStorage.getItem(SALARY_KEY));
+    } catch (e) {
+      return 0;
+    }
+  });
+  const saveSalary = n => {
+    setSalary(n);
+    try {
+      if (n) localStorage.setItem(SALARY_KEY, String(n));else localStorage.removeItem(SALARY_KEY);
+    } catch (e) {/* bỏ qua */}
+  };
   const monthRef = useRef('');
   const [ganttOpen, setGanttOpenRaw] = useState(() => {
     try {
@@ -1011,6 +1034,8 @@ function App() {
       ok: days.every(d => d.status === 'approved')
     };
   }, [monthlyEntries, bds, otAll, currentMonth]);
+  // giám sát: các ngày còn dòng giờ thường (không được nộp)
+  const leadNormal = useMemo(() => !IS_LEAD ? [] : [...new Set(monthlyEntries.filter(e => !LaborVN.LEAVE_CODES.includes(String(e.activityCode)) && (bdOf(e).NORMAL || 0) > 0.01).map(e => e.date))].sort(), [monthlyEntries, bds]);
   const dayTotals = useMemo(() => {
     const t = {};
     monthlyEntries.forEach(e => {
@@ -1042,7 +1067,8 @@ function App() {
     // ngày làm việc (không phải ngày lễ / nghỉ bù) đã qua trong kỳ mà chưa chấm công
     const today = getTodayLocal();
     const last = period.end < today ? period.end : today;
-    const missing = period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d, sch) && !dayTotals[d]) : [];
+    // giám sát chỉ chấm OT nên không có "ngày chưa chấm"
+    const missing = !IS_LEAD && period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d, sch) && !dayTotals[d]) : [];
     return {
       normal,
       ot,
@@ -1157,7 +1183,7 @@ function App() {
       }]);
       const m = breakdownsOf(next, sch);
       const d = TsOtLeave.otDays(next.filter(e => e.date === data.date), e => m.get(e.id) || {})[0];
-      if (d) otMsg = ` Ngày này có ${fmtH(d.ot)} giờ tăng ca — đã gửi Site Sup duyệt.`;
+      if (d) otMsg = ` Ngày này có ${fmtH(d.ot)} giờ tăng ca — đã gửi ${IS_LEAD ? 'Quản lý dự án' : 'Site Sup'} duyệt.`;
     }
     showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.${otMsg}`);
   };
@@ -1208,7 +1234,7 @@ function App() {
     });
   };
   const doSubmit = async () => {
-    if (!SERVER || submitting || !allowCalc.ok || !otView.ok) return;
+    if (!SERVER || submitting || !allowCalc.ok || leadNormal.length) return;
     setDrawer(null);
     setSubmitting(true);
     try {
@@ -1352,6 +1378,8 @@ function App() {
         if (SERVER) localStorage.removeItem('ts_sync_v1');
         localStorage.removeItem('ts_allow_v1');
         setAllowAll({});
+        localStorage.removeItem(SALARY_KEY);
+        setSalary(0);
         localStorage.removeItem('ts_profile_v28');
         localStorage.removeItem('ts_projects_v28');
         setEntries([]);
@@ -1560,6 +1588,7 @@ function App() {
     submitting: submitting,
     month: currentMonth,
     period: period,
+    lead: IS_LEAD,
     onRetry: runSync,
     onSubmit: handleSubmit,
     onWithdraw: handleWithdraw
@@ -1614,6 +1643,16 @@ function App() {
     onEdit: openAllowance,
     onDelete: handleDeleteAllowance,
     onDownload: handleAllowanceExcel
+  }), /*#__PURE__*/React.createElement(IncomeCard, {
+    salary: salary,
+    onSave: saveSalary,
+    month: currentMonth,
+    calc: TsIncome.compute({
+      base: salary,
+      entries: monthlyEntries,
+      bdOf,
+      allowance: allowCalc.totals.amount
+    })
   }), SERVER && /*#__PURE__*/React.createElement(OtLeaveCard, {
     ot: otView,
     leaves: leaves,
@@ -1745,6 +1784,8 @@ function App() {
     lines: monthlyEntries.length,
     calc: allowCalc,
     ot: otView,
+    lead: IS_LEAD,
+    leadNormal: leadNormal,
     onSubmit: doSubmit,
     onCancel: closeDrawer,
     onAddAllowance: () => openAllowance(null),
@@ -1809,6 +1850,7 @@ function SyncBar({
   submitting,
   month,
   period,
+  lead,
   onRetry,
   onSubmit,
   onWithdraw
@@ -1839,7 +1881,7 @@ function SyncBar({
   }, /*#__PURE__*/React.createElement("span", {
     id: "tsPeriodStatus",
     className: `inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`
-  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", STATUS_LABEL[status] || status), status === 'submitted' && /*#__PURE__*/React.createElement("button", {
+  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", lead && status === 'sitesup_ok' ? 'Đã nộp — chờ Quản lý dự án duyệt' : STATUS_LABEL[status] || status), (status === 'submitted' || lead && status === 'sitesup_ok') && /*#__PURE__*/React.createElement("button", {
     id: "tsWithdrawBtn",
     type: "button",
     onClick: onWithdraw,
@@ -2189,6 +2231,8 @@ function SubmitPanel({
   lines,
   calc,
   ot,
+  lead,
+  leadNormal,
   onSubmit,
   onCancel,
   onAddAllowance,
@@ -2242,7 +2286,7 @@ function SubmitPanel({
     className: "pt-4 border-t border-slate-200"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "font-semibold"
-  }, "T\u0103ng ca c\u1EA7n Site Sup duy\u1EC7t"), /*#__PURE__*/React.createElement("p", {
+  }, "T\u0103ng ca c\u1EA7n ", lead ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t"), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-sm"
   }, ot.days.length, " ng\xE0y \xB7 ", fmtH(ot.days.reduce((a, d) => a + d.ot, 0)), " gi\u1EDD t\u0103ng ca \u2014 ", /*#__PURE__*/React.createElement(OtCounts, {
     c: ot.count
@@ -2254,10 +2298,15 @@ function SubmitPanel({
     d: d
   }), " ", WEEKDAYS[weekdayOf(d.date)], " ", fmtDM(d.date), " \xB7 ", fmtH(d.ot), " gi\u1EDD", d.note ? /*#__PURE__*/React.createElement("span", {
     className: "text-rose-700"
-  }, " \u2014 ", d.note) : null)))), !ot.ok && /*#__PURE__*/React.createElement("p", {
+  }, " \u2014 ", d.note) : null)))), lead && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-slate-700 rounded-lg bg-slate-50 px-3 py-2"
+  }, "B\u1EA3ng c\xF4ng c\u1EE7a gi\xE1m s\xE1t ", /*#__PURE__*/React.createElement("b", null, "ch\u1EC9 g\u1ED3m gi\u1EDD t\u0103ng ca"), " v\xE0 n\u1ED9p ", /*#__PURE__*/React.createElement("b", null, "th\u1EB3ng Qu\u1EA3n l\xFD d\u1EF1 \xE1n"), " (kh\xF4ng qua Site Sup)."), leadNormal.length > 0 && /*#__PURE__*/React.createElement("p", {
     role: "alert",
     className: "text-sm text-rose-700 font-medium"
-  }, "C\xF2n ng\xE0y t\u0103ng ca ch\u01B0a \u0111\u01B0\u1EE3c Site Sup duy\u1EC7t \u2014 ch\u1EDD duy\u1EC7t xong (ho\u1EB7c s\u1EEDa ng\xE0y b\u1ECB t\u1EEB ch\u1ED1i) r\u1ED3i n\u1ED9p."), !calc.ok && /*#__PURE__*/React.createElement("p", {
+  }, "Gi\xE1m s\xE1t ch\u1EC9 n\u1ED9p gi\u1EDD t\u0103ng ca \u2014 xo\xE1 ho\u1EB7c s\u1EEDa c\xE1c d\xF2ng c\xF3 gi\u1EDD th\u01B0\u1EDDng (ng\xE0y ", leadNormal.slice(0, 6).map(fmtDM).join(', '), leadNormal.length > 6 ? '…' : '', ")."), !ot.ok && /*#__PURE__*/React.createElement("p", {
+    role: "alert",
+    className: "text-sm text-amber-800 font-medium rounded-lg bg-amber-50 border border-amber-200 px-3 py-2"
+  }, "\u26A0 C\xF2n ng\xE0y t\u0103ng ca ch\u01B0a \u0111\u01B0\u1EE3c ", lead ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t. B\u1EA1n ", /*#__PURE__*/React.createElement("b", null, "v\u1EABn n\u1ED9p \u0111\u01B0\u1EE3c"), " \u2014 h\u1EC7 th\u1ED1ng s\u1EBD g\u1EEDi email nh\u1EAFc ng\u01B0\u1EDDi duy\u1EC7t, nh\u01B0ng gi\u1EDD ch\u01B0a duy\u1EC7t c\xF3 th\u1EC3 kh\xF4ng \u0111\u01B0\u1EE3c t\xEDnh. N\xEAn nh\u1EDD ", lead ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t s\u1EDBm."), !calc.ok && /*#__PURE__*/React.createElement("p", {
     role: "alert",
     className: "text-sm text-rose-700 font-medium"
   }, "Ph\u1EE5 c\u1EA5p xe c\xF2n l\u1ED7i \u2014 s\u1EEDa ho\u1EB7c x\xF3a d\xF2ng c\xF3 \u26A0 r\u1ED3i n\u1ED9p."), /*#__PURE__*/React.createElement("p", {
@@ -2272,9 +2321,116 @@ function SubmitPanel({
     id: "tsSubmitConfirm",
     type: "button",
     onClick: onSubmit,
-    disabled: !calc.ok || !ot.ok,
+    disabled: !calc.ok || (leadNormal || []).length > 0,
     className: `${btnPrimary} h-11`
-  }, "N\u1ED9p cho gi\xE1m s\xE1t")));
+  }, lead ? 'Nộp cho Quản lý dự án' : 'Nộp cho giám sát')));
+}
+
+// ---------- Thu nhập dự kiến (riêng tư: chỉ người dùng này thấy, lưu trên máy) ----------
+function IncomeCard({
+  salary,
+  onSave,
+  calc,
+  month
+}) {
+  const [show, setShow] = useState(false); // mặc định ẩn số tiền (tránh người bên cạnh nhìn thấy)
+  const [edit, setEdit] = useState(false);
+  const [text, setText] = useState('');
+  const [y, m] = month.split('-');
+  const mask = v => show ? `${TsIncome.fmtMoney(v)} đ` : '••••••••';
+  const open = () => {
+    setText(salary ? TsIncome.fmtMoney(salary) : '');
+    setEdit(true);
+  };
+  const commit = e => {
+    e.preventDefault();
+    onSave(TsIncome.parseMoney(text));
+    setEdit(false);
+    setShow(true);
+  };
+  return /*#__PURE__*/React.createElement("section", {
+    id: "tsIncomeCard",
+    className: "bg-white rounded-2xl border border-slate-200 p-4",
+    "aria-labelledby": "tsIncomeTitle"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "tsIncomeTitle",
+    className: "font-semibold mr-auto"
+  }, "\uD83D\uDD12 Thu nh\u1EADp d\u1EF1 ki\u1EBFn k\u1EF3 ", parseInt(m, 10), "/", y), salary > 0 && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    id: "tsIncomeToggle",
+    onClick: () => setShow(!show),
+    className: "text-sm font-semibold text-blue-700 hover:text-blue-900",
+    "aria-pressed": show
+  }, show ? 'Ẩn số' : 'Hiện số')), /*#__PURE__*/React.createElement("p", {
+    className: "mt-0.5 text-xs text-slate-500"
+  }, "Ch\u1EC9 m\xECnh b\u1EA1n th\u1EA5y \u2014 l\u01B0u ", /*#__PURE__*/React.createElement("b", null, "ri\xEAng tr\xEAn m\xE1y n\xE0y"), ", kh\xF4ng g\u1EEDi l\xEAn m\xE1y ch\u1EE7, kh\xF4ng c\xF3 trong sao l\u01B0u, b\xE1o c\xE1o hay email."), edit ? /*#__PURE__*/React.createElement("form", {
+    onSubmit: commit,
+    className: "mt-2 flex gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsSalaryInput",
+    inputMode: "numeric",
+    autoFocus: true,
+    value: text,
+    onChange: e => {
+      const n = TsIncome.parseMoney(e.target.value);
+      setText(n ? TsIncome.fmtMoney(n) : '');
+    },
+    className: inputCls,
+    placeholder: "L\u01B0\u01A1ng c\u01A1 b\u1EA3n / th\xE1ng (\u0111)",
+    "aria-label": "L\u01B0\u01A1ng c\u01A1 b\u1EA3n m\u1ED7i th\xE1ng"
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "submit",
+    className: `${btnPrimary} shrink-0`
+  }, "L\u01B0u"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setEdit(false),
+    className: `${btnGhost} shrink-0`
+  }, "H\u1EE7y")) : salary <= 0 ? /*#__PURE__*/React.createElement("button", {
+    id: "tsSalaryAdd",
+    type: "button",
+    onClick: open,
+    className: `${btnGhost} h-9 text-sm mt-2`
+  }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Nh\u1EADp l\u01B0\u01A1ng c\u01A1 b\u1EA3n") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 text-2xl font-bold tabular-nums",
+    id: "tsIncomeTotal",
+    "aria-live": "polite"
+  }, mask(calc.total)), /*#__PURE__*/React.createElement("dl", {
+    className: "mt-2 text-sm divide-y divide-slate-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "L\u01B0\u01A1ng c\u01A1 b\u1EA3n"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, mask(calc.base))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "T\u0103ng ca (", fmtH(calc.otHours), " gi\u1EDD)"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, "+ ", mask(calc.otPay))), calc.allowance > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "Tr\u1EE3 c\u1EA5p xe"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, "+ ", mask(calc.allowance))), calc.unpaidDays > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "Ngh\u1EC9 kh\xF4ng l\u01B0\u01A1ng (", calc.unpaidDays, " ng\xE0y)"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, "\u2212 ", mask(calc.deduction)))), show && calc.ot.length > 0 && /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-xs text-slate-500"
+  }, calc.ot.map(x => `${x.cat} ${fmtH(x.hours)}h × ${x.rate}%`).join(' · ')), /*#__PURE__*/React.createElement("p", {
+    className: "mt-2 text-xs text-slate-500"
+  }, "\u01AF\u1EDBc t\xEDnh: l\u01B0\u01A1ng gi\u1EDD = l\u01B0\u01A1ng c\u01A1 b\u1EA3n \xF7 26 ng\xE0y \xF7 8 gi\u1EDD; t\u0103ng ca nh\xE2n theo t\u1EF7 l\u1EC7 (150% / 200% / 300% / ban \u0111\xEAm\u2026). ", /*#__PURE__*/React.createElement("b", null, "Kh\xF4ng g\u1ED3m"), " th\u01B0\u1EDFng, ph\u1EE5 c\u1EA5p kh\xE1c, b\u1EA3o hi\u1EC3m, thu\u1EBF. S\u1ED1 th\u1EF1c nh\u1EADn do c\xF4ng ty t\xEDnh."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: open,
+    className: "mt-1 text-sm font-semibold text-blue-700 hover:text-blue-900"
+  }, "S\u1EEDa l\u01B0\u01A1ng c\u01A1 b\u1EA3n")));
 }
 
 // ---------- Tăng ca chờ duyệt + đơn nghỉ (bản máy chủ) ----------
@@ -2367,7 +2523,7 @@ function OtLeaveCard({
     className: "mt-1 text-sm"
   }, ot.days.length === 0 ? /*#__PURE__*/React.createElement("p", {
     className: "text-slate-500"
-  }, "K\u1EF3 n\xE0y ch\u01B0a c\xF3 ng\xE0y t\u0103ng ca. Ng\xE0y n\xE0o c\xF3 gi\u1EDD OT s\u1EBD t\u1EF1 g\u1EEDi Site Sup duy\u1EC7t (duy\u1EC7t h\u1EB1ng ng\xE0y).") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, ot.days.length, " ng\xE0y t\u0103ng ca (", fmtH(ot.days.reduce((a, d) => a + d.ot, 0)), " gi\u1EDD): ", /*#__PURE__*/React.createElement(OtCounts, {
+  }, IS_LEAD ? 'Giám sát chỉ chấm giờ tăng ca: đăng ký TRƯỚC khi làm (thêm chấm công ngày đó) — gửi thẳng Quản lý dự án duyệt.' : 'Kỳ này chưa có ngày tăng ca. Ngày nào có giờ OT sẽ tự gửi Site Sup duyệt (duyệt hằng ngày).') : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, ot.days.length, " ng\xE0y t\u0103ng ca (", fmtH(ot.days.reduce((a, d) => a + d.ot, 0)), " gi\u1EDD): ", /*#__PURE__*/React.createElement(OtCounts, {
     c: ot.count
   })), /*#__PURE__*/React.createElement("ul", {
     className: "mt-1 flex flex-wrap gap-1"
@@ -2389,7 +2545,7 @@ function OtLeaveCard({
     className: "text-xs text-slate-500 tabular-nums"
   }, fmtDM(d.date))))), !ot.ok && !locked && /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-xs text-slate-500"
-  }, "N\u1ED9p b\u1EA3ng c\xF4ng \u0111\u01B0\u1EE3c khi m\u1ECDi ng\xE0y t\u0103ng ca \u0111\xE3 duy\u1EC7t. S\u1EEDa gi\u1EDD c\u1EE7a ng\xE0y \u0111\xE3 duy\u1EC7t th\xEC ph\u1EA3i duy\u1EC7t l\u1EA1i."))), /*#__PURE__*/React.createElement("div", {
+  }, "N\u1ED9p b\u1EA3ng c\xF4ng v\u1EABn \u0111\u01B0\u1EE3c khi c\xF2n ng\xE0y ch\u01B0a duy\u1EC7t (c\xF3 email nh\u1EAFc ng\u01B0\u1EDDi duy\u1EC7t). S\u1EEDa gi\u1EDD c\u1EE7a ng\xE0y \u0111\xE3 duy\u1EC7t th\xEC ph\u1EA3i duy\u1EC7t l\u1EA1i."))), /*#__PURE__*/React.createElement("div", {
     className: "mt-3 pt-3 border-t border-slate-100"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
@@ -4744,10 +4900,13 @@ function EntryForm({
     className: "mt-2 pt-2 border-t border-slate-200"
   }, /*#__PURE__*/React.createElement(HourPills, {
     bd: preview
-  }), SERVER && !leave && Object.keys(preview).some(k => k !== 'NORMAL' && preview[k] > 0) && /*#__PURE__*/React.createElement("p", {
+  }), IS_LEAD && !leave && (preview.NORMAL || 0) > 0.01 && /*#__PURE__*/React.createElement("p", {
+    id: "tsLeadHint",
+    className: "mt-1.5 text-xs font-medium text-rose-700"
+  }, "Gi\xE1m s\xE1t ch\u1EC9 ch\u1EA5m gi\u1EDD t\u0103ng ca \u2014 d\xF2ng n\xE0y c\xF3 ", fmtH(preview.NORMAL), " gi\u1EDD th\u01B0\u1EDDng, kh\xF4ng n\u1ED9p \u0111\u01B0\u1EE3c. Ch\u1EC9 nh\u1EADp kho\u1EA3ng gi\u1EDD t\u0103ng ca (vd 17:00\u201319:00)."), SERVER && !leave && Object.keys(preview).some(k => k !== 'NORMAL' && preview[k] > 0) && /*#__PURE__*/React.createElement("p", {
     id: "tsOtHint",
     className: "mt-1.5 text-xs font-medium text-amber-800"
-  }, "\u23F1 C\xF3 gi\u1EDD t\u0103ng ca \u2014 Site Sup duy\u1EC7t t\u1EEBng ng\xE0y (h\u1EB1ng ng\xE0y). Ch\u1EC9 n\u1ED9p b\u1EA3ng c\xF4ng \u0111\u01B0\u1EE3c khi m\u1ECDi ng\xE0y t\u0103ng ca \u0111\xE3 duy\u1EC7t."), /*#__PURE__*/React.createElement("p", {
+  }, "\u23F1 C\xF3 gi\u1EDD t\u0103ng ca \u2014 ", IS_LEAD ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t t\u1EEBng ng\xE0y", IS_LEAD ? '; giám sát đăng ký trước khi làm' : ' (hằng ngày)', ". Ch\u01B0a duy\u1EC7t v\u1EABn n\u1ED9p \u0111\u01B0\u1EE3c nh\u01B0ng s\u1EBD c\xF3 email nh\u1EAFc, gi\u1EDD ch\u01B0a duy\u1EC7t c\xF3 th\u1EC3 kh\xF4ng \u0111\u01B0\u1EE3c t\xEDnh."), /*#__PURE__*/React.createElement("p", {
     className: "mt-1.5 text-xs text-slate-500"
   }, leave ? 'Nghỉ phép / ốm / không lương: không tính làm thêm giờ.' : 'Tự tính theo Bộ luật Lao động 2019 (Điều 98, 106) và NĐ 145/2020: giờ thường 08:00–12:00, 13:00–17:00; ban đêm 22:00–06:00.'))), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 min-h-11 text-sm text-slate-700 cursor-pointer"
