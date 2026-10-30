@@ -10,7 +10,8 @@ import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
 import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
-import { routeOtLeave, otPendingDays, otPendingOfDoc, otLeaveCounts, isLead } from './otleave.mjs';
+import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs } from './tsflow.mjs';
+import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -576,7 +577,7 @@ async function deleteProjects(env, me, request) {
 }
 
 // ---------- Timesheet cá nhân: bảng công theo kỳ lương của chính người đăng nhập ----------
-const LOCKED_STATUSES = ['submitted', 'sitesup_ok', 'approved'];
+const LOCKED_STATUSES = ['submitted', 'sitesup_ok', 'pm_ok', 'approved'];
 
 function needOwnEmp(me) {
   if (!me.empId) throw new HttpError(403, 'Tài khoản chưa gắn với nhân viên nào nên chưa có Timesheet cá nhân');
@@ -678,7 +679,7 @@ async function submitMyDoc(env, me, period, request) {
   }
   // tăng ca chưa duyệt KHÔNG chặn nộp: vẫn nhận, thư nhắc người nộp và người duyệt
   const otPending = await otPendingDays(env, emp, period, entries);
-  const wbsList = [...new Set(entries.map(e => String(e.workNumber || '').trim()).filter(Boolean))].slice(0, 40);
+  const wbsList = projectWbs(entries);       // chỉ dự án (hoạt động ngoài dự án do Admin xử lý)
   const t = now();
   const status = lead ? 'sitesup_ok' : 'submitted';     // giám sát: bỏ cấp Site Sup, chờ Quản lý dự án (sitesup_by để trống)
   const r = await env.DB.prepare(`UPDATE ts_docs SET status = ?, submitted_at = ?, sitesup_by = '', sitesup_at = '', pm_by = '', pm_at = '', note = '' WHERE emp_id = ? AND period = ? AND version = ? AND status IN ('draft', 'rejected')`)
@@ -688,22 +689,22 @@ async function submitMyDoc(env, me, period, request) {
   if (wbsList.length) stmts.push(env.DB.prepare(`INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbsList.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbsList.flatMap(w => [emp, period, w])));
   await env.DB.batch(stmts);
   await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length, allowance: allow.computed.totals.amount, otPending: otPending.length, direct: lead });
-  await notifyEvent(env, lead ? 'submitted_direct' : 'submitted', { empId: emp, period, wbs: wbsList, otPending });
+  // cấp nào không có dự án cần duyệt thì tự bỏ qua (bảng công chỉ có hoạt động ngoài dự án → thẳng Admin)
+  const s = await settle(H, env, emp, period, status, wbsList);
+  if (s.moved.length) await notifyStage(env, s.status, { empId: emp, period, wbs: wbsList, by: '' });
+  else await notifyEvent(env, lead ? 'submitted_direct' : 'submitted', { empId: emp, period, wbs: wbsList, otPending });
   if (otPending.length) await notifyEvent(env, 'ot_unapproved', { empId: emp, period, wbs: wbsList, otPending, lead });
-  return json({ ok: true, status, version: row.version, submittedAt: t, otPending: otPending.length });
+  return json({ ok: true, status: s.status, version: row.version, submittedAt: t, otPending: otPending.length });
 }
 
 async function withdrawMyDoc(env, me, period) {
   const emp = needOwnEmp(me);
   periodParam(period);
-  // giám sát nộp thẳng QLDA (sitesup_ok, sitesup_by trống): thu hồi được khi QLDA chưa duyệt
-  const r = await env.DB.prepare("UPDATE ts_docs SET status = 'draft', submitted_at = '' WHERE emp_id = ? AND period = ? AND (status = 'submitted' OR (status = 'sitesup_ok' AND sitesup_by = ''))").bind(emp, period).run();
-  if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Chỉ thu hồi được khi giám sát chưa duyệt');
+  await withdrawDoc(H, env, emp, period);        // chỉ khi chưa ai duyệt (kể cả duyệt một phần)
   await audit(env, me, 'ts_withdraw', 'ts_doc', `${emp}:${period}`);
   return json({ ok: true, status: 'draft' });
 }
 
-const LEVEL_OF = { submitted: 'sitesup', sitesup_ok: 'pm' };
 const supKey = (s) => keyOf(s);
 
 // Người này có quyền duyệt bảng công đang chờ ở cấp `level` không?
@@ -717,57 +718,6 @@ function canAct(me, level, wbsList, staff, ownerSupervisor) {
   if (wbsList.some(w => (staff.get(w) || { sitesup: [], pm: [] })[level].includes(me.empId))) return true;
   // "Quản lý trực tiếp": Site Sup của fitter (cấp Site Sup); QLDA của giám sát (cấp QLDA — bảng công / OT của giám sát)
   return !!ownerSupervisor && supKey(ownerSupervisor) === supKey(me.name);
-}
-
-async function pendingDocs(env) {
-  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.version, d.status, d.entry_count, d.submitted_at, d.sitesup_by, d.sitesup_at, d.note,
-      e.full_name, e.position, e.supervisor
-    FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id WHERE d.status IN ('submitted', 'sitesup_ok') ORDER BY d.submitted_at LIMIT 300`).all();
-  if (!results.length) return { docs: [], wbs: new Map() };
-  const w = (await env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status IN ('submitted', 'sitesup_ok')`).all()).results;
-  const wbs = new Map();
-  for (const x of w) { const k = x.emp_id + '|' + x.period; if (!wbs.has(k)) wbs.set(k, []); wbs.get(k).push(x.wbs); }
-  return { docs: results, wbs };
-}
-
-// Hộp thư duyệt: các bảng công đang chờ người này duyệt (+ số ngày tăng ca, đơn nghỉ chờ duyệt cho huy hiệu)
-async function tsInbox(env, me) {
-  need(me, 'sitesup', 'pm');
-  const { docs, wbs } = await pendingDocs(env);
-  const staff = await projectStaff(env);
-  const out = [];
-  for (const d of docs) {
-    const level = LEVEL_OF[d.status], list = wbs.get(d.emp_id + '|' + d.period) || [];
-    if (d.emp_id === me.empId && !me.isAdmin) continue;     // không tự duyệt bảng công của mình
-    if (!canAct(me, level, list, staff, d.supervisor)) continue;
-    out.push({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, version: d.version, status: d.status, level, entries: d.entry_count,
-      submittedAt: d.submitted_at, sitesupBy: d.sitesup_by, sitesupAt: d.sitesup_at, wbs: list });
-  }
-  return json({ items: out, ...(await otLeaveCounts(H, env, me, staff)) });
-}
-
-async function loadDocForReview(env, me, emp, period) {
-  periodParam(period);
-  const row = await env.DB.prepare('SELECT d.*, e.full_name, e.position, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id WHERE d.emp_id = ? AND d.period = ?').bind(emp, period).first();
-  if (!row) throw new HttpError(404, 'Không có bảng công này');
-  const wbs = (await env.DB.prepare('SELECT wbs FROM ts_doc_wbs WHERE emp_id = ? AND period = ?').bind(emp, period).all()).results.map(x => x.wbs);
-  return { row, wbs };
-}
-
-async function reviewDoc(env, me, emp, period) {
-  need(me, 'sitesup', 'pm');
-  const { row, wbs } = await loadDocForReview(env, me, emp, period);
-  const level = LEVEL_OF[row.status];
-  const staff = await projectStaff(env);
-  const mine = level && !(emp === me.empId && !me.isAdmin) && canAct(me, level, wbs, staff, row.supervisor);
-  const resend = row.status === 'approved' && canResend(me, row, wbs, staff);
-  if (!mine && !resend && !me.isAdmin) throw new HttpError(403, 'Bạn không phải người duyệt bảng công này');
-  let otPending = [];
-  try { otPending = await otPendingOfDoc(env, emp, period, JSON.parse(row.data).entries || []); } catch (e) { otPending = []; }
-  const text = DOC_JSON_HEAD(row) + `,"name":${JSON.stringify(row.full_name)},"position":${JSON.stringify(row.position)},"level":${JSON.stringify(level || '')},"canAct":${!!mine},"canResend":${resend || (row.status === 'approved' && me.isAdmin)},"pmBy":${JSON.stringify(row.pm_by)},` +
-    `"direct":${row.status === 'sitesup_ok' && !row.sitesup_by},"otPending":${JSON.stringify(otPending)},` +
-    `"submittedAt":${JSON.stringify(row.submitted_at)},"sitesupBy":${JSON.stringify(row.sitesup_by)},"sitesupAt":${JSON.stringify(row.sitesup_at)},"note":${JSON.stringify(row.note)},"data":${row.data}}`;
-  return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
 // Đẩy các dòng của bảng công đã duyệt xong sang bảng Theo dõi giờ công (thay các dòng cũ của người đó trong cùng kỳ)
@@ -790,92 +740,6 @@ async function pushApprovedRows(env, me, row, period) {
     if (await tsMetaWrite(env, cas, next)) return rows.length;
   }
   throw new HttpError(409, 'Máy chủ đang bận khi cập nhật bảng Theo dõi giờ công — bấm Duyệt lại');
-}
-
-// File Excel (bảng công, bảng phụ cấp xe) do trình duyệt của người duyệt tạo khi Quản lý dự án duyệt xong, đính kèm vào thư báo.
-// Máy chủ không dựng Excel (ExcelJS nặng so với giới hạn CPU gói miễn phí) nên chỉ kiểm tra: ≤ 2 tệp .xlsx, tên an toàn, đúng chữ ký zip, ≤ 1,5 MB mỗi tệp.
-const MAX_FILE_B64 = 2000000;
-function cleanFiles(list) {
-  if (!Array.isArray(list)) return [];
-  return list.slice(0, 3).map(f => ({ name: str(f && f.name, 120).replace(/[^\w.\- ]+/g, '_'), content: String((f && f.content) || '') }))
-    .filter(f => /\.xlsx$/i.test(f.name) && f.content.length > 100 && f.content.length <= MAX_FILE_B64 && /^[A-Za-z0-9+/]+={0,2}$/.test(f.content) && f.content.startsWith('UEsD'));
-}
-
-// Gửi lại thư "đã duyệt xong" kèm Excel: chỉ Quản lý dự án đã duyệt bảng công đó (hoặc QLDA / Quản lý trực tiếp phụ trách) và admin.
-// Người gửi lại luôn được CC. Chỉ bảng công đã được PM duyệt xong mới gửi.
-function canResend(me, row, wbs, staff) {
-  if (me.isAdmin) return true;
-  if (!me.roles.includes('pm')) return false;
-  return row.pm_by === me.name || canAct(me, 'pm', wbs, staff, row.supervisor);
-}
-
-// Các bảng công đã duyệt xong gần đây mà người này gửi lại thư được (30 bảng mới nhất)
-async function approvedList(env, me) {
-  need(me, 'pm');
-  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.pm_by, d.pm_at, e.full_name, e.position, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
-    WHERE d.status = 'approved' ORDER BY d.pm_at DESC LIMIT 200`).all();
-  const staff = await projectStaff(env);
-  const w = (await env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status = 'approved'`).all()).results;
-  const wbs = new Map();
-  for (const x of w) { const k = x.emp_id + '|' + x.period; if (!wbs.has(k)) wbs.set(k, []); wbs.get(k).push(x.wbs); }
-  const items = results.filter(d => canResend(me, d, wbs.get(d.emp_id + '|' + d.period) || [], staff)).slice(0, 30)
-    .map(d => ({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, pmBy: d.pm_by, pmAt: d.pm_at, wbs: wbs.get(d.emp_id + '|' + d.period) || [] }));
-  return json({ items });
-}
-
-async function resendApproved(env, me, emp, period, request) {
-  need(me, 'pm');
-  const body = await readJson(request);
-  const { row, wbs } = await loadDocForReview(env, me, emp, period);
-  if (row.status !== 'approved') throw new HttpError(409, 'Chỉ gửi lại được thư của bảng công đã được Quản lý dự án duyệt xong');
-  const staff = await projectStaff(env);
-  if (!canResend(me, row, wbs, staff)) throw new HttpError(403, 'Chỉ Quản lý dự án duyệt bảng công này (hoặc admin) mới gửi lại được');
-  const files = cleanFiles(body.files);
-  if (!files.length) throw new HttpError(400, 'Không có file Excel hợp lệ để đính kèm');
-  if (!mailConfigured(env)) throw new HttpError(503, 'Chưa cấu hình gửi email (BREVO_API_KEY, MAIL_FROM)');
-  const r = await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: row.pm_by || me.name, files, resendBy: me, resend: true });
-  await audit(env, me, 'ts_resend', 'ts_doc', `${emp}:${period}`, undefined, { files: files.length, ok: !!(r && r.ok) });
-  if (!(r && r.ok)) throw new HttpError(502, 'Gửi thư không thành công: ' + ((r && r.error) || 'lỗi không rõ') + ' — thử lại sau ít phút');
-  return json({ ok: true, files: files.length });
-}
-
-async function decideDoc(env, me, emp, period, action, request) {
-  need(me, 'sitesup', 'pm');
-  const body = await readJson(request);
-  const { row, wbs } = await loadDocForReview(env, me, emp, period);
-  const level = LEVEL_OF[row.status];
-  if (!level) throw new HttpError(409, 'Bảng công này không ở trạng thái chờ duyệt');
-  const staff = await projectStaff(env);
-  if (emp === me.empId && !me.isAdmin) throw new HttpError(403, 'Không tự duyệt bảng công của chính mình');
-  if (!canAct(me, level, wbs, staff, row.supervisor)) throw new HttpError(403, 'Bạn không phải người duyệt bảng công này ở cấp hiện tại');
-  const t = now();
-  if (action === 'reject') {
-    const note = str(body.note, 500);
-    if (note.length < 3) throw new HttpError(400, 'Cần ghi lý do trả lại (để người chấm công biết sửa gì)');
-    const r = await env.DB.prepare("UPDATE ts_docs SET status = 'rejected', note = ?, submitted_at = '' WHERE emp_id = ? AND period = ? AND status = ?").bind(`${me.name}: ${note}`, emp, period, row.status).run();
-    if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
-    await audit(env, me, 'ts_reject', 'ts_doc', `${emp}:${period}`, { status: row.status }, { note });
-    await notifyEvent(env, 'rejected', { empId: emp, period, wbs, note: `${me.name}: ${note}` });
-    return json({ ok: true, status: 'rejected' });
-  }
-  if (level === 'sitesup') {
-    const r = await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok', sitesup_by = ?, sitesup_at = ? WHERE emp_id = ? AND period = ? AND status = 'submitted'").bind(me.name, t, emp, period).run();
-    if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
-    await audit(env, me, 'ts_sitesup_ok', 'ts_doc', `${emp}:${period}`);
-    await notifyEvent(env, 'sitesup_ok', { empId: emp, period, wbs, by: me.name });
-    return json({ ok: true, status: 'sitesup_ok' });
-  }
-  const r = await env.DB.prepare("UPDATE ts_docs SET status = 'approved', pm_by = ?, pm_at = ? WHERE emp_id = ? AND period = ? AND status = 'sitesup_ok'").bind(me.name, t, emp, period).run();
-  if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại danh sách');
-  let pushed;
-  try { pushed = await pushApprovedRows(env, me, row, period); }
-  catch (e) {   // chưa đẩy được → trả về cấp trước để duyệt lại, không để trạng thái "đã duyệt" mà dữ liệu chưa sang
-    await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok', pm_by = '', pm_at = '' WHERE emp_id = ? AND period = ? AND status = 'approved'").bind(emp, period).run();
-    throw e;
-  }
-  await audit(env, me, 'ts_approved', 'ts_doc', `${emp}:${period}`, undefined, { rows: pushed });
-  await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: me.name, pushed, files: cleanFiles(body.files), resendBy: me });
-  return json({ ok: true, status: 'approved', pushed });
 }
 
 // Admin gửi thử một thư để kiểm tra cấu hình Brevo (gửi tới chính admin, hoặc một địa chỉ chỉ định)
@@ -933,7 +797,7 @@ async function listAudit(env, me, url) {
 }
 
 // các hàm dùng chung truyền cho server/otleave.mjs (duyệt tăng ca, đơn nghỉ)
-const H = { HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES, periodParam, loadDocForReview, pushApprovedRows, mailConfigured };
+const H = { HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES, periodParam, pushApprovedRows, mailConfigured };
 
 // ---------- điểm vào ----------
 
@@ -1004,11 +868,11 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/withdraw$/)) && method === 'POST') return await withdrawMyDoc(env, me, decodeURIComponent(m[1]));
     if (path === '/api/admin/mail/test' && method === 'POST') return await sendTestMail(env, me, request);
     if (path === '/api/ts/approvers' && method === 'GET') return await tsApprovers(env, me, url);
-    if (path === '/api/ts/inbox' && method === 'GET') return await tsInbox(env, me);
-    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
-    if (path === '/api/ts/approved' && method === 'GET') return await approvedList(env, me);
-    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/resend$/)) && method === 'POST') return await resendApproved(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), request);
-    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
+    if (path === '/api/ts/inbox' && method === 'GET') return await tsInbox(H, env, me);
+    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
+    if (path === '/api/ts/approved' && method === 'GET') return await approvedList(H, env, me);
+    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/resend$/)) && method === 'POST') return await resendApproved(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), request);
+    if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     if (path.startsWith('/api/admin/ts/')) {
       const r = await routeTsAdmin(H, env, me, path, method, url, request);

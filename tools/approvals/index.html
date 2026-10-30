@@ -19,7 +19,7 @@
   <div class="ac-wrap">
     <h1>Duyệt bảng công <span class="ac-badge">Máy chủ mới</span></h1>
     <p class="ac-sub"><b>Hằng ngày:</b> Site Sup duyệt <b>tăng ca</b> của fitter (từng ngày). Đơn nghỉ phép / ốm có chức năng riêng.
-      <b>Cuối kỳ:</b> bảng công fitter đã nộp — <b>Site Sup</b> duyệt trước, rồi <b>Quản lý dự án</b> duyệt; duyệt xong dữ liệu tự sang bảng <i>Theo dõi giờ công các công trình</i>.
+      <b>Cuối kỳ:</b> bảng công fitter đã nộp — <b>Site Sup</b> của <u>từng dự án</u> duyệt, rồi <b>Quản lý dự án</b> của từng dự án duyệt, cuối cùng <b>Admin</b> xử lý (hoạt động ngoài dự án) và bấm <b>Process</b>: dữ liệu tự sang bảng <i>Theo dõi giờ công các công trình</i> và hệ thống gửi thư kèm Excel.
       Thấy có chỗ chưa đúng thì <b>Trả lại</b> / <b>Không duyệt</b> kèm lý do (fitter nhận email).</p>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
   </div>
@@ -60,7 +60,7 @@
 
   <section class="ac-card" id="secApproved" hidden>
     <div class="ap-head"><h2>✉ Đã duyệt xong — gửi lại thư kèm Excel</h2><button class="btn small" id="btnReloadAp">Tải lại</button></div>
-    <p class="ac-note">Thư báo duyệt xong (kèm bảng chấm công và bảng phụ cấp xe Excel) gửi Fitter, CC Site Sup của dự án và bạn. Nếu thư lần đầu bị lỗi hoặc ai đó chưa nhận được, bấm <b>Gửi lại</b>. Chỉ Quản lý dự án đã duyệt bảng công đó (và admin) gửi lại được.</p>
+    <p class="ac-note">Thư báo duyệt xong (kèm bảng chấm công và phụ cấp xe / xăng Excel) gửi Fitter, CC Site Sup + Quản lý dự án của các dự án và bạn. Nếu thư lần đầu bị lỗi hoặc ai đó chưa nhận được, bấm <b>Gửi lại</b>. Chỉ Admin / Admin dự án gửi lại được.</p>
     <div class="ac-scroll ac-short"><table class="ac-table" id="apTable">
       <thead><tr><th>Người nộp</th><th>Kỳ lương</th><th>Duyệt bởi</th><th>Dự án</th><th></th></tr></thead>
       <tbody></tbody>
@@ -99,6 +99,6 @@
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="../timesheet/allowance.js?v=1"></script>
 <script src="../timesheet/tsexcel.js?v=1"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

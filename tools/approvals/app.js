@@ -10,8 +10,8 @@
   const fmtH = (h) => (Math.round(h * 10) / 10).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
   const fmtTime = (iso) => { try { return new Date(iso).toLocaleString('vi-VN'); } catch (e) { return iso; } };
   const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-  const LEVEL_LABEL = { sitesup: 'Site Sup', pm: 'Quản lý dự án' };
-  const STATUS_LABEL = { submitted: 'Chờ Site Sup', sitesup_ok: 'Site Sup đã duyệt — chờ Quản lý dự án', approved: 'Đã duyệt xong', rejected: 'Đã trả lại', draft: 'Đang chấm' };
+  const LEVEL_LABEL = { sitesup: 'Site Sup', pm: 'Quản lý dự án', admin: 'Admin — xử lý cuối' };
+  const STATUS_LABEL = { submitted: 'Chờ Site Sup', sitesup_ok: 'Site Sup đã duyệt — chờ Quản lý dự án', pm_ok: 'Đã qua Site Sup và QLDA — chờ Admin xử lý cuối', approved: 'Đã duyệt xong', rejected: 'Đã trả lại', draft: 'Đang chấm' };
 
   let me = null, current = null;      // current = { emp, period, doc }
 
@@ -49,7 +49,7 @@
           <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)} · ${esc(i.position)}</div></td>
           <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}</td>
           <td>${esc(LEVEL_LABEL[i.level])}${i.level === 'pm' && i.sitesupBy ? `<div class="ac-note">Site Sup: ${esc(i.sitesupBy)}</div>` : ''}${i.level === 'pm' && !i.sitesupBy ? '<div class="ac-note">Giám sát nộp thẳng (chỉ giờ OT)</div>' : ''}</td>
-          <td class="mono">${esc(i.wbs.join(', ') || '—')}</td>
+          <td class="mono">${esc(i.wbs.join(', ') || '—')}${i.level !== 'admin' && i.approvedBy && i.approvedBy.length ? `<div class="ac-note">đã duyệt: ${esc(i.approvedBy.join(', '))} · còn: ${esc((i.remaining || []).join(', '))}</div>` : ''}${i.level === 'admin' ? '<div class="ac-note">hoạt động ngoài dự án do Admin xử lý</div>' : ''}</td>
           <td class="r">${i.entries}</td>
           <td>${esc(fmtTime(i.submittedAt))}</td>
           <td><button class="btn small primary" data-open>Xem & duyệt</button></td></tr>`).join('')
@@ -189,6 +189,12 @@
     const noForm = entries.filter(e => isLeave(e) && !e.lv).map(e => e.date);
     if (noForm.length) flags.push(`<div class="ap-flag err">⚠ Có ngày nghỉ không theo đơn nghỉ đã duyệt: ${[...new Set(noForm)].map(fmtDM).join(', ')} — hỏi lại fitter.</div>`);
     if ((doc.otPending || []).length) flags.push(`<div class="ap-flag err">⚠ Còn ${doc.otPending.length} ngày tăng ca CHƯA được duyệt: ${doc.otPending.map(d => `${fmtDM(d.date)} (${fmtH(d.ot)}h${d.status === 'rejected' ? ', bị từ chối' : ''})`).join(', ')}. Giờ chưa duyệt có thể không được tính — duyệt ở mục <b>Tăng ca chờ duyệt</b> hoặc trả lại bảng công.</div>`);
+    if ((doc.approvals || []).length) {
+      const by = {}; doc.approvals.forEach(a => { (by[a.level] = by[a.level] || {})[a.wbs] = a.by_name; });
+      const txt = (lv, name) => by[lv] ? `${name}: ${Object.keys(by[lv]).map(w => `${esc(w)} (${esc(by[lv][w])})`).join(', ')}` : '';
+      flags.push(`<div class="ap-flag">✔ Đã duyệt — ${[txt('sitesup', 'Site Sup'), txt('pm', 'QLDA')].filter(Boolean).join(' · ')}${(doc.remaining || []).length ? ` · <b>còn chờ dự án: ${doc.remaining.map(esc).join(', ')}</b>` : ''}</div>`);
+    } else if ((doc.remaining || []).length) flags.push(`<div class="ap-flag">Dự án cần duyệt ở cấp này: ${doc.remaining.map(esc).join(', ')}</div>`);
+    if (doc.level === 'admin') flags.push('<div class="ap-flag">Bảng công đã được Site Sup và Quản lý dự án của mọi dự án duyệt. Admin kiểm tra các <b>hoạt động ngoài dự án</b> (họp, huấn luyện, nghỉ…) rồi bấm <b>Process</b>: dữ liệu sang Theo dõi giờ công và hệ thống gửi thư kèm Excel cho Fitter, Site Sup, Quản lý dự án.</div>');
     if (doc.direct) flags.push('<div class="ap-flag">Bảng công của giám sát — chỉ gồm giờ tăng ca, nộp thẳng Quản lý dự án (không qua Site Sup).</div>');
     const otDays = new Set(entries.filter(e => !isLeave(e) && Object.keys(e.bd || {}).some(k => k !== 'NORMAL' && e.bd[k] > 0)).map(e => e.date));
     if (otDays.size) flags.push(`<div class="ap-flag">⏱ ${otDays.size} ngày tăng ca (${fmtH(ot)} giờ) — đã được Site Sup duyệt từng ngày trước khi nộp.</div>`);
@@ -197,7 +203,7 @@
     $('dFlags').innerHTML = flags.join('');
     $('dActions').hidden = !doc.canAct;
     $('rejectBox').hidden = true; $('dMsg').textContent = '';
-    $('btnApprove').textContent = doc.level === 'pm' ? 'Duyệt (chuyển sang Theo dõi giờ công)' : 'Duyệt (chuyển sang Quản lý dự án)';
+    $('btnApprove').textContent = doc.level === 'admin' ? 'Process — xử lý xong & gửi thư kèm Excel' : doc.level === 'pm' ? 'Duyệt phần dự án của tôi (QLDA)' : 'Duyệt phần dự án của tôi (Site Sup)';
     $('secDetail').hidden = false;
     $('secDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -274,7 +280,7 @@
     const msg = $('dMsg');
     const { emp, period } = current;
     let files = [];
-    if (action === 'approve' && current.doc.level === 'pm') {
+    if (action === 'approve' && current.doc.level === 'admin') {
       msg.className = 'ac-note'; msg.textContent = 'Đang tạo file Excel để gửi kèm thư…';
       ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = true; });
       try { files = await buildAttachments(emp, period, current.doc); }
@@ -288,7 +294,9 @@
     try {
       const r = await api('POST', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}/${action}`, action === 'reject' ? { note } : (files.length ? { files } : {}));
       const text = action === 'reject' ? 'Đã trả lại bảng công cho người chấm công.'
-        : r.status === 'approved' ? `Đã duyệt xong — ${r.pushed} dòng đã sang bảng Theo dõi giờ công${files.length ? '; đã gửi email kèm ' + files.length + ' file Excel cho Fitter và Site Sup' : ''}.` : 'Đã duyệt — chuyển sang Quản lý dự án.';
+        : r.status === 'approved' ? `Đã xử lý xong — ${r.pushed} dòng đã sang bảng Theo dõi giờ công${files.length ? '; đã gửi email kèm ' + files.length + ' file Excel cho Fitter, Site Sup và Quản lý dự án' : ''}.`
+        : r.status === current.doc.status ? `Đã duyệt phần của bạn (${(r.approved || []).join(', ')}) — còn chờ dự án: ${(r.remaining || []).join(', ')}.`
+        : r.status === 'sitesup_ok' ? 'Đã duyệt xong cấp Site Sup — chuyển sang Quản lý dự án.' : 'Đã duyệt xong cấp Quản lý dự án — chuyển sang Admin xử lý cuối.';
       toast('✓ ' + text);
       $('secDetail').hidden = true; current = null;
       await loadInbox();
@@ -319,7 +327,7 @@
     $('btnAllowExcel').addEventListener('click', downloadAllowance);
     $('btnClose').addEventListener('click', () => { $('secDetail').hidden = true; current = null; });
     $('btnApprove').addEventListener('click', () => {
-      const lv = current.doc.level === 'pm' ? 'Quản lý dự án' : 'Site Sup';
+      const lv = current.doc.level === 'admin' ? 'Admin (xử lý cuối)' : current.doc.level === 'pm' ? 'Quản lý dự án' : 'Site Sup';
       if (confirm(`Xác nhận duyệt bảng công của ${current.doc.name} (kỳ ${current.period.slice(5)}/${current.period.slice(0, 4)}) với tư cách ${lv}?`)) decide('approve');
     });
     $('btnRejectOpen').addEventListener('click', () => { $('rejectBox').hidden = false; $('rejectNote').focus(); });
@@ -339,9 +347,9 @@
       else gate(esc(e.message), true);
       return;
     }
-    const roleName = { admin: 'Admin', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
+    const roleName = { admin: 'Admin', projadmin: 'Admin dự án', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
     $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ${esc(me.roles.map(r => roleName[r] || r).join(', ') || 'Nhân viên')}`;
-    if (!me.isAdmin && !me.roles.includes('pm') && !me.roles.includes('sitesup')) { gate('Chỉ <b>Site Sup</b>, <b>Quản lý dự án</b> và <b>Admin</b> dùng trang này.'); return; }
+    if (!me.isAdmin && !me.roles.includes('pm') && !me.roles.includes('sitesup') && !me.roles.includes('projadmin')) { gate('Chỉ <b>Site Sup</b>, <b>Quản lý dự án</b> và <b>Admin</b> dùng trang này.'); return; }
     $('secInbox').hidden = false; $('secOt').hidden = false; $('leaveMoved').hidden = false;
     wire();
     await loadAll();

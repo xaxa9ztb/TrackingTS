@@ -228,7 +228,7 @@
         // Giám sát (Site Sup / Quản lý dự án): chỉ chấm giờ OT, đăng ký OT trước khi làm, Quản lý dự án duyệt, bảng công cuối kỳ nộp thẳng Quản lý dự án
         const IS_LEAD = SERVER && (() => { try { return Session.roles(Session.current()).some(r => r === 'sitesup' || r === 'pm'); } catch (e) { return false; } })();
         const SALARY_KEY = 'ts_salary_v1';      // lương cơ bản: chỉ lưu trên máy này, không đồng bộ, không nằm trong sao lưu / báo cáo / email
-        const STATUS_LABEL = { draft: 'Đang chấm', rejected: 'Bị trả lại — cần sửa', submitted: 'Đã nộp — chờ giám sát', sitesup_ok: 'Giám sát đã duyệt — chờ quản lý', approved: 'Đã duyệt xong' };
+        const STATUS_LABEL = { draft: 'Đang chấm', rejected: 'Bị trả lại — cần sửa', submitted: 'Đã nộp — chờ giám sát', sitesup_ok: 'Giám sát đã duyệt — chờ quản lý', pm_ok: 'Đã qua giám sát & quản lý — chờ Admin xử lý', approved: 'Đã duyệt xong' };
         const sameEntries = (a, b) => {
             if (a.length !== b.length) return false;
             const m = new Map(a.map(e => [String(e.id), JSON.stringify(e)]));

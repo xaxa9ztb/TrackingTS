@@ -2,7 +2,7 @@
 // Mỗi lần sửa BẮT BUỘC kèm ghi chú; bảng công lưu "Quản trị viên <tên> đã sửa lúc … : <ghi chú>" (người chủ thấy trong Timesheet),
 // các dòng bị sửa đánh dấu ae = 1, dòng bị xoá được nhớ (tombstone) để máy của người chủ gộp đúng. Chi tiết nằm ở nhật ký (audit_log).
 // Các hàm dùng chung của api.mjs (HttpError, json, …) được truyền vào qua `h` để tránh nhập vòng.
-import { PERIOD_RE, checkDoc, checkSubmitEntries } from './tsdoc.mjs';
+import { PERIOD_RE, checkDoc, checkSubmitEntries, projectWbs } from './tsdoc.mjs';
 import { notifyEvent } from './notify.mjs';
 
 const parse = (s, d) => { try { return JSON.parse(s); } catch (e) { return d; } };
@@ -86,7 +86,7 @@ async function putDoc(h, env, me, emp, period, request) {
   // đã nộp / đang duyệt: cập nhật danh sách dự án để người duyệt đúng người; đã duyệt xong: đẩy lại sang bảng Theo dõi giờ công
   let pushed = 0;
   if (status !== 'draft' && status !== 'rejected') {
-    const wbs = [...new Set(entries.map(e => String(e.workNumber || '').trim()).filter(Boolean))].slice(0, 40);
+    const wbs = projectWbs(entries);
     const stmts = [env.DB.prepare('DELETE FROM ts_doc_wbs WHERE emp_id = ? AND period = ?').bind(emp, period)];
     if (wbs.length) stmts.push(env.DB.prepare(`INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbs.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbs.flatMap(w => [emp, period, w])));
     await env.DB.batch(stmts);

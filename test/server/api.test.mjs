@@ -731,6 +731,8 @@ const okEntry = (id, date, extra = {}) => myEntry(id, date, { workNumber: 'WA-1'
 const putDoc = (email, period, entries, base) => call('PUT', '/api/ts/docs/' + period, { email, body: { baseVersion: base, data: { entries, deleted: {}, sch: 'mon-sat-am' } } });
 const docOf = async (email, period) => (await call('GET', '/api/ts/docs/' + period, { email })).data;
 const submit = async (email, period) => call('POST', `/api/ts/docs/${period}/submit`, { email, body: { baseVersion: (await docOf(email, period)).version } });
+// Admin xử lý cuối (cấp 3): bảng công đã qua Site Sup + QLDA → Process → approved
+const finalApprove = (emp, period, files) => call('POST', `/api/ts/review/${emp}/${period}/approve`, { email: 'boss@example.com', body: files ? { files } : {} });
 const tsRowsOf = async () => (await readTs('boss@example.com')).rows;
 
 test('duyệt: chuẩn bị Site Sup, Quản lý dự án, dự án WA-1 và người nộp', async () => {
@@ -793,6 +795,12 @@ test('duyệt: Site Sup duyệt → QLDA duyệt → dòng sang bảng Theo dõi
   assert.deepEqual(inb.map(i => [i.empId, i.level, i.sitesupBy]), [['TS2', 'pm', 'Giám Sát Duyệt']]);
   assert.equal((await call('POST', '/api/ts/docs/2026-12/withdraw', { email: 'ts2@example.com', body: {} })).status, 409, 'giám sát đã duyệt thì không thu hồi được');
   r = await call('POST', '/api/ts/review/TS2/2026-12/approve', { email: 'ap3@example.com', body: {} });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'pm_ok', 'QLDA duyệt xong → chờ Admin xử lý cuối');
+  assert.equal((await call('GET', '/api/timesheets/meta', { email: 'boss@example.com' })).data.count, before.count, 'chưa sang bảng Theo dõi giờ công khi Admin chưa xử lý');
+  assert.equal((await call('POST', '/api/ts/review/TS2/2026-12/approve', { email: 'ap3@example.com', body: {} })).status, 403, 'QLDA không xử lý cuối');
+  assert.equal((await call('GET', '/api/ts/inbox', { email: 'ap3@example.com' })).data.items.length, 0);
+  assert.deepEqual((await call('GET', '/api/ts/inbox', { email: 'boss@example.com' })).data.items.filter(i => i.empId === 'TS2').map(i => [i.level, i.status]), [['admin', 'pm_ok']]);
+  r = await finalApprove('TS2', '2026-12');
   assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'approved'); assert.equal(r.data.pushed, 2);
   const after = (await call('GET', '/api/timesheets/meta', { email: 'boss@example.com' })).data;
   assert.equal(after.count, before.count + 2); assert.equal(after.version, before.version + 1, 'máy khách sẽ tải lại bảng Theo dõi giờ công');
@@ -820,11 +828,12 @@ test('duyệt: trả lại cần lý do; người nộp sửa lại và nộp l�
   assert.equal((await putDoc('ts3@example.com', '2026-12', [...d.data.entries, okEntry(13, '2026-11-20')], d.version)).status, 200, 'bị trả lại thì sửa được');
   assert.equal((await submit('ts3@example.com', '2026-12')).status, 200);
   assert.equal((await call('POST', '/api/ts/review/TS3/2026-12/approve', { email: 'ap1@example.com', body: {} })).status, 200);
-  assert.equal((await call('POST', '/api/ts/review/TS3/2026-12/approve', { email: 'ap3@example.com', body: {} })).status, 200);
+  assert.equal((await call('POST', '/api/ts/review/TS3/2026-12/approve', { email: 'ap3@example.com', body: {} })).data.status, 'pm_ok');
+  assert.equal((await finalApprove('TS3', '2026-12')).status, 200);
   assert.equal((await tsRowsOf()).filter(x => x.empId === 'TS3').length, 3);
-  // trả lại sau khi QLDA duyệt không được (đã xong); nhưng admin nạp lại + duyệt lại kỳ khác không nhân đôi: giả lập duyệt lại bằng cách đưa trạng thái về sitesup_ok
-  await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok' WHERE emp_id = 'TS3' AND period = '2026-12'").run();
-  assert.equal((await call('POST', '/api/ts/review/TS3/2026-12/approve', { email: 'ap3@example.com', body: {} })).status, 200);
+  // xử lý cuối lần nữa (giả lập: đưa trạng thái về pm_ok) không nhân đôi dòng
+  await env.DB.prepare("UPDATE ts_docs SET status = 'pm_ok' WHERE emp_id = 'TS3' AND period = '2026-12'").run();
+  assert.equal((await finalApprove('TS3', '2026-12')).status, 200);
   assert.equal((await tsRowsOf()).filter(x => x.empId === 'TS3').length, 3, 'duyệt lại không nhân đôi dòng');
 });
 
@@ -892,7 +901,11 @@ test('thư: nộp → báo Site Sup; Site Sup duyệt → báo Quản lý dự �
   assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [['ap3@example.com']]);
   assert.match(sentMail[0].subject, /chờ Quản lý dự án duyệt/); assert.match(sentMail[0].htmlContent, /Giám Sát Duyệt/);
   sentMail.length = 0;
-  assert.equal((await call('POST', '/api/ts/review/TS4/2026-12/approve', { email: 'ap3@example.com', body: {} })).status, 200);
+  assert.equal((await call('POST', '/api/ts/review/TS4/2026-12/approve', { email: 'ap3@example.com', body: {} })).data.status, 'pm_ok');
+  assert.equal(sentMail.length, 1); assert.ok(sentMail[0].to.some(t => t.email === 'boss@example.com') && !sentMail[0].to.some(t => t.email === staffEmail(4)), 'QLDA duyệt xong → báo Admin xử lý cuối (chưa báo người nộp)');
+  assert.match(sentMail[0].subject, /chờ Admin xử lý cuối/);
+  sentMail.length = 0;
+  assert.equal((await finalApprove('TS4', '2026-12')).status, 200);
   assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [[staffEmail(4)]]); assert.match(sentMail[0].subject, /đã được duyệt xong/);
   // trả lại
   await putDoc(staffEmail(5), '2026-12', [okEntry(51, '2026-11-18')], 0);
@@ -981,7 +994,7 @@ test('nhắc hạn: ngày 9 nhắc người chưa nộp; ngày 11 nhắc lại v
   // kỳ 2026-11: TS4 chưa nộp (bản nháp), TS1 bị trả lại, TS7 đã nộp
   const d4 = await docOf(staffEmail(4), '2026-11'); assert.equal(d4.status, 'draft');
   await submit(staffEmail(7), '2026-11');
-  assert.equal((await call('GET', '/api/ts/docs', { email: staffEmail(7) })).data.docs.find(d => d.period === '2026-11').status, 'submitted');
+  assert.equal((await call('GET', '/api/ts/docs', { email: staffEmail(7) })).data.docs.find(d => d.period === '2026-11').status, 'pm_ok', 'chỉ có hoạt động ngoài dự án → bỏ qua Site Sup / QLDA, chờ Admin');
   sentMail.length = 0;
   assert.equal((await runReminders(env, { now: new Date('2026-11-08T01:00:00Z') })).sent, 0, 'ngày 8 không nhắc');
   const s9 = await runReminders(env, { now: new Date('2026-11-09T01:00:00Z') });
@@ -996,8 +1009,9 @@ test('nhắc hạn: ngày 9 nhắc người chưa nộp; ngày 11 nhắc lại v
   const s11 = await runReminders(env, { now: new Date('2026-11-11T01:00:00Z') });
   assert.equal(s11.stage, 'r11'); assert.ok(s11.sent > 0);
   assert.match(mailsTo(staffEmail(4))[0].subject, /Ngày mai \(12\/11\) là hạn nộp/);
-  const ap2 = mailsTo('ap2@example.com').filter(m => /chờ bạn duyệt/.test(m.subject));
-  assert.equal(ap2.length, 1); assert.match(ap2[0].htmlContent, /Thợ Bảy/, 'AP2 là Quản lý trực tiếp của TS7 nên được nhắc duyệt');
+  // TS7 chỉ có hoạt động ngoài dự án (không WBS) → không cần Site Sup / QLDA của dự án duyệt, thẳng Admin xử lý → Admin được nhắc
+  const adm = mailsTo('boss@example.com').filter(m => /chờ bạn duyệt/.test(m.subject));
+  assert.equal(adm.length, 1); assert.match(adm[0].htmlContent, /Thợ Bảy[^<]*chờ Admin xử lý cuối/, 'bảng công chỉ hoạt động ngoài dự án chờ Admin');
   assert.ok(total9 > 0);
 });
 
@@ -1077,10 +1091,16 @@ test('demo: trọn luồng như thật — Fitter nộp → Site Sup duyệt →
   // đổi vai Quản lý dự án → duyệt xong → báo người nộp (chính người thử, vai Phạm Minh Dũng)
   assert.equal((await call('POST', '/api/demo/role', { ...opt, body: { role: 'pm' } })).data.empId, 'D001');
   sentMail.length = 0;
+  const pmDone = await call('POST', `/api/ts/review/D101/${per}/approve`, { ...opt, body: {} });
+  assert.equal(pmDone.status, 200); assert.equal(pmDone.data.status, 'pm_ok', 'QLDA duyệt xong → chờ Admin xử lý cuối');
+  assert.equal(sentMail.length, 1); assert.match(sentMail[0].subject, /^\[DEMO\].*chờ Admin xử lý cuối/);
+  // đổi vai Quản trị viên → xử lý cuối → duyệt xong → báo người nộp (chính người thử, vai Phạm Minh Dũng)
+  assert.equal((await call('POST', '/api/demo/role', { ...opt, body: { role: 'admin' } })).status, 200);
+  sentMail.length = 0;
   const done = await call('POST', `/api/ts/review/D101/${per}/approve`, { ...opt, body: {} });
   assert.equal(done.status, 200); assert.equal(done.data.status, 'approved');
   assert.equal(sentMail.length, 1); assert.match(sentMail[0].subject, /^\[DEMO\].*đã được duyệt xong/);
-  assert.match(sentMail[0].htmlContent, /sẽ gửi tới: <b>Phạm Minh Dũng \(CC: Trần Thị Bình, [^)]*\)<\/b>/, 'thật: gửi Fitter, CC Site Sup của dự án');
+  assert.match(sentMail[0].htmlContent, /sẽ gửi tới: <b>Phạm Minh Dũng \(CC: Trần Thị Bình, Nguyễn Văn An/, 'thật: gửi Fitter, CC Site Sup + QLDA của dự án + Admin');
   assert.match(sentMail[0].htmlContent, /dòng đã chuyển sang bảng Theo dõi giờ công/);
   // chỉ một người dùng email người thử; đổi vai không tạo trùng email
   const emps = (await call('GET', '/api/employees', opt)).data.employees;
@@ -1375,13 +1395,14 @@ test('duyệt xong: thư kèm Excel gửi Fitter, CC Site Sup của dự án; t�
   await putDoc('ts1@example.com', '2027-05', [okEntry(4101, '2027-04-20')], 0);
   assert.equal((await submit('ts1@example.com', '2027-05')).status, 200);
   assert.equal((await call('POST', '/api/ts/review/TS1/2027-05/approve', { email: 'ap1@example.com', body: {} })).status, 200);
+  assert.equal((await call('POST', '/api/ts/review/TS1/2027-05/approve', { email: 'ap3@example.com', body: { files } })).data.status, 'pm_ok', 'QLDA duyệt xong chưa gửi thư kèm file — chờ Admin');
   sentMail.length = 0;
-  let r = await call('POST', '/api/ts/review/TS1/2027-05/approve', { email: 'ap3@example.com', body: { files } });
+  let r = await finalApprove('TS1', '2027-05', files);
   assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'approved');
   assert.equal(sentMail.length, 1);
   const m = sentMail[0];
   assert.deepEqual(m.to.map(t => t.email), ['ts1@example.com']);
-  assert.deepEqual((m.cc || []).map(t => t.email).sort(), ['ap1@example.com', 'ap3@example.com'], 'CC Site Sup của dự án WA-1 + Quản lý dự án đã duyệt, không báo admin');
+  assert.deepEqual((m.cc || []).map(t => t.email).sort(), ['ap1@example.com', 'ap3@example.com', 'boss@example.com'], 'CC Site Sup + QLDA của dự án WA-1 + Admin xử lý');
   assert.deepEqual(m.attachment.map(a => a.name), ['Tho_Mot_Thang_03_2027.xlsx'.replace('Tho_Mot', 'Tho Mot'), 'Phu_cap_xe.xlsx'], 'chỉ giữ tệp .xlsx hợp lệ');
   assert.match(m.subject, /Thợ Một — kỳ lương 5\/2027 đã được duyệt xong \(kèm Excel\)/);
   assert.match(m.htmlContent, /Đính kèm/);
@@ -1389,35 +1410,37 @@ test('duyệt xong: thư kèm Excel gửi Fitter, CC Site Sup của dự án; t�
   await putDoc('ts2@example.com', '2027-05', [okEntry(4102, '2027-04-20')], 0);
   await submit('ts2@example.com', '2027-05');
   await call('POST', '/api/ts/review/TS2/2027-05/approve', { email: 'ap1@example.com', body: {} });
+  await call('POST', '/api/ts/review/TS2/2027-05/approve', { email: 'ap3@example.com', body: {} });
   sentMail.length = 0;
-  r = await call('POST', '/api/ts/review/TS2/2027-05/approve', { email: 'ap3@example.com', body: {} });
+  r = await finalApprove('TS2', '2027-05');
   assert.equal(r.status, 200);
   assert.equal(sentMail[0].attachment, undefined); assert.match(sentMail[0].htmlContent, /không kèm file Excel/);
 });
 
-test('gửi lại thư duyệt xong: chỉ QLDA đã duyệt / admin; luôn CC người gửi lại; chưa duyệt xong thì không gửi; lỗi Brevo báo rõ', async () => {
+test('gửi lại thư duyệt xong: chỉ Admin / Admin dự án; luôn CC người gửi lại; chưa xử lý cuối thì không gửi; lỗi Brevo báo rõ', async () => {
   const zip = 'UEsDBBQAAAAIA' + 'A'.repeat(200);
   const body = { files: [{ name: 'a.xlsx', content: zip }] };
   const url = '/api/ts/review/TS1/2027-05/resend';
-  const list = (await call('GET', '/api/ts/approved', { email: 'ap3@example.com' })).data.items;
-  assert.ok(list.some(i => i.empId === 'TS1' && i.period === '2027-05' && i.pmBy === 'Quản Lý Duyệt'));
-  assert.equal((await call('GET', '/api/ts/approved', { email: 'ap1@example.com' })).status, 403, 'Site Sup không có danh sách này');
-  assert.equal((await call('POST', url, { email: 'ap1@example.com', body })).status, 403);
+  const list = (await call('GET', '/api/ts/approved', { email: 'boss@example.com' })).data.items;
+  assert.ok(list.some(i => i.empId === 'TS1' && i.period === '2027-05' && i.pmBy === 'Quản Lý Duyệt' && i.finalBy));
+  assert.equal((await call('GET', '/api/ts/approved', { email: 'ap3@example.com' })).status, 403, 'QLDA không còn gửi lại — Admin xử lý cuối');
+  assert.equal((await call('GET', '/api/ts/approved', { email: 'ap1@example.com' })).status, 403);
+  assert.equal((await call('POST', url, { email: 'ap3@example.com', body })).status, 403);
   assert.equal((await call('POST', url, { email: 'ts1@example.com', body })).status, 403);
   sentMail.length = 0;
-  const r = await call('POST', url, { email: 'ap3@example.com', body });
+  const r = await call('POST', url, { email: 'boss@example.com', body });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.match(sentMail[0].subject, /^\[Gửi lại\] Thợ Một/);
   assert.deepEqual(sentMail[0].to.map(t => t.email), ['ts1@example.com']);
-  assert.deepEqual(sentMail[0].cc.map(t => t.email).sort(), ['ap1@example.com', 'ap3@example.com'], 'CC Site Sup dự án + PM');
+  assert.deepEqual(sentMail[0].cc.map(t => t.email).sort(), ['ap1@example.com', 'ap3@example.com', 'boss@example.com'], 'CC Site Sup + QLDA của dự án + người gửi lại');
   assert.equal(sentMail[0].attachment.length, 1);
-  assert.equal((await call('POST', url, { email: 'ap3@example.com', body: { files: [] } })).status, 400);
-  assert.equal((await call('POST', '/api/ts/review/TS3/2026-12/resend', { email: 'ap3@example.com', body })).status, 200, 'bảng công đã duyệt xong khác của QLDA');
-  await env.DB.prepare("UPDATE ts_docs SET status = 'sitesup_ok' WHERE emp_id = 'TS1' AND period = '2027-05'").run();
-  assert.equal((await call('POST', url, { email: 'ap3@example.com', body })).status, 409, 'chưa được PM duyệt xong');
+  assert.equal((await call('POST', url, { email: 'boss@example.com', body: { files: [] } })).status, 400);
+  assert.equal((await call('POST', '/api/ts/review/TS3/2026-12/resend', { email: 'boss@example.com', body })).status, 200, 'bảng công đã duyệt xong khác');
+  await env.DB.prepare("UPDATE ts_docs SET status = 'pm_ok' WHERE emp_id = 'TS1' AND period = '2027-05'").run();
+  assert.equal((await call('POST', url, { email: 'boss@example.com', body })).status, 409, 'chưa được Admin xử lý cuối');
   await env.DB.prepare("UPDATE ts_docs SET status = 'approved' WHERE emp_id = 'TS1' AND period = '2027-05'").run();
   brevoMode = 'fail';
-  const bad = await call('POST', url, { email: 'ap3@example.com', body });
+  const bad = await call('POST', url, { email: 'boss@example.com', body });
   brevoMode = 'ok';
   assert.equal(bad.status, 502); assert.match(bad.data.error, /Gửi thư không thành công/);
 });
@@ -1485,7 +1508,8 @@ test('giám sát: bảng công chỉ giờ OT nộp thẳng Quản lý dự án;
   assert.equal((await call('POST', '/api/ts/review/AP1/2027-07/approve', { email: lead, body: {} })).status, 403, 'không tự duyệt bảng công của mình');
   assert.equal((await call('POST', '/api/ts/docs/2027-07/withdraw', { email: lead, body: {} })).status, 200, 'thu hồi được khi QLDA chưa duyệt');
   assert.equal((await submit(lead, '2027-07')).status, 200);
-  assert.equal((await call('POST', '/api/ts/review/AP1/2027-07/approve', { email: pm, body: {} })).data.status, 'approved');
+  assert.equal((await call('POST', '/api/ts/review/AP1/2027-07/approve', { email: pm, body: {} })).data.status, 'pm_ok');
+  assert.equal((await finalApprove('AP1', '2027-07')).data.status, 'approved');
 });
 
 // ---------- Admin / Admin dự án xem và sửa mọi bảng công ----------
@@ -1554,11 +1578,86 @@ test('Admin sửa bảng công đã nộp / đã duyệt: phải có phân loạ
   assert.equal((await docOf('ts2@example.com', '2027-08')).status, 'submitted', 'trạng thái giữ nguyên, người nộp không tự sửa được');
   // duyệt xong rồi sửa lại → đẩy lại
   assert.equal((await call('POST', '/api/ts/review/TS2/2027-08/approve', { email: 'ap1@example.com', body: {} })).status, 200);
-  assert.equal((await call('POST', '/api/ts/review/TS2/2027-08/approve', { email: 'ap3@example.com', body: {} })).data.pushed, 2);
+  assert.equal((await call('POST', '/api/ts/review/TS2/2027-08/approve', { email: 'ap3@example.com', body: {} })).data.status, 'pm_ok');
+  assert.equal((await finalApprove('TS2', '2027-08')).data.pushed, 2);
   const d2 = (await call('GET', '/api/admin/ts/doc/TS2/2027-08', { email: 'boss@example.com' })).data;
   const fixed = d2.data.entries.map(e => e.id === 8202 ? { ...e, endTime: '19:00', bd: { NORMAL: 8, OT1: 2 } } : e);
   r = await put('TS2', '2027-08', { baseVersion: d2.version, note: 'Bổ sung OT ngày 21', data: { entries: fixed } });
   assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'approved'); assert.equal(r.data.pushed, 2);
   const row = (await tsRowsOf()).find(x => x.empId === 'TS2' && x.date === '2027-07-21');
   assert.equal(row.ot1, 2, 'bảng Theo dõi giờ công cập nhật theo bản đã sửa');
+});
+
+// ---------- quy trình duyệt 3 cấp: mọi dự án → Site Sup, mọi dự án → QLDA, rồi Admin ----------
+test('duyệt 3 cấp: bảng công nhiều dự án cần Site Sup rồi QLDA của TỪNG dự án; duyệt một phần; thu hồi bị chặn; hoạt động ngoài dự án do Admin; Admin dự án xử lý cuối', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [{ empId: 'AP4', fullName: 'Quản Lý Hai', position: 'Project Manager' }], projects: [{ wbs: 'WB-2', projectName: 'Dự án hai' }] } });
+  await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [{ empId: 'AP4', email: 'ap4@example.com' }] } });
+  assert.equal((await call('PUT', '/api/projects/WB-2/staff', { email: 'boss@example.com', body: { sitesup: ['AP2'], pm: ['AP4'] } })).status, 200);
+  const e = (id, date, extra) => okEntry(id, date, extra);
+  await putDoc('ts1@example.com', '2027-10', [e(1001, '2027-09-20'), e(1002, '2027-09-21', { workNumber: 'WB-2', projectName: 'Dự án hai' }),
+    e(1003, '2027-09-22', { workNumber: 'MEETINGS', projectName: 'Họp', activityCode: '5010', cat: 'HR' })], 0);
+  sentMail.length = 0;
+  let r = await submit('ts1@example.com', '2027-10');
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'submitted');
+  assert.deepEqual((await env.DB.prepare("SELECT wbs FROM ts_doc_wbs WHERE emp_id = 'TS1' AND period = '2027-10' ORDER BY wbs").all()).results.map(x => x.wbs), ['WA-1', 'WB-2'], 'hoạt động ngoài dự án (MEETINGS) không tính là dự án');
+  assert.deepEqual([...new Set(sentMail.filter(m => /đã nộp/.test(m.subject)).flatMap(m => m.to.map(t => t.email)))].sort(), ['ap1@example.com', 'ap2@example.com'], 'thư tới Site Sup của từng dự án');
+  const inbox = async (em) => (await call('GET', '/api/ts/inbox', { email: em })).data.items.filter(i => i.empId === 'TS1' && i.period === '2027-10');
+  assert.equal((await inbox('ap1@example.com')).length, 1); assert.equal((await inbox('ap2@example.com')).length, 1);
+  assert.equal((await inbox('ap3@example.com')).length, 0, 'QLDA chưa đến lượt');
+  // Site Sup dự án WA-1 duyệt → còn WB-2
+  r = await call('POST', '/api/ts/review/TS1/2027-10/approve', { email: 'ap1@example.com', body: {} });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'submitted'); assert.deepEqual(r.data.approved, ['WA-1']); assert.deepEqual(r.data.remaining, ['WB-2']);
+  assert.equal((await inbox('ap1@example.com')).length, 0, 'đã duyệt phần của mình thì hết trong hộp thư');
+  assert.equal((await call('POST', '/api/ts/review/TS1/2027-10/approve', { email: 'ap1@example.com', body: {} })).status, 403, 'duyệt lại: không còn dự án nào của mình');
+  const rv = (await call('GET', '/api/ts/review/TS1/2027-10', { email: 'ap2@example.com' })).data;
+  assert.deepEqual(rv.remaining, ['WB-2']); assert.deepEqual(rv.approvals.map(a => [a.level, a.wbs, a.by_name]), [['sitesup', 'WA-1', 'Giám Sát Duyệt']]);
+  assert.equal((await call('POST', '/api/ts/docs/2027-10/withdraw', { email: 'ts1@example.com', body: {} })).status, 409, 'đã có người duyệt một phần: không thu hồi');
+  // Site Sup dự án WB-2 duyệt → đủ → chuyển QLDA, thư tới QLDA của cả hai dự án
+  sentMail.length = 0;
+  r = await call('POST', '/api/ts/review/TS1/2027-10/approve', { email: 'ap2@example.com', body: {} });
+  assert.equal(r.data.status, 'sitesup_ok');
+  assert.deepEqual([...new Set(sentMail.flatMap(m => m.to.map(t => t.email)))].sort(), ['ap3@example.com', 'ap4@example.com']);
+  assert.equal((await inbox('ap1@example.com')).length, 0); assert.equal((await inbox('ap2@example.com')).length, 0);
+  // QLDA: AP3 (WA-1) rồi AP4 (WB-2)
+  r = await call('POST', '/api/ts/review/TS1/2027-10/approve', { email: 'ap3@example.com', body: {} });
+  assert.equal(r.data.status, 'sitesup_ok'); assert.deepEqual(r.data.remaining, ['WB-2']);
+  sentMail.length = 0;
+  r = await call('POST', '/api/ts/review/TS1/2027-10/approve', { email: 'ap4@example.com', body: {} });
+  assert.equal(r.data.status, 'pm_ok');
+  assert.ok(sentMail.some(m => /chờ Admin xử lý cuối/.test(m.subject) && m.to.some(t => t.email === 'boss@example.com') && m.to.some(t => t.email === 'pa1@example.com')), 'thư tới Admin và Admin dự án');
+  assert.equal((await docOf('ts1@example.com', '2027-10')).status, 'pm_ok');
+  // Admin dự án xử lý cuối (QLDA không xử lý được)
+  assert.equal((await call('POST', '/api/ts/review/TS1/2027-10/approve', { email: 'ap4@example.com', body: {} })).status, 403);
+  const adm = (await call('GET', '/api/ts/inbox', { email: 'pa1@example.com' })).data.items.find(i => i.empId === 'TS1' && i.period === '2027-10');
+  assert.equal(adm.level, 'admin');
+  sentMail.length = 0;
+  const zip = 'UEsDBBQAAAAIA' + 'A'.repeat(200);
+  r = await call('POST', '/api/ts/review/TS1/2027-10/approve', { email: 'pa1@example.com', body: { files: [{ name: 'THO MOT.xlsx', content: zip }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'approved');
+  const fin = sentMail.find(m => /đã được duyệt xong/.test(m.subject));
+  assert.deepEqual(fin.to.map(t => t.email), ['ts1@example.com']);
+  assert.deepEqual(fin.cc.map(t => t.email).sort(), ['ap1@example.com', 'ap2@example.com', 'ap3@example.com', 'ap4@example.com', 'pa1@example.com'], 'CC mọi Site Sup + QLDA của các dự án + Admin xử lý');
+  assert.equal(fin.attachment[0].name, 'THO MOT.xlsx');
+});
+
+test('duyệt 3 cấp: trả lại xoá mọi lần duyệt một phần; nộp lại duyệt từ đầu; bảng công chỉ hoạt động ngoài dự án đi thẳng Admin', async () => {
+  const e = (id, date, extra) => okEntry(id, date, extra);
+  await putDoc('ts2@example.com', '2027-10', [e(2001, '2027-09-20'), e(2002, '2027-09-21', { workNumber: 'WB-2', projectName: 'Dự án hai' })], 0);
+  assert.equal((await submit('ts2@example.com', '2027-10')).status, 200);
+  assert.equal((await call('POST', '/api/ts/review/TS2/2027-10/approve', { email: 'ap1@example.com', body: {} })).data.remaining.length, 1);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM ts_approvals WHERE emp_id = 'TS2' AND period = '2027-10'").first()).c, 1);
+  // Site Sup khác (dự án còn lại) trả lại → xoá lần duyệt của AP1
+  assert.equal((await call('POST', '/api/ts/review/TS2/2027-10/reject', { email: 'ap2@example.com', body: { note: 'Sai dự án ngày 21' } })).data.status, 'rejected');
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM ts_approvals WHERE emp_id = 'TS2' AND period = '2027-10'").first()).c, 0);
+  const d = await docOf('ts2@example.com', '2027-10');
+  assert.equal((await putDoc('ts2@example.com', '2027-10', d.data.entries, d.version)).status, 200);
+  assert.equal((await submit('ts2@example.com', '2027-10')).data.status, 'submitted');
+  assert.equal((await call('GET', '/api/ts/inbox', { email: 'ap1@example.com' })).data.items.filter(i => i.empId === 'TS2' && i.period === '2027-10').length, 1, 'nộp lại: duyệt từ đầu');
+  // chỉ hoạt động ngoài dự án → thẳng Admin
+  const meet = (id, date) => e(id, date, { workNumber: 'TRAINING-NI', projectName: 'Huấn luyện', activityCode: '5021', cat: 'HR' });
+  await putDoc('ts3@example.com', '2027-10', [meet(3001, '2027-09-20'), meet(3002, '2027-09-21')], 0);
+  const r = await submit('ts3@example.com', '2027-10');
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'pm_ok');
+  assert.equal((await call('GET', '/api/ts/inbox', { email: 'ap2@example.com' })).data.items.filter(i => i.empId === 'TS3' && i.period === '2027-10').length, 0, 'Site Sup không phải duyệt hoạt động ngoài dự án');
+  assert.equal((await call('GET', '/api/ts/inbox', { email: 'boss@example.com' })).data.items.filter(i => i.empId === 'TS3' && i.level === 'admin').length, 1);
 });

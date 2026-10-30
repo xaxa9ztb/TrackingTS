@@ -29,6 +29,15 @@ export function periodOfDate(date) {
   return `${y}-${String(m).padStart(2, '0')}`;
 }
 
+// Admin / Admin dự án (nhận bảng công chờ xử lý cuối): email trong ADMIN_EMAILS + nhân viên có vai trò admin / projadmin
+export async function adminsFor(env) {
+  const out = new Map();
+  adminEmails(env).forEach(email => out.set(email, { email, name: '' }));
+  const { results } = await env.DB.prepare("SELECT full_name, email FROM employees WHERE active = 1 AND email <> '' AND (role_override = 'admin' OR extra_role = 'projadmin')").all();
+  results.forEach(e => { const k = String(e.email).toLowerCase(); out.set(k, { email: k, name: e.full_name || '' }); });
+  return [...out.values()];
+}
+
 // Quản lý trực tiếp (theo tên trong cột Giám sát của EE Data) — bất kể vai trò — có email
 async function directSupervisors(env, name, ctx = {}) {
   if (!name) return [];
@@ -82,15 +91,18 @@ async function approverIndex(env) {
   const sups = em.results.filter(e => effectiveRoles(e, e.email, env).includes('sitesup'));
   const pms = em.results.filter(e => effectiveRoles(e, e.email, env).includes('pm'));
   const admins = [...adminEmails(env).map(email => ({ email, name: '' })), ...em.results.filter(e => e.role_override === 'admin').map(person)];
+  const projAdmins = em.results.filter(e => e.extra_role === 'projadmin').map(person);
   const direct = (name) => (name ? sups.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
   const directAny = (name) => (name ? em.results.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
   const directPm = (name) => (name ? pms.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
   const uniq = (list) => { const m = new Map(); list.forEach(p => { if (p.email && !m.has(p.email)) m.set(p.email, p); }); return [...m.values()]; };
   return {
-    direct, directAny, admins: () => uniq(admins),
+    direct, directAny, admins: () => uniq(admins), adminish: () => uniq([...admins, ...projAdmins]),
     staff: (wbs) => { const x = byWbs.get(String(wbs || '').trim()); return x ? uniq([...x.sitesup, ...x.pm]) : []; },
-    approvers(level, wbsList, ownerSupervisor) {
-      let out = (wbsList || []).flatMap(w => (byWbs.get(w) || {})[level] || []);
+    approvers(level, wbsList, ownerSupervisor, approvedSet) {
+      const todo = (wbsList || []).filter(w => !(approvedSet && approvedSet.has(w)));      // dự án đã được duyệt ở cấp này thì không nhắc nữa
+      if (approvedSet && (wbsList || []).length && !todo.length) return [];
+      let out = todo.flatMap(w => (byWbs.get(w) || {})[level] || []);
       out = out.concat(level === 'sitesup' ? direct(ownerSupervisor) : directPm(ownerSupervisor));
       out = uniq(out);
       return out.length ? out : uniq(admins);
@@ -125,6 +137,19 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
     const who = `${owner.full_name} (${empId})`, kp = `kỳ lương ${periodLabel(period)}`;
     const review = reviewLink(env, empId, period), mine = link(env, '/tools/timesheet/');
     let to, subject, html, cc = [];
+    if (kind === 'pm_ok') {
+      // đã qua mọi Site Sup và Quản lý dự án của các dự án → chờ Admin / Admin dự án xử lý cuối
+      to = await adminsFor(env);
+      const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
+      let t = null;
+      try { t = row ? docTotals(JSON.parse(row.data)) : null; } catch (e) { t = null; }
+      return await sendMail(env, { to, subject: `[Bảng công] ${owner.full_name} — ${kp}: chờ Admin xử lý cuối`,
+        html: layout('Bảng công chờ Admin xử lý', `<p>Bảng công ${esc(kp)} của <b>${esc(who)}</b> đã được Site Sup và Quản lý dự án của các dự án duyệt xong.</p>
+          ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc</p>` : ''}
+          ${t && t.allow ? `<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px"><b>Phụ cấp xe:</b> ${esc(t.allow)}</p>` : ''}
+          ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}
+          <p>Admin xem các <b>hoạt động ngoài dự án</b> (họp, huấn luyện, nghỉ…), bấm <b>Process</b>: dữ liệu sang bảng Theo dõi giờ công và hệ thống gửi thư kèm Excel cho Fitter, Site Sup, Quản lý dự án.</p>`, { url: review, label: 'Mở bảng công để xử lý' }) });
+    }
     if (kind === 'admin_edit') {
       // báo người chủ bảng công: Quản trị viên đã sửa (kèm ghi chú); người không có tài khoản (không có email) thì thôi
       if (!owner.email) return { ok: false, skipped: true };
@@ -163,7 +188,9 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
     } else if (kind === 'approved') {
       // người nộp (To) + Site Sup của các dự án trong bảng công / Quản lý trực tiếp (CC); không có ai thì không báo admin
       to = owner.email ? [{ email: owner.email, name: owner.full_name }] : [];
-      cc = await approversFor(env, 'sitesup', wbs, owner.supervisor, {}, { fallback: false });
+      // Fitter (To); CC: Site Sup + Quản lý dự án của các dự án trong bảng công, Quản lý trực tiếp (Site Sup / QLDA), Admin xử lý
+      const ctx = {};
+      cc = (await approversFor(env, 'sitesup', wbs, owner.supervisor, ctx, { fallback: false })).concat(await approversFor(env, 'pm', wbs, owner.supervisor, ctx, { fallback: false }));
       // thư luôn CC Quản lý dự án đã duyệt bảng công này (hoặc người bấm gửi lại)
       if (resendBy && resendBy.email) cc = cc.concat([{ email: String(resendBy.email).toLowerCase(), name: resendBy.name || '' }]);
       const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
@@ -285,7 +312,7 @@ export async function runDigest(env, { now = new Date() } = {}) {
     const date = summary.date, period = periodOfDate(date), workday = weekdayOf(date) !== 0;
     // đầu ngày Việt Nam (ms) — các dòng có u (thời điểm sửa) từ đây trở đi là chấm hôm nay; dùng để gộp ngày chấm bù vào MỘT thư
     const dayStartMs = Date.parse(date + 'T00:00:00+07:00');
-    const [rowsQ, pendQ, wbsQ, openQ, otQ, leaveQ, lateQ, datesQ] = await env.DB.batch([
+    const [rowsQ, pendQ, wbsQ, openQ, otQ, leaveQ, lateQ, datesQ, apprQ] = await env.DB.batch([
       env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor,
           json_extract(x.value, '$.projectName') pn, json_extract(x.value, '$.workNumber') wbs, json_extract(x.value, '$.startTime') st,
           json_extract(x.value, '$.endTime') et, json_extract(x.value, '$.breakTime') br, json_extract(x.value, '$.activityCode') ac,
@@ -293,8 +320,8 @@ export async function runDigest(env, { now = new Date() } = {}) {
         FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id, json_each(d.data, '$.entries') x
         WHERE d.period = ? AND json_extract(x.value, '$.date') = ?`).bind(period, date),
       env.DB.prepare(`SELECT d.emp_id, d.period, d.status, d.submitted_at, e.full_name, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
-        WHERE d.status IN ('submitted', 'sitesup_ok') ORDER BY d.submitted_at`),
-      env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status IN ('submitted', 'sitesup_ok')`),
+        WHERE d.status IN ('submitted', 'sitesup_ok', 'pm_ok') ORDER BY d.submitted_at`),
+      env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status IN ('submitted', 'sitesup_ok', 'pm_ok')`),
       env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor, e.email, e.position, e.role_override, json_extract(d.data, '$.sch') sch FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
         WHERE d.period = ? AND d.status IN ('draft', 'rejected') AND e.active = 1`).bind(period),
       env.DB.prepare(`SELECT o.emp_id, o.date, o.ot, o.wbs, e.full_name, e.supervisor, e.position, e.role_override, e.email FROM ts_ot o JOIN employees e ON e.emp_id = o.emp_id
@@ -311,6 +338,7 @@ export async function runDigest(env, { now = new Date() } = {}) {
       // các ngày đã chấm của kỳ (người chưa nộp) — để nhắc đúng những ngày còn thiếu
       env.DB.prepare(`SELECT d.emp_id, json_extract(x.value, '$.date') dt FROM ts_docs d, json_each(d.data, '$.entries') x
         WHERE d.period = ? AND d.status IN ('draft', 'rejected')`).bind(period),
+      env.DB.prepare(`SELECT a.emp_id, a.period, a.level, a.wbs FROM ts_approvals a JOIN ts_docs d ON d.emp_id = a.emp_id AND d.period = a.period WHERE d.status IN ('submitted', 'sitesup_ok')`),
     ]);
     const rows = rowsQ.results, work = rows.filter(r => !LEAVE_CODES.includes(String(r.ac)));
     summary.entries = work.length;
@@ -331,10 +359,14 @@ export async function runDigest(env, { now = new Date() } = {}) {
     // ⏳ bảng công chờ duyệt → đúng người duyệt ở cấp hiện tại
     const wbsOf = new Map();
     wbsQ.results.forEach(r => { const k = r.emp_id + '|' + r.period; if (!wbsOf.has(k)) wbsOf.set(k, []); wbsOf.get(k).push(r.wbs); });
+    const doneWbs = new Map();       // 'emp|period|level' → Set các dự án đã duyệt ở cấp đó
+    apprQ.results.forEach(a => { const k = `${a.emp_id}|${a.period}|${a.level}`; if (!doneWbs.has(k)) doneWbs.set(k, new Set()); doneWbs.get(k).add(a.wbs); });
     for (const d of pendQ.results) {
-      const level = d.status === 'submitted' ? 'sitesup' : 'pm';
+      const level = d.status === 'submitted' ? 'sitesup' : d.status === 'sitesup_ok' ? 'pm' : 'admin';
       summary.pending++;
-      for (const p of idx.approvers(level, wbsOf.get(d.emp_id + '|' + d.period) || [], d.supervisor)) recOf(p).pending.push({ ...d, level });
+      // chỉ người còn dự án chưa duyệt mới được nhắc; cấp admin → Admin / Admin dự án
+      const people = level === 'admin' ? idx.adminish() : idx.approvers(level, wbsOf.get(d.emp_id + '|' + d.period) || [], d.supervisor, doneWbs.get(`${d.emp_id}|${d.period}|${level}`));
+      for (const p of people) recOf(p).pending.push({ ...d, level });
     }
     // ⏱ tăng ca chờ duyệt → Site Sup của dự án trong ngày / Quản lý trực tiếp; 🏖 đơn nghỉ → thêm QLDA của dự án
     const wl = (s) => String(s || '').split(',').filter(Boolean);
@@ -420,7 +452,7 @@ export async function runDigest(env, { now = new Date() } = {}) {
         return `<h4 style="font-size:14px;margin:12px 0 4px">${esc(p.name)}${p.wbs ? ` <span style="color:#6b7280;font-weight:normal">(${esc(p.wbs)})</span>` : ''}</h4><ul style="margin:0;padding-left:18px">${lines}</ul>`;
       }).join('');
       const pend = rec.pending.map(d => `<li><a href="${esc(reviewLink(env, d.emp_id, d.period))}" style="color:#1d4ed8;font-weight:bold">${esc(d.full_name)} — kỳ ${esc(periodLabel(d.period))}</a>`
-        + ` <span style="color:#6b7280">· ${d.level === 'pm' ? 'Site Sup đã duyệt, chờ bạn duyệt lần 2' : 'chờ bạn duyệt'}${d.submitted_at ? ` · nộp ${esc(fmtDMY(String(d.submitted_at).slice(0, 10)))}` : ''}</span></li>`).join('');
+        + ` <span style="color:#6b7280">· ${d.level === 'admin' ? 'đã qua Site Sup và QLDA, chờ Admin xử lý cuối' : d.level === 'pm' ? 'Site Sup đã duyệt, chờ bạn duyệt lần 2' : 'chờ bạn duyệt'}${d.submitted_at ? ` · nộp ${esc(fmtDMY(String(d.submitted_at).slice(0, 10)))}` : ''}</span></li>`).join('');
       const miss = rec.missing.map(d => esc(d.full_name)).join(', ');
       const otList = rec.ot.map(o => `<li><b>${esc(o.full_name)}</b> · ${esc(WEEKDAY[weekdayOf(o.date)])} ${esc(fmtDMY(o.date))} · tăng ca <b>${fmtH(o.ot)} giờ</b>${o.wbs ? ` · ${esc(o.wbs)}` : ''}</li>`).join('');
       const lvList = rec.leave.map(l => `<li><b>${esc(l.full_name)}</b> · ${esc(LEAVE_LABEL[l.type] || 'Nghỉ')} ${esc(leaveSpan(l))} (${fmtH(leaveCount(l))} ngày)`
@@ -504,18 +536,20 @@ export async function runReminders(env, { now = new Date() } = {}) {
     if (day === 11) {
       // người duyệt còn bảng công chờ
       const { results: pend } = await env.DB.prepare(`SELECT d.emp_id, d.status, e.full_name, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
-        WHERE d.period = ? AND d.status IN ('submitted', 'sitesup_ok')`).bind(period).all();
+        WHERE d.period = ? AND d.status IN ('submitted', 'sitesup_ok', 'pm_ok')`).bind(period).all();
       const wbsOf = new Map();
       if (pend.length) {
         const { results } = await env.DB.prepare('SELECT emp_id, wbs FROM ts_doc_wbs WHERE period = ?').bind(period).all();
         results.forEach(r => { if (!wbsOf.has(r.emp_id)) wbsOf.set(r.emp_id, []); wbsOf.get(r.emp_id).push(r.wbs); });
       }
       const byApprover = new Map(), ctx = {};
+      let admins = null;
       for (const d of pend) {
-        const level = d.status === 'submitted' ? 'sitesup' : 'pm';
-        for (const a of await approversFor(env, level, wbsOf.get(d.emp_id) || [], d.supervisor, ctx)) {
+        const level = d.status === 'submitted' ? 'sitesup' : d.status === 'sitesup_ok' ? 'pm' : 'admin';
+        const people = level === 'admin' ? (admins = admins || await adminsFor(env)) : await approversFor(env, level, wbsOf.get(d.emp_id) || [], d.supervisor, ctx);
+        for (const a of people) {
           const rec = byApprover.get(a.email) || { a, list: [] };
-          byApprover.set(a.email, rec); rec.list.push(`${d.full_name} (${level === 'pm' ? 'chờ Quản lý dự án' : 'chờ Site Sup'})`);
+          byApprover.set(a.email, rec); rec.list.push(`${d.full_name} (${level === 'pm' ? 'chờ Quản lý dự án' : level === 'admin' ? 'chờ Admin xử lý cuối' : 'chờ Site Sup'})`);
         }
       }
       for (const [email, rec] of byApprover) {

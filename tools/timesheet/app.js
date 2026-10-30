@@ -729,6 +729,7 @@ const STATUS_LABEL = {
   rejected: 'Bị trả lại — cần sửa',
   submitted: 'Đã nộp — chờ giám sát',
   sitesup_ok: 'Giám sát đã duyệt — chờ quản lý',
+  pm_ok: 'Đã qua giám sát & quản lý — chờ Admin xử lý',
   approved: 'Đã duyệt xong'
 };
 const sameEntries = (a, b) => {
