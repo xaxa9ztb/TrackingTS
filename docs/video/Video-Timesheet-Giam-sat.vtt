@@ -1,79 +1,88 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:04.950
+00:00.000 --> 00:04.950
 Timesheet cá nhân — hướng dẫn cho Giám sát
 
-00:00:04.950 --> 00:00:12.450
+00:04.950 --> 00:12.450
 Việc của giám sát: đọc báo cáo 18:30; duyệt sớm; trả lại phải ghi lý do cụ thể.
 
-00:00:12.450 --> 00:00:22.950
-Fitter nộp → Giám sát duyệt cấp 1 → Quản lý dự án duyệt cấp 2 → giờ công tự vào Thống kê giờ công. Sai thì trả lại kèm lý do.
+00:12.450 --> 00:22.950
+Fitter nộp, giám sát duyệt, quản lý dự án duyệt, Admin xử lý cuối; sau đó giờ công tự vào Thống kê giờ công và Fitter nhận email kèm Excel. Sai thì trả lại kèm lý do.
 
-00:00:22.950 --> 00:00:31.650
+00:22.950 --> 00:31.650
 Mỗi tối 18:30: email tổng hợp báo cáo thi công của fitter ở dự án mình. Đọc mỗi ngày thì cuối kỳ duyệt rất nhanh.
 
-00:00:31.650 --> 00:00:40.350
+00:31.650 --> 00:40.350
 Fitter nộp bảng công: bạn nhận email ngay, có tổng giờ và phụ cấp xe nếu có. Bấm nút trong email hoặc mở từ trang chủ.
 
-00:00:40.350 --> 00:00:47.740
+00:40.350 --> 00:45.940
 Trang chủ: thẻ Duyệt bảng công có nhãn đỏ “N chờ duyệt”.
 
-00:00:47.740 --> 00:00:52.890
+00:45.940 --> 00:51.590
+Mục ⏱ Tăng ca chờ duyệt: duyệt OT từng ngày — xem giờ làm, dự án, báo cáo thi công rồi tick các ngày hợp lệ.
+
+00:51.590 --> 00:57.810
+Bấm Duyệt các ngày đã chọn, hoặc Không duyệt… kèm lý do. Chưa duyệt OT không chặn fitter nộp bảng công, chỉ có email nhắc.
+
+00:57.810 --> 01:09.790
+Nghỉ phép, nghỉ ốm có trang riêng, quản lý trực tiếp duyệt và hạn nộp theo số ngày nghỉ. Giám sát chỉ chấm OT, xin trước khi làm và gửi thẳng quản lý dự án.
+
+01:09.790 --> 01:14.940
 Danh sách chờ bạn duyệt: người nộp, kỳ lương, dự án, số dòng. Chỉ thấy fitter ở dự án bạn phụ trách.
 
-00:00:52.890 --> 00:00:58.850
+01:14.940 --> 01:20.900
 Bấm Xem & duyệt để mở chi tiết.
 
-00:00:58.850 --> 00:01:04.400
+01:20.900 --> 01:26.450
 ① Không thiếu ngày — nếu thiếu, dòng cảnh báo vàng liệt kê ngày chưa chấm.
 
-00:01:04.400 --> 00:01:09.600
+01:26.450 --> 01:31.650
 ② Đúng dự án / WBS — so với nơi fitter làm thực tế.
 
-00:01:09.600 --> 00:01:17.950
+01:31.650 --> 01:40.000
 ③ Giờ vào–ra, tăng ca hợp lý · ④ Có báo cáo thi công (dòng 📝) · ⑤ Không có dòng tô đỏ.
 
-00:01:17.950 --> 00:01:22.700
+01:40.000 --> 01:44.750
 Fitter có phụ cấp xe thì hiện bảng này. Số ngày tính lại từ chấm công — không khai khống được.
 
-00:01:22.700 --> 00:01:28.180
+01:44.750 --> 01:50.230
 Bạn xác nhận: xăng xe — dự án cách trụ sở 25 – dưới 35 km; xe đi tỉnh — trên 20 ngày, tự mang xe.
 
-00:01:28.180 --> 00:01:32.010
+01:50.230 --> 01:54.060
 Bấm Tải Bảng phụ cấp xe (Excel) — file đúng mẫu để chuyển kế toán.
 
-00:01:32.010 --> 00:01:38.160
+01:54.060 --> 02:00.210
 Phụ cấp sai (vd. dự án không đủ xa) → Trả lại kèm lý do như với giờ công.
 
-00:01:38.160 --> 00:01:42.290
+02:00.210 --> 02:04.340
 Ví dụ phát hiện: ngày 22/09 ghi nhầm dự án → trả lại cho fitter sửa.
 
-00:01:42.290 --> 00:01:45.950
+02:04.340 --> 02:08.000
 Có sai: bấm Trả lại…
 
-00:01:45.950 --> 00:01:49.855
+02:08.000 --> 02:11.905
 Ghi lý do cụ thể: ngày nào – sai gì – sửa thành gì. Fitter sẽ đọc lý do này.
 
-00:01:49.855 --> 00:01:53.685
+02:11.905 --> 02:15.735
 Bấm Trả lại bảng công. Fitter nhận email + thấy lý do trên app.
 
-00:01:53.685 --> 00:01:59.785
+02:15.735 --> 02:21.835
 Bảng công rời khỏi danh sách. Fitter sửa, nộp lại → bạn lại nhận email để duyệt.
 
-00:01:59.785 --> 00:02:05.975
+02:21.835 --> 02:28.025
 Bảng công đúng hết → Duyệt. Ví dụ bảng công của Hoàng Văn Em.
 
-00:02:05.975 --> 00:02:10.255
+02:28.025 --> 02:32.305
 Kiểm tra xong 5 điểm → bấm Duyệt (chuyển sang Quản lý dự án).
 
-00:02:10.255 --> 00:02:14.855
-Xong! QLDA nhận email để duyệt lần 2. Duyệt xong, giờ công tự vào Thống kê giờ công.
+02:32.305 --> 02:37.205
+Xong! Khi mọi giám sát và QLDA của các dự án trong bảng công đã duyệt, Admin xử lý cuối (hoạt động ngoài dự án do Admin duyệt) — rồi hệ thống gửi email kèm Excel bảng công + phụ cấp cho Fitter, giám sát, QLDA.
 
-00:02:14.855 --> 00:02:24.155
+02:37.205 --> 02:46.505
 Lý do trả lại tốt: ghi rõ ngày nào, sai gì, sửa thành gì.
 
-00:02:24.155 --> 00:02:34.355
+02:46.505 --> 02:56.705
 Ghi nhớ: đọc email 18:30; duyệt trong ngày; kiểm tra 5 điểm và phụ cấp xe trước khi duyệt.
 
-00:02:34.355 --> 00:02:40.355
+02:56.705 --> 03:02.705
 Cần xem lại? Bấm nút Hướng dẫn trong Duyệt bảng công, hoặc tập thử bằng chế độ Demo.

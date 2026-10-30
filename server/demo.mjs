@@ -12,6 +12,8 @@
 // đang thử, tiêu đề có [DEMO] và ghi rõ trong hệ thống thật thư sẽ tới ai (xem demoMail trong mail.mjs).
 //
 // Dữ liệu mẫu là dữ liệu BỊA (không có người thật), dựng lại bất cứ lúc nào bằng seedDemo().
+import OtLeave from '../tools/timesheet/otleave.js';
+import Labor from '../tools/timesheet/labor.js';
 
 export const DEMO_COOKIE = 'ts_demo';
 export const DEMO_ROLES = ['admin', 'pm', 'sitesup', 'staff'];
@@ -97,7 +99,7 @@ function tsEntry(n, date, wbs, name, start, end, brk) {
 export async function seedDemo(db, me, role, today = new Date()) {
   if (!DEMO_ROLES.includes(role)) role = 'staff';
   const stamp = today.toISOString();
-  const wipe = ['project_staff', 'employees', 'projects', 'timesheets', 'ts_doc_wbs', 'ts_docs', 'kv_store', 'audit_log'];
+  const wipe = ['project_staff', 'employees', 'projects', 'timesheets', 'ts_doc_wbs', 'ts_approvals', 'ts_docs', 'ts_ot', 'ts_leave', 'kv_store', 'audit_log'];
   // mail_log: giữ bộ đếm thư demo trong ngày (demoq:…) để làm mới dữ liệu không mở lại giới hạn
   await db.batch([...wipe.map((t) => db.prepare(`DELETE FROM ${t}`)), db.prepare("DELETE FROM mail_log WHERE key NOT LIKE 'demoq:%'")]);
 
@@ -170,6 +172,22 @@ export async function seedDemo(db, me, role, today = new Date()) {
       "INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by, submitted_at, sitesup_by, sitesup_at) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(emp, period, status, data, entries.length, stamp, 'demo', status === 'draft' ? '' : stamp, supBy, supBy ? stamp : '').run();
     if (status !== 'draft') await db.prepare('INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES (?, ?, ?)').bind(emp, period, wbs).run();
+    // bảng công đã qua Site Sup (D003): ghi lần duyệt của dự án để quy trình nhiều dự án nhận ra cấp này đã đủ
+    if (status === 'sitesup_ok') await db.prepare("INSERT INTO ts_approvals (emp_id, period, level, wbs, by_emp, by_name, at) VALUES (?, ?, 'sitesup', ?, 'D003', ?, ?)").bind(emp, period, wbs, supBy, stamp).run();
+    // ngày tăng ca: kỳ trước đã được Site Sup duyệt (nộp được ngay); kỳ hiện tại của Phạm Minh Dũng còn chờ duyệt
+    const pendingOt = emp === 'D101' && period === cur;
+    const ot = OtLeave.otDays(entries, (e) => e.bd).map((d) => db.prepare(
+      "INSERT INTO ts_ot (emp_id, date, period, ot, total, sig, wbs, detail, status, requested_at, decided_by, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(emp, d.date, period, d.ot, d.total, d.sig, d.wbs.join(','), JSON.stringify(d.items), pendingOt ? 'pending' : 'approved', stamp,
+        pendingOt ? '' : 'Trần Thị Bình', pendingOt ? '' : stamp));
+    if (ot.length) await db.batch(ot);
+  }
+  // đơn nghỉ phép chờ duyệt của Hoàng Văn Em (bắt đầu sau 3 ngày)
+  const lvFrom = iso(addDays(today, 3)), lvTo = iso(addDays(today, 4));
+  const lvDays = OtLeave.leaveDays(lvFrom, lvTo, Labor.DEFAULT_SCHEDULE, Labor);
+  if (lvDays.length) {
+    await db.prepare("INSERT INTO ts_leave (emp_id, type, date_from, date_to, days, reason, wbs, status, created_at) VALUES ('D102', '6010', ?, ?, ?, ?, 'DEMO-002', 'pending', ?)")
+      .bind(lvFrom, lvTo, JSON.stringify(lvDays), 'Về quê có việc gia đình', stamp).run();
   }
   await switchPersona(db, me.email, role);
   return { employees: DEMO_EMPLOYEES.length + 1, projects: DEMO_PROJECTS.length, timesheets: rows.length, docs: docs.length, period: per, persona: DEMO_PERSONAS[role] };

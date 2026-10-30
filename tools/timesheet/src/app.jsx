@@ -225,7 +225,10 @@
         const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
         // Bản máy chủ (Cloudflare): Timesheet đồng bộ lên máy chủ theo kỳ lương (xem tssync.js); bản github.io: chỉ trên máy
         const SERVER = typeof Session !== 'undefined' && !!Session.SERVER && typeof TsSync !== 'undefined';
-        const STATUS_LABEL = { draft: 'Đang chấm', rejected: 'Bị trả lại — cần sửa', submitted: 'Đã nộp — chờ giám sát', sitesup_ok: 'Giám sát đã duyệt — chờ quản lý', approved: 'Đã duyệt xong' };
+        // Giám sát (Site Sup / Quản lý dự án): chỉ chấm giờ OT, đăng ký OT trước khi làm, Quản lý dự án duyệt, bảng công cuối kỳ nộp thẳng Quản lý dự án
+        const IS_LEAD = SERVER && (() => { try { return Session.roles(Session.current()).some(r => r === 'sitesup' || r === 'pm'); } catch (e) { return false; } })();
+        const SALARY_KEY = 'ts_salary_v1';      // lương cơ bản: chỉ lưu trên máy này, không đồng bộ, không nằm trong sao lưu / báo cáo / email
+        const STATUS_LABEL = { draft: 'Đang chấm', rejected: 'Bị trả lại — cần sửa', submitted: 'Đã nộp — chờ giám sát', sitesup_ok: 'Giám sát đã duyệt — chờ quản lý', pm_ok: 'Đã qua giám sát & quản lý — chờ Admin xử lý', approved: 'Đã duyệt xong' };
         const sameEntries = (a, b) => {
             if (a.length !== b.length) return false;
             const m = new Map(a.map(e => [String(e.id), JSON.stringify(e)]));
@@ -256,6 +259,7 @@
             const [syncInfo, setSyncInfo] = useState({ state: SERVER ? 'syncing' : 'off', at: '', error: '' });
             const [docStatuses, setDocStatuses] = useState({});
             const [docNotes, setDocNotes] = useState({});
+            const [docAdmin, setDocAdmin] = useState({});       // { period: {by, at, note} } — lần sửa gần nhất của quản trị viên
             const [submitting, setSubmitting] = useState(false);
             const entriesRef = useRef([]);
             // Phụ cấp xe theo kỳ: { 'YYYY-MM': { rows, u } } — trên máy + đồng bộ cùng bảng công của kỳ (tssync.js)
@@ -264,6 +268,14 @@
             const [allowBusy, setAllowBusy] = useState(false);
             const scheduleRef = useRef('');
             const syncTimer = useRef(null);
+            // Tăng ca chờ Site Sup duyệt từng ngày + đơn nghỉ (bản máy chủ, xem otleave.js)
+            const [otAll, setOtAll] = useState({});        // { 'YYYY-MM': { date: {status, note, by, at, ot, sig} } }
+            const [leaves, setLeaves] = useState(null);    // đơn nghỉ của tôi (null: chưa tải)
+            const bdsRef = useRef(null);
+            // Lương cơ bản (người dùng tự nhập): CHỈ trên máy này — không gửi máy chủ, không nằm trong sao lưu / báo cáo / email
+            const [salary, setSalary] = useState(() => { try { return TsIncome.parseMoney(localStorage.getItem(SALARY_KEY)); } catch (e) { return 0; } });
+            const saveSalary = (n) => { setSalary(n); try { if (n) localStorage.setItem(SALARY_KEY, String(n)); else localStorage.removeItem(SALARY_KEY); } catch (e) { /* bỏ qua */ } };
+            const monthRef = useRef('');
             const [ganttOpen, setGanttOpenRaw] = useState(() => { try { return localStorage.getItem('ts_gantt_open') !== '0'; } catch (e) { return true; } });
             const setGanttOpen = (v) => { setGanttOpenRaw(v); try { localStorage.setItem('ts_gantt_open', v ? '1' : '0'); } catch (e) { /* bỏ qua */ } };
             const [mailFile, setMailFile] = useState(null); // file Excel đính kèm khi Gửi mail: {status, blob, name, error}
@@ -306,6 +318,24 @@
             useEffect(() => { allowRef.current = allowAll; try { localStorage.setItem('ts_allow_v1', JSON.stringify(allowAll)); } catch (e) { /* hết dung lượng */ } }, [allowAll]);
             useEffect(() => { localStorage.setItem('ts_profile_v28', JSON.stringify(profile)); }, [profile]);
 
+            // ----- tăng ca + đơn nghỉ: gửi các ngày có OT của kỳ đang xem / kỳ hiện tại, nhận trạng thái duyệt -----
+            const syncOtLeave = useCallback(async () => {
+                if (!SERVER || typeof TsOtLeave === 'undefined') return;
+                try {
+                    const bd = bdsRef.current, ent = entriesRef.current;
+                    if (!bd) return;
+                    const periods = [...new Set([monthRef.current, periodMonthOf(getTodayLocal())].filter(Boolean))];
+                    for (const p of periods) {
+                        const r = getSalaryPeriod(p);
+                        const days = TsOtLeave.otDays(ent.filter(e => e.date >= r.start && e.date <= r.end), (e) => bd.get(e.id) || {});
+                        const res = await TsSync.request('PUT', '/api/ts/ot/mine', { period: p, days });
+                        if (res.status === 200) setOtAll(prev => ({ ...prev, [p]: res.data.days || {} }));
+                    }
+                    const lv = await TsSync.request('GET', '/api/ts/leave/mine');
+                    if (lv.status === 200) setLeaves(lv.data.leaves || []);
+                } catch (e) { /* mất mạng: thử lại lần đồng bộ sau */ }
+            }, []);
+
             // ----- đồng bộ máy chủ (chỉ bản Cloudflare) -----
             const runSync = useCallback(async () => {
                 if (!SERVER) return;
@@ -329,8 +359,10 @@
                 });
                 if (r.statuses) setDocStatuses(prev => ({ ...prev, ...r.statuses }));
                 if (r.notes) setDocNotes(prev => ({ ...prev, ...r.notes }));
+                if (r.admin) setDocAdmin(prev => ({ ...prev, ...r.admin }));
                 setSyncInfo(r.ok ? { state: 'ok', at: new Date().toISOString(), error: '' }
                     : r.offline ? { state: 'offline', at: '', error: '' } : { state: 'error', at: '', error: r.error || 'Không đồng bộ được' });
+                if (r.ok) setTimeout(syncOtLeave, 50);     // sau khi bảng công đã gộp xong (giờ OT tính trên bản mới nhất)
             }, []);
             const scheduleSync = useCallback((ms = 2500) => {
                 if (!SERVER) return;
@@ -368,7 +400,23 @@
             // giờ thường / OT từng loại của mọi dòng (tính trên toàn bộ dữ liệu: OT7 cần biết các dòng cùng ngày)
             const bds = useMemo(() => breakdownsOf(entries, sch), [entries, sch]);
             const bdOf = (e) => bds.get(e.id) || {};
-
+            bdsRef.current = bds; monthRef.current = currentMonth;
+            useEffect(() => { if (SERVER && syncInfo.state === 'ok') syncOtLeave(); }, [currentMonth]);
+            // trạng thái duyệt tăng ca từng ngày của kỳ đang xem: so dấu vân tay với bản máy chủ đã nhận
+            const otView = useMemo(() => {
+                if (!SERVER || typeof TsOtLeave === 'undefined') return { days: [], byDate: {}, ok: true, count: {} };
+                const srv = otAll[currentMonth] || {};
+                const days = TsOtLeave.otDays(monthlyEntries, bdOf).map(d => {
+                    const r = srv[d.date];
+                    return { ...d, status: r && r.sig === d.sig ? r.status : 'unsent', note: r && r.sig === d.sig ? r.note : '', by: r && r.sig === d.sig ? r.by : '' };
+                });
+                const byDate = {}, count = { approved: 0, pending: 0, rejected: 0, unsent: 0 };
+                days.forEach(d => { byDate[d.date] = d; count[d.status]++; });
+                return { days, byDate, count, ok: days.every(d => d.status === 'approved') };
+            }, [monthlyEntries, bds, otAll, currentMonth]);
+            // giám sát: các ngày còn dòng giờ thường (không được nộp)
+            const leadNormal = useMemo(() => !IS_LEAD ? [] : [...new Set(monthlyEntries.filter(e => !LaborVN.LEAVE_CODES.includes(String(e.activityCode)) && (bdOf(e).NORMAL || 0) > 0.01).map(e => e.date))].sort(),
+                [monthlyEntries, bds]);
             const dayTotals = useMemo(() => {
                 const t = {};
                 monthlyEntries.forEach(e => {
@@ -390,7 +438,8 @@
                 // ngày làm việc (không phải ngày lễ / nghỉ bù) đã qua trong kỳ mà chưa chấm công
                 const today = getTodayLocal();
                 const last = period.end < today ? period.end : today;
-                const missing = period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d, sch) && !dayTotals[d]) : [];
+                // giám sát chỉ chấm OT nên không có "ngày chưa chấm"
+                const missing = !IS_LEAD && period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d, sch) && !dayTotals[d]) : [];
                 return { normal, ot, total: normal + ot, byOt, days: Object.keys(dayTotals).length, missing };
             }, [monthlyEntries, dayTotals, period, bds, sch]);
             const holidays = useMemo(() => LaborVN.holidaysBetween(period.start, period.end, sch), [period, sch]);
@@ -443,14 +492,32 @@
             const handleSaveEntry = (formData) => {
                 const editing = drawer && drawer.entry;
                 const u = Date.now();      // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
-                const { bd: _bd, cat: _cat, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+                const { bd: _bd, cat: _cat, ae: _ae, rangeTo, skipOff, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+                // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+                const dates = (!editing && rangeTo && rangeTo > data.date) ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
+                if (dates) {
+                    if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
+                    const base = Date.now() * 100;
+                    setEntries(prev => [...prev, ...dates.map((d, i) => ({ ...data, date: d, id: base + i, u }))]);
+                    if (SERVER) { TsSync.markDirty(dates); scheduleSync(); }
+                    setDrawer(null);
+                    const pm0 = periodMonthOf(dates[0]); if (pm0 !== currentMonth) changeMonth(pm0);
+                    return showToast(`Đã thêm chấm công cho ${dates.length} ngày (${fmtDM(dates[0])} → ${fmtDM(dates[dates.length - 1])}).`);
+                }
                 if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? { ...data, id: editing.id, u } : e));
                 else setEntries(prev => [...prev, { ...data, id: Date.now(), u }]);
                 if (SERVER) { TsSync.markDirty(editing && editing.date !== data.date ? [data.date, editing.date] : data.date); scheduleSync(); }
                 setDrawer(null);
                 const pm = periodMonthOf(data.date); // ngày thuộc kỳ khác → chuyển sang kỳ đó để thấy ngay
                 if (pm !== currentMonth) changeMonth(pm);
-                showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.`);
+                let otMsg = '';
+                if (SERVER && typeof TsOtLeave !== 'undefined') {   // ngày có tăng ca → nhắc: Site Sup duyệt hằng ngày
+                    const next = (editing ? entries.filter(e => e.id !== editing.id) : entries).concat([{ ...data, id: -1 }]);
+                    const m = breakdownsOf(next, sch);
+                    const d = TsOtLeave.otDays(next.filter(e => e.date === data.date), (e) => m.get(e.id) || {})[0];
+                    if (d) otMsg = ` Ngày này có ${fmtH(d.ot)} giờ tăng ca — đã gửi ${IS_LEAD ? 'Quản lý dự án' : 'Site Sup'} duyệt.`;
+                }
+                showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.${otMsg}`);
             };
 
             const handleDelete = (entry) => {
@@ -480,7 +547,7 @@
                 setDrawer({ type: 'submit', key: Date.now() });
             };
             const doSubmit = async () => {
-                if (!SERVER || submitting || !allowCalc.ok) return;
+                if (!SERVER || submitting || !allowCalc.ok || leadNormal.length) return;
                 setDrawer(null);
                 setSubmitting(true);
                 try {
@@ -505,6 +572,9 @@
                     else showToast(r.data.error || 'Không thu hồi được.');
                 } catch (err) { showToast('Không thu hồi được: ' + (err.message || err)); }
             };
+
+            // ----- đơn nghỉ: làm ở chức năng riêng "Nghỉ phép / ốm" (tools/leave/); duyệt xong tự ghi vào bảng công này -----
+            const openLeave = () => { window.location.href = '../leave/'; };
 
             // ----- phụ cấp xe của kỳ đang xem -----
             const saveAllowRows = (rows) => {
@@ -540,6 +610,7 @@
                         localStorage.removeItem('ts_entries_v28');
                         if (SERVER) localStorage.removeItem('ts_sync_v1');
                         localStorage.removeItem('ts_allow_v1'); setAllowAll({});
+                        localStorage.removeItem(SALARY_KEY); setSalary(0);
                         localStorage.removeItem('ts_profile_v28');
                         localStorage.removeItem('ts_projects_v28');
                         setEntries([]);
@@ -555,111 +626,9 @@
             // Tạo file bảng chấm công Excel (mẫu Schindler) của kỳ đang xem → { blob, name }.
             // Dùng cho Xuất Excel và để đính kèm khi Gửi mail. Lỗi tải thư viện / mẫu → throw.
             const buildExcelFile = async () => {
-                const sortedData = [...monthlyEntries].sort((a,b) => a.date.localeCompare(b.date));
                 await ensureExcelJS();
-                const workbook = new ExcelJS.Workbook();
-                await workbook.xlsx.load(await getTemplateBuffer());
-                const sheet = workbook.getWorksheet('New TS') || workbook.worksheets[0];
-
-                // Snapshot template styles BEFORE editing: a data row (11), the total row (59),
-                // and the signature block (62-64, captured as offsets from the total row).
-                const dataStyle = {}, totalStyle = {};
-                for (let c = 1; c <= 51; c++) {
-                    dataStyle[c] = cloneStyle(sheet.getRow(11).getCell(c).style);
-                    totalStyle[c] = cloneStyle(sheet.getRow(59).getCell(c).style);
-                }
-                const sigCells = [];
-                for (let r = 62; r <= 64; r++) {
-                    for (let c = 1; c <= 51; c++) {
-                        const cell = sheet.getRow(r).getCell(c);
-                        const hasTop = cell.border && cell.border.top && cell.border.top.style;
-                        if (cell.value !== null || hasTop) sigCells.push({ off: r - 59, c, value: cell.value, style: cloneStyle(cell.style) });
-                    }
-                }
-
-                // --- Header fields ---
-                sheet.getCell('E3').value = profile.name || '';
-                sheet.getCell('E4').value = profile.empId || '';
-                sheet.getCell('X4').value = profile.position || '';
-                sheet.getCell('AS4').value = profile.dept || '';
-                sheet.getCell('AR4').value = ':';
-                const [hy, hm] = currentMonth.split('-').map(Number);
-                sheet.getCell('AS3').value = excelDate(hy, hm, 1);
-
-                // Clear the old body (sample rows 10..64 plus whatever our new layout will span): values + styles
-                const clearUntil = Math.max(70, 10 + sortedData.length + 6);
-                for (let r = 10; r <= clearUntil; r++) {
-                    const row = sheet.getRow(r);
-                    for (let c = 1; c <= 51; c++) { const cell = row.getCell(c); cell.value = null; cell.style = {}; }
-                    row.height = undefined;
-                }
-
-                // --- Data rows (one per entry), starting at row 10 ---
-                sortedData.forEach((e, index) => {
-                    const r = 10 + index;
-                    const row = sheet.getRow(r);
-                    row.height = 25.5;
-                    for (let c = 1; c <= 51; c++) row.getCell(c).style = cloneStyle(dataStyle[c]);
-
-                    row.getCell(1).value = { formula: '$E$4' };
-                    row.getCell(2).value = { formula: '$E$3' };
-                    const [dy, dm, dd] = e.date.split('-').map(Number);
-                    row.getCell(3).value = excelDate(dy, dm, dd);
-                    row.getCell(4).value = { formula: `WEEKDAY(C${r})` };
-                    row.getCell(5).value = timeToExcel(e.startTime);
-                    row.getCell(6).value = timeToExcel(e.endTime);
-                    const brk = parseFloat(e.breakTime) || 0;
-                    row.getCell(8).value = brk > 0 ? brk : null;
-                    if (LaborVN.isAuto(e)) {
-                        // tự động theo luật: một dòng có thể vừa giờ thường vừa nhiều loại OT (cột "Check" vẫn = 0)
-                        const bd = bdOf(e);
-                        row.getCell(7).value = bd.NORMAL || 0;
-                        Object.keys(OT_COL).forEach(k => { if (bd[k]) row.getCell(OT_COL[k]).value = bd[k]; });
-                    } else {
-                        row.getCell(7).value = e.otType === 'NORMAL' ? { formula: normalHourFormula(r) } : 0;
-                        if (e.otType !== 'NORMAL' && OT_COL[e.otType]) {
-                            row.getCell(OT_COL[e.otType]).value = calculateHours(e.startTime, e.endTime, e.breakTime);
-                        }
-                    }
-                    row.getCell(16).value = { formula: `MOD(F${r}-E${r},1)*24-SUM(G${r}:O${r})` }; // MOD: ca qua nửa đêm vẫn = 0
-                    row.getCell(17).value = { formula: `INDEX($U$9:$AX$9,1,MATCH("x",$U${r}:$AX${r}))` };
-                    row.getCell(18).value = e.projectName || '';
-                    row.getCell(19).value = e.workNumber || '';
-                    row.getCell(20).value = { formula: `INDEX($U$6:$AX$6,1,MATCH("x",$U${r}:$AX${r}))` };
-                    const actCol = activityToCol(e.activityCode);
-                    if (actCol) {
-                        const xc = row.getCell(actCol);
-                        xc.value = 'x';
-                        xc.font = { name: 'Times New Roman', size: 14 };
-                        xc.alignment = { horizontal: 'center', vertical: 'middle' };
-                    }
-                    row.getCell(51).value = e.remarks || '';
-                });
-
-                // --- Total row, right after the last data row ---
-                const rt = 10 + sortedData.length;
-                const totalRow = sheet.getRow(rt);
-                totalRow.height = 24.75;
-                for (let c = 1; c <= 51; c++) totalRow.getCell(c).style = cloneStyle(totalStyle[c]);
-                totalRow.getCell(6).value = 'Total:';
-                for (let c = 7; c <= 16; c++) {
-                    const letter = sheet.getColumn(c).letter;
-                    totalRow.getCell(c).value = { formula: `SUM(${letter}10:${letter}${rt - 1})` };
-                }
-
-                // --- Signature block (Verified / Approved / Employee Signature) ---
-                sigCells.forEach(s => {
-                    const cell = sheet.getRow(rt + s.off).getCell(s.c);
-                    cell.value = s.value;
-                    cell.style = cloneStyle(s.style);
-                });
-
-                sheet.pageSetup.printArea = `A1:AY${rt + 5}`;
-
-                const buffer = await workbook.xlsx.writeBuffer();
-                const cleanName = removeAccents(profile.name || 'Timesheet');
-                const [y, m] = currentMonth.split('-');
-                return { blob: new Blob([buffer], { type: XLSX_MIME }), name: `${cleanName}_Thang_${m}_${y}.xlsx` };
+                const f = await TsExcel.buildTimesheet(ExcelJS, await getTemplateBuffer(), { entries: monthlyEntries, bdOf, profile, month: currentMonth });
+                return { blob: new Blob([f.buffer], { type: XLSX_MIME }), name: f.name };
             };
             const excelError = (err) => 'Không xuất được Excel: ' + err.message +
                 (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
@@ -760,7 +729,14 @@
 
                     {SERVER && (
                         <div className="max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6">
-                            <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth} period={period}
+                            {docAdmin[currentMonth] && (
+                                <div id="tsAdminNote" role="status" className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                                    <b>Quản trị viên {docAdmin[currentMonth].by} đã sửa bảng công kỳ này</b>
+                                    {docAdmin[currentMonth].at ? ` lúc ${new Date(docAdmin[currentMonth].at).toLocaleString('vi-VN')}` : ''}: {docAdmin[currentMonth].note}
+                                    <span className="block text-xs text-amber-800 mt-0.5">Các dòng bị sửa có nhãn "Admin sửa". Chưa đúng thì liên hệ quản trị viên.</span>
+                                </div>
+                            )}
+                            <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth} period={period} lead={IS_LEAD}
                                 onRetry={runSync} onSubmit={handleSubmit} onWithdraw={handleWithdraw}/>
                         </div>
                     )}
@@ -786,6 +762,10 @@
                                 onPick={(d) => (dayTotals[d] ? setDayFilter(dayFilter === d ? null : d) : openNewEntry(d))}/>
                             <AllowanceCard calc={allowCalc} locked={locked} busy={allowBusy} hasEntries={allowProjects.length > 0}
                                 onAdd={() => openAllowance(null)} onEdit={openAllowance} onDelete={handleDeleteAllowance} onDownload={handleAllowanceExcel}/>
+                            <IncomeCard salary={salary} onSave={saveSalary} month={currentMonth}
+                                calc={TsIncome.compute({ base: salary, entries: monthlyEntries, bdOf, allowance: allowCalc.totals.amount })}/>
+                            {SERVER && <OtLeaveCard ot={otView} leaves={leaves} locked={locked} onPickDay={(d) => setDayFilter(dayFilter === d ? null : d)}
+                                onLeave={openLeave}/>}
                         </aside>
 
                         <section className="bg-white rounded-2xl border border-slate-200 min-w-0" aria-labelledby="tsListTitle">
@@ -815,8 +795,8 @@
                                 </div>
                             ) : (
                                 <React.Fragment>
-                                    <EntryTable rows={visible} bdOf={bdOf} sch={sch} onEdit={openEdit} onDelete={handleDelete}/>
-                                    <EntryCards rows={visible} bdOf={bdOf} sch={sch} onEdit={openEdit} onDelete={handleDelete}/>
+                                    <EntryTable rows={visible} bdOf={bdOf} sch={sch} ot={otView.byDate} onEdit={openEdit} onDelete={handleDelete}/>
+                                    <EntryCards rows={visible} bdOf={bdOf} sch={sch} ot={otView.byDate} onEdit={openEdit} onDelete={handleDelete}/>
                                 </React.Fragment>
                             )}
                         </section>
@@ -833,7 +813,7 @@
                             <EntryForm key={drawer.key} initialData={drawer.entry} defaultDate={drawer.date}
                                 onSave={handleSaveEntry} onCancel={closeDrawer}
                                 onDelete={drawer.entry ? () => handleDelete(drawer.entry) : null}
-                                entries={entries} projects={projects} sch={sch}/>
+                                entries={entries} projects={projects} sch={sch} onLeave={openLeave}/>
                         </Drawer>
                     )}
                     {drawer && drawer.type === 'mail' && (
@@ -852,7 +832,7 @@
                     )}
                     {drawer && drawer.type === 'submit' && (
                         <Drawer title="Nộp bảng công" onClose={closeDrawer}>
-                            <SubmitPanel month={currentMonth} period={period} stats={stats} lines={monthlyEntries.length} calc={allowCalc}
+                            <SubmitPanel month={currentMonth} period={period} stats={stats} lines={monthlyEntries.length} calc={allowCalc} ot={otView} lead={IS_LEAD} leadNormal={leadNormal}
                                 onSubmit={doSubmit} onCancel={closeDrawer} onAddAllowance={() => openAllowance(null)} onEditAllowance={openAllowance}/>
                         </Drawer>
                     )}
@@ -878,7 +858,7 @@
         }
 
         // ---------- Bản máy chủ: trạng thái kỳ + đồng bộ ----------
-        function SyncBar({ info, status, note, submitting, month, period, onRetry, onSubmit, onWithdraw }) {
+        function SyncBar({ info, status, note, submitting, month, period, lead, onRetry, onSubmit, onWithdraw }) {
             const [y, m] = month.split('-');
             const pending = Object.keys(TsSync.load().dirty || {}).length;
             const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -895,9 +875,9 @@
             return (
                 <div id="tsSyncBar" className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" role="status">
                     <span id="tsPeriodStatus" className={`inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`}>
-                        Kỳ {parseInt(m, 10)}/{y}: {STATUS_LABEL[status] || status}
+                        Kỳ {parseInt(m, 10)}/{y}: {lead && status === 'sitesup_ok' ? 'Đã nộp — chờ Quản lý dự án duyệt' : (STATUS_LABEL[status] || status)}
                     </span>
-                    {status === 'submitted' && <button id="tsWithdrawBtn" type="button" onClick={onWithdraw} className={btnGhost}>Thu hồi để sửa</button>}
+                    {(status === 'submitted' || (lead && status === 'sitesup_ok')) && <button id="tsWithdrawBtn" type="button" onClick={onWithdraw} className={btnGhost}>Thu hồi để sửa</button>}
                     {(status === 'draft' || status === 'rejected') && (
                         <button id="tsSubmitBtn" type="button" onClick={onSubmit} disabled={submitting || info.state === 'offline'} className={btnPrimary}
                             title={info.state === 'offline' ? 'Cần có mạng để nộp' : 'Nộp bảng công của kỳ này cho giám sát duyệt'}>{submitting ? 'Đang nộp…' : 'Nộp bảng công'}</button>
@@ -1048,7 +1028,7 @@
         }
 
         // Xác nhận nộp bảng công: tổng giờ của kỳ + phụ cấp xe nộp kèm
-        function SubmitPanel({ month, period, stats, lines, calc, onSubmit, onCancel, onAddAllowance, onEditAllowance }) {
+        function SubmitPanel({ month, period, stats, lines, calc, ot, lead, leadNormal, onSubmit, onCancel, onAddAllowance, onEditAllowance }) {
             const [y, m] = month.split('-');
             const miss = stats.missing;
             return (
@@ -1080,13 +1060,146 @@
                         )}
                         {calc.rows.length > 0 && <p className="mt-1 text-xs text-slate-500">Giám sát xem phụ cấp cùng bảng công và tải được Bảng phụ cấp xe (Excel) theo mẫu.</p>}
                     </section>
+                    {ot.days.length > 0 && (
+                        <section id="tsSubmitOt" className="pt-4 border-t border-slate-200">
+                            <h3 className="font-semibold">Tăng ca cần {lead ? 'Quản lý dự án' : 'Site Sup'} duyệt</h3>
+                            <p className="mt-1 text-sm">{ot.days.length} ngày · {fmtH(ot.days.reduce((a, d) => a + d.ot, 0))} giờ tăng ca — <OtCounts c={ot.count}/></p>
+                            {!ot.ok && (
+                                <ul className="mt-1 text-sm space-y-0.5">
+                                    {ot.days.filter(d => d.status !== 'approved').slice(0, 8).map(d => (
+                                        <li key={d.date}><OtBadge d={d}/> {WEEKDAYS[weekdayOf(d.date)]} {fmtDM(d.date)} · {fmtH(d.ot)} giờ{d.note ? <span className="text-rose-700"> — {d.note}</span> : null}</li>
+                                    ))}
+                                </ul>
+                            )}
+                        </section>
+                    )}
+                    {lead && <p className="text-sm text-slate-700 rounded-lg bg-slate-50 px-3 py-2">Bảng công của giám sát <b>chỉ gồm giờ tăng ca</b> và nộp <b>thẳng Quản lý dự án</b> (không qua Site Sup).</p>}
+                    {leadNormal.length > 0 && <p role="alert" className="text-sm text-rose-700 font-medium">Giám sát chỉ nộp giờ tăng ca — xoá hoặc sửa các dòng có giờ thường (ngày {leadNormal.slice(0, 6).map(fmtDM).join(', ')}{leadNormal.length > 6 ? '…' : ''}).</p>}
+                    {!ot.ok && <p role="alert" className="text-sm text-amber-800 font-medium rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">⚠ Còn ngày tăng ca chưa được {lead ? 'Quản lý dự án' : 'Site Sup'} duyệt. Bạn <b>vẫn nộp được</b> — hệ thống sẽ gửi email nhắc người duyệt, nhưng giờ chưa duyệt có thể không được tính. Nên nhờ {lead ? 'Quản lý dự án' : 'Site Sup'} duyệt sớm.</p>}
                     {!calc.ok && <p role="alert" className="text-sm text-rose-700 font-medium">Phụ cấp xe còn lỗi — sửa hoặc xóa dòng có ⚠ rồi nộp.</p>}
                     <p className="text-sm text-slate-600">Nộp xong bạn không sửa được nữa, trừ khi giám sát trả lại hoặc bạn thu hồi trước khi giám sát duyệt.</p>
                     <div className="flex gap-2 pt-2 border-t border-slate-200">
                         <button type="button" onClick={onCancel} className={`${btnGhost} h-11 ml-auto`}>Hủy</button>
-                        <button id="tsSubmitConfirm" type="button" onClick={onSubmit} disabled={!calc.ok} className={`${btnPrimary} h-11`}>Nộp cho giám sát</button>
+                        <button id="tsSubmitConfirm" type="button" onClick={onSubmit} disabled={!calc.ok || (leadNormal || []).length > 0} className={`${btnPrimary} h-11`}>{lead ? 'Nộp cho Quản lý dự án' : 'Nộp cho giám sát'}</button>
                     </div>
                 </div>
+            );
+        }
+
+        // ---------- Thu nhập dự kiến (riêng tư: chỉ người dùng này thấy, lưu trên máy) ----------
+        function IncomeCard({ salary, onSave, calc, month }) {
+            const [show, setShow] = useState(false);          // mặc định ẩn số tiền (tránh người bên cạnh nhìn thấy)
+            const [edit, setEdit] = useState(false);
+            const [text, setText] = useState('');
+            const [y, m] = month.split('-');
+            const mask = (v) => show ? `${TsIncome.fmtMoney(v)} đ` : '••••••••';
+            const open = () => { setText(salary ? TsIncome.fmtMoney(salary) : ''); setEdit(true); };
+            const commit = (e) => { e.preventDefault(); onSave(TsIncome.parseMoney(text)); setEdit(false); setShow(true); };
+            return (
+                <section id="tsIncomeCard" className="bg-white rounded-2xl border border-slate-200 p-4" aria-labelledby="tsIncomeTitle">
+                    <div className="flex items-center gap-2">
+                        <h2 id="tsIncomeTitle" className="font-semibold mr-auto">🔒 Thu nhập dự kiến kỳ {parseInt(m, 10)}/{y}</h2>
+                        {salary > 0 && <button type="button" id="tsIncomeToggle" onClick={() => setShow(!show)} className="text-sm font-semibold text-blue-700 hover:text-blue-900" aria-pressed={show}>{show ? 'Ẩn số' : 'Hiện số'}</button>}
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">Chỉ mình bạn thấy — lưu <b>riêng trên máy này</b>, không gửi lên máy chủ, không có trong sao lưu, báo cáo hay email.</p>
+                    {edit ? (
+                        <form onSubmit={commit} className="mt-2 flex gap-2">
+                            <input id="tsSalaryInput" inputMode="numeric" autoFocus value={text} onChange={(e) => { const n = TsIncome.parseMoney(e.target.value); setText(n ? TsIncome.fmtMoney(n) : ''); }}
+                                className={inputCls} placeholder="Lương cơ bản / tháng (đ)" aria-label="Lương cơ bản mỗi tháng"/>
+                            <button type="submit" className={`${btnPrimary} shrink-0`}>Lưu</button>
+                            <button type="button" onClick={() => setEdit(false)} className={`${btnGhost} shrink-0`}>Hủy</button>
+                        </form>
+                    ) : salary <= 0 ? (
+                        <button id="tsSalaryAdd" type="button" onClick={open} className={`${btnGhost} h-9 text-sm mt-2`}><Icons.Plus/> Nhập lương cơ bản</button>
+                    ) : (
+                        <React.Fragment>
+                            <div className="mt-2 text-2xl font-bold tabular-nums" id="tsIncomeTotal" aria-live="polite">{mask(calc.total)}</div>
+                            <dl className="mt-2 text-sm divide-y divide-slate-100">
+                                <div className="flex justify-between py-1.5"><dt className="text-slate-600">Lương cơ bản</dt><dd className="tabular-nums">{mask(calc.base)}</dd></div>
+                                <div className="flex justify-between py-1.5"><dt className="text-slate-600">Tăng ca ({fmtH(calc.otHours)} giờ)</dt><dd className="tabular-nums">+ {mask(calc.otPay)}</dd></div>
+                                {calc.allowance > 0 && <div className="flex justify-between py-1.5"><dt className="text-slate-600">Trợ cấp xe</dt><dd className="tabular-nums">+ {mask(calc.allowance)}</dd></div>}
+                                {calc.unpaidDays > 0 && <div className="flex justify-between py-1.5"><dt className="text-slate-600">Nghỉ không lương ({calc.unpaidDays} ngày)</dt><dd className="tabular-nums">− {mask(calc.deduction)}</dd></div>}
+                            </dl>
+                            {show && calc.ot.length > 0 && (
+                                <p className="mt-1 text-xs text-slate-500">{calc.ot.map(x => `${x.cat} ${fmtH(x.hours)}h × ${x.rate}%`).join(' · ')}</p>
+                            )}
+                            <p className="mt-2 text-xs text-slate-500">Ước tính: lương giờ = lương cơ bản ÷ 26 ngày ÷ 8 giờ; tăng ca nhân theo tỷ lệ (150% / 200% / 300% / ban đêm…). <b>Không gồm</b> thưởng, phụ cấp khác, bảo hiểm, thuế. Số thực nhận do công ty tính.</p>
+                            <button type="button" onClick={open} className="mt-1 text-sm font-semibold text-blue-700 hover:text-blue-900">Sửa lương cơ bản</button>
+                        </React.Fragment>
+                    )}
+                </section>
+            );
+        }
+
+        // ---------- Tăng ca chờ duyệt + đơn nghỉ (bản máy chủ) ----------
+        const OT_STATE = {
+            approved: { text: '✓ OT đã duyệt', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+            pending: { text: '⏳ OT chờ duyệt', cls: 'bg-amber-50 text-amber-900 border-amber-200' },
+            rejected: { text: '✕ OT không duyệt', cls: 'bg-rose-50 text-rose-800 border-rose-200' },
+            unsent: { text: '↻ OT đang gửi duyệt', cls: 'bg-slate-50 text-slate-600 border-slate-200' },
+        };
+        function OtBadge({ d }) {
+            const s = OT_STATE[d.status] || OT_STATE.unsent;
+            const title = d.status === 'approved' ? `${fmtH(d.ot)} giờ tăng ca — ${d.by || 'Site Sup'} đã duyệt` : d.status === 'rejected' ? `Không duyệt: ${d.note}` : `${fmtH(d.ot)} giờ tăng ca`;
+            return <span className={`inline-flex items-center h-5 px-2 rounded-full border text-[11px] font-semibold whitespace-nowrap ${s.cls}`} title={title} data-ot={d.status}>{s.text} · {fmtH(d.ot)}h</span>;
+        }
+        function OtCounts({ c }) {
+            const parts = [c.approved ? <span key="a" className="text-emerald-700 font-medium">{c.approved} đã duyệt</span> : null,
+                c.pending ? <span key="p" className="text-amber-800 font-medium">{c.pending} chờ duyệt</span> : null,
+                c.rejected ? <span key="r" className="text-rose-700 font-medium">{c.rejected} không duyệt</span> : null,
+                c.unsent ? <span key="u" className="text-slate-600">{c.unsent} đang gửi</span> : null].filter(Boolean);
+            return <React.Fragment>{parts.map((p, i) => <React.Fragment key={i}>{i ? ' · ' : ''}{p}</React.Fragment>)}</React.Fragment>;
+        }
+        const LEAVE_STATE = {
+            pending: { text: 'Chờ duyệt', cls: 'bg-amber-50 text-amber-900' }, approved: { text: 'Đã duyệt', cls: 'bg-emerald-50 text-emerald-800' },
+            rejected: { text: 'Không duyệt', cls: 'bg-rose-50 text-rose-800' }, cancelled: { text: 'Đã huỷ', cls: 'bg-slate-100 text-slate-600' },
+        };
+        function OtLeaveCard({ ot, leaves, locked, onPickDay, onLeave }) {
+            const today = getTodayLocal();
+            const list = (leaves || []).filter(l => l.to >= addDaysLocal(today, -45)).slice(0, 6);
+            return (
+                <section id="tsOtLeaveCard" className="bg-white rounded-2xl border border-slate-200 p-4" aria-labelledby="tsOtLeaveTitle">
+                    <h2 id="tsOtLeaveTitle" className="font-semibold">Tăng ca & nghỉ phép</h2>
+                    <div id="tsOtSummary" className="mt-1 text-sm">
+                        {ot.days.length === 0 ? <p className="text-slate-500">{IS_LEAD ? 'Giám sát chỉ chấm giờ tăng ca: đăng ký TRƯỚC khi làm (thêm chấm công ngày đó) — gửi thẳng Quản lý dự án duyệt.' : 'Kỳ này chưa có ngày tăng ca. Ngày nào có giờ OT sẽ tự gửi Site Sup duyệt (duyệt hằng ngày).'}</p> : (
+                            <React.Fragment>
+                                <p>{ot.days.length} ngày tăng ca ({fmtH(ot.days.reduce((a, d) => a + d.ot, 0))} giờ): <OtCounts c={ot.count}/></p>
+                                <ul className="mt-1 flex flex-wrap gap-1">
+                                    {ot.days.map(d => <li key={d.date}><button type="button" onClick={() => onPickDay(d.date)} className="rounded-full" title="Lọc danh sách theo ngày này"><OtBadge d={{ ...d, ot: d.ot }}/><span className="sr-only"> {fmtDMY(d.date)}</span></button> <span className="text-xs text-slate-500 tabular-nums">{fmtDM(d.date)}</span></li>)}
+                                </ul>
+                                {!ot.ok && !locked && <p className="mt-1 text-xs text-slate-500">Nộp bảng công vẫn được khi còn ngày chưa duyệt (có email nhắc người duyệt). Sửa giờ của ngày đã duyệt thì phải duyệt lại.</p>}
+                            </React.Fragment>
+                        )}
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold mr-auto">Đơn nghỉ phép / ốm</h3>
+                            <a id="tsLeaveBtn" href="../leave/" className={`${btnGhost} h-9 text-sm`}><Icons.Plus/> Xin nghỉ</a>
+                        </div>
+                        {leaves === null ? <p className="mt-1 text-sm text-slate-500">Đang tải…</p>
+                            : list.length === 0 ? <p className="mt-1 text-sm text-slate-500">Làm đơn ở chức năng <b>Nghỉ phép / ốm</b> (nghỉ ốm trước 2 giờ; phép 1 ngày trước 24 giờ, 2–3 ngày trước 3 ngày, dài hơn trước 1 tuần). Quản lý trực tiếp duyệt xong, các ngày nghỉ tự ghi vào bảng công này.</p> : (
+                            <ul id="tsLeaveList" className="mt-1 divide-y divide-slate-100">
+                                {list.map(l => {
+                                    const st = l.expired ? { text: 'Quá hạn duyệt', cls: 'bg-slate-100 text-slate-600' } : (LEAVE_STATE[l.status] || LEAVE_STATE.pending);
+                                    return (
+                                        <li key={l.id} className="py-2 text-sm flex items-start gap-2">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-wrap items-center gap-x-2">
+                                                    <span className="font-medium">{l.label}</span>
+                                                    <span className={`inline-flex h-5 px-2 rounded-full text-[11px] font-semibold items-center ${st.cls}`}>{st.text}</span>
+                                                </div>
+                                                <p className="text-xs text-slate-600 tabular-nums">{fmtDMY(l.from)}{l.to !== l.from ? ` → ${fmtDMY(l.to)}` : ''} · {fmtH(l.count)} ngày công</p>
+                                                {l.status === 'approved' && <p className="text-xs text-emerald-700">{l.decidedBy} đã duyệt — đã ghi vào bảng công</p>}
+                                                {l.status === 'rejected' && l.note && <p className="text-xs text-rose-700">{l.decidedBy}: {l.note}</p>}
+                                            </div>
+                                            
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                    </div>
+                </section>
             );
         }
 
@@ -1234,7 +1347,7 @@
         }
 
         // ---------- Máy tính: bảng ----------
-        function EntryTable({ rows, bdOf, sch, onEdit, onDelete }) {
+        function EntryTable({ rows, bdOf, sch, ot = {}, onEdit, onDelete }) {
             return (
                 <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-sm">
@@ -1262,6 +1375,7 @@
                                                 <React.Fragment>
                                                     <span className="font-semibold tabular-nums">{fmtDM(e.date)}</span>{' '}
                                                     <span className={hol || w === 0 ? 'text-rose-600' : 'text-slate-500'}>{WEEKDAYS[w]}{hol ? ' · Lễ' : ''}</span>
+                                                    {ot[e.date] && <div className="mt-1"><OtBadge d={ot[e.date]}/></div>}
                                                 </React.Fragment>
                                             ) : <span className="sr-only">{fmtDMY(e.date)}</span>}
                                         </td>
@@ -1277,6 +1391,7 @@
                                         <td className="px-3 py-2.5 align-top max-w-0">
                                             <div className="truncate" title={e.projectName}>{e.projectName || '—'}</div>
                                             {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
+                                            {e.ae ? <div><span className="inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center">Admin sửa</span></div> : null}
                                             {e.remarks && <div className="text-xs text-slate-500 italic truncate" title={e.remarks}>{e.remarks}</div>}
                                             {e.report && <div className="text-xs text-blue-800 truncate" title={e.report}>📝 {e.report}</div>}
                                         </td>
@@ -1296,7 +1411,7 @@
         }
 
         // ---------- Điện thoại / tablet: thẻ theo ngày ----------
-        function EntryCards({ rows, bdOf, sch, onEdit, onDelete }) {
+        function EntryCards({ rows, bdOf, sch, ot = {}, onEdit, onDelete }) {
             const groups = [];
             rows.forEach(e => {
                 const g = groups[groups.length - 1];
@@ -1315,6 +1430,7 @@
                                     </span>
                                     <span className="text-sm text-slate-500 tabular-nums">{fmtH(total)} giờ</span>
                                 </div>
+                                {ot[g.date] && <div className="-mt-1 mb-2"><OtBadge d={ot[g.date]}/>{ot[g.date].note ? <span className="ml-1 text-xs text-rose-700">{ot[g.date].note}</span> : null}</div>}
                                 <ul className="space-y-2">
                                     {g.items.map(e => (
                                         <li key={e.id} className="rounded-xl border border-slate-200 flex items-stretch">
@@ -1327,6 +1443,7 @@
                                                 </div>
                                                 <div className="mt-1 text-sm truncate"><span className="font-mono text-blue-700">[{e.activityCode}]</span> {e.projectName}</div>
                                                 {e.workNumber && <div className="text-xs text-slate-500 font-mono truncate">{e.workNumber}</div>}
+                                                {e.ae ? <span className="inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center">Admin sửa</span> : null}
                                                 {e.remarks && <div className="text-xs text-slate-500 truncate">Ghi chú: {e.remarks}</div>}
                                                 {e.report && <div className="text-xs text-blue-800 truncate">📝 {e.report}</div>}
                                             </button>
@@ -2126,13 +2243,16 @@
         }
 
         // ---------- Form thêm / sửa chấm công ----------
-        function EntryForm({ onSave, onCancel, onDelete, defaultDate, initialData, entries, projects, sch }) {
+        function EntryForm({ onSave, onCancel, onDelete, defaultDate, initialData, entries, projects, sch, onLeave }) {
             const [formData, setFormData] = useState({
                 date: defaultDate, startTime: '08:00', endTime: '17:00', breakTime: '1', otMode: 'auto',
                 otType: 'NORMAL', projectName: '', workNumber: '', activityCode: '1110', dutyHour: '0', remarks: '', report: ''
             });
             // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
             const [breakTouched, setBreakTouched] = useState(!!initialData);
+            const [multi, setMulti] = useState(false);          // chấm nhiều ngày liên tiếp (chỉ khi thêm mới)
+            const [rangeTo, setRangeTo] = useState('');
+            const [skipOff, setSkipOff] = useState(true);       // bỏ ngày nghỉ hằng tuần + ngày lễ
             const [customCode, setCustomCode] = useState('');
             const [suggestions, setSuggestions] = useState([]);
 
@@ -2243,15 +2363,24 @@
                     if(!customCode) return alert("Vui lòng nhập mã code!");
                     finalData.activityCode = customCode;
                 }
+                if (leaveBlocked) return;
+                if (multi && !initialData) {
+                    if (!rangeTo || rangeTo <= finalData.date) return alert('Chọn ngày kết thúc sau ngày bắt đầu.');
+                    if (rangeDays.length > 62) return alert('Tối đa 62 ngày một lần.');
+                    finalData.rangeTo = rangeTo; finalData.skipOff = skipOff;
+                }
                 if (finalData.otMode === 'auto') finalData.otType = LaborVN.dominant(preview); // loại giờ chính (hiển thị gọn / dữ liệu cũ)
                 onSave(finalData);
             };
 
             const set = (k) => (e) => setFormData({ ...formData, [k]: e.target.value });
             const hours = calculateHours(formData.startTime, formData.endTime, formData.breakTime);
+            const rangeDays = (multi && formData.date && rangeTo > formData.date) ? daysBetween(formData.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))) : [];
             const w = formData.date ? weekdayOf(formData.date) : null;
             const holi = holidayOf(formData.date, sch);
             const leave = LaborVN.LEAVE_CODES.includes(formData.activityCode === 'OTHER' ? customCode : formData.activityCode);
+            // bản máy chủ: dòng nghỉ chỉ do đơn nghỉ đã duyệt ghi vào (sửa / xoá dòng nghỉ đã có thì vẫn được)
+            const leaveBlocked = SERVER && leave && !(initialData && LaborVN.LEAVE_CODES.includes(String(initialData.activityCode)));
             // giờ thường / OT của dòng đang nhập, xét cả các dòng khác (OT7: đêm sau khi đã làm thêm buổi tối)
             const preview = useMemo(() => LaborVN.breakdown(
                 { ...formData, id: initialData ? initialData.id : undefined, activityCode: formData.activityCode === 'OTHER' ? customCode : formData.activityCode },
@@ -2271,6 +2400,21 @@
                             <Field label="Ngày" htmlFor="tsDate" hint={dayNote}>
                                 <input id="tsDate" data-autofocus type="date" value={formData.date} onChange={handleDateChange} className={inputCls} required/>
                             </Field>
+                            {!initialData && (
+                                <div className="rounded-lg border border-slate-200 px-3 py-2">
+                                    <label className="flex items-center gap-2 min-h-9 text-sm text-slate-800 cursor-pointer">
+                                        <input id="tsMulti" type="checkbox" checked={multi} onChange={(e) => { setMulti(e.target.checked); if (e.target.checked && !rangeTo) setRangeTo(formData.date || ''); }} className="w-4 h-4 shrink-0 accent-blue-700"/>
+                                        <span><b>Chấm nhiều ngày liên tiếp</b> <span className="text-slate-500">(cùng hoạt động, dự án, giờ)</span></span>
+                                    </label>
+                                    {multi && (
+                                        <div className="mt-2 space-y-2">
+                                            <Field label="Đến hết ngày" htmlFor="tsRangeTo"><input id="tsRangeTo" type="date" min={formData.date} value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className={inputCls}/></Field>
+                                            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input id="tsSkipOff" type="checkbox" checked={skipOff} onChange={(e) => setSkipOff(e.target.checked)} className="w-4 h-4 accent-blue-700"/> Bỏ ngày nghỉ hằng tuần và ngày lễ</label>
+                                            <p id="tsRangeInfo" className="text-sm font-medium text-blue-800" aria-live="polite">{rangeDays.length ? `Sẽ tạo ${rangeDays.length} dòng: ${fmtDM(rangeDays[0])} → ${fmtDM(rangeDays[rangeDays.length - 1])} (mỗi ngày ${fmtH(hours)} giờ)` : 'Chọn ngày kết thúc để xem số ngày.'}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <div className="grid grid-cols-3 gap-3">
                                 <Field label="Từ" htmlFor="tsFrom"><input id="tsFrom" type="time" value={formData.startTime} onChange={set('startTime')} className={`${inputCls} text-center px-1`}/></Field>
                                 <Field label="Đến" htmlFor="tsTo"><input id="tsTo" type="time" value={formData.endTime} onChange={set('endTime')} className={`${inputCls} text-center px-1`}/></Field>
@@ -2284,6 +2428,12 @@
                                 {auto && (
                                     <div className="mt-2 pt-2 border-t border-slate-200">
                                         <HourPills bd={preview}/>
+                                        {IS_LEAD && !leave && (preview.NORMAL || 0) > 0.01 && (
+                                            <p id="tsLeadHint" className="mt-1.5 text-xs font-medium text-rose-700">Giám sát chỉ chấm giờ tăng ca — dòng này có {fmtH(preview.NORMAL)} giờ thường, không nộp được. Chỉ nhập khoảng giờ tăng ca (vd 17:00–19:00).</p>
+                                        )}
+                                        {SERVER && !leave && Object.keys(preview).some(k => k !== 'NORMAL' && preview[k] > 0) && (
+                                            <p id="tsOtHint" className="mt-1.5 text-xs font-medium text-amber-800">⏱ Có giờ tăng ca — {IS_LEAD ? 'Quản lý dự án' : 'Site Sup'} duyệt từng ngày{IS_LEAD ? '; giám sát đăng ký trước khi làm' : ' (hằng ngày)'}. Chưa duyệt vẫn nộp được nhưng sẽ có email nhắc, giờ chưa duyệt có thể không được tính.</p>
+                                        )}
                                         <p className="mt-1.5 text-xs text-slate-500">
                                             {leave ? 'Nghỉ phép / ốm / không lương: không tính làm thêm giờ.'
                                                 : 'Tự tính theo Bộ luật Lao động 2019 (Điều 98, 106) và NĐ 145/2020: giờ thường 08:00–12:00, 13:00–17:00; ban đêm 22:00–06:00.'}
@@ -2318,6 +2468,12 @@
                                     <option value="OTHER">Khác</option>
                                 </select>
                                 {formData.activityCode === 'OTHER' && <input type="text" value={customCode} onChange={e=>setCustomCode(e.target.value)} placeholder="Nhập mã code" aria-label="Mã công việc khác" className={`${inputCls} mt-2 bg-amber-50`}/>}
+                                {leaveBlocked && (
+                                    <div id="tsLeaveHint" role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                        Nghỉ phép / ốm / không lương phải <b>làm đơn trước ngày nghỉ</b> và được quản lý duyệt — duyệt xong dòng nghỉ tự ghi vào bảng công.
+                                        {onLeave && <button type="button" onClick={onLeave} className="ml-1 font-semibold text-blue-700 hover:text-blue-900">Mở Xin nghỉ →</button>}
+                                    </div>
+                                )}
                             </Field>
 
                             <Field label="Tên dự án" htmlFor="tsProject" hint={projects.length ? `Gõ tên hoặc WBS để chọn trong ${projects.length} dự án.` : null}>
@@ -2368,7 +2524,7 @@
                             <button type="button" onClick={onDelete} className="h-11 px-3 rounded-lg text-rose-700 font-semibold hover:bg-rose-50 inline-flex items-center gap-2"><Icons.Trash/> Xóa</button>
                         )}
                         <button type="button" onClick={onCancel} className={`${btnGhost} h-11 flex-1 md:flex-none md:ml-auto`}>Hủy</button>
-                        <button type="submit" className={`${btnPrimary} h-11 flex-1 md:flex-none md:min-w-[8rem]`}>Lưu</button>
+                        <button type="submit" disabled={leaveBlocked} className={`${btnPrimary} h-11 flex-1 md:flex-none md:min-w-[8rem]`}>Lưu</button>
                     </div>
                 </form>
             );

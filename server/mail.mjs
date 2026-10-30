@@ -14,7 +14,8 @@ export function mailConfigured(env) {
 }
 
 // to / cc: [{ email, name? }]; trả về { ok, error?, skipped? }
-export async function sendMail(env, { to, cc = [], subject, html }) {
+// attachments: [{ name, content (base64) }] — Brevo nhận tệp đính kèm dạng base64 (tối đa ~4 MB tổng)
+export async function sendMail(env, { to, cc = [], subject, html, attachments = [] }) {
   if (!mailConfigured(env)) return { ok: false, skipped: true, error: 'Chưa cấu hình gửi email (BREVO_API_KEY, MAIL_FROM)' };
   const clean = (list) => {
     const seen = new Set(), out = [];
@@ -38,6 +39,36 @@ export async function sendMail(env, { to, cc = [], subject, html }) {
     htmlContent: html + `<p style="color:#6b7280;font-size:12px;margin-top:20px;font-family:Arial,Helvetica,sans-serif">Thư tự động từ ${esc(senderName(env))}. Vui lòng không trả lời thư này.</p>`,
   };
   if (ccList.length) payload.cc = ccList;
+  if (attachments.length) payload.attachment = attachments.map(a => ({ name: String(a.name), content: String(a.content) }));
+  return postBrevo(env, payload);
+}
+
+const footer = (env) => `<p style="color:#6b7280;font-size:12px;margin-top:20px;font-family:Arial,Helvetica,sans-serif">Thư tự động từ ${esc(senderName(env))}. Vui lòng không trả lời thư này.</p>`;
+
+// Nhiều thư riêng (mỗi người một nội dung) trong MỘT lần gọi Brevo (messageVersions, tối đa 100 thư / lần gọi) —
+// cho thư nhắc gửi nhiều người mà cron gói miễn phí giới hạn số lượt gọi ra ngoài. items: [{ to: {email, name}, subject, html }]
+// Trả về { sent, failed, errors }. Demo: chỉ gửi vài thư đầu về người thử (như sendMail).
+export async function sendMailBatch(env, items) {
+  const out = { sent: 0, failed: 0, errors: [] };
+  if (!mailConfigured(env)) { out.errors.push('Chưa cấu hình gửi email'); return out; }
+  const list = (items || []).filter(it => it && it.to && EMAIL_RE.test(String(it.to.email || '').trim()));
+  if (env.DEMO) {
+    for (const it of list.slice(0, 3)) { const r = await sendMail(env, { to: [it.to], subject: it.subject, html: it.html }); if (r.ok) out.sent++; else { out.failed++; out.errors.push(r.error); } }
+    return out;
+  }
+  for (let i = 0; i < list.length; i += 100) {
+    const part = list.slice(i, i + 100);
+    const version = (it) => ({ to: [it.to.name ? { email: String(it.to.email).trim().toLowerCase(), name: String(it.to.name).slice(0, 100) } : { email: String(it.to.email).trim().toLowerCase() }],
+      subject: String(it.subject).slice(0, 250), htmlContent: it.html + footer(env) });
+    const first = version(part[0]);
+    const r = await postBrevo(env, { sender: { email: String(env.MAIL_FROM).trim(), name: senderName(env) }, subject: first.subject, htmlContent: first.htmlContent,
+      messageVersions: part.map(version) });
+    if (r.ok) out.sent += part.length; else { out.failed += part.length; out.errors.push(r.error); }
+  }
+  return out;
+}
+
+async function postBrevo(env, payload) {
   const doFetch = env.MAIL_FETCH || fetch;
   const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : null;

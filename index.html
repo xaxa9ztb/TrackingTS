@@ -404,14 +404,15 @@
     <p id="demoIntro">Dùng thử toàn bộ hệ thống với <b>dữ liệu mẫu bịa</b> trên một cơ sở dữ liệu riêng — <b>không ảnh hưởng dữ liệu thật</b>. Nộp, duyệt, trả lại bảng công chạy <b>như thật</b>; email thông báo chỉ gửi về hộp thư của bạn, tiêu đề có <b>[DEMO]</b>. Chọn vai trò muốn thử:</p>
     <div class="demo-roles">
       <button type="button" data-role="staff"><b>Fitter</b><small>Phạm Minh Dũng · chấm công, nộp bảng công</small></button>
-      <button type="button" data-role="sitesup"><b>Site Sup</b><small>Trần Thị Bình · duyệt bảng công cấp 1</small></button>
+      <button type="button" data-role="sitesup"><b>Site Sup</b><small>Trần Thị Bình · duyệt tăng ca, đơn nghỉ, bảng công cấp 1</small></button>
       <button type="button" data-role="pm"><b>Quản lý dự án</b><small>Nguyễn Văn An · duyệt cấp 2, điều phối</small></button>
       <button type="button" data-role="admin"><b>Quản trị viên</b><small>Nhân viên, dự án, tài khoản, nạp bảng công</small></button>
     </div>
     <ol class="demo-flow">
-      <li><b>Fitter</b>: mở <i>Timesheet cá nhân</i>, lùi về kỳ trước (đã chấm đủ) → bấm <b>Nộp bảng công</b>.</li>
-      <li><b>Đổi vai trò → Site Sup</b>: mở <i>Duyệt bảng công</i> → duyệt (hoặc trả lại kèm lý do).</li>
-      <li><b>Đổi vai trò → Quản lý dự án</b>: duyệt lần 2 → bảng công vào <i>Thống kê giờ công</i>.</li>
+      <li><b>Fitter</b>: mở <i>Timesheet cá nhân</i> — kỳ hiện tại có ngày tăng ca <b>chờ duyệt</b>; bấm <b>Xin nghỉ</b> để thử làm đơn. Lùi về kỳ trước (đã chấm đủ, tăng ca đã duyệt) → bấm <b>Nộp bảng công</b>.</li>
+      <li><b>Đổi vai trò → Site Sup</b>: mở <i>Duyệt bảng công</i> → duyệt tăng ca, đơn nghỉ, rồi bảng công (hoặc trả lại kèm lý do).</li>
+      <li><b>Đổi vai trò → Quản lý dự án</b>: duyệt lần 2 → bảng công chờ <b>Admin</b>.</li>
+      <li><b>Đổi vai trò → Quản trị viên</b>: <i>Duyệt bảng công</i> → <b>Process</b> → bảng công vào <i>Thống kê giờ công</i>, thư kèm Excel gửi Fitter, Site Sup, QLDA.</li>
     </ol>
     <p class="demo-keep" id="demoKeep" hidden>Đổi vai trò <b>giữ nguyên dữ liệu</b> bạn đã làm trong demo. Muốn làm lại từ đầu: bấm <b>Làm mới dữ liệu demo</b> trên thanh vàng.</p>
     <p class="dlg-sub" id="demoMsg" role="status"></p>
@@ -444,12 +445,15 @@
     handover: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13.5h7M12.5 11l2.5 2.5-2.5 2.5"/></svg>',
     ffplus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M14 3v5h5M14 3l5 5v3"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg>',
     projectplan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><path d="M7 8h6M10 12h7M8 16h5"/></svg>',
+    leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/><path d="M12 17.5s-3-1.8-3-3.8a1.7 1.7 0 013-1 1.7 1.7 0 013 1c0 2-3 3.8-3 3.8z"/></svg>',
+    tsupload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6M9.5 13.5L12 11l2.5 2.5"/></svg>',
+    tsadmin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9h17M9 9v11"/><path d="M13 13.5l2 2 3.5-3.5"/></svg>',
     approvals: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17.5" rx="2"/><path d="M8 8.5h8M8 12.5h4"/><path d="M9 17l2.2 2.2L16 14.5"/></svg>',
     admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg>',
     materials: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v2"/><path d="M3 13h18M10.5 13v2h3v-2"/></svg>',
   };
   // màu biểu tượng từng chức năng (biểu tượng trắng trên nền màu, tương phản ≥ 3:1)
-  const COLORS = { tracking: '#2563eb', timesheet: '#059669', tiendotm: '#7c3aed', projectplan: '#ea580c', approvals: '#0891b2', handover: '#0d9488', ffplus: '#db2777', materials: '#b45309', admin: '#334155' };
+  const COLORS = { tracking: '#2563eb', timesheet: '#059669', tiendotm: '#7c3aed', projectplan: '#ea580c', approvals: '#0891b2', tsadmin: '#4f46e5', tsupload: '#0d9488', leave: '#e11d48', handover: '#0d9488', ffplus: '#db2777', materials: '#b45309', admin: '#334155' };
   const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
   // Nội dung hiển thị của từng chức năng (tên / đường dẫn / quyền nằm ở Session.TOOLS)
@@ -481,9 +485,21 @@
       full: 'Điều phối fitter theo ngày và lịch trình các dự án: hàng về, bàn giao hố, nhận hố, lắp đặt, bàn giao. Nhập / xuất Excel theo mẫu đang dùng. Bản demo, lưu trên máy này.',
       badge: 'Demo',
     },
+    leave: {
+      desc: 'Xin nghỉ phép / nghỉ ốm; quản lý trực tiếp duyệt, tự ghi vào Timesheet',
+      full: 'Làm đơn nghỉ phép năm, nghỉ ốm, nghỉ không lương (nghỉ ốm nộp trước 2 giờ; nghỉ phép 1 ngày trước 24 giờ, 2–3 ngày trước 3 ngày, dài hơn trước 1 tuần). Quản lý trực tiếp duyệt; duyệt xong các ngày nghỉ tự ghi vào Timesheet của bạn.',
+    },
+    tsupload: {
+      desc: 'Nhập bảng công Excel hộ nhân viên (kể cả fitter không có tài khoản), rồi duyệt từ đầu',
+      full: 'Tải file Excel bảng chấm công (mẫu Schindler), chỉnh lại theo đúng định dạng, quy tắc tính giờ và dữ liệu dự án, rồi nộp: hệ thống ghi bảng công cho từng nhân viên (kể cả người không có tài khoản app) và chạy quy trình duyệt từ đầu.',
+    },
+    tsadmin: {
+      desc: 'Xem và sửa bảng công của mọi nhân viên (Admin / Admin dự án)',
+      full: 'Xem bảng công của mọi nhân viên theo kỳ lương (kể cả người không có tài khoản app) và sửa khi cần — mỗi lần sửa phải ghi chú, người chủ bảng công thấy "Quản trị viên đã sửa" và nhận email.',
+    },
     approvals: {
-      desc: 'Duyệt bảng công fitter đã nộp cuối kỳ: Site Sup rồi Quản lý dự án',
-      full: 'Xem bảng công fitter nộp cuối kỳ (giờ theo dự án, báo cáo thi công, ngày chưa chấm), duyệt hoặc trả lại kèm lý do. Duyệt xong dữ liệu tự sang bảng Theo dõi giờ công các công trình.',
+      desc: 'Duyệt tăng ca hằng ngày và bảng công cuối kỳ',
+      full: 'Site Sup duyệt tăng ca của fitter từng ngày. Cuối kỳ: xem bảng công fitter nộp, duyệt hoặc trả lại kèm lý do; duyệt xong dữ liệu tự sang bảng Theo dõi giờ công các công trình.',
     },
     admin: {
       desc: 'Dữ liệu nhân viên, dự án, bảng công (nạp Excel) và phân quyền tài khoản',
@@ -496,8 +512,8 @@
   };
   // Trang chủ chia theo nhóm; trong nhóm, chức năng dùng được xếp trước
   const GROUPS = [
-    { title: 'Chức năng chung', ids: ['tracking', 'timesheet'] },
-    { title: 'Quản lý dự án & Giám sát dự án', ids: ['tiendotm', 'projectplan', ...(Session.SERVER ? ['approvals'] : []), 'handover', 'ffplus', 'materials'] },
+    { title: 'Chức năng chung', ids: ['tracking', 'timesheet', ...(Session.SERVER ? ['leave'] : [])] },
+    { title: 'Quản lý dự án & Giám sát dự án', ids: ['tiendotm', 'projectplan', ...(Session.SERVER ? ['approvals', 'tsupload', 'tsadmin'] : []), 'handover', 'ffplus', 'materials'] },
     { title: 'Quản trị', ids: ['admin'], adminOnly: true },   // chỉ hiện với quản trị viên
   ];
   const ORDER = GROUPS.filter(g => !g.adminOnly).flatMap(g => g.ids);
@@ -606,20 +622,24 @@
     loadApprovalBadge();
   }
 
-  // Bản máy chủ: số bảng công đang chờ người này duyệt (hiện trên thẻ "Duyệt bảng công")
+  // Bản máy chủ: số việc đang chờ người này duyệt — bảng công + ngày tăng ca (thẻ "Duyệt bảng công"), đơn nghỉ (thẻ "Nghỉ phép / ốm")
   async function loadApprovalBadge() {
     if (!Session.SERVER) return;
-    const el = document.querySelector('a.tool[data-tool="approvals"]');
-    if (!el) return;
     try {
       const resp = await fetch('/api/ts/inbox', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' });
       if (!resp.ok) return;
-      const n = ((await resp.json()).items || []).length;
-      let b = el.querySelector('.app-badge');
-      if (n > 0) {
-        if (!b) { b = document.createElement('span'); b.className = 'app-badge'; el.prepend(b); }
-        b.textContent = `${n} chờ duyệt`; b.dataset.count = String(n);
-      } else if (b && b.dataset.count !== undefined) b.remove();
+      const d = await resp.json();
+      const set = (tool, n) => {
+        const el = document.querySelector(`a.tool[data-tool="${tool}"]`);
+        if (!el) return;
+        let b = el.querySelector('.app-badge');
+        if (n > 0) {
+          if (!b) { b = document.createElement('span'); b.className = 'app-badge'; el.prepend(b); }
+          b.textContent = `${n} chờ duyệt`; b.dataset.count = String(n);
+        } else if (b && b.dataset.count !== undefined) b.remove();
+      };
+      set('approvals', (d.items || []).length + (d.ot || 0));
+      set('leave', d.leave || 0);
     } catch (e) { /* mất mạng: bỏ qua */ }
   }
 

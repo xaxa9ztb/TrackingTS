@@ -1,0 +1,12 @@
+.lv-rules { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 8px 12px; font-size: 13.5px; margin-bottom: 10px; }
+.lv-rules ul { margin: 4px 0 0; padding-left: 18px; }
+.lv-types { border: 0; padding: 0; margin: 0 0 10px; display: grid; gap: 8px; }
+.lv-types label { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.lv-types label.on { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 2px rgba(37, 99, 235, .15); }
+.lv-types small { display: block; color: var(--muted); font-family: ui-monospace, monospace; }
+.lv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+.lv-row label, .lv-reason { display: block; font-weight: 600; font-size: 13.5px; }
+.lv-row input, .lv-reason textarea { display: block; width: 100%; margin-top: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; font-weight: 400; }
+.lv-st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.lv-st.pending { background: #fef3c7; color: #92400e; } .lv-st.approved { background: #d1fae5; color: #065f46; }
+.lv-st.rejected { background: #fee2e2; color: #991b1b; } .lv-st.cancelled, .lv-st.expired { background: #e5e7eb; color: #4b5563; }

@@ -1,4 +1,5 @@
-// Duyệt bảng công — giao diện cho /api/ts/inbox, /api/ts/review (xem server/api.mjs).
+// Duyệt bảng công — giao diện cho /api/ts/inbox, /api/ts/review (xem server/api.mjs),
+// duyệt tăng ca hằng ngày /api/ts/ot/* và đơn nghỉ /api/ts/leave/* (xem server/otleave.mjs).
 // Đăng nhập do Cloudflare Access lo; máy chủ kiểm tra từng yêu cầu. Trang này chỉ hiển thị và gửi quyết định.
 (function () {
   'use strict';
@@ -9,8 +10,8 @@
   const fmtH = (h) => (Math.round(h * 10) / 10).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
   const fmtTime = (iso) => { try { return new Date(iso).toLocaleString('vi-VN'); } catch (e) { return iso; } };
   const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-  const LEVEL_LABEL = { sitesup: 'Site Sup', pm: 'Quản lý dự án' };
-  const STATUS_LABEL = { submitted: 'Chờ Site Sup', sitesup_ok: 'Site Sup đã duyệt — chờ Quản lý dự án', approved: 'Đã duyệt xong', rejected: 'Đã trả lại', draft: 'Đang chấm' };
+  const LEVEL_LABEL = { sitesup: 'Site Sup', pm: 'Quản lý dự án', admin: 'Admin — xử lý cuối' };
+  const STATUS_LABEL = { submitted: 'Chờ Site Sup', sitesup_ok: 'Site Sup đã duyệt — chờ Quản lý dự án', pm_ok: 'Đã qua Site Sup và QLDA — chờ Admin xử lý cuối', approved: 'Đã duyệt xong', rejected: 'Đã trả lại', draft: 'Đang chấm' };
 
   let me = null, current = null;      // current = { emp, period, doc }
 
@@ -47,8 +48,8 @@
       body.innerHTML = r.items.map(i => `<tr data-emp="${esc(i.empId)}" data-period="${esc(i.period)}">
           <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)} · ${esc(i.position)}</div></td>
           <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}</td>
-          <td>${esc(LEVEL_LABEL[i.level])}${i.level === 'pm' && i.sitesupBy ? `<div class="ac-note">Site Sup: ${esc(i.sitesupBy)}</div>` : ''}</td>
-          <td class="mono">${esc(i.wbs.join(', ') || '—')}</td>
+          <td>${esc(LEVEL_LABEL[i.level])}${i.level === 'pm' && i.sitesupBy ? `<div class="ac-note">Site Sup: ${esc(i.sitesupBy)}</div>` : ''}${i.level === 'pm' && !i.sitesupBy ? '<div class="ac-note">Giám sát nộp thẳng (chỉ giờ OT)</div>' : ''}</td>
+          <td class="mono">${esc(i.wbs.join(', ') || '—')}${i.level !== 'admin' && i.approvedBy && i.approvedBy.length ? `<div class="ac-note">đã duyệt: ${esc(i.approvedBy.join(', '))} · còn: ${esc((i.remaining || []).join(', '))}</div>` : ''}${i.level === 'admin' ? '<div class="ac-note">hoạt động ngoài dự án do Admin xử lý</div>' : ''}</td>
           <td class="r">${i.entries}</td>
           <td>${esc(fmtTime(i.submittedAt))}</td>
           <td><button class="btn small primary" data-open>Xem & duyệt</button></td></tr>`).join('')
@@ -56,6 +57,75 @@
       $('inboxNote').textContent = r.items.length ? `${r.items.length} bảng công đang chờ bạn.` : '';
     } catch (e) { body.innerHTML = `<tr><td colspan="7" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
   }
+
+  // ---------- tăng ca chờ duyệt (từng ngày) ----------
+  let otItems = [];
+  const otKey = (i) => i.empId + '|' + i.date;
+  async function loadOt() {
+    const body = $('otTable').tBodies[0];
+    try {
+      otItems = (await api('GET', '/api/ts/ot/inbox')).items;
+      body.innerHTML = otItems.map(i => `<tr data-k="${esc(otKey(i))}">
+          <td><input type="checkbox" data-pick aria-label="Chọn ${esc(i.name)} ${esc(fmtDM(i.date))}"></td>
+          <td><b>${esc(i.name)}</b>${i.lead ? ' <span class="pill">Giám sát</span>' : ''}<div class="ac-note">${esc(i.empId)}</div></td>
+          <td>${esc(WEEKDAYS[dow(i.date)])} ${esc(fmtDMY(i.date))}${i.late ? '<div class="ap-exp">đăng ký sau ngày làm</div>' : ''}</td>
+          <td class="r"><b>${fmtH(i.ot)} giờ</b><div class="ac-note">tổng ${fmtH(i.total)} giờ</div></td>
+          <td class="ot-items">${i.items.map(x => `<div>${esc(x.start)}–${esc(x.end)} · ${esc(x.project || '—')} <span class="mono">${esc(x.wbs)}</span></div>${x.report ? `<div class="rep">📝 ${esc(x.report)}</div>` : ''}`).join('')}</td></tr>`).join('')
+        || '<tr><td colspan="5" class="ac-note">Không có ngày tăng ca nào chờ bạn duyệt.</td></tr>';
+      $('otCount').textContent = otItems.length || '';
+      $('otAll').checked = false;
+      otPicked();
+    } catch (e) { body.innerHTML = `<tr><td colspan="5" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+  }
+  const pickedOt = () => [...$('otTable').tBodies[0].querySelectorAll('input[data-pick]:checked')].map(c => otItems.find(i => otKey(i) === c.closest('tr').dataset.k)).filter(Boolean);
+  function otPicked() {
+    const n = pickedOt().length;
+    $('btnOtApprove').disabled = $('btnOtRejectOpen').disabled = !n;
+    $('btnOtApprove').textContent = n ? `Duyệt ${n} ngày đã chọn` : 'Duyệt các ngày đã chọn';
+  }
+  async function decideOt(action, note) {
+    const items = pickedOt();
+    if (!items.length) return;
+    const msg = $('otMsg');
+    msg.className = 'ac-note'; msg.textContent = 'Đang gửi…';
+    try {
+      const r = await api('POST', '/api/ts/ot/decide', { action, note, items: items.map(i => ({ emp: i.empId, date: i.date, sig: i.sig })) });
+      const skip = r.skipped.length ? ` ${r.skipped.length} ngày bỏ qua (${r.skipped.map(x => `${fmtDM(x.date)}: ${x.reason}`).join('; ')}).` : '';
+      toast(`✓ Đã ${action === 'approve' ? 'duyệt' : 'không duyệt'} ${r.done} ngày tăng ca — đã gửi email báo fitter.${skip}`);
+      msg.textContent = skip;
+      $('otRejectBox').hidden = true; $('otRejectNote').value = '';
+      await loadOt();
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+  }
+
+  // ---------- đã duyệt xong: gửi lại thư kèm Excel ----------
+  async function loadApproved() {
+    const body = $('apTable').tBodies[0];
+    try {
+      const r = await api('GET', '/api/ts/approved');
+      $('secApproved').hidden = false;
+      body.innerHTML = r.items.map(i => `<tr data-emp="${esc(i.empId)}" data-period="${esc(i.period)}">
+          <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)} · ${esc(i.position)}</div></td>
+          <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}</td>
+          <td>${esc(i.pmBy || '—')}<div class="ac-note">${esc(fmtTime(i.pmAt))}</div></td>
+          <td class="mono">${esc(i.wbs.join(', ') || '—')}</td>
+          <td><button class="btn small" data-resend>Gửi lại thư kèm Excel</button></td></tr>`).join('')
+        || '<tr><td colspan="5" class="ac-note">Chưa có bảng công nào bạn đã duyệt xong.</td></tr>';
+    } catch (e) { $('secApproved').hidden = e.status === 403; if (e.status !== 403) body.innerHTML = `<tr><td colspan="5" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+  }
+  async function resend(emp, period, btn) {
+    const msg = $('apMsg');
+    if (!confirm('Gửi lại thư "đã duyệt xong" kèm bảng chấm công và bảng phụ cấp Excel cho Fitter, Site Sup của dự án và bạn?')) return;
+    btn.disabled = true; msg.className = 'ac-note'; msg.textContent = 'Đang tạo file Excel và gửi thư…';
+    try {
+      const doc = await api('GET', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}`);
+      const files = await buildAttachments(emp, period, doc);
+      const r = await api('POST', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}/resend`, { files });
+      msg.textContent = ''; toast(`✓ Đã gửi lại thư kèm ${r.files} file Excel.`);
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+    finally { btn.disabled = false; }
+  }
+  const loadAll = () => Promise.all([loadOt(), loadInbox(), loadApproved()]);
 
   // ---------- chi tiết ----------
   const hoursOf = (e) => {
@@ -116,12 +186,24 @@
     if (missing.length) flags.push(`<div class="ap-flag err">⚠ ${missing.length} ngày làm việc chưa chấm: ${missing.map(fmtDM).join(', ')}</div>`);
     if (mismatches.length) flags.push(`<div class="ap-flag err">⚠ Phân loại giờ (thường / OT) khác kết quả tính lại từ giờ vào – ra ở các ngày: ${[...new Set(mismatches)].map(fmtDM).join(', ')} (dòng tô đỏ). Nên hỏi lại người chấm công.</div>`);
     if (!missing.length && !mismatches.length) flags.push('<div class="ap-flag ok">✓ Đủ ngày làm việc; phân loại giờ khớp kết quả tính lại.</div>');
+    const noForm = entries.filter(e => isLeave(e) && !e.lv).map(e => e.date);
+    if (noForm.length) flags.push(`<div class="ap-flag err">⚠ Có ngày nghỉ không theo đơn nghỉ đã duyệt: ${[...new Set(noForm)].map(fmtDM).join(', ')} — hỏi lại fitter.</div>`);
+    if ((doc.otPending || []).length) flags.push(`<div class="ap-flag err">⚠ Còn ${doc.otPending.length} ngày tăng ca CHƯA được duyệt: ${doc.otPending.map(d => `${fmtDM(d.date)} (${fmtH(d.ot)}h${d.status === 'rejected' ? ', bị từ chối' : ''})`).join(', ')}. Giờ chưa duyệt có thể không được tính — duyệt ở mục <b>Tăng ca chờ duyệt</b> hoặc trả lại bảng công.</div>`);
+    if ((doc.approvals || []).length) {
+      const by = {}; doc.approvals.forEach(a => { (by[a.level] = by[a.level] || {})[a.wbs] = a.by_name; });
+      const txt = (lv, name) => by[lv] ? `${name}: ${Object.keys(by[lv]).map(w => `${esc(w)} (${esc(by[lv][w])})`).join(', ')}` : '';
+      flags.push(`<div class="ap-flag">✔ Đã duyệt — ${[txt('sitesup', 'Site Sup'), txt('pm', 'QLDA')].filter(Boolean).join(' · ')}${(doc.remaining || []).length ? ` · <b>còn chờ dự án: ${doc.remaining.map(esc).join(', ')}</b>` : ''}</div>`);
+    } else if ((doc.remaining || []).length) flags.push(`<div class="ap-flag">Dự án cần duyệt ở cấp này: ${doc.remaining.map(esc).join(', ')}</div>`);
+    if (doc.level === 'admin') flags.push('<div class="ap-flag">Bảng công đã được Site Sup và Quản lý dự án của mọi dự án duyệt. Admin kiểm tra các <b>hoạt động ngoài dự án</b> (họp, huấn luyện, nghỉ…) rồi bấm <b>Process</b>: dữ liệu sang Theo dõi giờ công và hệ thống gửi thư kèm Excel cho Fitter, Site Sup, Quản lý dự án.</div>');
+    if (doc.direct) flags.push('<div class="ap-flag">Bảng công của giám sát — chỉ gồm giờ tăng ca, nộp thẳng Quản lý dự án (không qua Site Sup).</div>');
+    const otDays = new Set(entries.filter(e => !isLeave(e) && Object.keys(e.bd || {}).some(k => k !== 'NORMAL' && e.bd[k] > 0)).map(e => e.date));
+    if (otDays.size) flags.push(`<div class="ap-flag">⏱ ${otDays.size} ngày tăng ca (${fmtH(ot)} giờ) — đã được Site Sup duyệt từng ngày trước khi nộp.</div>`);
     if (doc.note) flags.push(`<div class="ap-flag">Ghi chú lần trả lại trước: ${esc(doc.note)}</div>`);
     renderAllowance(doc, period, flags);
     $('dFlags').innerHTML = flags.join('');
     $('dActions').hidden = !doc.canAct;
     $('rejectBox').hidden = true; $('dMsg').textContent = '';
-    $('btnApprove').textContent = doc.level === 'pm' ? 'Duyệt (chuyển sang Theo dõi giờ công)' : 'Duyệt (chuyển sang Quản lý dự án)';
+    $('btnApprove').textContent = doc.level === 'admin' ? 'Process — xử lý xong & gửi thư kèm Excel' : doc.level === 'pm' ? 'Duyệt phần dự án của tôi (QLDA)' : 'Duyệt phần dự án của tôi (Site Sup)';
     $('secDetail').hidden = false;
     $('secDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -169,15 +251,52 @@
     } catch (e) { toast('✗ ' + e.message); }
   }
 
+  // Duyệt xong (Quản lý dự án): tạo ngay trên trình duyệt 2 file Excel — Bảng chấm công (mẫu Schindler) và Bảng phụ cấp xe (nếu có) —
+  // gửi kèm yêu cầu duyệt để máy chủ đính kèm vào thư gửi Fitter và Site Sup của dự án. Lỗi → hỏi có duyệt không kèm file.
+  const b64 = (buf) => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+  const tpl = async (name) => { const r = await fetch('../timesheet/' + name); if (!r.ok) throw new Error('không tải được mẫu ' + name + ' (HTTP ' + r.status + ')'); return r.arrayBuffer(); };
+  async function buildAttachments(emp, period, doc) {
+    if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+    const entries = doc.data.entries || [];
+    const out = [];
+    const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl('ts-template.xlsx'), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
+    out.push({ name: ts.name, content: b64(ts.buffer) });
+    const allow = TsAllowance.compute(entries, doc.data.allow, periodRange(period));
+    // mỗi loại phụ cấp một file: "Pc Xang - TEN - thang M YYYY.xlsx", "Pc Xe - TEN - thang M YYYY.xlsx"
+    const tplBuf = allow.rows.length ? await tpl('phucap-xe-template.xlsx') : null;
+    for (const type of ['fuel', 'province']) {
+      if (!allow.rows.some(x => x.type === type)) continue;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(tplBuf);
+      const d = new Date(), iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      TsAllowance.fillWorkbook(wb, { name: doc.name, empId: emp, computed: allow, date: iso });
+      TsAllowance.keepSheet(wb, type);
+      out.push({ name: TsAllowance.fileNameByType(doc.name, period, type), content: b64(await wb.xlsx.writeBuffer()) });
+    }
+    return out;
+  }
+
   async function decide(action, note) {
     const msg = $('dMsg');
     const { emp, period } = current;
+    let files = [];
+    if (action === 'approve' && current.doc.level === 'admin') {
+      msg.className = 'ac-note'; msg.textContent = 'Đang tạo file Excel để gửi kèm thư…';
+      ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = true; });
+      try { files = await buildAttachments(emp, period, current.doc); }
+      catch (e) {
+        ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = false; });
+        if (!confirm('Không tạo được file Excel đính kèm: ' + e.message + '\n\nBấm OK để vẫn duyệt (thư gửi KHÔNG kèm file), Huỷ để thử lại.')) { msg.textContent = ''; return; }
+      }
+    }
     msg.className = 'ac-note'; msg.textContent = 'Đang gửi…';
     ['btnApprove', 'btnReject', 'btnRejectOpen'].forEach(id => { $(id).disabled = true; });
     try {
-      const r = await api('POST', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}/${action}`, action === 'reject' ? { note } : {});
+      const r = await api('POST', `/api/ts/review/${encodeURIComponent(emp)}/${encodeURIComponent(period)}/${action}`, action === 'reject' ? { note } : (files.length ? { files } : {}));
       const text = action === 'reject' ? 'Đã trả lại bảng công cho người chấm công.'
-        : r.status === 'approved' ? `Đã duyệt xong — ${r.pushed} dòng đã sang bảng Theo dõi giờ công.` : 'Đã duyệt — chuyển sang Quản lý dự án.';
+        : r.status === 'approved' ? `Đã xử lý xong — ${r.pushed} dòng đã sang bảng Theo dõi giờ công${files.length ? '; đã gửi email kèm ' + files.length + ' file Excel cho Fitter, Site Sup và Quản lý dự án' : ''}.`
+        : r.status === current.doc.status ? `Đã duyệt phần của bạn (${(r.approved || []).join(', ')}) — còn chờ dự án: ${(r.remaining || []).join(', ')}.`
+        : r.status === 'sitesup_ok' ? 'Đã duyệt xong cấp Site Sup — chuyển sang Quản lý dự án.' : 'Đã duyệt xong cấp Quản lý dự án — chuyển sang Admin xử lý cuối.';
       toast('✓ ' + text);
       $('secDetail').hidden = true; current = null;
       await loadInbox();
@@ -191,10 +310,24 @@
       if (tr && ev.target.closest('[data-open]')) openDoc(tr.dataset.emp, tr.dataset.period);
     });
     $('btnReload').addEventListener('click', loadInbox);
+    $('btnReloadOt').addEventListener('click', loadOt);
+    $('btnReloadAp').addEventListener('click', loadApproved);
+    $('apTable').tBodies[0].addEventListener('click', (ev) => { const b = ev.target.closest('[data-resend]'); if (b) { const tr = b.closest('tr'); resend(tr.dataset.emp, tr.dataset.period, b); } });
+    $('otAll').addEventListener('change', (ev) => { $('otTable').tBodies[0].querySelectorAll('input[data-pick]').forEach(c => { c.checked = ev.target.checked; }); otPicked(); });
+    $('otTable').tBodies[0].addEventListener('change', otPicked);
+    $('btnOtApprove').addEventListener('click', () => decideOt('approve'));
+    $('btnOtRejectOpen').addEventListener('click', () => { $('otRejectBox').hidden = false; $('otRejectNote').focus(); });
+    $('btnOtRejectCancel').addEventListener('click', () => { $('otRejectBox').hidden = true; });
+    $('btnOtReject').addEventListener('click', () => {
+      const note = $('otRejectNote').value.trim();
+      if (note.length < 3) { $('otMsg').className = 'ac-note err'; $('otMsg').textContent = 'Cần ghi lý do không duyệt.'; return; }
+      decideOt('reject', note);
+    });
+
     $('btnAllowExcel').addEventListener('click', downloadAllowance);
     $('btnClose').addEventListener('click', () => { $('secDetail').hidden = true; current = null; });
     $('btnApprove').addEventListener('click', () => {
-      const lv = current.doc.level === 'pm' ? 'Quản lý dự án' : 'Site Sup';
+      const lv = current.doc.level === 'admin' ? 'Admin (xử lý cuối)' : current.doc.level === 'pm' ? 'Quản lý dự án' : 'Site Sup';
       if (confirm(`Xác nhận duyệt bảng công của ${current.doc.name} (kỳ ${current.period.slice(5)}/${current.period.slice(0, 4)}) với tư cách ${lv}?`)) decide('approve');
     });
     $('btnRejectOpen').addEventListener('click', () => { $('rejectBox').hidden = false; $('rejectNote').focus(); });
@@ -214,18 +347,19 @@
       else gate(esc(e.message), true);
       return;
     }
-    const roleName = { admin: 'Admin', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
+    const roleName = { admin: 'Admin', projadmin: 'Admin dự án', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
     $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ${esc(me.roles.map(r => roleName[r] || r).join(', ') || 'Nhân viên')}`;
-    if (!me.isAdmin && !me.roles.includes('pm') && !me.roles.includes('sitesup')) { gate('Chỉ <b>Site Sup</b>, <b>Quản lý dự án</b> và <b>Admin</b> dùng trang này.'); return; }
-    $('secInbox').hidden = false;
+    if (!me.isAdmin && !me.roles.includes('pm') && !me.roles.includes('sitesup') && !me.roles.includes('projadmin')) { gate('Chỉ <b>Site Sup</b>, <b>Quản lý dự án</b> và <b>Admin</b> dùng trang này.'); return; }
+    $('secInbox').hidden = false; $('secOt').hidden = false; $('leaveMoved').hidden = false;
     wire();
-    await loadInbox();
+    await loadAll();
     openFromHash();
     window.addEventListener('hashchange', openFromHash);
   }
 
   // link trong email: #xem=<mã NV>/<kỳ> mở thẳng bảng công đó
   function openFromHash() {
+    if (location.hash === '#nghi' || location.hash === '#tangca') { $(location.hash === '#nghi' ? 'secLeave' : 'secOt').scrollIntoView({ block: 'start' }); return; }
     const m = /^#xem=([^/]+)\/(\d{4}-\d{2})$/.exec(location.hash);
     if (!m) return;
     history.replaceState(null, '', location.pathname + location.search);

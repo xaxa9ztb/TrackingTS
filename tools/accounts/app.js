@@ -5,7 +5,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const plain = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
-  const ROLE_LABEL = { admin: 'Admin', pm: 'Quản lý dự án', sitesup: 'Site Sup', staff: 'Nhân viên' };
+  const ROLE_LABEL = { admin: 'Admin', projadmin: 'Admin dự án', pm: 'Quản lý dự án', sitesup: 'Site Sup', staff: 'Nhân viên' };
   const fmtTime = (iso) => { try { return new Date(iso).toLocaleString('vi-VN'); } catch (e) { return iso; } };
 
   let me = null, employees = [], projects = [], localData = null;
@@ -188,7 +188,7 @@
         <td><input type="email" value="${esc(e.email)}" placeholder="email@…" aria-label="Email của ${esc(e.name)}" data-f="email"></td>
         ${full ? `<td><select data-f="roleOverride" aria-label="Vai trò của ${esc(e.name)}" title="${esc(rolesText(e))}">
           <option value="">Theo chức danh${!e.roleOverride ? ' — ' + esc(rolesText(e)) : ''}</option>
-          ${['admin', 'pm', 'sitesup', 'staff'].map(r => `<option value="${r}"${e.roleOverride === r ? ' selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
+          ${['admin', 'projadmin', 'pm', 'sitesup', 'staff'].map(r => `<option value="${r}"${e.roleOverride === r ? ' selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
         </select></td>
         <td><input type="checkbox" data-f="active"${e.active ? ' checked' : ''} aria-label="${esc(e.name)} đang làm"></td>` : ''}
         <td><button class="btn small" data-save disabled>Lưu</button></td>

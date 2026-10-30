@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Nhập bảng công từ Excel — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="stylesheet" href="../accounts/style.css?v=5">
+<link rel="stylesheet" href="../approvals/style.css?v=2">
+<link rel="stylesheet" href="../tsadmin/style.css?v=1">
+<link rel="stylesheet" href="style.css?v=1">
+<script src="../../js/demo.js?v=2"></script>
+<script src="../../js/session.js?v=45"></script>
+<script>Session.guard('tsupload');</script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=38" data-tool="Nhập bảng công từ Excel" data-help="huong-dan-timesheet.html#nhap"></script>
+
+<header class="ac-top">
+  <div class="ac-wrap">
+    <h1>Nhập bảng công từ Excel <span class="ac-badge">Giám sát · QLDA · Admin</span></h1>
+    <p class="ac-sub">Dành cho trường hợp nhân viên <b>không tự chấm công trên app</b> (kể cả fitter không có tài khoản): tải file Excel bảng chấm công (mẫu Schindler), chỉnh lại cho đúng
+      <b>định dạng, quy tắc tính giờ và dữ liệu dự án</b>, rồi nộp — hệ thống ghi bảng công cho từng nhân viên và chạy quy trình duyệt từ đầu
+      (Site Sup và Quản lý dự án của từng dự án → Admin).</p>
+    <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
+  </div>
+</header>
+
+<main class="ac-wrap">
+  <div class="ac-msg" id="gate" hidden></div>
+
+  <section class="ac-card" id="secPick" hidden>
+    <h2>1. Chọn file Excel</h2>
+    <p class="ac-note">Mỗi file = bảng chấm công của <b>một nhân viên</b> (mẫu <i>New TS</i>: mã NV ở ô E4, tháng ở ô AS3, các dòng từ dòng 10). Chọn được nhiều file một lúc.</p>
+    <div class="ac-row"><input type="file" id="fFiles" accept=".xlsx" multiple><span id="pickMsg" class="ac-note"></span></div>
+  </section>
+
+  <div id="cards"></div>
+
+  <section class="ac-card" id="secSend" hidden>
+    <h2>3. Nộp</h2>
+    <p id="sendSummary" class="ac-note"></p>
+    <div class="ap-actions"><button class="btn primary" id="btnSend" disabled>Nộp các bảng công đã chọn</button><span id="sendMsg" class="ac-note"></span></div>
+    <div id="results"></div>
+  </section>
+</main>
+
+<div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
+<datalist id="dlWbs"></datalist>
+<script src="../timesheet/labor.js?v=40"></script>
+<script src="../timesheet/tsexcel.js?v=3"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

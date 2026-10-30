@@ -226,6 +226,7 @@
             <li><a href="#ts-baocao">Báo cáo ngày, gửi mail</a></li>
             <li><a href="#ts-nop">Nộp bảng công</a></li>
             <li><a href="#ts-tralai">Khi bị trả lại</a></li>
+            <li><a href="#ts-ot">Nhiều ngày, OT, nghỉ phép</a></li>
           </ol></li>
         <li class="grp"><a href="#giamsat"><span class="sw" style="--c: var(--c-sup)"></span>3. Giám sát (Site Sup)</a>
           <ol>
@@ -439,6 +440,15 @@
       <li><b>Lý do</b> của người duyệt hiện ngay bên cạnh — đọc kỹ để sửa đúng chỗ.</li>
       <li>Sửa các dòng cần sửa, rồi bấm <span class="btnlike pri">Nộp bảng công</span> lại.</li>
     </ol>
+      <h3 id="ts-ot">2.7. Chấm nhiều ngày, OT, nghỉ phép, thu nhập dự kiến</h3>
+    <ol class="steps">
+      <li><b>Nhiều ngày liên tiếp:</b> trong cửa sổ Thêm chấm công, tick <b>Chấm nhiều ngày liên tiếp</b> và chọn <b>đến ngày</b> — app tạo mỗi ngày một dòng (có tuỳ chọn bỏ qua Chủ nhật, ngày lễ).</li>
+      <li><b>OT:</b> dòng có tăng ca hiện huy hiệu chờ duyệt. OT chưa duyệt <b>không chặn nộp</b> bảng công, chỉ có email nhắc. Quên chấm công thì cuối ngày có email nhắc.</li>
+      <li><b>Nghỉ phép / ốm:</b> xin ở trang <b>Nghỉ phép / ốm</b> (thẻ trên trang chủ). Hạn nộp: ốm trước 2 giờ; nghỉ 1 ngày trước 24 giờ; 1–3 ngày trước 3 ngày; dài hơn trước 1 tuần. Quản lý trực tiếp duyệt, duyệt xong tự ghi vào bảng công.</li>
+      <li><b>Thu nhập dự kiến:</b> nhập lương cơ bản một lần; app cộng OT + phụ cấp xăng xe. Chỉ lưu trên máy của bạn, <b>không</b> gửi lên máy chủ hay email.</li>
+    </ol>
+    <p>Chi tiết có hình: <a href="huong-dan-timesheet.html#ot-nghi">Hướng dẫn Timesheet — mục 7</a>. Giám sát chỉ chấm OT (xin trước khi làm, gửi thẳng Quản lý dự án).</p>
+
   </section>
 
   <!-- =============================== 3. GIÁM SÁT =============================== -->
@@ -454,7 +464,8 @@
       <li><b>Quản lý dự án</b> — xem lịch trình các dự án, điều phối fitter (mục 3.3 và phần 4).</li>
     </ol>
 
-    <h3 id="gs-duyet">3.2. Duyệt bảng công (cấp 1)</h3>
+    <h3 id="gs-duyet">3.2. Duyệt bảng công (cấp 1), OT và nghỉ phép</h3>
+    <p><b>Quy trình mới:</b> bảng công đi qua 3 cấp — <b>mọi Site Sup</b> của các dự án trong bảng công → <b>mọi Quản lý dự án</b> của các dự án đó → <b>Admin xử lý cuối</b>. Ngoài ra bạn duyệt <b>OT từng ngày</b> ngay trong trang Duyệt bảng công (mục <i>Tăng ca chờ duyệt</i>); đơn <b>nghỉ phép / ốm</b> do <b>quản lý trực tiếp</b> duyệt ở trang <b>Nghỉ phép / ốm</b>. Email 18:30 có tiêu đề <i>Tên fitter - Dự án - WBS - Chấm công/báo cáo ngày dd.mm.yyyy</i>, chỉ có nút duyệt khi có OT / nghỉ phép cần duyệt. Chi tiết: <a href="huong-dan-timesheet.html#ot-duyet">Hướng dẫn Timesheet — mục 8</a>.</p>
     <p>Bạn chỉ thấy bảng công của fitter làm ở <b>dự án bạn phụ trách</b>. Nên duyệt sớm sau khi fitter nộp để Quản lý dự án kịp duyệt. Sơ đồ khối + checklist 5 điểm: <a href="huong-dan-timesheet.html#duyet">Hướng dẫn Timesheet — phần Giám sát</a>.</p>
     <figure class="shot"><img src="docs/huong-dan/appr-inbox.jpg" alt="Danh sách bảng công chờ duyệt" loading="lazy" width="1280" height="800"><figcaption>Hộp “Chờ bạn duyệt”</figcaption></figure>
     <ol class="legend">
@@ -567,7 +578,7 @@
     <ol class="legend">
       <li>Cột <b>Cấp duyệt</b> ghi “Quản lý dự án” và tên <b>Site Sup đã duyệt</b> trước.</li>
     </ol>
-    <p>Mở chi tiết và duyệt / trả lại giống mục <a href="#gs-duyet">3.2</a>. Khi bạn bấm <b>Duyệt</b>, bảng công chuyển trạng thái <span class="chip green">Đã duyệt xong</span> và <b>giờ công tự đẩy sang bảng Theo dõi giờ công</b> (Thống kê giờ công) — không cần nhập lại.</p>
+    <p>Mở chi tiết và duyệt / trả lại giống mục <a href="#gs-duyet">3.2</a>. Khi bạn bấm <b>Duyệt</b> (và mọi Quản lý dự án của các dự án trong bảng công đã duyệt), bảng công chuyển sang <b>Admin xử lý cuối</b>. Sau khi Admin bấm <b>Process</b>, trạng thái là <span class="chip green">Đã duyệt xong</span>, <b>giờ công tự đẩy sang bảng Theo dõi giờ công</b> (Thống kê giờ công) và hệ thống gửi email <b>kèm Excel</b> bảng công + phụ cấp cho Fitter, Site Sup, Quản lý dự án.</p>
 
     <h3 id="ql-dieuphoi">4.2. Điều phối nhân sự (fitter × ngày)</h3>
     <p>Mở <b>Quản lý dự án → tab Điều phối nhân sự</b>. Dữ liệu lưu chung trên máy chủ: mọi Quản lý dự án / Site Sup cùng xem, tự lưu sau mỗi thay đổi.</p>
@@ -636,13 +647,21 @@
       <li><b>Tài khoản &amp; phân quyền</b> — gắn email đăng nhập, chỉnh vai trò, khoá tài khoản, phân công Site Sup / Quản lý dự án cho dự án, nhật ký thay đổi, gửi email thử.</li>
       <li><span class="btnlike pri">Cập nhật Data</span> — nạp bảng công Excel hằng tháng.</li>
     </ol>
+    <h3 id="ad-moi">5.0. Vai trò Admin dự án, xử lý cuối, sửa và xuất HR</h3>
+    <ol class="steps">
+      <li><b>Admin dự án</b> (vai trò mới, chọn ở Tài khoản &amp; phân quyền): xử lý bước cuối, xem / sửa mọi bảng công, nhập hộ, xuất HR, phân công Site Sup / Quản lý dự án — nhưng không quản lý tài khoản.</li>
+      <li><b>Xử lý cuối:</b> ở Duyệt bảng công, bảng công đã qua Site Sup + Quản lý dự án đến <b>Admin</b> (hoạt động ngoài dự án do Admin duyệt) → <b>Process</b> → hệ thống gửi email kèm Excel (<i>TEN.xlsx</i>, <i>Pc Xang - TEN - thang M YYYY.xlsx</i>, <i>Pc Xe - …</i>). Thư lỗi: nút <b>Gửi lại thư kèm file</b>.</li>
+      <li><b>Quản lý bảng công:</b> xem / sửa bảng công mọi nhân viên (bắt buộc ghi chú; người chủ thấy “Quản trị viên đã sửa”), nhập lịch sử từ Theo dõi giờ công, <b>Xuất cho HR</b> theo kỳ (zip: thư mục <i>Bảng công</i> và <i>Phụ cấp</i>, phụ cấp xe / xăng mỗi nhân viên một tab; không gửi email).</li>
+      <li><b>Nộp hộ bảng công từ Excel:</b> giám sát, Quản lý dự án, Admin tải Excel lên, chỉnh theo đúng định dạng / quy tắc / dữ liệu dự án rồi nộp; chạy duyệt từ đầu, kể cả fitter không có tài khoản.</li>
+    </ol>
+    <p>Chi tiết có hình: <a href="huong-dan-timesheet.html#admin">Hướng dẫn Timesheet — mục 9</a>.</p>
     <h3>5.1. Nạp bảng công Excel hằng tháng</h3>
     <figure class="shot mid"><img src="docs/huong-dan/admin-import.jpg" alt="Hộp Cập nhật Database" loading="lazy" width="1280" height="800"><figcaption>Cập nhật Data</figcaption></figure>
     <ol class="steps">
       <li>Bấm <span class="btnlike pri">Cập nhật Data</span> → mục <b>1. Bổ sung Bảng công</b> → <b>Chọn files</b> (mỗi nhân viên 1 file / tháng, cột như sheet TS All). Dòng trùng tự bỏ qua.</li>
       <li>Kiểm tra số dòng ở thanh trạng thái, rồi bấm <span class="btnlike pri">Lưu lên máy chủ</span>.</li>
     </ol>
-    <div class="note key"><p><b>Hai nguồn bảng công chạy song song:</b> (1) file Excel quản trị nạp hằng tháng; (2) bảng công nhân viên tự chấm, <b>tự chuyển sang khi Quản lý dự án duyệt</b>. Nạp lại Excel <b>không làm mất</b> các dòng đã duyệt (trừ ngày mà file Excel đã có dòng của người đó).</p></div>
+    <div class="note key"><p><b>Hai nguồn bảng công chạy song song:</b> (1) file Excel quản trị nạp hằng tháng; (2) bảng công nhân viên tự chấm, <b>tự chuyển sang khi Admin xử lý (Process)</b>. Nạp lại Excel <b>không làm mất</b> các dòng đã duyệt (trừ ngày mà file Excel đã có dòng của người đó).</p></div>
     <h3>5.2. Tài khoản &amp; phân quyền</h3>
     <figure class="shot"><img src="docs/huong-dan/admin-accounts.jpg" alt="Tài khoản và phân quyền" loading="lazy" width="1280" height="800"><figcaption>Tab Tài khoản &amp; phân quyền</figcaption></figure>
     <ol class="steps">
@@ -660,6 +679,9 @@
     <details class="faq"><summary>Đổi điện thoại / dùng thêm máy tính thì sao?</summary><p>Đăng nhập bằng cùng email trên máy mới, mở Timesheet: bảng công tự tải về từ máy chủ. Chấm trên máy nào cũng được, các máy tự đồng bộ.</p></details>
     <details class="faq"><summary>Không thấy dự án của mình khi chấm công?</summary><p>Ở trang chủ bấm <b>Đồng bộ ngay</b>, hoặc trong Timesheet bấm <b>Đồng bộ ngay</b> ở thẻ “Dữ liệu dự án”. Vẫn không có → báo quản trị viên thêm dự án. Tạm thời vẫn gõ tay tên dự án / WBS được.</p></details>
     <details class="faq"><summary>Nộp nhầm bảng công?</summary><p>Nếu giám sát chưa duyệt: bấm <b>Thu hồi để sửa</b>, sửa xong nộp lại. Nếu đã duyệt: nhờ giám sát / quản lý <b>trả lại</b> bảng công.</p></details>
+    <details class="faq"><summary>OT chưa được duyệt có nộp bảng công được không?</summary><p>Được — OT không còn chặn nộp, chỉ có email nhắc người duyệt. Ngày OT bị “không duyệt” sẽ ghi rõ lý do để bạn sửa giờ.</p></details>
+    <details class="faq"><summary>Báo “Cần làm dự án tỉnh trên 20 ngày” dù kỳ có 31 ngày?</summary><p>Phụ cấp chỉ đếm <b>ngày có chấm công đúng WBS</b> của dòng phụ cấp (không đếm ngày trên lịch, không đếm ngày nghỉ phép) trong khoảng từ ngày – đến ngày của dòng; cần ít nhất 21 ngày. Kiểm tra đã chấm đủ chưa và WBS có đúng không.</p></details>
+    <details class="faq"><summary>Người duyệt không có tài khoản app thì sao?</summary><p>Hiện phải có tài khoản (đăng nhập bằng mã email). Phương án bấm nút duyệt ngay trong email đang được nghiên cứu: <code>docs/NGHIEN-CUU-duyet-qua-email.md</code>.</p></details>
     <details class="faq"><summary>Quá hạn ngày 12 chưa nộp?</summary><p>Vẫn nộp được — app hiện cảnh báo đỏ. Nộp ngay và báo giám sát để kịp duyệt tính lương.</p></details>
     <details class="faq"><summary>Không thấy chức năng Duyệt bảng công / Quản lý dự án?</summary><p>Các chức năng này theo <b>vai trò</b> (từ chức danh). Nếu chức danh của bạn đã thay đổi, báo quản trị viên cập nhật; đăng xuất rồi đăng nhập lại.</p></details>
     <details class="faq"><summary>Không nhận được mã đăng nhập?</summary><p>Xem thư mục Spam / Quảng cáo; kiểm tra gõ đúng email; đợi 1 phút rồi bấm gửi lại. Vẫn không được → báo quản trị viên.</p></details>

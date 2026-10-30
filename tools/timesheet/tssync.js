@@ -124,11 +124,11 @@
   function sync({ getEntries, onMerged, getSch, getAllow, onAllow }) {
     if (running) return running;
     running = (async () => {
-      const result = { ok: false, statuses: {}, notes: {}, pushed: 0, pulled: 0 };
+      const result = { ok: false, statuses: {}, notes: {}, admin: {}, pushed: 0, pulled: 0 };
       try {
         const listing = await call('GET', '/api/ts/docs');
         if (listing.status !== 200) throw new Error(listing.data.error || ('Máy chủ báo lỗi (HTTP ' + listing.status + ')'));
-        const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; });
+        const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; if (d.adminNote) result.admin[d.period] = { by: d.adminBy, at: d.adminAt, note: d.adminNote }; });
         let st = load();
         // lần đầu trên máy này: các kỳ đã có dòng mà máy chủ chưa có → gửi lên
         const localPeriods = new Set(getEntries().map(e => periodOf(e.date)));
@@ -204,7 +204,7 @@
     return r;
   }
 
-  const LOCKED = ['submitted', 'sitesup_ok', 'approved'];
-  const api = { periodOf, mergeDoc, mergeAllow, applyChanges, markDirty, markPeriodDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED };
+  const LOCKED = ['submitted', 'sitesup_ok', 'pm_ok', 'approved'];
+  const api = { periodOf, mergeDoc, mergeAllow, applyChanges, markDirty, markPeriodDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED, request: call };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsSync = api;
 })(typeof window !== 'undefined' ? window : globalThis);

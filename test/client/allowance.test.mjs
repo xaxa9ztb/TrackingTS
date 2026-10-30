@@ -83,3 +83,11 @@ test('điền mẫu "Bảng phụ cấp xe": 2 sheet, công thức tổng, ngư�
   const buf = await wb.xlsx.writeBuffer();
   assert.ok(buf.byteLength > 5000);
 });
+
+test('tên file đính kèm: Pc Xang / Pc Xe - TÊN KHÔNG DẤU IN HOA - thang M YYYY; mỗi loại một sheet', () => {
+  assert.equal(A.fileNameByType('Phan Anh Đức', '2026-10', 'fuel'), 'Pc Xang - PHAN ANH DUC - thang 10 2026.xlsx');
+  assert.equal(A.fileNameByType('Phan Anh Đức', '2027-03', 'province'), 'Pc Xe - PHAN ANH DUC - thang 3 2027.xlsx');
+  const sheets = ['Xăng xe 60K', 'Phụ cấp Xe đi tỉnh'].map((name, i) => ({ id: i + 1, name }));
+  const wb = { worksheets: sheets.slice(), getWorksheet: (n) => wb.worksheets.find(w => w.name === n), removeWorksheet: (id) => { wb.worksheets = wb.worksheets.filter(w => w.id !== id); } };
+  A.keepSheet(wb, 'province'); assert.deepEqual(wb.worksheets.map(w => w.name), ['Phụ cấp Xe đi tỉnh']);
+});

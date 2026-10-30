@@ -715,11 +715,21 @@ const isWorkday = (s, sch) => {
 const finePointer = () => !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
 // Bản máy chủ (Cloudflare): Timesheet đồng bộ lên máy chủ theo kỳ lương (xem tssync.js); bản github.io: chỉ trên máy
 const SERVER = typeof Session !== 'undefined' && !!Session.SERVER && typeof TsSync !== 'undefined';
+// Giám sát (Site Sup / Quản lý dự án): chỉ chấm giờ OT, đăng ký OT trước khi làm, Quản lý dự án duyệt, bảng công cuối kỳ nộp thẳng Quản lý dự án
+const IS_LEAD = SERVER && (() => {
+  try {
+    return Session.roles(Session.current()).some(r => r === 'sitesup' || r === 'pm');
+  } catch (e) {
+    return false;
+  }
+})();
+const SALARY_KEY = 'ts_salary_v1'; // lương cơ bản: chỉ lưu trên máy này, không đồng bộ, không nằm trong sao lưu / báo cáo / email
 const STATUS_LABEL = {
   draft: 'Đang chấm',
   rejected: 'Bị trả lại — cần sửa',
   submitted: 'Đã nộp — chờ giám sát',
   sitesup_ok: 'Giám sát đã duyệt — chờ quản lý',
+  pm_ok: 'Đã qua giám sát & quản lý — chờ Admin xử lý',
   approved: 'Đã duyệt xong'
 };
 const sameEntries = (a, b) => {
@@ -768,6 +778,7 @@ function App() {
   });
   const [docStatuses, setDocStatuses] = useState({});
   const [docNotes, setDocNotes] = useState({});
+  const [docAdmin, setDocAdmin] = useState({}); // { period: {by, at, note} } — lần sửa gần nhất của quản trị viên
   const [submitting, setSubmitting] = useState(false);
   const entriesRef = useRef([]);
   // Phụ cấp xe theo kỳ: { 'YYYY-MM': { rows, u } } — trên máy + đồng bộ cùng bảng công của kỳ (tssync.js)
@@ -782,6 +793,25 @@ function App() {
   const [allowBusy, setAllowBusy] = useState(false);
   const scheduleRef = useRef('');
   const syncTimer = useRef(null);
+  // Tăng ca chờ Site Sup duyệt từng ngày + đơn nghỉ (bản máy chủ, xem otleave.js)
+  const [otAll, setOtAll] = useState({}); // { 'YYYY-MM': { date: {status, note, by, at, ot, sig} } }
+  const [leaves, setLeaves] = useState(null); // đơn nghỉ của tôi (null: chưa tải)
+  const bdsRef = useRef(null);
+  // Lương cơ bản (người dùng tự nhập): CHỈ trên máy này — không gửi máy chủ, không nằm trong sao lưu / báo cáo / email
+  const [salary, setSalary] = useState(() => {
+    try {
+      return TsIncome.parseMoney(localStorage.getItem(SALARY_KEY));
+    } catch (e) {
+      return 0;
+    }
+  });
+  const saveSalary = n => {
+    setSalary(n);
+    try {
+      if (n) localStorage.setItem(SALARY_KEY, String(n));else localStorage.removeItem(SALARY_KEY);
+    } catch (e) {/* bỏ qua */}
+  };
+  const monthRef = useRef('');
   const [ganttOpen, setGanttOpenRaw] = useState(() => {
     try {
       return localStorage.getItem('ts_gantt_open') !== '0';
@@ -848,6 +878,31 @@ function App() {
     localStorage.setItem('ts_profile_v28', JSON.stringify(profile));
   }, [profile]);
 
+  // ----- tăng ca + đơn nghỉ: gửi các ngày có OT của kỳ đang xem / kỳ hiện tại, nhận trạng thái duyệt -----
+  const syncOtLeave = useCallback(async () => {
+    if (!SERVER || typeof TsOtLeave === 'undefined') return;
+    try {
+      const bd = bdsRef.current,
+        ent = entriesRef.current;
+      if (!bd) return;
+      const periods = [...new Set([monthRef.current, periodMonthOf(getTodayLocal())].filter(Boolean))];
+      for (const p of periods) {
+        const r = getSalaryPeriod(p);
+        const days = TsOtLeave.otDays(ent.filter(e => e.date >= r.start && e.date <= r.end), e => bd.get(e.id) || {});
+        const res = await TsSync.request('PUT', '/api/ts/ot/mine', {
+          period: p,
+          days
+        });
+        if (res.status === 200) setOtAll(prev => ({
+          ...prev,
+          [p]: res.data.days || {}
+        }));
+      }
+      const lv = await TsSync.request('GET', '/api/ts/leave/mine');
+      if (lv.status === 200) setLeaves(lv.data.leaves || []);
+    } catch (e) {/* mất mạng: thử lại lần đồng bộ sau */}
+  }, []);
+
   // ----- đồng bộ máy chủ (chỉ bản Cloudflare) -----
   const runSync = useCallback(async () => {
     if (!SERVER) return;
@@ -883,6 +938,10 @@ function App() {
       ...prev,
       ...r.notes
     }));
+    if (r.admin) setDocAdmin(prev => ({
+      ...prev,
+      ...r.admin
+    }));
     setSyncInfo(r.ok ? {
       state: 'ok',
       at: new Date().toISOString(),
@@ -896,6 +955,7 @@ function App() {
       at: '',
       error: r.error || 'Không đồng bộ được'
     });
+    if (r.ok) setTimeout(syncOtLeave, 50); // sau khi bảng công đã gộp xong (giờ OT tính trên bản mới nhất)
   }, []);
   const scheduleSync = useCallback((ms = 2500) => {
     if (!SERVER) return;
@@ -939,6 +999,49 @@ function App() {
   // giờ thường / OT từng loại của mọi dòng (tính trên toàn bộ dữ liệu: OT7 cần biết các dòng cùng ngày)
   const bds = useMemo(() => breakdownsOf(entries, sch), [entries, sch]);
   const bdOf = e => bds.get(e.id) || {};
+  bdsRef.current = bds;
+  monthRef.current = currentMonth;
+  useEffect(() => {
+    if (SERVER && syncInfo.state === 'ok') syncOtLeave();
+  }, [currentMonth]);
+  // trạng thái duyệt tăng ca từng ngày của kỳ đang xem: so dấu vân tay với bản máy chủ đã nhận
+  const otView = useMemo(() => {
+    if (!SERVER || typeof TsOtLeave === 'undefined') return {
+      days: [],
+      byDate: {},
+      ok: true,
+      count: {}
+    };
+    const srv = otAll[currentMonth] || {};
+    const days = TsOtLeave.otDays(monthlyEntries, bdOf).map(d => {
+      const r = srv[d.date];
+      return {
+        ...d,
+        status: r && r.sig === d.sig ? r.status : 'unsent',
+        note: r && r.sig === d.sig ? r.note : '',
+        by: r && r.sig === d.sig ? r.by : ''
+      };
+    });
+    const byDate = {},
+      count = {
+        approved: 0,
+        pending: 0,
+        rejected: 0,
+        unsent: 0
+      };
+    days.forEach(d => {
+      byDate[d.date] = d;
+      count[d.status]++;
+    });
+    return {
+      days,
+      byDate,
+      count,
+      ok: days.every(d => d.status === 'approved')
+    };
+  }, [monthlyEntries, bds, otAll, currentMonth]);
+  // giám sát: các ngày còn dòng giờ thường (không được nộp)
+  const leadNormal = useMemo(() => !IS_LEAD ? [] : [...new Set(monthlyEntries.filter(e => !LaborVN.LEAVE_CODES.includes(String(e.activityCode)) && (bdOf(e).NORMAL || 0) > 0.01).map(e => e.date))].sort(), [monthlyEntries, bds]);
   const dayTotals = useMemo(() => {
     const t = {};
     monthlyEntries.forEach(e => {
@@ -970,7 +1073,8 @@ function App() {
     // ngày làm việc (không phải ngày lễ / nghỉ bù) đã qua trong kỳ mà chưa chấm công
     const today = getTodayLocal();
     const last = period.end < today ? period.end : today;
-    const missing = period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d, sch) && !dayTotals[d]) : [];
+    // giám sát chỉ chấm OT nên không có "ngày chưa chấm"
+    const missing = !IS_LEAD && period.start <= last ? daysBetween(period.start, last).filter(d => isWorkday(d, sch) && !dayTotals[d]) : [];
     return {
       normal,
       ot,
@@ -1058,8 +1162,31 @@ function App() {
     const {
       bd: _bd,
       cat: _cat,
+      ae: _ae,
+      rangeTo,
+      skipOff,
       ...data
     } = formData; // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+    // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+    const dates = !editing && rangeTo && rangeTo > data.date ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
+    if (dates) {
+      if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
+      const base = Date.now() * 100;
+      setEntries(prev => [...prev, ...dates.map((d, i) => ({
+        ...data,
+        date: d,
+        id: base + i,
+        u
+      }))]);
+      if (SERVER) {
+        TsSync.markDirty(dates);
+        scheduleSync();
+      }
+      setDrawer(null);
+      const pm0 = periodMonthOf(dates[0]);
+      if (pm0 !== currentMonth) changeMonth(pm0);
+      return showToast(`Đã thêm chấm công cho ${dates.length} ngày (${fmtDM(dates[0])} → ${fmtDM(dates[dates.length - 1])}).`);
+    }
     if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? {
       ...data,
       id: editing.id,
@@ -1076,7 +1203,18 @@ function App() {
     setDrawer(null);
     const pm = periodMonthOf(data.date); // ngày thuộc kỳ khác → chuyển sang kỳ đó để thấy ngay
     if (pm !== currentMonth) changeMonth(pm);
-    showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.`);
+    let otMsg = '';
+    if (SERVER && typeof TsOtLeave !== 'undefined') {
+      // ngày có tăng ca → nhắc: Site Sup duyệt hằng ngày
+      const next = (editing ? entries.filter(e => e.id !== editing.id) : entries).concat([{
+        ...data,
+        id: -1
+      }]);
+      const m = breakdownsOf(next, sch);
+      const d = TsOtLeave.otDays(next.filter(e => e.date === data.date), e => m.get(e.id) || {})[0];
+      if (d) otMsg = ` Ngày này có ${fmtH(d.ot)} giờ tăng ca — đã gửi ${IS_LEAD ? 'Quản lý dự án' : 'Site Sup'} duyệt.`;
+    }
+    showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} chấm công ${fmtDMY(data.date)}.${otMsg}`);
   };
   const handleDelete = entry => {
     if (locked) return lockedMsg();
@@ -1125,7 +1263,7 @@ function App() {
     });
   };
   const doSubmit = async () => {
-    if (!SERVER || submitting || !allowCalc.ok) return;
+    if (!SERVER || submitting || !allowCalc.ok || leadNormal.length) return;
     setDrawer(null);
     setSubmitting(true);
     try {
@@ -1175,6 +1313,11 @@ function App() {
     } catch (err) {
       showToast('Không thu hồi được: ' + (err.message || err));
     }
+  };
+
+  // ----- đơn nghỉ: làm ở chức năng riêng "Nghỉ phép / ốm" (tools/leave/); duyệt xong tự ghi vào bảng công này -----
+  const openLeave = () => {
+    window.location.href = '../leave/';
   };
 
   // ----- phụ cấp xe của kỳ đang xem -----
@@ -1243,6 +1386,8 @@ function App() {
         if (SERVER) localStorage.removeItem('ts_sync_v1');
         localStorage.removeItem('ts_allow_v1');
         setAllowAll({});
+        localStorage.removeItem(SALARY_KEY);
+        setSalary(0);
         localStorage.removeItem('ts_profile_v28');
         localStorage.removeItem('ts_projects_v28');
         setEntries([]);
@@ -1258,146 +1403,18 @@ function App() {
   // Tạo file bảng chấm công Excel (mẫu Schindler) của kỳ đang xem → { blob, name }.
   // Dùng cho Xuất Excel và để đính kèm khi Gửi mail. Lỗi tải thư viện / mẫu → throw.
   const buildExcelFile = async () => {
-    const sortedData = [...monthlyEntries].sort((a, b) => a.date.localeCompare(b.date));
     await ensureExcelJS();
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await getTemplateBuffer());
-    const sheet = workbook.getWorksheet('New TS') || workbook.worksheets[0];
-
-    // Snapshot template styles BEFORE editing: a data row (11), the total row (59),
-    // and the signature block (62-64, captured as offsets from the total row).
-    const dataStyle = {},
-      totalStyle = {};
-    for (let c = 1; c <= 51; c++) {
-      dataStyle[c] = cloneStyle(sheet.getRow(11).getCell(c).style);
-      totalStyle[c] = cloneStyle(sheet.getRow(59).getCell(c).style);
-    }
-    const sigCells = [];
-    for (let r = 62; r <= 64; r++) {
-      for (let c = 1; c <= 51; c++) {
-        const cell = sheet.getRow(r).getCell(c);
-        const hasTop = cell.border && cell.border.top && cell.border.top.style;
-        if (cell.value !== null || hasTop) sigCells.push({
-          off: r - 59,
-          c,
-          value: cell.value,
-          style: cloneStyle(cell.style)
-        });
-      }
-    }
-
-    // --- Header fields ---
-    sheet.getCell('E3').value = profile.name || '';
-    sheet.getCell('E4').value = profile.empId || '';
-    sheet.getCell('X4').value = profile.position || '';
-    sheet.getCell('AS4').value = profile.dept || '';
-    sheet.getCell('AR4').value = ':';
-    const [hy, hm] = currentMonth.split('-').map(Number);
-    sheet.getCell('AS3').value = excelDate(hy, hm, 1);
-
-    // Clear the old body (sample rows 10..64 plus whatever our new layout will span): values + styles
-    const clearUntil = Math.max(70, 10 + sortedData.length + 6);
-    for (let r = 10; r <= clearUntil; r++) {
-      const row = sheet.getRow(r);
-      for (let c = 1; c <= 51; c++) {
-        const cell = row.getCell(c);
-        cell.value = null;
-        cell.style = {};
-      }
-      row.height = undefined;
-    }
-
-    // --- Data rows (one per entry), starting at row 10 ---
-    sortedData.forEach((e, index) => {
-      const r = 10 + index;
-      const row = sheet.getRow(r);
-      row.height = 25.5;
-      for (let c = 1; c <= 51; c++) row.getCell(c).style = cloneStyle(dataStyle[c]);
-      row.getCell(1).value = {
-        formula: '$E$4'
-      };
-      row.getCell(2).value = {
-        formula: '$E$3'
-      };
-      const [dy, dm, dd] = e.date.split('-').map(Number);
-      row.getCell(3).value = excelDate(dy, dm, dd);
-      row.getCell(4).value = {
-        formula: `WEEKDAY(C${r})`
-      };
-      row.getCell(5).value = timeToExcel(e.startTime);
-      row.getCell(6).value = timeToExcel(e.endTime);
-      const brk = parseFloat(e.breakTime) || 0;
-      row.getCell(8).value = brk > 0 ? brk : null;
-      if (LaborVN.isAuto(e)) {
-        // tự động theo luật: một dòng có thể vừa giờ thường vừa nhiều loại OT (cột "Check" vẫn = 0)
-        const bd = bdOf(e);
-        row.getCell(7).value = bd.NORMAL || 0;
-        Object.keys(OT_COL).forEach(k => {
-          if (bd[k]) row.getCell(OT_COL[k]).value = bd[k];
-        });
-      } else {
-        row.getCell(7).value = e.otType === 'NORMAL' ? {
-          formula: normalHourFormula(r)
-        } : 0;
-        if (e.otType !== 'NORMAL' && OT_COL[e.otType]) {
-          row.getCell(OT_COL[e.otType]).value = calculateHours(e.startTime, e.endTime, e.breakTime);
-        }
-      }
-      row.getCell(16).value = {
-        formula: `MOD(F${r}-E${r},1)*24-SUM(G${r}:O${r})`
-      }; // MOD: ca qua nửa đêm vẫn = 0
-      row.getCell(17).value = {
-        formula: `INDEX($U$9:$AX$9,1,MATCH("x",$U${r}:$AX${r}))`
-      };
-      row.getCell(18).value = e.projectName || '';
-      row.getCell(19).value = e.workNumber || '';
-      row.getCell(20).value = {
-        formula: `INDEX($U$6:$AX$6,1,MATCH("x",$U${r}:$AX${r}))`
-      };
-      const actCol = activityToCol(e.activityCode);
-      if (actCol) {
-        const xc = row.getCell(actCol);
-        xc.value = 'x';
-        xc.font = {
-          name: 'Times New Roman',
-          size: 14
-        };
-        xc.alignment = {
-          horizontal: 'center',
-          vertical: 'middle'
-        };
-      }
-      row.getCell(51).value = e.remarks || '';
+    const f = await TsExcel.buildTimesheet(ExcelJS, await getTemplateBuffer(), {
+      entries: monthlyEntries,
+      bdOf,
+      profile,
+      month: currentMonth
     });
-
-    // --- Total row, right after the last data row ---
-    const rt = 10 + sortedData.length;
-    const totalRow = sheet.getRow(rt);
-    totalRow.height = 24.75;
-    for (let c = 1; c <= 51; c++) totalRow.getCell(c).style = cloneStyle(totalStyle[c]);
-    totalRow.getCell(6).value = 'Total:';
-    for (let c = 7; c <= 16; c++) {
-      const letter = sheet.getColumn(c).letter;
-      totalRow.getCell(c).value = {
-        formula: `SUM(${letter}10:${letter}${rt - 1})`
-      };
-    }
-
-    // --- Signature block (Verified / Approved / Employee Signature) ---
-    sigCells.forEach(s => {
-      const cell = sheet.getRow(rt + s.off).getCell(s.c);
-      cell.value = s.value;
-      cell.style = cloneStyle(s.style);
-    });
-    sheet.pageSetup.printArea = `A1:AY${rt + 5}`;
-    const buffer = await workbook.xlsx.writeBuffer();
-    const cleanName = removeAccents(profile.name || 'Timesheet');
-    const [y, m] = currentMonth.split('-');
     return {
-      blob: new Blob([buffer], {
+      blob: new Blob([f.buffer], {
         type: XLSX_MIME
       }),
-      name: `${cleanName}_Thang_${m}_${y}.xlsx`
+      name: f.name
     };
   };
   const excelError = err => 'Không xuất được Excel: ' + err.message + (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
@@ -1572,13 +1589,20 @@ function App() {
     className: "hidden xl:inline"
   }, "Sao l\u01B0u"))))), SERVER && /*#__PURE__*/React.createElement("div", {
     className: "max-w-7xl mx-auto px-4 lg:px-6 pt-4 lg:pt-6"
-  }, /*#__PURE__*/React.createElement(SyncBar, {
+  }, docAdmin[currentMonth] && /*#__PURE__*/React.createElement("div", {
+    id: "tsAdminNote",
+    role: "status",
+    className: "mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+  }, /*#__PURE__*/React.createElement("b", null, "Qu\u1EA3n tr\u1ECB vi\xEAn ", docAdmin[currentMonth].by, " \u0111\xE3 s\u1EEDa b\u1EA3ng c\xF4ng k\u1EF3 n\xE0y"), docAdmin[currentMonth].at ? ` lúc ${new Date(docAdmin[currentMonth].at).toLocaleString('vi-VN')}` : '', ": ", docAdmin[currentMonth].note, /*#__PURE__*/React.createElement("span", {
+    className: "block text-xs text-amber-800 mt-0.5"
+  }, "C\xE1c d\xF2ng b\u1ECB s\u1EEDa c\xF3 nh\xE3n \"Admin s\u1EEDa\". Ch\u01B0a \u0111\xFAng th\xEC li\xEAn h\u1EC7 qu\u1EA3n tr\u1ECB vi\xEAn.")), /*#__PURE__*/React.createElement(SyncBar, {
     info: syncInfo,
     status: periodStatus,
     note: docNotes[currentMonth] || '',
     submitting: submitting,
     month: currentMonth,
     period: period,
+    lead: IS_LEAD,
     onRetry: runSync,
     onSubmit: handleSubmit,
     onWithdraw: handleWithdraw
@@ -1633,6 +1657,22 @@ function App() {
     onEdit: openAllowance,
     onDelete: handleDeleteAllowance,
     onDownload: handleAllowanceExcel
+  }), /*#__PURE__*/React.createElement(IncomeCard, {
+    salary: salary,
+    onSave: saveSalary,
+    month: currentMonth,
+    calc: TsIncome.compute({
+      base: salary,
+      entries: monthlyEntries,
+      bdOf,
+      allowance: allowCalc.totals.amount
+    })
+  }), SERVER && /*#__PURE__*/React.createElement(OtLeaveCard, {
+    ot: otView,
+    leaves: leaves,
+    locked: locked,
+    onPickDay: d => setDayFilter(dayFilter === d ? null : d),
+    onLeave: openLeave
   })), /*#__PURE__*/React.createElement("section", {
     className: "bg-white rounded-2xl border border-slate-200 min-w-0",
     "aria-labelledby": "tsListTitle"
@@ -1682,12 +1722,14 @@ function App() {
     rows: visible,
     bdOf: bdOf,
     sch: sch,
+    ot: otView.byDate,
     onEdit: openEdit,
     onDelete: handleDelete
   }), /*#__PURE__*/React.createElement(EntryCards, {
     rows: visible,
     bdOf: bdOf,
     sch: sch,
+    ot: otView.byDate,
     onEdit: openEdit,
     onDelete: handleDelete
   })))), /*#__PURE__*/React.createElement("button", {
@@ -1708,7 +1750,8 @@ function App() {
     onDelete: drawer.entry ? () => handleDelete(drawer.entry) : null,
     entries: entries,
     projects: projects,
-    sch: sch
+    sch: sch,
+    onLeave: openLeave
   })), drawer && drawer.type === 'mail' && /*#__PURE__*/React.createElement(Drawer, {
     title: "G\u1EEDi b\u1EA3ng c\xF4ng cho gi\xE1m s\xE1t",
     onClose: closeDrawer
@@ -1753,6 +1796,9 @@ function App() {
     stats: stats,
     lines: monthlyEntries.length,
     calc: allowCalc,
+    ot: otView,
+    lead: IS_LEAD,
+    leadNormal: leadNormal,
     onSubmit: doSubmit,
     onCancel: closeDrawer,
     onAddAllowance: () => openAllowance(null),
@@ -1808,6 +1854,7 @@ function SyncBar({
   submitting,
   month,
   period,
+  lead,
   onRetry,
   onSubmit,
   onWithdraw
@@ -1838,7 +1885,7 @@ function SyncBar({
   }, /*#__PURE__*/React.createElement("span", {
     id: "tsPeriodStatus",
     className: `inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`
-  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", STATUS_LABEL[status] || status), status === 'submitted' && /*#__PURE__*/React.createElement("button", {
+  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", lead && status === 'sitesup_ok' ? 'Đã nộp — chờ Quản lý dự án duyệt' : STATUS_LABEL[status] || status), (status === 'submitted' || lead && status === 'sitesup_ok') && /*#__PURE__*/React.createElement("button", {
     id: "tsWithdrawBtn",
     type: "button",
     onClick: onWithdraw,
@@ -2187,6 +2234,9 @@ function SubmitPanel({
   stats,
   lines,
   calc,
+  ot,
+  lead,
+  leadNormal,
   onSubmit,
   onCancel,
   onAddAllowance,
@@ -2235,7 +2285,32 @@ function SubmitPanel({
     className: "text-sm font-semibold text-blue-700 hover:text-blue-900 shrink-0"
   }, "S\u1EEDa")))), calc.rows.length > 0 && /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-xs text-slate-500"
-  }, "Gi\xE1m s\xE1t xem ph\u1EE5 c\u1EA5p c\xF9ng b\u1EA3ng c\xF4ng v\xE0 t\u1EA3i \u0111\u01B0\u1EE3c B\u1EA3ng ph\u1EE5 c\u1EA5p xe (Excel) theo m\u1EABu.")), !calc.ok && /*#__PURE__*/React.createElement("p", {
+  }, "Gi\xE1m s\xE1t xem ph\u1EE5 c\u1EA5p c\xF9ng b\u1EA3ng c\xF4ng v\xE0 t\u1EA3i \u0111\u01B0\u1EE3c B\u1EA3ng ph\u1EE5 c\u1EA5p xe (Excel) theo m\u1EABu.")), ot.days.length > 0 && /*#__PURE__*/React.createElement("section", {
+    id: "tsSubmitOt",
+    className: "pt-4 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold"
+  }, "T\u0103ng ca c\u1EA7n ", lead ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t"), /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-sm"
+  }, ot.days.length, " ng\xE0y \xB7 ", fmtH(ot.days.reduce((a, d) => a + d.ot, 0)), " gi\u1EDD t\u0103ng ca \u2014 ", /*#__PURE__*/React.createElement(OtCounts, {
+    c: ot.count
+  })), !ot.ok && /*#__PURE__*/React.createElement("ul", {
+    className: "mt-1 text-sm space-y-0.5"
+  }, ot.days.filter(d => d.status !== 'approved').slice(0, 8).map(d => /*#__PURE__*/React.createElement("li", {
+    key: d.date
+  }, /*#__PURE__*/React.createElement(OtBadge, {
+    d: d
+  }), " ", WEEKDAYS[weekdayOf(d.date)], " ", fmtDM(d.date), " \xB7 ", fmtH(d.ot), " gi\u1EDD", d.note ? /*#__PURE__*/React.createElement("span", {
+    className: "text-rose-700"
+  }, " \u2014 ", d.note) : null)))), lead && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-slate-700 rounded-lg bg-slate-50 px-3 py-2"
+  }, "B\u1EA3ng c\xF4ng c\u1EE7a gi\xE1m s\xE1t ", /*#__PURE__*/React.createElement("b", null, "ch\u1EC9 g\u1ED3m gi\u1EDD t\u0103ng ca"), " v\xE0 n\u1ED9p ", /*#__PURE__*/React.createElement("b", null, "th\u1EB3ng Qu\u1EA3n l\xFD d\u1EF1 \xE1n"), " (kh\xF4ng qua Site Sup)."), leadNormal.length > 0 && /*#__PURE__*/React.createElement("p", {
+    role: "alert",
+    className: "text-sm text-rose-700 font-medium"
+  }, "Gi\xE1m s\xE1t ch\u1EC9 n\u1ED9p gi\u1EDD t\u0103ng ca \u2014 xo\xE1 ho\u1EB7c s\u1EEDa c\xE1c d\xF2ng c\xF3 gi\u1EDD th\u01B0\u1EDDng (ng\xE0y ", leadNormal.slice(0, 6).map(fmtDM).join(', '), leadNormal.length > 6 ? '…' : '', ")."), !ot.ok && /*#__PURE__*/React.createElement("p", {
+    role: "alert",
+    className: "text-sm text-amber-800 font-medium rounded-lg bg-amber-50 border border-amber-200 px-3 py-2"
+  }, "\u26A0 C\xF2n ng\xE0y t\u0103ng ca ch\u01B0a \u0111\u01B0\u1EE3c ", lead ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t. B\u1EA1n ", /*#__PURE__*/React.createElement("b", null, "v\u1EABn n\u1ED9p \u0111\u01B0\u1EE3c"), " \u2014 h\u1EC7 th\u1ED1ng s\u1EBD g\u1EEDi email nh\u1EAFc ng\u01B0\u1EDDi duy\u1EC7t, nh\u01B0ng gi\u1EDD ch\u01B0a duy\u1EC7t c\xF3 th\u1EC3 kh\xF4ng \u0111\u01B0\u1EE3c t\xEDnh. N\xEAn nh\u1EDD ", lead ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t s\u1EDBm."), !calc.ok && /*#__PURE__*/React.createElement("p", {
     role: "alert",
     className: "text-sm text-rose-700 font-medium"
   }, "Ph\u1EE5 c\u1EA5p xe c\xF2n l\u1ED7i \u2014 s\u1EEDa ho\u1EB7c x\xF3a d\xF2ng c\xF3 \u26A0 r\u1ED3i n\u1ED9p."), /*#__PURE__*/React.createElement("p", {
@@ -2250,9 +2325,270 @@ function SubmitPanel({
     id: "tsSubmitConfirm",
     type: "button",
     onClick: onSubmit,
-    disabled: !calc.ok,
+    disabled: !calc.ok || (leadNormal || []).length > 0,
     className: `${btnPrimary} h-11`
-  }, "N\u1ED9p cho gi\xE1m s\xE1t")));
+  }, lead ? 'Nộp cho Quản lý dự án' : 'Nộp cho giám sát')));
+}
+
+// ---------- Thu nhập dự kiến (riêng tư: chỉ người dùng này thấy, lưu trên máy) ----------
+function IncomeCard({
+  salary,
+  onSave,
+  calc,
+  month
+}) {
+  const [show, setShow] = useState(false); // mặc định ẩn số tiền (tránh người bên cạnh nhìn thấy)
+  const [edit, setEdit] = useState(false);
+  const [text, setText] = useState('');
+  const [y, m] = month.split('-');
+  const mask = v => show ? `${TsIncome.fmtMoney(v)} đ` : '••••••••';
+  const open = () => {
+    setText(salary ? TsIncome.fmtMoney(salary) : '');
+    setEdit(true);
+  };
+  const commit = e => {
+    e.preventDefault();
+    onSave(TsIncome.parseMoney(text));
+    setEdit(false);
+    setShow(true);
+  };
+  return /*#__PURE__*/React.createElement("section", {
+    id: "tsIncomeCard",
+    className: "bg-white rounded-2xl border border-slate-200 p-4",
+    "aria-labelledby": "tsIncomeTitle"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "tsIncomeTitle",
+    className: "font-semibold mr-auto"
+  }, "\uD83D\uDD12 Thu nh\u1EADp d\u1EF1 ki\u1EBFn k\u1EF3 ", parseInt(m, 10), "/", y), salary > 0 && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    id: "tsIncomeToggle",
+    onClick: () => setShow(!show),
+    className: "text-sm font-semibold text-blue-700 hover:text-blue-900",
+    "aria-pressed": show
+  }, show ? 'Ẩn số' : 'Hiện số')), /*#__PURE__*/React.createElement("p", {
+    className: "mt-0.5 text-xs text-slate-500"
+  }, "Ch\u1EC9 m\xECnh b\u1EA1n th\u1EA5y \u2014 l\u01B0u ", /*#__PURE__*/React.createElement("b", null, "ri\xEAng tr\xEAn m\xE1y n\xE0y"), ", kh\xF4ng g\u1EEDi l\xEAn m\xE1y ch\u1EE7, kh\xF4ng c\xF3 trong sao l\u01B0u, b\xE1o c\xE1o hay email."), edit ? /*#__PURE__*/React.createElement("form", {
+    onSubmit: commit,
+    className: "mt-2 flex gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsSalaryInput",
+    inputMode: "numeric",
+    autoFocus: true,
+    value: text,
+    onChange: e => {
+      const n = TsIncome.parseMoney(e.target.value);
+      setText(n ? TsIncome.fmtMoney(n) : '');
+    },
+    className: inputCls,
+    placeholder: "L\u01B0\u01A1ng c\u01A1 b\u1EA3n / th\xE1ng (\u0111)",
+    "aria-label": "L\u01B0\u01A1ng c\u01A1 b\u1EA3n m\u1ED7i th\xE1ng"
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "submit",
+    className: `${btnPrimary} shrink-0`
+  }, "L\u01B0u"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setEdit(false),
+    className: `${btnGhost} shrink-0`
+  }, "H\u1EE7y")) : salary <= 0 ? /*#__PURE__*/React.createElement("button", {
+    id: "tsSalaryAdd",
+    type: "button",
+    onClick: open,
+    className: `${btnGhost} h-9 text-sm mt-2`
+  }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Nh\u1EADp l\u01B0\u01A1ng c\u01A1 b\u1EA3n") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 text-2xl font-bold tabular-nums",
+    id: "tsIncomeTotal",
+    "aria-live": "polite"
+  }, mask(calc.total)), /*#__PURE__*/React.createElement("dl", {
+    className: "mt-2 text-sm divide-y divide-slate-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "L\u01B0\u01A1ng c\u01A1 b\u1EA3n"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, mask(calc.base))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "T\u0103ng ca (", fmtH(calc.otHours), " gi\u1EDD)"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, "+ ", mask(calc.otPay))), calc.allowance > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "Tr\u1EE3 c\u1EA5p xe"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, "+ ", mask(calc.allowance))), calc.unpaidDays > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between py-1.5"
+  }, /*#__PURE__*/React.createElement("dt", {
+    className: "text-slate-600"
+  }, "Ngh\u1EC9 kh\xF4ng l\u01B0\u01A1ng (", calc.unpaidDays, " ng\xE0y)"), /*#__PURE__*/React.createElement("dd", {
+    className: "tabular-nums"
+  }, "\u2212 ", mask(calc.deduction)))), show && calc.ot.length > 0 && /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-xs text-slate-500"
+  }, calc.ot.map(x => `${x.cat} ${fmtH(x.hours)}h × ${x.rate}%`).join(' · ')), /*#__PURE__*/React.createElement("p", {
+    className: "mt-2 text-xs text-slate-500"
+  }, "\u01AF\u1EDBc t\xEDnh: l\u01B0\u01A1ng gi\u1EDD = l\u01B0\u01A1ng c\u01A1 b\u1EA3n \xF7 26 ng\xE0y \xF7 8 gi\u1EDD; t\u0103ng ca nh\xE2n theo t\u1EF7 l\u1EC7 (150% / 200% / 300% / ban \u0111\xEAm\u2026). ", /*#__PURE__*/React.createElement("b", null, "Kh\xF4ng g\u1ED3m"), " th\u01B0\u1EDFng, ph\u1EE5 c\u1EA5p kh\xE1c, b\u1EA3o hi\u1EC3m, thu\u1EBF. S\u1ED1 th\u1EF1c nh\u1EADn do c\xF4ng ty t\xEDnh."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: open,
+    className: "mt-1 text-sm font-semibold text-blue-700 hover:text-blue-900"
+  }, "S\u1EEDa l\u01B0\u01A1ng c\u01A1 b\u1EA3n")));
+}
+
+// ---------- Tăng ca chờ duyệt + đơn nghỉ (bản máy chủ) ----------
+const OT_STATE = {
+  approved: {
+    text: '✓ OT đã duyệt',
+    cls: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+  },
+  pending: {
+    text: '⏳ OT chờ duyệt',
+    cls: 'bg-amber-50 text-amber-900 border-amber-200'
+  },
+  rejected: {
+    text: '✕ OT không duyệt',
+    cls: 'bg-rose-50 text-rose-800 border-rose-200'
+  },
+  unsent: {
+    text: '↻ OT đang gửi duyệt',
+    cls: 'bg-slate-50 text-slate-600 border-slate-200'
+  }
+};
+function OtBadge({
+  d
+}) {
+  const s = OT_STATE[d.status] || OT_STATE.unsent;
+  const title = d.status === 'approved' ? `${fmtH(d.ot)} giờ tăng ca — ${d.by || 'Site Sup'} đã duyệt` : d.status === 'rejected' ? `Không duyệt: ${d.note}` : `${fmtH(d.ot)} giờ tăng ca`;
+  return /*#__PURE__*/React.createElement("span", {
+    className: `inline-flex items-center h-5 px-2 rounded-full border text-[11px] font-semibold whitespace-nowrap ${s.cls}`,
+    title: title,
+    "data-ot": d.status
+  }, s.text, " \xB7 ", fmtH(d.ot), "h");
+}
+function OtCounts({
+  c
+}) {
+  const parts = [c.approved ? /*#__PURE__*/React.createElement("span", {
+    key: "a",
+    className: "text-emerald-700 font-medium"
+  }, c.approved, " \u0111\xE3 duy\u1EC7t") : null, c.pending ? /*#__PURE__*/React.createElement("span", {
+    key: "p",
+    className: "text-amber-800 font-medium"
+  }, c.pending, " ch\u1EDD duy\u1EC7t") : null, c.rejected ? /*#__PURE__*/React.createElement("span", {
+    key: "r",
+    className: "text-rose-700 font-medium"
+  }, c.rejected, " kh\xF4ng duy\u1EC7t") : null, c.unsent ? /*#__PURE__*/React.createElement("span", {
+    key: "u",
+    className: "text-slate-600"
+  }, c.unsent, " \u0111ang g\u1EEDi") : null].filter(Boolean);
+  return /*#__PURE__*/React.createElement(React.Fragment, null, parts.map((p, i) => /*#__PURE__*/React.createElement(React.Fragment, {
+    key: i
+  }, i ? ' · ' : '', p)));
+}
+const LEAVE_STATE = {
+  pending: {
+    text: 'Chờ duyệt',
+    cls: 'bg-amber-50 text-amber-900'
+  },
+  approved: {
+    text: 'Đã duyệt',
+    cls: 'bg-emerald-50 text-emerald-800'
+  },
+  rejected: {
+    text: 'Không duyệt',
+    cls: 'bg-rose-50 text-rose-800'
+  },
+  cancelled: {
+    text: 'Đã huỷ',
+    cls: 'bg-slate-100 text-slate-600'
+  }
+};
+function OtLeaveCard({
+  ot,
+  leaves,
+  locked,
+  onPickDay,
+  onLeave
+}) {
+  const today = getTodayLocal();
+  const list = (leaves || []).filter(l => l.to >= addDaysLocal(today, -45)).slice(0, 6);
+  return /*#__PURE__*/React.createElement("section", {
+    id: "tsOtLeaveCard",
+    className: "bg-white rounded-2xl border border-slate-200 p-4",
+    "aria-labelledby": "tsOtLeaveTitle"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "tsOtLeaveTitle",
+    className: "font-semibold"
+  }, "T\u0103ng ca & ngh\u1EC9 ph\xE9p"), /*#__PURE__*/React.createElement("div", {
+    id: "tsOtSummary",
+    className: "mt-1 text-sm"
+  }, ot.days.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "text-slate-500"
+  }, IS_LEAD ? 'Giám sát chỉ chấm giờ tăng ca: đăng ký TRƯỚC khi làm (thêm chấm công ngày đó) — gửi thẳng Quản lý dự án duyệt.' : 'Kỳ này chưa có ngày tăng ca. Ngày nào có giờ OT sẽ tự gửi Site Sup duyệt (duyệt hằng ngày).') : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, ot.days.length, " ng\xE0y t\u0103ng ca (", fmtH(ot.days.reduce((a, d) => a + d.ot, 0)), " gi\u1EDD): ", /*#__PURE__*/React.createElement(OtCounts, {
+    c: ot.count
+  })), /*#__PURE__*/React.createElement("ul", {
+    className: "mt-1 flex flex-wrap gap-1"
+  }, ot.days.map(d => /*#__PURE__*/React.createElement("li", {
+    key: d.date
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => onPickDay(d.date),
+    className: "rounded-full",
+    title: "L\u1ECDc danh s\xE1ch theo ng\xE0y n\xE0y"
+  }, /*#__PURE__*/React.createElement(OtBadge, {
+    d: {
+      ...d,
+      ot: d.ot
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "sr-only"
+  }, " ", fmtDMY(d.date))), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-slate-500 tabular-nums"
+  }, fmtDM(d.date))))), !ot.ok && !locked && /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-xs text-slate-500"
+  }, "N\u1ED9p b\u1EA3ng c\xF4ng v\u1EABn \u0111\u01B0\u1EE3c khi c\xF2n ng\xE0y ch\u01B0a duy\u1EC7t (c\xF3 email nh\u1EAFc ng\u01B0\u1EDDi duy\u1EC7t). S\u1EEDa gi\u1EDD c\u1EE7a ng\xE0y \u0111\xE3 duy\u1EC7t th\xEC ph\u1EA3i duy\u1EC7t l\u1EA1i."))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 pt-3 border-t border-slate-100"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-sm font-semibold mr-auto"
+  }, "\u0110\u01A1n ngh\u1EC9 ph\xE9p / \u1ED1m"), /*#__PURE__*/React.createElement("a", {
+    id: "tsLeaveBtn",
+    href: "../leave/",
+    className: `${btnGhost} h-9 text-sm`
+  }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Xin ngh\u1EC9")), leaves === null ? /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-sm text-slate-500"
+  }, "\u0110ang t\u1EA3i\u2026") : list.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-sm text-slate-500"
+  }, "L\xE0m \u0111\u01A1n \u1EDF ch\u1EE9c n\u0103ng ", /*#__PURE__*/React.createElement("b", null, "Ngh\u1EC9 ph\xE9p / \u1ED1m"), " (ngh\u1EC9 \u1ED1m tr\u01B0\u1EDBc 2 gi\u1EDD; ph\xE9p 1 ng\xE0y tr\u01B0\u1EDBc 24 gi\u1EDD, 2\u20133 ng\xE0y tr\u01B0\u1EDBc 3 ng\xE0y, d\xE0i h\u01A1n tr\u01B0\u1EDBc 1 tu\u1EA7n). Qu\u1EA3n l\xFD tr\u1EF1c ti\u1EBFp duy\u1EC7t xong, c\xE1c ng\xE0y ngh\u1EC9 t\u1EF1 ghi v\xE0o b\u1EA3ng c\xF4ng n\xE0y.") : /*#__PURE__*/React.createElement("ul", {
+    id: "tsLeaveList",
+    className: "mt-1 divide-y divide-slate-100"
+  }, list.map(l => {
+    const st = l.expired ? {
+      text: 'Quá hạn duyệt',
+      cls: 'bg-slate-100 text-slate-600'
+    } : LEAVE_STATE[l.status] || LEAVE_STATE.pending;
+    return /*#__PURE__*/React.createElement("li", {
+      key: l.id,
+      className: "py-2 text-sm flex items-start gap-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0 flex-1"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap items-center gap-x-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-medium"
+    }, l.label), /*#__PURE__*/React.createElement("span", {
+      className: `inline-flex h-5 px-2 rounded-full text-[11px] font-semibold items-center ${st.cls}`
+    }, st.text)), /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-slate-600 tabular-nums"
+    }, fmtDMY(l.from), l.to !== l.from ? ` → ${fmtDMY(l.to)}` : '', " \xB7 ", fmtH(l.count), " ng\xE0y c\xF4ng"), l.status === 'approved' && /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-emerald-700"
+    }, l.decidedBy, " \u0111\xE3 duy\u1EC7t \u2014 \u0111\xE3 ghi v\xE0o b\u1EA3ng c\xF4ng"), l.status === 'rejected' && l.note && /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-rose-700"
+    }, l.decidedBy, ": ", l.note)));
+  }))));
 }
 
 // ---------- Gantt: lộ trình cả kỳ lương (thu gọn được) ----------
@@ -2510,6 +2846,7 @@ function EntryTable({
   rows,
   bdOf,
   sch,
+  ot = {},
   onEdit,
   onDelete
 }) {
@@ -2561,7 +2898,11 @@ function EntryTable({
       className: "font-semibold tabular-nums"
     }, fmtDM(e.date)), ' ', /*#__PURE__*/React.createElement("span", {
       className: hol || w === 0 ? 'text-rose-600' : 'text-slate-500'
-    }, WEEKDAYS[w], hol ? ' · Lễ' : '')) : /*#__PURE__*/React.createElement("span", {
+    }, WEEKDAYS[w], hol ? ' · Lễ' : ''), ot[e.date] && /*#__PURE__*/React.createElement("div", {
+      className: "mt-1"
+    }, /*#__PURE__*/React.createElement(OtBadge, {
+      d: ot[e.date]
+    }))) : /*#__PURE__*/React.createElement("span", {
       className: "sr-only"
     }, fmtDMY(e.date))), /*#__PURE__*/React.createElement("td", {
       className: "px-3 py-2.5 whitespace-nowrap tabular-nums align-top"
@@ -2582,7 +2923,9 @@ function EntryTable({
       title: e.projectName
     }, e.projectName || '—'), e.workNumber && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 font-mono truncate"
-    }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
+    }, e.workNumber), e.ae ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center"
+    }, "Admin s\u1EEDa")) : null, e.remarks && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 italic truncate",
       title: e.remarks
     }, e.remarks), e.report && /*#__PURE__*/React.createElement("div", {
@@ -2615,6 +2958,7 @@ function EntryCards({
   rows,
   bdOf,
   sch,
+  ot = {},
   onEdit,
   onDelete
 }) {
@@ -2645,7 +2989,13 @@ function EntryCards({
       className: "text-rose-600"
     }, " \xB7 L\u1EC5") : null), /*#__PURE__*/React.createElement("span", {
       className: "text-sm text-slate-500 tabular-nums"
-    }, fmtH(total), " gi\u1EDD")), /*#__PURE__*/React.createElement("ul", {
+    }, fmtH(total), " gi\u1EDD")), ot[g.date] && /*#__PURE__*/React.createElement("div", {
+      className: "-mt-1 mb-2"
+    }, /*#__PURE__*/React.createElement(OtBadge, {
+      d: ot[g.date]
+    }), ot[g.date].note ? /*#__PURE__*/React.createElement("span", {
+      className: "ml-1 text-xs text-rose-700"
+    }, ot[g.date].note) : null), /*#__PURE__*/React.createElement("ul", {
       className: "space-y-2"
     }, g.items.map(e => /*#__PURE__*/React.createElement("li", {
       key: e.id,
@@ -2670,7 +3020,9 @@ function EntryCards({
       className: "font-mono text-blue-700"
     }, "[", e.activityCode, "]"), " ", e.projectName), e.workNumber && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 font-mono truncate"
-    }, e.workNumber), e.remarks && /*#__PURE__*/React.createElement("div", {
+    }, e.workNumber), e.ae ? /*#__PURE__*/React.createElement("span", {
+      className: "inline-flex h-5 px-2 rounded-full bg-amber-100 text-amber-900 text-[11px] font-semibold items-center"
+    }, "Admin s\u1EEDa") : null, e.remarks && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-slate-500 truncate"
     }, "Ghi ch\xFA: ", e.remarks), e.report && /*#__PURE__*/React.createElement("div", {
       className: "text-xs text-blue-800 truncate"
@@ -4164,7 +4516,8 @@ function EntryForm({
   initialData,
   entries,
   projects,
-  sch
+  sch,
+  onLeave
 }) {
   const [formData, setFormData] = useState({
     date: defaultDate,
@@ -4182,6 +4535,9 @@ function EntryForm({
   });
   // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
   const [breakTouched, setBreakTouched] = useState(!!initialData);
+  const [multi, setMulti] = useState(false); // chấm nhiều ngày liên tiếp (chỉ khi thêm mới)
+  const [rangeTo, setRangeTo] = useState('');
+  const [skipOff, setSkipOff] = useState(true); // bỏ ngày nghỉ hằng tuần + ngày lễ
   const [customCode, setCustomCode] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const isHR = useMemo(() => {
@@ -4330,6 +4686,13 @@ function EntryForm({
       if (!customCode) return alert("Vui lòng nhập mã code!");
       finalData.activityCode = customCode;
     }
+    if (leaveBlocked) return;
+    if (multi && !initialData) {
+      if (!rangeTo || rangeTo <= finalData.date) return alert('Chọn ngày kết thúc sau ngày bắt đầu.');
+      if (rangeDays.length > 62) return alert('Tối đa 62 ngày một lần.');
+      finalData.rangeTo = rangeTo;
+      finalData.skipOff = skipOff;
+    }
     if (finalData.otMode === 'auto') finalData.otType = LaborVN.dominant(preview); // loại giờ chính (hiển thị gọn / dữ liệu cũ)
     onSave(finalData);
   };
@@ -4338,9 +4701,12 @@ function EntryForm({
     [k]: e.target.value
   });
   const hours = calculateHours(formData.startTime, formData.endTime, formData.breakTime);
+  const rangeDays = multi && formData.date && rangeTo > formData.date ? daysBetween(formData.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))) : [];
   const w = formData.date ? weekdayOf(formData.date) : null;
   const holi = holidayOf(formData.date, sch);
   const leave = LaborVN.LEAVE_CODES.includes(formData.activityCode === 'OTHER' ? customCode : formData.activityCode);
+  // bản máy chủ: dòng nghỉ chỉ do đơn nghỉ đã duyệt ghi vào (sửa / xoá dòng nghỉ đã có thì vẫn được)
+  const leaveBlocked = SERVER && leave && !(initialData && LaborVN.LEAVE_CODES.includes(String(initialData.activityCode)));
   // giờ thường / OT của dòng đang nhập, xét cả các dòng khác (OT7: đêm sau khi đã làm thêm buổi tối)
   const preview = useMemo(() => LaborVN.breakdown({
     ...formData,
@@ -4370,7 +4736,46 @@ function EntryForm({
     onChange: handleDateChange,
     className: inputCls,
     required: true
-  })), /*#__PURE__*/React.createElement("div", {
+  })), !initialData && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-lg border border-slate-200 px-3 py-2"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-2 min-h-9 text-sm text-slate-800 cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMulti",
+    type: "checkbox",
+    checked: multi,
+    onChange: e => {
+      setMulti(e.target.checked);
+      if (e.target.checked && !rangeTo) setRangeTo(formData.date || '');
+    },
+    className: "w-4 h-4 shrink-0 accent-blue-700"
+  }), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Ch\u1EA5m nhi\u1EC1u ng\xE0y li\xEAn ti\u1EBFp"), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-500"
+  }, "(c\xF9ng ho\u1EA1t \u0111\u1ED9ng, d\u1EF1 \xE1n, gi\u1EDD)"))), multi && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 space-y-2"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "\u0110\u1EBFn h\u1EBFt ng\xE0y",
+    htmlFor: "tsRangeTo"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsRangeTo",
+    type: "date",
+    min: formData.date,
+    value: rangeTo,
+    onChange: e => setRangeTo(e.target.value),
+    className: inputCls
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsSkipOff",
+    type: "checkbox",
+    checked: skipOff,
+    onChange: e => setSkipOff(e.target.checked),
+    className: "w-4 h-4 accent-blue-700"
+  }), " B\u1ECF ng\xE0y ngh\u1EC9 h\u1EB1ng tu\u1EA7n v\xE0 ng\xE0y l\u1EC5"), /*#__PURE__*/React.createElement("p", {
+    id: "tsRangeInfo",
+    className: "text-sm font-medium text-blue-800",
+    "aria-live": "polite"
+  }, rangeDays.length ? `Sẽ tạo ${rangeDays.length} dòng: ${fmtDM(rangeDays[0])} → ${fmtDM(rangeDays[rangeDays.length - 1])} (mỗi ngày ${fmtH(hours)} giờ)` : 'Chọn ngày kết thúc để xem số ngày.'))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "T\u1EEB",
@@ -4419,7 +4824,13 @@ function EntryForm({
     className: "mt-2 pt-2 border-t border-slate-200"
   }, /*#__PURE__*/React.createElement(HourPills, {
     bd: preview
-  }), /*#__PURE__*/React.createElement("p", {
+  }), IS_LEAD && !leave && (preview.NORMAL || 0) > 0.01 && /*#__PURE__*/React.createElement("p", {
+    id: "tsLeadHint",
+    className: "mt-1.5 text-xs font-medium text-rose-700"
+  }, "Gi\xE1m s\xE1t ch\u1EC9 ch\u1EA5m gi\u1EDD t\u0103ng ca \u2014 d\xF2ng n\xE0y c\xF3 ", fmtH(preview.NORMAL), " gi\u1EDD th\u01B0\u1EDDng, kh\xF4ng n\u1ED9p \u0111\u01B0\u1EE3c. Ch\u1EC9 nh\u1EADp kho\u1EA3ng gi\u1EDD t\u0103ng ca (vd 17:00\u201319:00)."), SERVER && !leave && Object.keys(preview).some(k => k !== 'NORMAL' && preview[k] > 0) && /*#__PURE__*/React.createElement("p", {
+    id: "tsOtHint",
+    className: "mt-1.5 text-xs font-medium text-amber-800"
+  }, "\u23F1 C\xF3 gi\u1EDD t\u0103ng ca \u2014 ", IS_LEAD ? 'Quản lý dự án' : 'Site Sup', " duy\u1EC7t t\u1EEBng ng\xE0y", IS_LEAD ? '; giám sát đăng ký trước khi làm' : ' (hằng ngày)', ". Ch\u01B0a duy\u1EC7t v\u1EABn n\u1ED9p \u0111\u01B0\u1EE3c nh\u01B0ng s\u1EBD c\xF3 email nh\u1EAFc, gi\u1EDD ch\u01B0a duy\u1EC7t c\xF3 th\u1EC3 kh\xF4ng \u0111\u01B0\u1EE3c t\xEDnh."), /*#__PURE__*/React.createElement("p", {
     className: "mt-1.5 text-xs text-slate-500"
   }, leave ? 'Nghỉ phép / ốm / không lương: không tính làm thêm giờ.' : 'Tự tính theo Bộ luật Lao động 2019 (Điều 98, 106) và NĐ 145/2020: giờ thường 08:00–12:00, 13:00–17:00; ban đêm 22:00–06:00.'))), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 min-h-11 text-sm text-slate-700 cursor-pointer"
@@ -4480,7 +4891,15 @@ function EntryForm({
     placeholder: "Nh\u1EADp m\xE3 code",
     "aria-label": "M\xE3 c\xF4ng vi\u1EC7c kh\xE1c",
     className: `${inputCls} mt-2 bg-amber-50`
-  })), /*#__PURE__*/React.createElement(Field, {
+  }), leaveBlocked && /*#__PURE__*/React.createElement("div", {
+    id: "tsLeaveHint",
+    role: "alert",
+    className: "mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+  }, "Ngh\u1EC9 ph\xE9p / \u1ED1m / kh\xF4ng l\u01B0\u01A1ng ph\u1EA3i ", /*#__PURE__*/React.createElement("b", null, "l\xE0m \u0111\u01A1n tr\u01B0\u1EDBc ng\xE0y ngh\u1EC9"), " v\xE0 \u0111\u01B0\u1EE3c qu\u1EA3n l\xFD duy\u1EC7t \u2014 duy\u1EC7t xong d\xF2ng ngh\u1EC9 t\u1EF1 ghi v\xE0o b\u1EA3ng c\xF4ng.", onLeave && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onLeave,
+    className: "ml-1 font-semibold text-blue-700 hover:text-blue-900"
+  }, "M\u1EDF Xin ngh\u1EC9 \u2192"))), /*#__PURE__*/React.createElement(Field, {
     label: "T\xEAn d\u1EF1 \xE1n",
     htmlFor: "tsProject",
     hint: projects.length ? `Gõ tên hoặc WBS để chọn trong ${projects.length} dự án.` : null
@@ -4580,6 +4999,7 @@ function EntryForm({
     className: `${btnGhost} h-11 flex-1 md:flex-none md:ml-auto`
   }, "H\u1EE7y"), /*#__PURE__*/React.createElement("button", {
     type: "submit",
+    disabled: leaveBlocked,
     className: `${btnPrimary} h-11 flex-1 md:flex-none md:min-w-[8rem]`
   }, "L\u01B0u")));
 }

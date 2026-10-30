@@ -51,6 +51,16 @@ export function checkDoc(period, input) {
   return { data, count: out.length };
 }
 
+// Dòng thuộc DỰ ÁN (cần Site Sup / Quản lý dự án của dự án duyệt) hay hoạt động ngoài dự án (họp, huấn luyện, nghỉ phép… — Admin xử lý)
+const NON_PROJECT_WBS = /^(PAID LEAVE|UNPAID LEAVE|TRAINING.*|MEETINGS?)$/i;
+const LEAVE = ['6010', '6020', '6090'];
+export function isProjectEntry(e) {
+  const w = String((e && e.workNumber) || '').trim();
+  return !!w && !NON_PROJECT_WBS.test(w) && !LEAVE.includes(String(e.activityCode)) && e.cat !== 'HR';
+}
+// Các WBS dự án trong bảng công (mỗi dự án cần được duyệt ở cấp Site Sup và cấp Quản lý dự án)
+export const projectWbs = (entries) => [...new Set((entries || []).filter(isProjectEntry).map(e => String(e.workNumber).trim()))].slice(0, 40);
+
 // ---------- nộp bảng công: kiểm tra phân loại giờ do máy khách tính (labor.js nặng, không chạy được trên máy chủ gói miễn phí) ----------
 export const BD_KEYS = ['NORMAL', 'OT1', 'OT2', 'OT3', 'OT4', 'OT5', 'OT6', 'OT7'];
 
