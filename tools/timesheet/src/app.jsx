@@ -490,7 +490,18 @@
             const handleSaveEntry = (formData) => {
                 const editing = drawer && drawer.entry;
                 const u = Date.now();      // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
-                const { bd: _bd, cat: _cat, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+                const { bd: _bd, cat: _cat, rangeTo, skipOff, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+                // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+                const dates = (!editing && rangeTo && rangeTo > data.date) ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
+                if (dates) {
+                    if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
+                    const base = Date.now() * 100;
+                    setEntries(prev => [...prev, ...dates.map((d, i) => ({ ...data, date: d, id: base + i, u }))]);
+                    if (SERVER) { TsSync.markDirty(dates); scheduleSync(); }
+                    setDrawer(null);
+                    const pm0 = periodMonthOf(dates[0]); if (pm0 !== currentMonth) changeMonth(pm0);
+                    return showToast(`Đã thêm chấm công cho ${dates.length} ngày (${fmtDM(dates[0])} → ${fmtDM(dates[dates.length - 1])}).`);
+                }
                 if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? { ...data, id: editing.id, u } : e));
                 else setEntries(prev => [...prev, { ...data, id: Date.now(), u }]);
                 if (SERVER) { TsSync.markDirty(editing && editing.date !== data.date ? [data.date, editing.date] : data.date); scheduleSync(); }
@@ -2311,6 +2322,9 @@
             });
             // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
             const [breakTouched, setBreakTouched] = useState(!!initialData);
+            const [multi, setMulti] = useState(false);          // chấm nhiều ngày liên tiếp (chỉ khi thêm mới)
+            const [rangeTo, setRangeTo] = useState('');
+            const [skipOff, setSkipOff] = useState(true);       // bỏ ngày nghỉ hằng tuần + ngày lễ
             const [customCode, setCustomCode] = useState('');
             const [suggestions, setSuggestions] = useState([]);
 
@@ -2422,12 +2436,18 @@
                     finalData.activityCode = customCode;
                 }
                 if (leaveBlocked) return;
+                if (multi && !initialData) {
+                    if (!rangeTo || rangeTo <= finalData.date) return alert('Chọn ngày kết thúc sau ngày bắt đầu.');
+                    if (rangeDays.length > 62) return alert('Tối đa 62 ngày một lần.');
+                    finalData.rangeTo = rangeTo; finalData.skipOff = skipOff;
+                }
                 if (finalData.otMode === 'auto') finalData.otType = LaborVN.dominant(preview); // loại giờ chính (hiển thị gọn / dữ liệu cũ)
                 onSave(finalData);
             };
 
             const set = (k) => (e) => setFormData({ ...formData, [k]: e.target.value });
             const hours = calculateHours(formData.startTime, formData.endTime, formData.breakTime);
+            const rangeDays = (multi && formData.date && rangeTo > formData.date) ? daysBetween(formData.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))) : [];
             const w = formData.date ? weekdayOf(formData.date) : null;
             const holi = holidayOf(formData.date, sch);
             const leave = LaborVN.LEAVE_CODES.includes(formData.activityCode === 'OTHER' ? customCode : formData.activityCode);
@@ -2452,6 +2472,21 @@
                             <Field label="Ngày" htmlFor="tsDate" hint={dayNote}>
                                 <input id="tsDate" data-autofocus type="date" value={formData.date} onChange={handleDateChange} className={inputCls} required/>
                             </Field>
+                            {!initialData && (
+                                <div className="rounded-lg border border-slate-200 px-3 py-2">
+                                    <label className="flex items-center gap-2 min-h-9 text-sm text-slate-800 cursor-pointer">
+                                        <input id="tsMulti" type="checkbox" checked={multi} onChange={(e) => { setMulti(e.target.checked); if (e.target.checked && !rangeTo) setRangeTo(formData.date || ''); }} className="w-4 h-4 shrink-0 accent-blue-700"/>
+                                        <span><b>Chấm nhiều ngày liên tiếp</b> <span className="text-slate-500">(cùng hoạt động, dự án, giờ)</span></span>
+                                    </label>
+                                    {multi && (
+                                        <div className="mt-2 space-y-2">
+                                            <Field label="Đến hết ngày" htmlFor="tsRangeTo"><input id="tsRangeTo" type="date" min={formData.date} value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className={inputCls}/></Field>
+                                            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input id="tsSkipOff" type="checkbox" checked={skipOff} onChange={(e) => setSkipOff(e.target.checked)} className="w-4 h-4 accent-blue-700"/> Bỏ ngày nghỉ hằng tuần và ngày lễ</label>
+                                            <p id="tsRangeInfo" className="text-sm font-medium text-blue-800" aria-live="polite">{rangeDays.length ? `Sẽ tạo ${rangeDays.length} dòng: ${fmtDM(rangeDays[0])} → ${fmtDM(rangeDays[rangeDays.length - 1])} (mỗi ngày ${fmtH(hours)} giờ)` : 'Chọn ngày kết thúc để xem số ngày.'}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <div className="grid grid-cols-3 gap-3">
                                 <Field label="Từ" htmlFor="tsFrom"><input id="tsFrom" type="time" value={formData.startTime} onChange={set('startTime')} className={`${inputCls} text-center px-1`}/></Field>
                                 <Field label="Đến" htmlFor="tsTo"><input id="tsTo" type="time" value={formData.endTime} onChange={set('endTime')} className={`${inputCls} text-center px-1`}/></Field>

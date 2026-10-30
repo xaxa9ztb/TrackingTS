@@ -433,8 +433,20 @@ export async function runDigest(env, { now = new Date() } = {}) {
         + (rec.ot.length ? h3('⏱ Tăng ca chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${otList}</ul><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Mở <b>Duyệt bảng công → Tăng ca chờ duyệt</b> để duyệt (chọn nhiều ngày một lần). Bảng công vẫn nộp được khi còn tăng ca chưa duyệt, nhưng giờ chưa duyệt có thể không được tính.</p>` : '')
         + (rec.leave.length ? h3('🏖 Đơn nghỉ chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${lvList}</ul>` : '')
         + (rec.missing.length ? h3('⚠️ Hôm nay chưa chấm công') + `<p style="margin:0">${miss}</p><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Fitter bạn quản lý trực tiếp đang dùng Timesheet kỳ này — nhắc chấm công trước khi hết ngày.</p>` : '');
-      const subject = `[Báo cáo thi công] ${dayLabel} — ${nRows} dòng chấm công${nLate ? ` + ${nLate} dòng chấm bù` : ''}${rec.pending.length ? ` · ${rec.pending.length} chờ duyệt` : ''}${rec.ot.length ? ` · ${rec.ot.length} ngày OT chờ duyệt` : ''}${rec.leave.length ? ` · ${rec.leave.length} đơn nghỉ` : ''}`;
-      const html = layout(`Báo cáo thi công ${dayLabel}`, body, { url, label: 'Mở Duyệt bảng công' });
+      // Tiêu đề ngắn: "Tên fitter - Tên dự án - WBS - Chấm công/báo cáo ngày dd.mm.yyyy"; nhiều fitter / dự án thì gọn thành số lượng;
+      // có duyệt OT / nghỉ phép / bảng công thì thêm vào cuối. Nút mở trang duyệt CHỈ có khi có việc cần duyệt.
+      const dmy = date.split('-').reverse().join('.');
+      const fitters = new Set(), projs = new Map();
+      for (const p of rec.projects.values()) { p.rows.forEach(r => fitters.add(r.full_name)); projs.set(p.wbs + '|' + p.name, p); }
+      lateRows.forEach(g => fitters.add(g.name));
+      let head;
+      if (fitters.size === 1 && projs.size === 1) { const p = [...projs.values()][0]; head = `${[...fitters][0]} - ${p.name}${p.wbs ? ' - ' + p.wbs : ''}`; }
+      else if (fitters.size === 1 && !projs.size) head = [...fitters][0];
+      else head = `${fitters.size || 0} fitter - ${projs.size} dự án`;
+      const duyet = [rec.ot.length ? 'Duyệt OT' : '', rec.leave.length ? 'Duyệt nghỉ phép' : '', rec.pending.length ? 'Duyệt bảng công' : ''].filter(Boolean).join(' + ');
+      const subject = `${head} - Chấm công/báo cáo ngày ${dmy}${duyet ? ' - ' + duyet : ''}`;
+      const needAction = rec.pending.length || rec.ot.length || rec.leave.length;
+      const html = layout(`Chấm công / báo cáo thi công ${dayLabel}`, body, needAction ? { url, label: 'Mở Duyệt bảng công' } : null);
       const r = await sendMail(env, { to: [rec.person], subject, html });
       if (r.ok) { summary.sent++; sentKeys.push(key); } else { summary.failed++; summary.errors.push(`${email}: ${r.error}`); }
     }

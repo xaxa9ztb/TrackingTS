@@ -107,7 +107,11 @@
         if (norm(r.wbs) && !dates.length) x.problems.push('Không có ngày chấm công ở dự án này trong khoảng đã chọn');
       } else {
         x.days = dates.length;
-        if (x.days < TYPES.province.minDays) x.problems.push(`Cần làm dự án tỉnh trên 20 ngày trong kỳ (đang có ${x.days} ngày chấm công)`);
+        if (x.days < TYPES.province.minDays) {
+          // nói rõ cách đếm: chỉ ngày CÓ dòng chấm công làm việc tại đúng WBS này (không phải số ngày dương lịch của khoảng đã chọn)
+          const span = dates.length ? ` từ ${fmtDMY(dates[0])} đến ${fmtDMY(dates[dates.length - 1])}` : '';
+          x.problems.push(`Cần làm dự án tỉnh trên 20 ngày trong kỳ (đang có ${x.days} ngày chấm công tại dự án này${span}; chỉ đếm ngày có dòng chấm công đúng WBS, không đếm ngày nghỉ / ngày chưa chấm)`);
+        }
         if (!r.ownVehicle) x.problems.push('Chưa xác nhận tự mang xe máy đi');
         if (fuelWbs.has(norm(r.wbs))) x.problems.push('Dự án này đã có phụ cấp xăng xe');
         x.amount = TYPES.province.amount;
@@ -187,6 +191,16 @@
     return `Phu_cap_xe_${clean}_Thang_${String(period).slice(5)}_${String(period).slice(0, 4)}.xlsx`;
   };
 
-  const api = { TYPES, MAX_ROWS, LEAVE_CODES, workDates, projectsOf, sanitize, compute, summary, fillWorkbook, fileName, money };
+  // Tên file đính kèm theo loại: "Pc Xang - PHAN ANH DUC - thang 10 2026.xlsx" / "Pc Xe - PHAN ANH DUC - thang 10 2026.xlsx"
+  const plain = (s) => String(s || 'NHAN VIEN').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^A-Za-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase() || 'NHAN VIEN';
+  const fileNameByType = (name, period, type) => `${type === 'province' ? 'Pc Xe' : 'Pc Xang'} - ${plain(name)} - thang ${parseInt(String(period).slice(5), 10)} ${String(period).slice(0, 4)}.xlsx`;
+  // Chỉ giữ sheet của một loại phụ cấp (mẫu có 2 sheet: Xăng xe 60K, Phụ cấp Xe đi tỉnh) — dùng cho file đính kèm tách theo loại
+  function keepSheet(wb, type) {
+    const drop = type === 'province' ? (wb.getWorksheet('Xăng xe 60K') || wb.worksheets[0]) : (wb.getWorksheet('Phụ cấp Xe đi tỉnh') || wb.worksheets[1]);
+    if (drop && wb.worksheets.length > 1) wb.removeWorksheet(drop.id);
+    return wb;
+  }
+
+  const api = { fileNameByType, keepSheet, TYPES, MAX_ROWS, LEAVE_CODES, workDates, projectsOf, sanitize, compute, summary, fillWorkbook, fileName, money };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsAllowance = api;
 })(typeof window !== 'undefined' ? window : globalThis);

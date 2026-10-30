@@ -952,12 +952,14 @@ test('báo cáo tối: mỗi người phụ trách một thư với dòng chấm
   assert.equal(sum.sent, sum.recipients, JSON.stringify(sum)); assert.ok(sum.pending >= 1);
   const ap1 = mailsTo('ap1@example.com'), ap3 = mailsTo('ap3@example.com'), ap2 = mailsTo('ap2@example.com');
   assert.equal(ap1.length, 1); assert.equal(ap3.length, 1); assert.equal(ap2.length, 1);
-  assert.match(ap1[0].subject, /\[Báo cáo thi công\] Thứ 5 05\/11\/2026 — 1 dòng/);
+  assert.match(ap1[0].subject, /^Thợ Bốn - Dự án duyệt - WA-1 - Chấm công\/báo cáo ngày 05\.11\.2026/);
+  assert.doesNotMatch(ap1[0].subject, /Duyệt OT|Duyệt nghỉ phép/);
+  for (const m of sentMail.filter(x => /Chấm công\/báo cáo ngày/.test(x.subject))) assert.equal(/Mở Duyệt bảng công/.test(m.htmlContent), / - Duyệt /.test(m.subject), 'nút duyệt chỉ khi có việc cần duyệt: ' + m.subject);
   assert.match(ap1[0].htmlContent, /Thợ Bốn/); assert.match(ap1[0].htmlContent, /Đã lắp xong ray tầng 5/); assert.match(ap1[0].htmlContent, /8 giờ/);
   assert.doesNotMatch(ap1[0].htmlContent, /hôm qua|nghỉ phép|Thợ Bảy/);
   assert.match(ap2[0].htmlContent, /Thợ Bảy/); assert.doesNotMatch(ap2[0].htmlContent, /Thợ Bốn/, 'AP2 chỉ nhận fitter mình quản lý trực tiếp');
   // ⏳ bảng công chờ duyệt: TS7 (Quản lý trực tiếp AP2) đã nộp kỳ 12/2026 → thư của AP2 có mục chờ duyệt, bấm mở thẳng bảng công
-  assert.match(ap2[0].subject, /· 1 chờ duyệt$/); assert.match(ap2[0].htmlContent, /Bảng công chờ bạn duyệt/);
+  assert.match(ap2[0].subject, / - Duyệt bảng công$/); assert.match(ap2[0].htmlContent, /Bảng công chờ bạn duyệt/);
   assert.match(ap2[0].htmlContent, /tools\/approvals\/#xem=TS7\/2026-12/);
   assert.ok(sentMail.some(m => m.to.some(t => t.email === 'boss@example.com') && /#xem=TS6\/2026-12/.test(m.htmlContent)), 'bảng công không ai phụ trách → admin thấy trong mục chờ duyệt');
   sentMail.length = 0;
@@ -968,7 +970,7 @@ test('báo cáo tối: mỗi người phụ trách một thư với dòng chấm
   assert.equal(s6.entries, 0, 'ngày khác không có dòng nào'); assert.ok(s6.missing >= 1, JSON.stringify(s6));
   const m6 = mailsTo('ap2@example.com');
   assert.equal(m6.length, 1); assert.match(m6[0].htmlContent, /Hôm nay chưa chấm công<\/h3><p style="margin:0">[^<]*Thợ Bảy/);
-  assert.match(m6[0].subject, /— 0 dòng chấm công/);
+  assert.match(m6[0].subject, /Chấm công\/báo cáo ngày 06\.11\.2026/);
   sentMail.length = 0;
   const s8 = await runDigest(env, { now: new Date('2026-11-08T11:30:00Z') });     // Chủ nhật
   assert.equal(s8.missing, 0, 'Chủ nhật không báo chưa chấm công');
@@ -1342,7 +1344,7 @@ test('báo cáo tối: có mục tăng ca chờ duyệt và đơn nghỉ chờ d
   assert.ok(m, 'Site Sup nhận thư');
   assert.match(m.htmlContent, /Tăng ca chờ bạn duyệt/); assert.match(m.htmlContent, /Thợ Một/);
   assert.match(m.htmlContent, /Đơn nghỉ chờ bạn duyệt/); assert.match(m.htmlContent, /Cưới em gái/);
-  assert.match(m.subject, /ngày OT chờ duyệt/);
+  assert.match(m.subject, /Chấm công\/báo cáo ngày .* - Duyệt OT \+ Duyệt nghỉ phép/); assert.match(m.htmlContent, /Mở Duyệt bảng công/);
 });
 
 // ---------- thư duyệt xong kèm Excel ----------
@@ -1417,10 +1419,10 @@ test('báo cáo tối: nhắc fitter chưa chấm hôm nay (kèm ngày thiếu);
   assert.equal(rem('ts2@example.com').length, 0, 'đã chấm hôm nay');
   assert.equal(rem('ap1@example.com').length, 0, 'giám sát không bị nhắc chấm công hằng ngày');
   // giám sát nhận MỘT thư tổng hợp: có phần chấm bù của Thợ Hai (2 ngày) và báo Thợ Một chưa chấm; AP1 (giám sát) không nằm trong danh sách chưa chấm
-  const ap1 = mailsTo('ap1@example.com').filter(m => /Báo cáo thi công/.test(m.subject));
+  const ap1 = mailsTo('ap1@example.com').filter(m => /Chấm công\/báo cáo ngày/.test(m.subject));
   assert.equal(ap1.length, 1, 'một thư duy nhất');
   assert.match(ap1[0].htmlContent, /Chấm công bù hôm nay[\s\S]*Thợ Hai<\/b> chấm bù 2 ngày: 07\/06, 08\/06/);
-  assert.match(ap1[0].htmlContent, /bù thứ 2/); assert.match(ap1[0].subject, /\+ 2 dòng chấm bù/);
+  assert.match(ap1[0].htmlContent, /bù thứ 2/); assert.match(ap1[0].subject, /^Thợ Hai - Dự án duyệt - WA-1 - Chấm công\/báo cáo ngày 10\.06\.2027/);
   assert.doesNotMatch(ap1[0].htmlContent, /Hôm nay chưa chấm công<\/h3><p style="margin:0">[^<]*Giám Sát Duyệt/);
   sentMail.length = 0;
   const again = await runDigest(env, { now });

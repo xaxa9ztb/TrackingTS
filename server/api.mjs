@@ -794,7 +794,7 @@ async function pushApprovedRows(env, me, row, period) {
 const MAX_FILE_B64 = 2000000;
 function cleanFiles(list) {
   if (!Array.isArray(list)) return [];
-  return list.slice(0, 2).map(f => ({ name: str(f && f.name, 120).replace(/[^\w.\- ]+/g, '_'), content: String((f && f.content) || '') }))
+  return list.slice(0, 3).map(f => ({ name: str(f && f.name, 120).replace(/[^\w.\- ]+/g, '_'), content: String((f && f.content) || '') }))
     .filter(f => /\.xlsx$/i.test(f.name) && f.content.length > 100 && f.content.length <= MAX_FILE_B64 && /^[A-Za-z0-9+/]+={0,2}$/.test(f.content) && f.content.startsWith('UEsD'));
 }
 

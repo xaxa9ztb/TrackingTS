@@ -285,12 +285,16 @@
     const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl('ts-template.xlsx'), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
     out.push({ name: ts.name, content: b64(ts.buffer) });
     const allow = TsAllowance.compute(entries, doc.data.allow, periodRange(period));
-    if (allow.rows.length) {
+    // mỗi loại phụ cấp một file: "Pc Xang - TEN - thang M YYYY.xlsx", "Pc Xe - TEN - thang M YYYY.xlsx"
+    const tplBuf = allow.rows.length ? await tpl('phucap-xe-template.xlsx') : null;
+    for (const type of ['fuel', 'province']) {
+      if (!allow.rows.some(x => x.type === type)) continue;
       const wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(await tpl('phucap-xe-template.xlsx'));
+      await wb.xlsx.load(tplBuf);
       const d = new Date(), iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       TsAllowance.fillWorkbook(wb, { name: doc.name, empId: emp, computed: allow, date: iso });
-      out.push({ name: TsAllowance.fileName(doc.name, period), content: b64(await wb.xlsx.writeBuffer()) });
+      TsAllowance.keepSheet(wb, type);
+      out.push({ name: TsAllowance.fileNameByType(doc.name, period, type), content: b64(await wb.xlsx.writeBuffer()) });
     }
     return out;
   }

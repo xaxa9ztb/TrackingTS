@@ -1,6 +1,8 @@
 // Kiểm thử phần dùng chung duyệt tăng ca / đơn nghỉ (tools/timesheet/otleave.js). Chạy: npm run test:client
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import OtLeave from '../../tools/timesheet/otleave.js';
 import Labor from '../../tools/timesheet/labor.js';
 
@@ -59,4 +61,11 @@ test('leaveEntry: dòng chấm công nghỉ hợp lệ (cả ngày / nửa ngày
   const unpaid = OtLeave.leaveEntry({ date: '2026-11-03', half: false }, '6090', 8, '125', 5);
   assert.deepEqual([unpaid.startTime, unpaid.endTime, unpaid.workNumber], ['', '', 'UNPAID LEAVE']);
   assert.equal(OtLeave.addDay('2026-12-31', 1), '2027-01-01');
+});
+
+test('tên file bảng chấm công: tên in hoa không dấu', () => {
+  const X = require('../../tools/timesheet/tsexcel.js');
+  assert.equal(X.fileName('Phan Anh Đức'), 'PHAN ANH DUC.xlsx');
+  assert.equal(X.fileName("Nguyễn  Văn-Tùng (A)"), 'NGUYEN VAN TUNG A.xlsx');
+  assert.equal(X.fileName(''), 'NHAN VIEN.xlsx');
 });

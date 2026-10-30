@@ -167,9 +167,13 @@
     const buffer = await workbook.xlsx.writeBuffer();
     const cleanName = removeAccents(profile.name || 'Timesheet');
     const [y, m] = month.split('-');
-    return { buffer, name: `${cleanName}_Thang_${m}_${y}.xlsx` };
+    return { buffer, name: fileName(profile.name) };
   }
 
-  const api = { buildTimesheet, activityToCol, ACT_COL, OT_COL, calculateHours, removeAccents };
+  // Tên file bảng chấm công: tên nhân viên IN HOA không dấu, vd "PHAN ANH DUC.xlsx"
+  const plainName = (s) => String(s || 'NHAN VIEN').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^A-Za-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase() || 'NHAN VIEN';
+  const fileName = (name) => plainName(name) + '.xlsx';
+
+  const api = { plainName, fileName, buildTimesheet, activityToCol, ACT_COL, OT_COL, calculateHours, removeAccents };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);

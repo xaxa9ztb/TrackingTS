@@ -1156,8 +1156,30 @@ function App() {
     const {
       bd: _bd,
       cat: _cat,
+      rangeTo,
+      skipOff,
       ...data
     } = formData; // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
+    // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+    const dates = !editing && rangeTo && rangeTo > data.date ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
+    if (dates) {
+      if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
+      const base = Date.now() * 100;
+      setEntries(prev => [...prev, ...dates.map((d, i) => ({
+        ...data,
+        date: d,
+        id: base + i,
+        u
+      }))]);
+      if (SERVER) {
+        TsSync.markDirty(dates);
+        scheduleSync();
+      }
+      setDrawer(null);
+      const pm0 = periodMonthOf(dates[0]);
+      if (pm0 !== currentMonth) changeMonth(pm0);
+      return showToast(`Đã thêm chấm công cho ${dates.length} ngày (${fmtDM(dates[0])} → ${fmtDM(dates[dates.length - 1])}).`);
+    }
     if (editing) setEntries(prev => prev.map(e => e.id === editing.id ? {
       ...data,
       id: editing.id,
@@ -4660,6 +4682,9 @@ function EntryForm({
   });
   // người dùng đã tự sửa ô "Nghỉ" → không tự đổi nữa (dòng đang sửa: giữ nguyên số đã lưu)
   const [breakTouched, setBreakTouched] = useState(!!initialData);
+  const [multi, setMulti] = useState(false); // chấm nhiều ngày liên tiếp (chỉ khi thêm mới)
+  const [rangeTo, setRangeTo] = useState('');
+  const [skipOff, setSkipOff] = useState(true); // bỏ ngày nghỉ hằng tuần + ngày lễ
   const [customCode, setCustomCode] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const isHR = useMemo(() => {
@@ -4809,6 +4834,12 @@ function EntryForm({
       finalData.activityCode = customCode;
     }
     if (leaveBlocked) return;
+    if (multi && !initialData) {
+      if (!rangeTo || rangeTo <= finalData.date) return alert('Chọn ngày kết thúc sau ngày bắt đầu.');
+      if (rangeDays.length > 62) return alert('Tối đa 62 ngày một lần.');
+      finalData.rangeTo = rangeTo;
+      finalData.skipOff = skipOff;
+    }
     if (finalData.otMode === 'auto') finalData.otType = LaborVN.dominant(preview); // loại giờ chính (hiển thị gọn / dữ liệu cũ)
     onSave(finalData);
   };
@@ -4817,6 +4848,7 @@ function EntryForm({
     [k]: e.target.value
   });
   const hours = calculateHours(formData.startTime, formData.endTime, formData.breakTime);
+  const rangeDays = multi && formData.date && rangeTo > formData.date ? daysBetween(formData.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))) : [];
   const w = formData.date ? weekdayOf(formData.date) : null;
   const holi = holidayOf(formData.date, sch);
   const leave = LaborVN.LEAVE_CODES.includes(formData.activityCode === 'OTHER' ? customCode : formData.activityCode);
@@ -4851,7 +4883,46 @@ function EntryForm({
     onChange: handleDateChange,
     className: inputCls,
     required: true
-  })), /*#__PURE__*/React.createElement("div", {
+  })), !initialData && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-lg border border-slate-200 px-3 py-2"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-2 min-h-9 text-sm text-slate-800 cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsMulti",
+    type: "checkbox",
+    checked: multi,
+    onChange: e => {
+      setMulti(e.target.checked);
+      if (e.target.checked && !rangeTo) setRangeTo(formData.date || '');
+    },
+    className: "w-4 h-4 shrink-0 accent-blue-700"
+  }), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Ch\u1EA5m nhi\u1EC1u ng\xE0y li\xEAn ti\u1EBFp"), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-slate-500"
+  }, "(c\xF9ng ho\u1EA1t \u0111\u1ED9ng, d\u1EF1 \xE1n, gi\u1EDD)"))), multi && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 space-y-2"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "\u0110\u1EBFn h\u1EBFt ng\xE0y",
+    htmlFor: "tsRangeTo"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsRangeTo",
+    type: "date",
+    min: formData.date,
+    value: rangeTo,
+    onChange: e => setRangeTo(e.target.value),
+    className: inputCls
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsSkipOff",
+    type: "checkbox",
+    checked: skipOff,
+    onChange: e => setSkipOff(e.target.checked),
+    className: "w-4 h-4 accent-blue-700"
+  }), " B\u1ECF ng\xE0y ngh\u1EC9 h\u1EB1ng tu\u1EA7n v\xE0 ng\xE0y l\u1EC5"), /*#__PURE__*/React.createElement("p", {
+    id: "tsRangeInfo",
+    className: "text-sm font-medium text-blue-800",
+    "aria-live": "polite"
+  }, rangeDays.length ? `Sẽ tạo ${rangeDays.length} dòng: ${fmtDM(rangeDays[0])} → ${fmtDM(rangeDays[rangeDays.length - 1])} (mỗi ngày ${fmtH(hours)} giờ)` : 'Chọn ngày kết thúc để xem số ngày.'))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "T\u1EEB",
