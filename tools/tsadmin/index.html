@@ -41,6 +41,16 @@
     </details>
   </section>
 
+  <section class="ac-card" id="secHr" hidden>
+    <div class="ap-head"><h2>Xuất cho HR theo kỳ lương</h2><button class="btn small" id="hrReload">Tải lại</button></div>
+    <p class="ac-note">Chọn các bảng công <b>đã duyệt xong</b> của kỳ đang chọn ở trên, bấm <b>Xuất file nén</b> → tải về 1 file zip gồm 2 thư mục:
+      <b>Bảng công</b> (mỗi nhân viên 1 file Excel) và <b>Phụ cấp</b> (1 file phụ cấp xe, 1 file phụ cấp xăng — mỗi nhân viên 1 tab). File do bạn tự tải về, hệ thống <b>không gửi email</b>.</p>
+    <div class="ac-row"><label><input type="checkbox" id="hrAll" checked> Chọn tất cả</label><span class="ac-note" id="hrNote"></span>
+      <button class="btn primary" id="hrExport">Xuất file nén</button></div>
+    <div class="ac-scroll ac-short"><table class="ac-table" id="tHr"><thead><tr><th></th><th>Mã NV</th><th>Nhân viên</th><th class="r">Dòng</th><th>Duyệt cuối</th></tr></thead><tbody></tbody></table></div>
+    <div id="hrMsg" class="ac-note"></div>
+  </section>
+
   <section class="ac-card" id="secHist" hidden>
     <h2>Nhập dữ liệu lịch sử từ <i>Theo dõi giờ công</i></h2>
     <p class="ac-note">Dựng lại bảng công (trạng thái <b>đã duyệt xong</b>) của TỪNG nhân viên theo từng kỳ lương trong quá khứ từ dữ liệu đã nạp ở bảng <i>Theo dõi giờ công các công trình</i> — kể cả fitter không có tài khoản app.
@@ -68,6 +78,8 @@
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="../timesheet/tsexcel.js?v=3"></script>
-<script src="app.js?v=2"></script>
+<script src="../timesheet/allowance.js?v=1"></script>
+<script src="hrexport.js?v=1"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

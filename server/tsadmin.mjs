@@ -25,6 +25,18 @@ async function listDocs(h, env, me, url) {
     others: emps.filter(e => !have.has(e.emp_id)).map(e => ({ empId: e.emp_id, name: e.full_name, position: e.position, account: !!e.email })) });
 }
 
+// Xuất hàng loạt cho HR: toàn bộ bảng công ĐÃ DUYỆT XONG của một kỳ, kèm dữ liệu (trình duyệt Admin tự dựng file Excel và nén zip).
+async function approvedDocs(h, env, me, url) {
+  needAdmin(h, me);
+  const period = String(url.searchParams.get('period') || '');
+  if (!PERIOD_RE.test(period)) throw new h.HttpError(400, 'Kỳ lương không hợp lệ (dạng YYYY-MM)');
+  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.data, d.entry_count, d.final_by, d.final_at, e.full_name, e.position
+      FROM ts_docs d LEFT JOIN employees e ON e.emp_id = d.emp_id WHERE d.period = ? AND d.status = 'approved' ORDER BY e.full_name LIMIT 1000`).bind(period).all();
+  const head = (r) => JSON.stringify({ empId: r.emp_id, name: r.full_name || r.emp_id, position: r.position || '', entries: r.entry_count, finalBy: r.final_by || '', finalAt: r.final_at || '' });
+  const items = results.map(r => head(r).slice(0, -1) + ',"data":' + (r.data || '{"entries":[]}') + '}');
+  return new Response(`{"period":${JSON.stringify(period)},"docs":[${items.join(',')}]}`, { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
 async function getDoc(h, env, me, emp, period) {
   needAdmin(h, me);
   h.periodParam(period);
@@ -100,6 +112,7 @@ async function putDoc(h, env, me, emp, period, request) {
 export async function routeTsAdmin(h, env, me, path, method, url, request) {
   let m;
   if (path === '/api/admin/ts/docs' && method === 'GET') return listDocs(h, env, me, url);
+  if (path === '/api/admin/ts/approved' && method === 'GET') return approvedDocs(h, env, me, url);
   if ((m = path.match(/^\/api\/admin\/ts\/doc\/([^/]+)\/([^/]+)$/)) && method === 'GET') return getDoc(h, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
   if ((m = path.match(/^\/api\/admin\/ts\/doc\/([^/]+)\/([^/]+)$/)) && method === 'PUT') return putDoc(h, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), request);
   return null;

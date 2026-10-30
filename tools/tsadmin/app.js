@@ -43,7 +43,7 @@
     body.innerHTML = '<tr><td colspan="6" class="ac-note">Đang tải…</td></tr>';
     try {
       const r = await api('GET', '/api/admin/ts/docs?period=' + period);
-      docs = r.docs; others = r.others; renderList();
+      docs = r.docs; others = r.others; renderList(); loadHr();
     } catch (e) { body.innerHTML = `<tr><td colspan="6" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
   }
   function renderList() {
@@ -137,7 +137,44 @@
     finally { $('eSave').disabled = false; }
   }
 
+  // ---------- xuất cho HR ----------
+  let hrDocs = [];
+  const loadJs = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('không tải được thư viện ' + src.split('/').pop())); document.head.appendChild(s); });
+  const tpl = async (name) => { const r = await fetch('../timesheet/' + name); if (!r.ok) throw new Error('không tải được mẫu ' + name + ' (HTTP ' + r.status + ')'); return r.arrayBuffer(); };
+  async function loadHr() {
+    const body = $('tHr').tBodies[0];
+    try {
+      const r = await api('GET', '/api/admin/ts/approved?period=' + period);
+      hrDocs = r.docs;
+      body.innerHTML = hrDocs.map((d, i) => `<tr><td><input type="checkbox" data-i="${i}" checked></td><td class="mono">${esc(d.empId)}</td><td><b>${esc(d.name)}</b></td><td class="r">${d.entries}</td><td>${esc(d.finalBy || '')} ${d.finalAt ? esc(fmtTime(d.finalAt)) : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="ac-note">Chưa có bảng công nào được duyệt xong trong kỳ này.</td></tr>';
+      $('hrAll').checked = true; hrCount();
+    } catch (e) { hrDocs = []; body.innerHTML = `<tr><td colspan="5" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+  }
+  const hrPicked = () => [...$('tHr').querySelectorAll('input[data-i]:checked')].map(x => hrDocs[+x.dataset.i]);
+  function hrCount() { $('hrNote').textContent = `Đã chọn ${hrPicked().length}/${hrDocs.length} bảng công`; $('hrExport').disabled = !hrPicked().length; }
+  async function hrRun() {
+    const picked = hrPicked(), msg = $('hrMsg');
+    if (!picked.length) return;
+    $('hrExport').disabled = true; msg.className = 'ac-note'; msg.textContent = 'Đang chuẩn bị thư viện…';
+    try {
+      if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+      if (!window.JSZip) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      const d = new Date(), today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const r = await TsHrExport.build({ ExcelJS, JSZip, TsExcel: TS, TsAllowance }, { docs: picked, period, today,
+        tpl: { timesheet: await tpl('ts-template.xlsx'), allowance: await tpl('phucap-xe-template.xlsx') },
+        onProgress: (n, total) => { msg.textContent = `Đang tạo file Excel ${n}/${total}…`; } });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+      msg.textContent = `✓ Đã tạo ${r.name}: ${r.files.tsCount} bảng công, phụ cấp xe ${r.files.province} tab, phụ cấp xăng ${r.files.fuel} tab.`;
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+    finally { hrCount(); }
+  }
+
   function wire() {
+    $('hrReload').addEventListener('click', loadHr);
+    $('hrExport').addEventListener('click', hrRun);
+    $('hrAll').addEventListener('change', () => { $('tHr').querySelectorAll('input[data-i]').forEach(x => { x.checked = $('hrAll').checked; }); hrCount(); });
+    $('tHr').tBodies[0].addEventListener('change', hrCount);
     $('pPrev').addEventListener('click', () => { period = shift(period, -1); $('secEdit').hidden = true; loadList(); });
     $('pNext').addEventListener('click', () => { period = shift(period, 1); $('secEdit').hidden = true; loadList(); });
     $('fFilter').addEventListener('input', renderList);
@@ -184,7 +221,7 @@
     catch (e) { gate('Trang này chỉ dùng trên <b>máy chủ mới (Cloudflare)</b>.'); return; }
     $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ${me.isAdmin ? 'Admin' : me.isProjAdmin ? 'Admin dự án' : ''}`;
     if (!me.isAdmin && !me.isProjAdmin) { gate('Chỉ <b>Admin</b> và <b>Admin dự án</b> dùng trang này.'); return; }
-    $('secList').hidden = false; $('secHist').hidden = false; wire(); await loadList();
+    $('secList').hidden = false; $('secHr').hidden = false; $('secHist').hidden = false; wire(); await loadList();
   }
   start();
 })();

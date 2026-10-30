@@ -1527,6 +1527,19 @@ test('Admin dự án: tạo vai trò; không quản lý tài khoản nhưng phâ
   assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'ts1@example.com' })).status, 403);
 });
 
+test('Xuất cho HR: chỉ Admin / Admin dự án lấy được bảng công ĐÃ DUYỆT XONG của kỳ, kèm dữ liệu', async () => {
+  const get = (period, email) => call('GET', '/api/admin/ts/approved?period=' + period, { email });
+  const r = await get('2027-07', 'pa1@example.com');
+  assert.equal(r.status, 200); assert.equal(r.data.period, '2027-07');
+  const ap1 = r.data.docs.find(d => d.empId === 'AP1');
+  assert.ok(ap1 && Array.isArray(ap1.data.entries) && ap1.entries === ap1.data.entries.length, 'có dữ liệu bảng công');
+  assert.ok((await get('2027-07', 'boss@example.com')).data.docs.length >= 1);
+  assert.equal((await get('2027-07', 'ap1@example.com')).status, 403);
+  assert.equal((await get('2027-13', 'pa1@example.com')).status, 400);
+  await putDoc('ts1@example.com', '2027-09', [okEntry(9101, '2027-08-20')], 0);
+  assert.equal((await get('2027-09', 'pa1@example.com')).data.docs.length, 0, 'bản nháp / chưa duyệt xong không có trong danh sách');
+});
+
 test('Admin sửa bảng công: bắt buộc ghi chú; đánh dấu dòng bị sửa; người chủ thấy ghi chú + nhận thư; người không có tài khoản vẫn tạo / sửa được', async () => {
   const get = (e, p) => call('GET', `/api/admin/ts/doc/${e}/${p}`, { email: 'pa1@example.com' });
   const put = (e, p, body, who = 'pa1@example.com') => call('PUT', `/api/admin/ts/doc/${e}/${p}`, { email: who, body });
