@@ -10,6 +10,7 @@ import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
 import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
+import { routeTsImport } from './tsimport.mjs';
 import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs } from './tsflow.mjs';
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
@@ -670,6 +671,12 @@ async function submitMyDoc(env, me, period, request) {
   if (bad) throw new HttpError(400, bad);
   const allow = checkSubmitAllowance(period, data);
   if (allow.error) throw new HttpError(400, allow.error);
+  return json(await startApproval(env, me, emp, period, row.version, entries, allow.computed.totals.amount));
+}
+
+// Bắt đầu quy trình duyệt cho bảng công đã kiểm tra hợp lệ (nộp bởi chính chủ hoặc nhập hộ qua /api/ts/import): đặt trạng thái, ghi dự án,
+// bỏ qua cấp không có dự án, gửi thư cho cấp đầu tiên và thư nhắc OT chưa duyệt.
+async function startApproval(env, me, emp, period, version, entries, allowanceAmount = 0) {
   // Giám sát (Site Sup / QLDA): bảng công chỉ gồm giờ tăng ca, nộp thẳng Quản lý dự án
   const owner = await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(emp).first();
   const lead = isLead(env, owner);
@@ -683,19 +690,21 @@ async function submitMyDoc(env, me, period, request) {
   const t = now();
   const status = lead ? 'sitesup_ok' : 'submitted';     // giám sát: bỏ cấp Site Sup, chờ Quản lý dự án (sitesup_by để trống)
   const r = await env.DB.prepare(`UPDATE ts_docs SET status = ?, submitted_at = ?, sitesup_by = '', sitesup_at = '', pm_by = '', pm_at = '', note = '' WHERE emp_id = ? AND period = ? AND version = ? AND status IN ('draft', 'rejected')`)
-    .bind(status, t, emp, period, row.version).run();
+    .bind(status, t, emp, period, version).run();
   if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — thử lại');
   const stmts = [env.DB.prepare('DELETE FROM ts_doc_wbs WHERE emp_id = ? AND period = ?').bind(emp, period)];
   if (wbsList.length) stmts.push(env.DB.prepare(`INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbsList.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbsList.flatMap(w => [emp, period, w])));
   await env.DB.batch(stmts);
-  await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length, allowance: allow.computed.totals.amount, otPending: otPending.length, direct: lead });
+  await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length, allowance: allowanceAmount, by: me.email, otPending: otPending.length, direct: lead });
   // cấp nào không có dự án cần duyệt thì tự bỏ qua (bảng công chỉ có hoạt động ngoài dự án → thẳng Admin)
   const s = await settle(H, env, emp, period, status, wbsList);
   if (s.moved.length) await notifyStage(env, s.status, { empId: emp, period, wbs: wbsList, by: '' });
   else await notifyEvent(env, lead ? 'submitted_direct' : 'submitted', { empId: emp, period, wbs: wbsList, otPending });
   if (otPending.length) await notifyEvent(env, 'ot_unapproved', { empId: emp, period, wbs: wbsList, otPending, lead });
-  return json({ ok: true, status: s.status, version: row.version, submittedAt: t, otPending: otPending.length });
+  await env.DB.prepare('DELETE FROM ts_approvals WHERE emp_id = ? AND period = ?').bind(emp, period).run();
+  return { ok: true, status: s.status, version, submittedAt: t, otPending: otPending.length };
 }
+
 
 async function withdrawMyDoc(env, me, period) {
   const emp = needOwnEmp(me);
@@ -797,7 +806,7 @@ async function listAudit(env, me, url) {
 }
 
 // các hàm dùng chung truyền cho server/otleave.mjs (duyệt tăng ca, đơn nghỉ)
-const H = { HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES, periodParam, pushApprovedRows, mailConfigured };
+const H = { startApproval, HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES, periodParam, pushApprovedRows, mailConfigured };
 
 // ---------- điểm vào ----------
 
@@ -874,8 +883,8 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/resend$/)) && method === 'POST') return await resendApproved(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), request);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
-    if (path.startsWith('/api/admin/ts/')) {
-      const r = await routeTsAdmin(H, env, me, path, method, url, request);
+    if (path.startsWith('/api/admin/ts/') || path === '/api/ts/import') {
+      const r = (await routeTsImport(H, env, me, path, method, url, request)) || (await routeTsAdmin(H, env, me, path, method, url, request));
       if (r) return r;
     }
     if (path.startsWith('/api/ts/ot/') || path.startsWith('/api/ts/leave')) {

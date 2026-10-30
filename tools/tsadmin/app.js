@@ -152,6 +152,30 @@
       $('tEdit').tBodies[0].insertAdjacentHTML('beforeend', rowHtml(e, cur.rows.length - 1)); summary();
     });
     $('eSave').addEventListener('click', save);
+    $('hRun').addEventListener('click', runHistory);
+  }
+
+  // ---------- nhập lịch sử từ Theo dõi giờ công ----------
+  async function runHistory() {
+    const a = $('hFrom').value, b = $('hTo').value || a, log = $('hLog');
+    if (!/^\d{4}-\d{2}$/.test(a) || !/^\d{4}-\d{2}$/.test(b) || b < a) { toast('Chọn khoảng kỳ lương hợp lệ (từ kỳ ≤ đến kỳ).'); return; }
+    if (!confirm(`Nhập lịch sử từ kỳ ${a} đến kỳ ${b}? Nhân viên đã có bảng công kỳ đó không bị ghi đè.`)) return;
+    $('hRun').disabled = true; log.textContent = '';
+    const say = (t) => { log.textContent += t + '\n'; log.scrollTop = log.scrollHeight; };
+    let grand = 0, emps = 0;
+    try {
+      for (let p = a; p <= b; p = shift(p, 1)) {
+        const info = await api('GET', '/api/admin/ts/history?period=' + p);
+        say(`Kỳ ${p}: ${info.employees} nhân viên có dữ liệu, ${info.done} đã có bảng công`);
+        for (let guard = 0; guard < 400; guard++) {
+          const r = await api('POST', '/api/admin/ts/history', { period: p });
+          if (r.imported) { say(`   + ${r.imported} nhân viên (${r.rows} dòng), còn ${r.remaining}`); grand += r.rows; emps += r.imported; }
+          if (!r.remaining) break;
+        }
+      }
+      say(`✓ Xong: ${emps} bảng công, ${grand} dòng.`); toast(`✓ Đã nhập ${emps} bảng công lịch sử.`);
+    } catch (e) { say('✗ ' + e.message); }
+    finally { $('hRun').disabled = false; }
   }
 
   async function start() {
@@ -160,7 +184,7 @@
     catch (e) { gate('Trang này chỉ dùng trên <b>máy chủ mới (Cloudflare)</b>.'); return; }
     $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ${me.isAdmin ? 'Admin' : me.isProjAdmin ? 'Admin dự án' : ''}`;
     if (!me.isAdmin && !me.isProjAdmin) { gate('Chỉ <b>Admin</b> và <b>Admin dự án</b> dùng trang này.'); return; }
-    $('secList').hidden = false; wire(); await loadList();
+    $('secList').hidden = false; $('secHist').hidden = false; wire(); await loadList();
   }
   start();
 })();

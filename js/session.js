@@ -36,6 +36,7 @@ const Session = (() => {
     leave: { name: 'Nghỉ phép / ốm', path: 'tools/leave/', serverOnly: true },       // mọi nhân viên; chỉ có ở bản máy chủ
     approvals: { name: 'Duyệt bảng công', path: 'tools/approvals/', serverOnly: true, roles: ['pm', 'sitesup', 'projadmin'], rolesLabel: 'Quản lý dự án, Site Sup và Admin dự án' },       // chỉ có ở bản máy chủ
     materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
+    tsupload: { name: 'Nhập bảng công từ Excel', path: 'tools/tsupload/', serverOnly: true, roles: ['pm', 'sitesup', 'projadmin'], rolesLabel: 'Site Sup, Quản lý dự án và Admin dự án' },
     tsadmin: { name: 'Quản lý bảng công', path: 'tools/tsadmin/', serverOnly: true, roles: ['projadmin'], rolesLabel: 'Admin và Admin dự án' },
     admin: { name: 'Quản trị', path: 'admin.html', roles: ['admin'], rolesLabel: 'Quản trị viên' },  // nhân viên, dự án, bảng công (Excel), tài khoản & phân quyền
   };

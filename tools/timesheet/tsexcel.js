@@ -177,6 +177,63 @@
   const plainName = (s) => String(s || 'NHAN VIEN').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^A-Za-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase() || 'NHAN VIEN';
   const fileName = (name) => plainName(name) + '.xlsx';
 
-  const api = { plainName, fileName, buildTimesheet, activityToCol, ACT_COL, ACT_META, catOf, OT_COL, calculateHours, removeAccents };
+  // ---------- đọc lại file bảng chấm công Excel (mẫu Schindler / file do Timesheet xuất) ----------
+  // sheet: worksheet ExcelJS (hoặc giả lập có getCell(addr), getRow(r).getCell(c), rowCount) → { name, empId, position, dept, period, entries[], problems[] }
+  // Mỗi dòng: { date, startTime, endTime, breakTime, activityCode, projectName, workNumber, remarks, excel:{ normal, ot:{OT1…} } }
+  const COL_ACT = {}; ACT_META.forEach(a => { COL_ACT[a.col] = a.id; });
+  const cellVal = (v) => {
+    if (v && typeof v === 'object' && !(v instanceof Date)) {
+      if ('result' in v) return v.result;
+      if (Array.isArray(v.richText)) return v.richText.map(t => t.text).join('');
+      if ('text' in v) return v.text;
+      return null;
+    }
+    return v === undefined ? null : v;
+  };
+  const pad2 = (n) => String(n).padStart(2, '0');
+  function asDate(v) {
+    v = cellVal(v);
+    if (v instanceof Date && !isNaN(v)) return `${v.getUTCFullYear()}-${pad2(v.getUTCMonth() + 1)}-${pad2(v.getUTCDate())}`;
+    if (typeof v === 'number' && v > 30000 && v < 80000) return asDate(new Date(Math.round((v - 25569) * 864e5)));      // số ngày Excel
+    const s = String(v == null ? '' : v).trim();
+    let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s); if (m) return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+    m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(s); if (m) return `${m[3]}-${pad2(m[2])}-${pad2(m[1])}`;
+    return '';
+  }
+  function asTime(v) {
+    v = cellVal(v);
+    if (v == null || v === '') return '';
+    if (v instanceof Date && !isNaN(v)) return v.getTime() === Date.UTC(1899, 11, 30) ? '' : `${pad2(v.getUTCHours())}:${pad2(v.getUTCMinutes())}`;      // 0 giờ của ngày gốc Excel = ô trống
+    if (v === 0) return '';       // ô giờ để trống được xuất ra là 0 (00:00)
+    if (typeof v === 'number') { const t = Math.round(((v % 1) + 1) % 1 * 1440); return `${pad2(Math.floor(t / 60) % 24)}:${pad2(t % 60)}`; }
+    const m = /^(\d{1,2})[:h.](\d{2})/.exec(String(v).trim());
+    return m ? `${pad2(m[1])}:${m[2]}` : '';
+  }
+  const asNum = (v) => { v = cellVal(v); const n = typeof v === 'number' ? v : parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : 0; };
+  const asStr = (v) => { v = cellVal(v); return v == null ? '' : String(v).trim(); };
+
+  function parseTimesheet(sheet) {
+    const g = (addr) => cellVal(sheet.getCell(addr).value);
+    const out = { name: asStr(g('E3')), empId: asStr(g('E4')), position: asStr(g('X4')), dept: asStr(g('AS4')), period: '', entries: [], problems: [] };
+    const mo = asDate(g('AS3'));
+    if (mo) out.period = mo.slice(0, 7);
+    for (let r = 10; r <= (sheet.rowCount || 200); r++) {
+      const row = sheet.getRow(r);
+      const date = asDate(row.getCell(3).value);
+      if (!date) continue;                                         // dòng trống / dòng Total / chữ ký
+      let code = '';
+      for (let c = 21; c <= 50; c++) { if (String(asStr(row.getCell(c).value)).toLowerCase() === 'x') { code = COL_ACT[c] || ''; break; } }
+      const ot = {}; for (let k = 1; k <= 7; k++) { const h = asNum(row.getCell(8 + k).value); if (h) ot['OT' + k] = h; }
+      out.entries.push({ date, startTime: asTime(row.getCell(5).value), endTime: asTime(row.getCell(6).value), breakTime: String(asNum(row.getCell(8).value)),
+        activityCode: code, projectName: asStr(row.getCell(18).value), workNumber: asStr(row.getCell(19).value), remarks: asStr(row.getCell(51).value),
+        excel: { normal: asNum(row.getCell(7).value), ot }, row: r });
+    }
+    if (!out.empId) out.problems.push('Không đọc được mã nhân viên (ô E4)');
+    if (!out.period) out.problems.push('Không đọc được tháng của bảng công (ô AS3)');
+    if (!out.entries.length) out.problems.push('Không có dòng chấm công nào (từ dòng 10)');
+    return out;
+  }
+
+  const api = { parseTimesheet, COL_ACT, plainName, fileName, buildTimesheet, activityToCol, ACT_COL, ACT_META, catOf, OT_COL, calculateHours, removeAccents };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1661,3 +1661,63 @@ test('duyệt 3 cấp: trả lại xoá mọi lần duyệt một phần; nộp 
   assert.equal((await call('GET', '/api/ts/inbox', { email: 'ap2@example.com' })).data.items.filter(i => i.empId === 'TS3' && i.period === '2027-10').length, 0, 'Site Sup không phải duyệt hoạt động ngoài dự án');
   assert.equal((await call('GET', '/api/ts/inbox', { email: 'boss@example.com' })).data.items.filter(i => i.empId === 'TS3' && i.level === 'admin').length, 1);
 });
+
+// ---------- nhập dữ liệu: lịch sử từ Theo dõi giờ công + nhập hộ từ Excel ----------
+test('nhập lịch sử từ Theo dõi giờ công: dựng bảng công từng nhân viên theo kỳ (cả người không có tài khoản); không ghi đè; chỉ Admin / Admin dự án', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [{ empId: 'HX1', fullName: 'Hóa Xuân Một', position: 'Fitter' }, { empId: 'HX2', fullName: 'Hóa Xuân Hai', position: 'Fitter' }] } });
+  const row = (emp, date, o = {}) => ({ empId: emp, empName: 'x', date, timeFrom: '08:00', timeTo: '17:00', normal: 8, ot1: 0, ot2: 0, total: 8, activities: '1110', projectNameFree: 'Dự án lịch sử', wbs: 'H-1', category: 'INS', ...o });
+  const cur = (await call('GET', '/api/timesheets/meta', { email: 'boss@example.com' })).data;
+  const rows = [row('HX1', '2026-07-20'), row('HX1', '2026-07-21', { timeTo: '19:00', normal: 8, ot1: 2, total: 10 }), row('HX1', '2026-08-10'), row('HX2', '2026-07-22', { timeFrom: '', timeTo: '', normal: 4, total: 4 }), row('NOREG', '2026-07-22')];
+  const up = await uploadTs('boss@example.com', rows, { baseVersion: cur.version });
+  assert.equal(up.commit.status, 200, JSON.stringify(up.commit.data));
+  assert.equal((await call('GET', '/api/admin/ts/history?period=2026-08', { email: 'ts1@example.com' })).status, 403);
+  assert.equal((await call('POST', '/api/admin/ts/history', { email: 'ap1@example.com', body: { period: '2026-08' } })).status, 403);
+  const info = (await call('GET', '/api/admin/ts/history?period=2026-08', { email: 'pa1@example.com' })).data;
+  assert.deepEqual([info.employees, info.done, info.rows], [3, 0, 5], 'kỳ 16/07–15/08 có 3 nhân viên (kể cả mã chưa đăng ký)');
+  await env.DB.prepare("INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by) VALUES ('HX2', '2026-08', 1, 'draft', '{\"entries\":[],\"deleted\":{}}', 0, '', '')").run();
+  const r = await call('POST', '/api/admin/ts/history', { email: 'pa1@example.com', body: { period: '2026-08' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.imported, 2, 'bỏ qua HX2 đã có bảng công'); assert.equal(r.data.remaining, 0);
+  const doc = (await call('GET', '/api/admin/ts/doc/HX1/2026-08', { email: 'pa1@example.com' })).data;
+  assert.equal(doc.status, 'approved'); assert.equal(doc.account, false, 'nhân viên không có tài khoản vẫn có bảng công');
+  assert.equal(doc.data.entries.length, 3);
+  const e2 = doc.data.entries.find(e => e.date === '2026-07-21');
+  assert.deepEqual([e2.startTime, e2.endTime, e2.breakTime, e2.workNumber, e2.activityCode, e2.otMode], ['08:00', '19:00', '1', 'H-1', '1110', 'manual']);
+  assert.deepEqual(e2.bd, { NORMAL: 8, OT1: 2 }); assert.equal(e2.otType, 'NORMAL'); assert.equal(e2.imp, 1);
+  assert.deepEqual((await env.DB.prepare("SELECT wbs FROM ts_doc_wbs WHERE emp_id = 'HX1' AND period = '2026-08'").all()).results.map(x => x.wbs), ['H-1']);
+  assert.equal((await call('POST', '/api/admin/ts/history', { email: 'boss@example.com', body: { period: '2026-08' } })).data.imported, 0, 'chạy lại không ghi đè');
+  assert.equal((await call('GET', '/api/admin/ts/doc/HX2/2026-08', { email: 'pa1@example.com' })).data.data.entries.length, 0, 'bảng công đã có không bị đổi');
+  // bảng công lịch sử xuất được Excel / sửa được (có bd khớp)
+  const ed = await call('PUT', '/api/admin/ts/doc/HX1/2026-08', { email: 'pa1@example.com', body: { baseVersion: doc.version, note: 'Sửa thử', data: { entries: doc.data.entries.map(e => e.date === '2026-07-20' ? { ...e, remarks: 'đã kiểm tra' } : e) } } });
+  assert.equal(ed.status, 200, JSON.stringify(ed.data));
+});
+
+test('nhập hộ từ Excel: giám sát / QLDA / Admin ghi bảng công cho nhân viên (kể cả không có tài khoản) rồi quy trình duyệt chạy từ đầu; kiểm tra hợp lệ', async () => {
+  const mk = (id, date, extra) => okEntry(id, date, extra);
+  const item = (empId, entries, period = '2027-11') => ({ empId, period, sch: 'mon-sat-am', entries });
+  const post = (em, items) => call('POST', '/api/ts/import', { email: em, body: { items } });
+  assert.equal((await post('ts1@example.com', [item('HX1', [mk(1, '2027-10-20')])])).status, 403, 'nhân viên thường không nhập hộ');
+  assert.equal((await post('ap1@example.com', [])).status, 400);
+  sentMail.length = 0;
+  const r = await post('ap1@example.com', [item('HX1', [mk(5001, '2027-10-20'), mk(5002, '2027-10-21', { bd: { NORMAL: 8, OT1: 2 }, endTime: '19:00' })]),
+    item('KHONG-CO', [mk(5101, '2027-10-20')]), item('HX2', [mk(5201, '2027-12-20')]), item('HX2', [{ id: 5301, date: '2027-10-20' }])]);
+  assert.equal(r.status, 200); const [a, b, c, d] = r.data.results;
+  assert.deepEqual([a.ok, a.status, a.entries], [true, 'submitted', 2], JSON.stringify(a));
+  assert.equal(b.ok, false); assert.match(b.error, /chưa có trong EE Data/);
+  assert.equal(c.ok, false); assert.match(c.error, /không thuộc kỳ lương/);
+  assert.equal(d.ok, false);
+  const doc = (await call('GET', '/api/admin/ts/doc/HX1/2027-11', { email: 'pa1@example.com' })).data;
+  assert.equal(doc.status, 'submitted'); assert.equal(doc.account, false); assert.equal(doc.savedBy, 'Nhập hộ · Giám Sát Duyệt');
+  assert.ok(sentMail.some(m => /Hóa Xuân Một đã nộp/.test(m.subject) && m.to.some(t => t.email === 'ap1@example.com')), 'quy trình duyệt bắt đầu: thư tới Site Sup của dự án');
+  assert.equal((await call('GET', '/api/ts/inbox', { email: 'ap1@example.com' })).data.items.filter(i => i.empId === 'HX1' && i.period === '2027-11').length, 1);
+  // đã nộp rồi → không ghi đè
+  const again = await post('ap3@example.com', [item('HX1', [mk(5002, '2027-10-21')])]);
+  assert.equal(again.data.results[0].ok, false); assert.match(again.data.results[0].error, /đã nộp/);
+  // bản nháp / bị trả lại thì ghi đè được; QLDA và Admin dự án nhập được
+  await call('POST', '/api/ts/review/HX1/2027-11/reject', { email: 'ap1@example.com', body: { note: 'Sai dự án' } });
+  const fix = await post('pa1@example.com', [item('HX1', [mk(5003, '2027-10-22')])]);
+  assert.equal(fix.data.results[0].ok, true, JSON.stringify(fix.data));
+  assert.equal((await call('GET', '/api/admin/ts/doc/HX1/2027-11', { email: 'pa1@example.com' })).data.data.entries.length, 1, 'thay bằng bản mới');
+  // phân loại giờ sai bị từ chối (checkSubmitEntries)
+  const bad = await post('ap3@example.com', [item('HX2', [mk(5401, '2027-10-23', { bd: { NORMAL: 3 } })])]);
+  assert.match(bad.data.results[0].error, /không khớp/);
+});

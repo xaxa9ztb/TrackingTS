@@ -41,6 +41,15 @@
     </details>
   </section>
 
+  <section class="ac-card" id="secHist" hidden>
+    <h2>Nhập dữ liệu lịch sử từ <i>Theo dõi giờ công</i></h2>
+    <p class="ac-note">Dựng lại bảng công (trạng thái <b>đã duyệt xong</b>) của TỪNG nhân viên theo từng kỳ lương trong quá khứ từ dữ liệu đã nạp ở bảng <i>Theo dõi giờ công các công trình</i> — kể cả fitter không có tài khoản app.
+      Nhân viên đã có bảng công kỳ đó <b>không bị ghi đè</b>; làm lại bao nhiêu lần cũng được.</p>
+    <div class="ac-row"><label>Từ kỳ <input type="month" id="hFrom"></label><label>đến kỳ <input type="month" id="hTo"></label>
+      <button class="btn primary" id="hRun">Nhập lịch sử</button></div>
+    <pre id="hLog" class="ta-log"></pre>
+  </section>
+
   <section class="ac-card" id="secEdit" hidden>
     <div class="ap-head"><h2 id="eTitle">Sửa bảng công</h2><button class="btn small" id="eClose">Đóng</button></div>
     <div id="eMeta" class="ap-meta"></div>
@@ -58,7 +67,7 @@
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="../timesheet/tsexcel.js?v=2"></script>
-<script src="app.js?v=1"></script>
+<script src="../timesheet/tsexcel.js?v=3"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
