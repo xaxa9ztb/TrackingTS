@@ -213,10 +213,13 @@ export async function otPendingOfDoc(env, emp, period, entries) {
 }
 
 // ---------- đơn nghỉ ----------
-const leaveOut = (r, today) => ({
+// thời điểm hiện tại (ms); env.TEST_NOW chỉ dùng khi kiểm thử
+const nowMs = (env) => (env && env.TEST_NOW ? Date.parse(env.TEST_NOW) : Date.now());
+const leaveOut = (r, now) => ({
   id: r.id, empId: r.emp_id, type: r.type, label: (OtLeave.LEAVE_TYPES[r.type] || {}).label || r.type, from: r.date_from, to: r.date_to,
   days: parse(r.days, []), count: OtLeave.dayCount(parse(r.days, [])), reason: r.reason, status: r.status, createdAt: r.created_at,
-  decidedBy: r.decided_by, decidedAt: r.decided_at, note: r.note, written: r.written, expired: r.status === 'pending' && today >= r.date_from,
+  decidedBy: r.decided_by, decidedAt: r.decided_at, note: r.note, written: r.written, expired: r.status === 'pending' && now > OtLeave.approveDeadlineMs(r.type, r.date_from, r.date_to),
+  approveBy: OtLeave.fmtDeadline(OtLeave.approveDeadlineMs(r.type, r.date_from, r.date_to)),
   ...(r.full_name !== undefined ? { name: r.full_name, position: r.position } : {}),
 });
 
@@ -234,8 +237,8 @@ async function createLeave(h, env, me, request) {
   if (!OtLeave.LEAVE_TYPES[type]) throw new h.HttpError(400, 'Loại nghỉ không hợp lệ');
   const from = String(body.from || ''), to = String(body.to || body.from || '');
   if (!DATE_RE.test(from) || !DATE_RE.test(to) || to < from) throw new h.HttpError(400, 'Ngày nghỉ không hợp lệ');
-  const today = vnDate();
-  if (from <= today) throw new h.HttpError(400, 'Đơn nghỉ phải làm TRƯỚC ngày bắt đầu nghỉ (sớm nhất là nghỉ từ ngày mai) để quản lý kịp duyệt');
+  const now = nowMs(env), today = vnDate(new Date(now));
+  if (from < today) throw new h.HttpError(400, 'Không làm đơn nghỉ cho ngày đã qua — báo quản lý trực tiếp để được xử lý');
   if (daysBetween(from, to) + 1 > OtLeave.MAX_LEAVE_DAYS) throw new h.HttpError(400, `Mỗi đơn tối đa ${OtLeave.MAX_LEAVE_DAYS} ngày — chia thành nhiều đơn`);
   if (daysBetween(today, from) > 120) throw new h.HttpError(400, 'Chỉ làm đơn cho ngày nghỉ trong vòng 4 tháng tới');
   let sch = SCHEDULES.includes(body.sch) ? body.sch : '';
@@ -245,6 +248,8 @@ async function createLeave(h, env, me, request) {
   }
   const days = OtLeave.leaveDays(from, to, sch, Labor);
   if (!days.length) throw new h.HttpError(400, 'Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — không cần làm đơn');
+  const count = OtLeave.dayCount(days), notice = OtLeave.leaveNotice(type, count), deadline = OtLeave.submitDeadlineMs(type, count, from);
+  if (now > deadline) throw new h.HttpError(400, `${OtLeave.LEAVE_TYPES[type].label} ${count} ngày công phải nộp đơn trước ${notice.label} (muộn nhất ${OtLeave.fmtDeadline(deadline)}; giờ bắt đầu nghỉ tính 08:00) — đã quá hạn, báo trực tiếp quản lý của bạn`);
   const reason = h.str(body.reason, 300);
   const clash = await env.DB.prepare("SELECT id, date_from, date_to FROM ts_leave WHERE emp_id = ? AND status IN ('pending', 'approved') AND date_from <= ? AND date_to >= ? LIMIT 1")
     .bind(emp, to, from).first();
@@ -254,14 +259,14 @@ async function createLeave(h, env, me, request) {
     .bind(emp, type, from, to, JSON.stringify(days), reason, wbs.join(','), h.now()).first();
   await h.audit(env, me, 'leave_request', 'ts_leave', String(r.id), undefined, { type, from, to, days: OtLeave.dayCount(days) });
   await notifyLeave(env, 'request', { leave: r });
-  return h.json({ ok: true, leave: leaveOut(r, today) });
+  return h.json({ ok: true, leave: leaveOut(r, now) });
 }
 
 async function myLeaves(h, env, me) {
   const emp = h.needOwnEmp(me);
   const { results } = await env.DB.prepare('SELECT * FROM ts_leave WHERE emp_id = ? ORDER BY date_from DESC, id DESC LIMIT 40').bind(emp).all();
-  const today = vnDate();
-  return h.json({ today, leaves: results.map(r => leaveOut(r, today)) });
+  const now = nowMs(env);
+  return h.json({ today: vnDate(new Date(now)), leaves: results.map(r => leaveOut(r, now)) });
 }
 
 async function cancelLeave(h, env, me, id) {
@@ -272,28 +277,23 @@ async function cancelLeave(h, env, me, id) {
   return h.json({ ok: true, status: 'cancelled' });
 }
 
-// Người duyệt đơn nghỉ: admin; hoặc Site Sup / QLDA là Quản lý trực tiếp của fitter, hoặc được gán cho dự án fitter đang làm.
-// Đơn của giám sát: chỉ Quản lý dự án (của dự án / Quản lý trực tiếp) duyệt.
-function canLeave(me, row, staff, env) {
+// Người duyệt đơn nghỉ: CHỈ Quản lý trực tiếp của người xin nghỉ (cột Giám sát trong EE Data) và admin; không tự duyệt đơn của mình.
+function canLeave(me, row) {
   if (me.isAdmin) return true;
-  if (!me.empId || me.empId === row.emp_id || !(me.roles.includes('sitesup') || me.roles.includes('pm'))) return false;
-  const lead = isLead(env, row);
-  if (lead && !me.roles.includes('pm')) return false;
-  if (row.supervisor && keyOf(row.supervisor) === keyOf(me.name)) return true;
-  return String(row.wbs || '').split(',').filter(Boolean).some(w => { const s = staff.get(w); return s && ((!lead && s.sitesup.includes(me.empId)) || s.pm.includes(me.empId)); });
+  if (!me.empId || me.empId === row.emp_id) return false;
+  return !!row.supervisor && keyOf(row.supervisor) === keyOf(me.name);
 }
 
-async function leaveInboxRows(env, me, staff) {
+async function leaveInboxRows(env, me) {
   const { results } = await env.DB.prepare(`SELECT l.*, ${EMP_COLS} FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id
     WHERE l.status = 'pending' ORDER BY l.date_from LIMIT 300`).all();
-  return results.filter(r => canLeave(me, r, staff, env));
+  return results.filter(r => canLeave(me, r));
 }
 
 async function leaveInbox(h, env, me) {
   h.need(me, 'sitesup', 'pm');
-  const staff = await h.projectStaff(env);
-  const today = vnDate();
-  return h.json({ today, items: (await leaveInboxRows(env, me, staff)).map(r => leaveOut(r, today)) });
+  const now = nowMs(env);
+  return h.json({ today: vnDate(new Date(now)), items: (await leaveInboxRows(env, me)).map(r => leaveOut(r, now)) });
 }
 
 // Ghi các dòng nghỉ của đơn vào bảng công từng kỳ. Kỳ đã nộp / duyệt thì bỏ qua (ghi chú lại). Ghi lại nhiều lần không nhân đôi (theo lv).
@@ -334,9 +334,8 @@ async function decideLeave(h, env, me, id, action, request) {
   const body = await h.readJson(request);
   const row = await env.DB.prepare(`SELECT l.*, ${EMP_COLS} FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id WHERE l.id = ?`).bind(id).first();
   if (!row) throw new h.HttpError(404, 'Không có đơn nghỉ này');
-  const staff = await h.projectStaff(env);
-  if (!canLeave(me, row, staff, env)) throw new h.HttpError(403, 'Bạn không phải người duyệt đơn nghỉ này');
-  const t = h.now(), today = vnDate();
+  if (!canLeave(me, row)) throw new h.HttpError(403, 'Chỉ Quản lý trực tiếp của người xin nghỉ (hoặc admin) duyệt đơn này');
+  const t = h.now(), now = nowMs(env);
   if (action === 'reject') {
     const note = h.str(body.note, 300);
     if (note.length < 3) throw new h.HttpError(400, 'Cần ghi lý do không duyệt');
@@ -346,9 +345,9 @@ async function decideLeave(h, env, me, id, action, request) {
     await notifyLeave(env, 'rejected', { leave: { ...row, decided_by: me.name, note } });
     return h.json({ ok: true, status: 'rejected' });
   }
-  // duyệt: còn chờ duyệt (hoặc đã duyệt mà chưa ghi xong → ghi lại) và chưa tới ngày bắt đầu
+  // duyệt: còn chờ duyệt (hoặc đã duyệt mà chưa ghi xong → ghi lại); nghỉ phép phải duyệt TRƯỚC giờ bắt đầu, nghỉ ốm duyệt được đến hết ngày nghỉ cuối
   if (row.status === 'pending') {
-    if (today >= row.date_from) throw new h.HttpError(409, `Đã tới ngày bắt đầu nghỉ (${row.date_from}) — không duyệt được nữa, chỉ không duyệt`);
+    if (now > OtLeave.approveDeadlineMs(row.type, row.date_from, row.date_to)) throw new h.HttpError(409, `Đã quá hạn duyệt (${OtLeave.fmtDeadline(OtLeave.approveDeadlineMs(row.type, row.date_from, row.date_to))}) — không duyệt được nữa, chỉ không duyệt`);
     const r = await env.DB.prepare("UPDATE ts_leave SET status = 'approved', decided_by = ?, decided_at = ?, note = ? WHERE id = ? AND status = 'pending'")
       .bind(me.name, t, h.str(body.note, 300), id).run();
     if (!(r.meta && r.meta.changes === 1)) throw new h.HttpError(409, 'Đơn này không còn chờ duyệt — tải lại danh sách');
@@ -362,9 +361,9 @@ async function decideLeave(h, env, me, id, action, request) {
 
 // số việc chờ người này duyệt (huy hiệu ở trang chủ / hộp thư duyệt)
 export async function otLeaveCounts(h, env, me, staff) {
-  const today = vnDate();
-  const [ot, lv] = await Promise.all([otInboxRows(h, env, me, staff), leaveInboxRows(env, me, staff)]);
-  return { ot: ot.length, leave: lv.filter(r => today < r.date_from).length };
+  const now = nowMs(env);
+  const [ot, lv] = await Promise.all([otInboxRows(h, env, me, staff), leaveInboxRows(env, me)]);
+  return { ot: ot.length, leave: lv.filter(r => now <= OtLeave.approveDeadlineMs(r.type, r.date_from, r.date_to)).length };
 }
 
 // Điều phối route; trả về null nếu không phải route của phần này.

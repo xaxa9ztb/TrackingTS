@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Nghỉ phép / ốm — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#111827">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="stylesheet" href="../accounts/style.css?v=5">
+<link rel="stylesheet" href="../approvals/style.css?v=2">
+<link rel="stylesheet" href="style.css?v=1">
+<script src="../../js/demo.js?v=2"></script>
+<script src="../../js/session.js?v=45"></script>
+<script>Session.guard('leave');</script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=38" data-tool="Nghỉ phép / ốm" data-help="huong-dan-timesheet.html#nghi"></script>
+
+<header class="ac-top">
+  <div class="ac-wrap">
+    <h1>Nghỉ phép / ốm <span class="ac-badge">Máy chủ mới</span></h1>
+    <p class="ac-sub">Làm đơn nghỉ phép năm, nghỉ ốm, nghỉ không lương. <b>Quản lý trực tiếp</b> duyệt; duyệt xong, các ngày nghỉ <b>tự ghi vào Timesheet</b> của bạn (không cần chấm công những ngày đó).</p>
+    <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
+  </div>
+</header>
+
+<main class="ac-wrap">
+  <div class="ac-msg" id="gate" hidden></div>
+
+  <section class="ac-card" id="secForm" hidden>
+    <h2>Làm đơn xin nghỉ</h2>
+    <div class="lv-rules">
+      <b>Hạn nộp đơn</b> (tính từ 08:00 ngày bắt đầu nghỉ):
+      <ul>
+        <li><b>Nghỉ ốm</b>: nộp trước tối thiểu <b>2 giờ</b></li>
+        <li><b>Nghỉ phép</b> 1 ngày: trước <b>24 giờ</b> · 2–3 ngày: trước <b>3 ngày</b> · dài hơn: trước <b>1 tuần</b></li>
+      </ul>
+    </div>
+    <form id="lvForm" novalidate>
+      <fieldset class="lv-types" id="lvTypes"></fieldset>
+      <div class="lv-row">
+        <label>Nghỉ từ ngày<input type="date" id="lvFrom"></label>
+        <label>Đến hết ngày<input type="date" id="lvTo"></label>
+      </div>
+      <label class="lv-reason">Lý do<textarea id="lvReason" rows="2" maxlength="300" placeholder="vd: Về quê có việc gia đình / khám bệnh theo hẹn…"></textarea></label>
+      <div id="lvPreview" class="ap-flag" aria-live="polite">Chọn loại nghỉ và ngày.</div>
+      <div class="ap-actions"><button class="btn primary" id="lvSend" type="submit" disabled>Gửi đơn cho quản lý trực tiếp</button><span id="lvMsg" class="ac-note"></span></div>
+    </form>
+  </section>
+
+  <section class="ac-card" id="secMine" hidden>
+    <div class="ap-head"><h2>Đơn của tôi</h2><a class="btn small" href="../timesheet/">Mở Timesheet</a></div>
+    <div class="ac-scroll ac-short"><table class="ac-table" id="lvMine">
+      <thead><tr><th>Loại</th><th>Thời gian</th><th class="r">Ngày công</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section class="ac-card" id="secInbox" hidden>
+    <div class="ap-head"><h2>Đơn chờ tôi duyệt <span class="ap-count" id="lvCount"></span></h2><button class="btn small" id="btnReload">Tải lại</button></div>
+    <p class="ac-note">Bạn là <b>quản lý trực tiếp</b> của người xin nghỉ. Nghỉ phép phải duyệt <b>trước giờ bắt đầu</b>; nghỉ ốm duyệt được đến hết ngày nghỉ cuối.</p>
+    <div class="ac-scroll ac-short"><table class="ac-table" id="lvInbox">
+      <thead><tr><th>Người xin nghỉ</th><th>Loại</th><th>Thời gian</th><th class="r">Ngày công</th><th>Lý do</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="ap-reject" id="rejBox" hidden>
+      <label for="rejNote" id="rejLabel">Lý do không duyệt</label>
+      <textarea id="rejNote" rows="2" maxlength="300" placeholder="Ví dụ: Đang gấp tiến độ bàn giao, đề nghị dời sang tuần sau…"></textarea>
+      <div class="ac-row"><button class="btn danger" id="btnRej">Không duyệt đơn</button><button class="btn" id="btnRejCancel">Huỷ</button></div>
+    </div>
+    <p class="ac-note" id="inMsg"></p>
+  </section>
+</main>
+
+<div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="../timesheet/labor.js?v=40"></script>
+<script src="../timesheet/otleave.js?v=2"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

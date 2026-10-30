@@ -29,6 +29,13 @@ export function periodOfDate(date) {
   return `${y}-${String(m).padStart(2, '0')}`;
 }
 
+// Quản lý trực tiếp (theo tên trong cột Giám sát của EE Data) — bất kể vai trò — có email
+async function directSupervisors(env, name, ctx = {}) {
+  if (!name) return [];
+  if (!ctx.emps) ctx.emps = (await env.DB.prepare("SELECT * FROM employees WHERE active = 1 AND email <> ''").all()).results;
+  return ctx.emps.filter(e => keyOf(e.full_name) === keyOf(name)).map(e => ({ email: String(e.email).toLowerCase(), name: e.full_name }));
+}
+
 // Giám sát (Site Sup / Quản lý dự án): chỉ chấm giờ OT, đăng ký OT trước khi làm, Quản lý dự án duyệt, bảng công cuối kỳ nộp thẳng QLDA. e: dòng employees.
 export const isLead = (env, e) => { const r = e ? effectiveRoles(e, e.email, env) : []; return r.includes('sitesup') || r.includes('pm'); };
 
@@ -76,10 +83,11 @@ async function approverIndex(env) {
   const pms = em.results.filter(e => effectiveRoles(e, e.email, env).includes('pm'));
   const admins = [...adminEmails(env).map(email => ({ email, name: '' })), ...em.results.filter(e => e.role_override === 'admin').map(person)];
   const direct = (name) => (name ? sups.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
+  const directAny = (name) => (name ? em.results.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
   const directPm = (name) => (name ? pms.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
   const uniq = (list) => { const m = new Map(); list.forEach(p => { if (p.email && !m.has(p.email)) m.set(p.email, p); }); return [...m.values()]; };
   return {
-    direct,
+    direct, directAny, admins: () => uniq(admins),
     staff: (wbs) => { const x = byWbs.get(String(wbs || '').trim()); return x ? uniq([...x.sitesup, ...x.pm]) : []; },
     approvers(level, wbsList, ownerSupervisor) {
       let out = (wbsList || []).flatMap(w => (byWbs.get(w) || {})[level] || []);
@@ -222,18 +230,16 @@ export async function notifyLeave(env, kind, { leave, written = '' }) {
     const what = `${LEAVE_LABEL[leave.type] || 'Nghỉ'} ${leaveSpan(leave)} (${fmtH(leaveCount(leave))} ngày công)`;
     let to, subject, html;
     if (kind === 'request') {
-      const wbs = String(leave.wbs || '').split(',').filter(Boolean), ctx = {};
-      const sup = await approversFor(env, 'sitesup', wbs, owner.supervisor, ctx);
-      const pm = wbs.length ? (await env.DB.prepare(`SELECT e.full_name, e.email FROM project_staff s JOIN employees e ON e.emp_id = s.emp_id
-        WHERE s.role = 'pm' AND s.wbs IN (${ph(wbs.length)}) AND e.active = 1 AND e.email <> ''`).bind(...wbs).all()).results : [];
-      const m = new Map();
-      [...sup, ...pm.map(e => ({ email: String(e.email).toLowerCase(), name: e.full_name }))].forEach(p => { if (p.email && !m.has(p.email)) m.set(p.email, p); });
-      to = [...m.values()];
-      subject = `[Đơn nghỉ] ${owner.full_name} xin ${what} — cần duyệt trước ${fmtDMY(leave.date_from)}`;
+      // Người duyệt = Quản lý trực tiếp của người xin nghỉ (không có / không có email → admin)
+      const ctx = {};
+      const sup = await directSupervisors(env, owner.supervisor, ctx);
+      to = sup.length ? sup : await approversFor(env, 'sitesup', [], '', ctx);
+      const by = OtLeave.fmtDeadline(OtLeave.approveDeadlineMs(leave.type, leave.date_from, leave.date_to));
+      subject = `[Đơn nghỉ] ${owner.full_name} xin ${what} — duyệt trước ${by}`;
       html = layout('Có đơn nghỉ chờ bạn duyệt', `<p>${esc(owner.full_name)} (${esc(owner.emp_id)}) xin <b>${esc(what)}</b>.</p>`
         + (leave.reason ? box('#f8fafc', '#e5e7eb', `<b>Lý do:</b> ${esc(leave.reason)}`) : '')
-        + `<p>Đơn phải được duyệt <b>trước ngày ${esc(fmtDMY(leave.date_from))}</b>. Duyệt xong, các ngày nghỉ tự ghi vào bảng công của ${esc(owner.full_name)}.</p>`,
-        { url: link(env, '/tools/approvals/#nghi'), label: 'Mở Duyệt bảng công' });
+        + `<p>Bạn là <b>quản lý trực tiếp</b> nên duyệt đơn này. Hạn duyệt: <b>${esc(by)}</b>. Duyệt xong, các ngày nghỉ tự ghi vào bảng công của ${esc(owner.full_name)}.</p>`,
+        { url: link(env, '/tools/leave/'), label: 'Mở Nghỉ phép / ốm để duyệt' });
     } else if (kind === 'approved' || kind === 'rejected') {
       if (!owner.email) return { ok: false, skipped: true };
       to = [{ email: owner.email, name: owner.full_name }];
@@ -287,7 +293,7 @@ export async function runDigest(env, { now = new Date() } = {}) {
       env.DB.prepare(`SELECT o.emp_id, o.date, o.ot, o.wbs, e.full_name, e.supervisor, e.position, e.role_override, e.email FROM ts_ot o JOIN employees e ON e.emp_id = o.emp_id
         WHERE o.status = 'pending' ORDER BY o.date LIMIT 400`),
       env.DB.prepare(`SELECT l.*, e.full_name, e.supervisor, e.position, e.role_override, e.email FROM ts_leave l JOIN employees e ON e.emp_id = l.emp_id
-        WHERE l.status = 'pending' AND l.date_from > ? ORDER BY l.date_from LIMIT 200`).bind(date),
+        WHERE l.status = 'pending' AND l.date_to >= ? ORDER BY l.date_from LIMIT 200`).bind(date),
       // chấm công BÙ: dòng của các ngày trước hôm nay nhưng được thêm / sửa trong hôm nay (bỏ dòng nghỉ do đơn nghỉ tự ghi)
       env.DB.prepare(`SELECT d.emp_id, e.full_name, e.supervisor, json_extract(x.value, '$.date') dt,
           json_extract(x.value, '$.projectName') pn, json_extract(x.value, '$.workNumber') wbs, json_extract(x.value, '$.startTime') st,
@@ -329,8 +335,8 @@ export async function runDigest(env, { now = new Date() } = {}) {
     // OT của fitter → Site Sup; OT / đơn nghỉ của giám sát → Quản lý dự án
     for (const o of otQ.results) for (const p of idx.approvers(isLead(env, o) ? 'pm' : 'sitesup', wl(o.wbs), o.supervisor)) recOf(p).ot.push(o);
     for (const l of leaveQ.results) {
-      const ppl = isLead(env, l) ? idx.approvers('pm', wl(l.wbs), l.supervisor)
-        : idx.approvers('sitesup', wl(l.wbs), l.supervisor).concat(idx.approvers('pm', wl(l.wbs), ''));
+      // đơn nghỉ: chỉ Quản lý trực tiếp duyệt (không có → admin)
+      const ppl = idx.directAny(l.supervisor).length ? idx.directAny(l.supervisor) : idx.admins();
       const seen = new Set();
       for (const p of ppl) { if (seen.has(p.email)) continue; seen.add(p.email); recOf(p).leave.push(l); }
     }

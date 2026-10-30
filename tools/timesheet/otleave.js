@@ -75,6 +75,22 @@
     };
   }
 
-  const api = { LEAVE_CODES, LEAVE_TYPES, MAX_LEAVE_DAYS, daySig, otDays, leaveDays, dayCount, leaveEntry, addDay };
+  // ---------- hạn nộp đơn ----------
+  // Tính từ giờ bắt đầu nghỉ = 08:00 (giờ Việt Nam) của ngày nghỉ đầu tiên:
+  //   nghỉ ốm: nộp trước tối thiểu 2 giờ · nghỉ phép / không lương: 1 ngày công → trước 24 giờ, 2–3 ngày → trước 3 ngày, dài hơn → trước 1 tuần.
+  const START_HOUR = '08:00:00+07:00';
+  const startMs = (from) => Date.parse(from + 'T' + START_HOUR);
+  function leaveNotice(type, count) {
+    if (type === '6020') return { hours: 2, label: 'tối thiểu 2 giờ' };
+    if (count <= 1) return { hours: 24, label: '24 giờ' };
+    if (count <= 3) return { hours: 72, label: '3 ngày' };
+    return { hours: 168, label: '1 tuần' };
+  }
+  // thời điểm muộn nhất được nộp đơn (ms) và thời điểm muộn nhất được duyệt (ms): phép / không lương duyệt trước giờ bắt đầu, nghỉ ốm duyệt đến hết ngày nghỉ cuối
+  const submitDeadlineMs = (type, count, from) => startMs(from) - leaveNotice(type, count).hours * 36e5;
+  const approveDeadlineMs = (type, from, to) => (type === '6020' ? Date.parse(to + 'T23:59:59+07:00') : startMs(from));
+  const fmtDeadline = (ms) => { const d = new Date(ms + 7 * 36e5); const p = (n) => String(n).padStart(2, '0'); return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())} ngày ${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`; };
+
+  const api = { leaveNotice, submitDeadlineMs, approveDeadlineMs, startMs, fmtDeadline, LEAVE_CODES, LEAVE_TYPES, MAX_LEAVE_DAYS, daySig, otDays, leaveDays, dayCount, leaveEntry, addDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsOtLeave = api;
 })(typeof window !== 'undefined' ? window : globalThis);

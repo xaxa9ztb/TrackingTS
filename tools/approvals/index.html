@@ -18,7 +18,7 @@
 <header class="ac-top">
   <div class="ac-wrap">
     <h1>Duyệt bảng công <span class="ac-badge">Máy chủ mới</span></h1>
-    <p class="ac-sub"><b>Hằng ngày:</b> Site Sup duyệt <b>tăng ca</b> của fitter (từng ngày) và duyệt <b>đơn nghỉ</b> trước ngày bắt đầu nghỉ — duyệt xong, ngày nghỉ tự ghi vào bảng công.
+    <p class="ac-sub"><b>Hằng ngày:</b> Site Sup duyệt <b>tăng ca</b> của fitter (từng ngày). Đơn nghỉ phép / ốm có chức năng riêng.
       <b>Cuối kỳ:</b> bảng công fitter đã nộp — <b>Site Sup</b> duyệt trước, rồi <b>Quản lý dự án</b> duyệt; duyệt xong dữ liệu tự sang bảng <i>Theo dõi giờ công các công trình</i>.
       Thấy có chỗ chưa đúng thì <b>Trả lại</b> / <b>Không duyệt</b> kèm lý do (fitter nhận email).</p>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
@@ -47,20 +47,7 @@
     </div>
   </section>
 
-  <section class="ac-card" id="secLeave" hidden>
-    <div class="ap-head"><h2>🏖 Đơn nghỉ chờ duyệt <span class="ap-count" id="lvCount"></span></h2><button class="btn small" id="btnReloadLv">Tải lại</button></div>
-    <p class="ac-note">Đơn phải được duyệt <b>trước ngày bắt đầu nghỉ</b>. Duyệt xong, mỗi ngày nghỉ tự thêm một dòng (mã 6010 / 6020 / 6090) vào bảng công của fitter.</p>
-    <div class="ac-scroll ac-short"><table class="ac-table" id="lvTable">
-      <thead><tr><th>Người xin nghỉ</th><th>Loại</th><th>Thời gian</th><th class="r">Ngày công</th><th>Lý do</th><th></th></tr></thead>
-      <tbody></tbody>
-    </table></div>
-    <div class="ap-reject" id="lvRejectBox" hidden>
-      <label for="lvRejectNote" id="lvRejectLabel">Lý do không duyệt</label>
-      <textarea id="lvRejectNote" rows="2" maxlength="300" placeholder="Ví dụ: Đang gấp tiến độ bàn giao, đề nghị dời sang tuần sau…"></textarea>
-      <div class="ac-row"><button class="btn danger" id="btnLvReject">Không duyệt đơn</button><button class="btn" id="btnLvRejectCancel">Huỷ</button></div>
-    </div>
-    <p class="ac-note" id="lvMsg"></p>
-  </section>
+  <p class="ac-note" id="leaveMoved" hidden>🏖 Đơn nghỉ phép / ốm đã chuyển sang chức năng riêng <a href="../leave/#duyet"><b>Nghỉ phép / ốm</b></a> (Quản lý trực tiếp duyệt).</p>
 
   <section class="ac-card" id="secInbox" hidden>
     <div class="ap-head"><h2>📋 Bảng công chờ bạn duyệt</h2><button class="btn small" id="btnReload">Tải lại</button></div>
@@ -112,6 +99,6 @@
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="../timesheet/allowance.js?v=1"></script>
 <script src="../timesheet/tsexcel.js?v=1"></script>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

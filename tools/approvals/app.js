@@ -98,35 +98,6 @@
     } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
   }
 
-  // ---------- đơn nghỉ chờ duyệt ----------
-  let lvItems = [], lvRejectId = 0;
-  async function loadLeave() {
-    const body = $('lvTable').tBodies[0];
-    try {
-      lvItems = (await api('GET', '/api/ts/leave/inbox')).items;
-      body.innerHTML = lvItems.map(l => `<tr data-id="${l.id}">
-          <td><b>${esc(l.name)}</b><div class="ac-note">${esc(l.empId)}</div></td>
-          <td>${esc(l.label)} <span class="mono">${esc(l.type)}</span></td>
-          <td>${esc(fmtDMY(l.from))}${l.to !== l.from ? ` → ${esc(fmtDMY(l.to))}` : ''}${l.expired ? '<div class="ap-exp">Đã tới ngày nghỉ — không duyệt được nữa</div>' : `<div class="ac-note">duyệt trước ${esc(fmtDMY(l.from))}</div>`}</td>
-          <td class="r"><b>${fmtH(l.count)}</b></td>
-          <td>${esc(l.reason || '—')}</td>
-          <td style="white-space:nowrap">${l.expired ? '' : '<button class="btn small primary" data-lv="approve">Duyệt</button> '}<button class="btn small" data-lv="reject">Không duyệt</button></td></tr>`).join('')
-        || '<tr><td colspan="6" class="ac-note">Không có đơn nghỉ nào chờ bạn duyệt.</td></tr>';
-      $('lvCount').textContent = lvItems.length || '';
-    } catch (e) { body.innerHTML = `<tr><td colspan="6" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
-  }
-  async function decideLeave(id, action, note) {
-    const l = lvItems.find(x => x.id === id);
-    const msg = $('lvMsg');
-    msg.className = 'ac-note'; msg.textContent = 'Đang gửi…';
-    try {
-      const r = await api('POST', `/api/ts/leave/${id}/${action}`, action === 'reject' ? { note } : {});
-      toast(action === 'approve' ? `✓ Đã duyệt đơn nghỉ của ${l ? l.name : ''} — ${r.written} ngày nghỉ đã ghi vào bảng công.` : '✓ Đã không duyệt đơn — đã gửi email báo fitter.');
-      msg.textContent = action === 'approve' && r.note ? `Ghi vào bảng công: ${r.note}` : '';
-      $('lvRejectBox').hidden = true; $('lvRejectNote').value = '';
-      await loadLeave();
-    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
-  }
   // ---------- đã duyệt xong: gửi lại thư kèm Excel ----------
   async function loadApproved() {
     const body = $('apTable').tBodies[0];
@@ -154,7 +125,7 @@
     } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
     finally { btn.disabled = false; }
   }
-  const loadAll = () => Promise.all([loadOt(), loadLeave(), loadInbox(), loadApproved()]);
+  const loadAll = () => Promise.all([loadOt(), loadInbox(), loadApproved()]);
 
   // ---------- chi tiết ----------
   const hoursOf = (e) => {
@@ -334,7 +305,6 @@
     $('btnReloadOt').addEventListener('click', loadOt);
     $('btnReloadAp').addEventListener('click', loadApproved);
     $('apTable').tBodies[0].addEventListener('click', (ev) => { const b = ev.target.closest('[data-resend]'); if (b) { const tr = b.closest('tr'); resend(tr.dataset.emp, tr.dataset.period, b); } });
-    $('btnReloadLv').addEventListener('click', loadLeave);
     $('otAll').addEventListener('change', (ev) => { $('otTable').tBodies[0].querySelectorAll('input[data-pick]').forEach(c => { c.checked = ev.target.checked; }); otPicked(); });
     $('otTable').tBodies[0].addEventListener('change', otPicked);
     $('btnOtApprove').addEventListener('click', () => decideOt('approve'));
@@ -345,22 +315,7 @@
       if (note.length < 3) { $('otMsg').className = 'ac-note err'; $('otMsg').textContent = 'Cần ghi lý do không duyệt.'; return; }
       decideOt('reject', note);
     });
-    $('lvTable').tBodies[0].addEventListener('click', (ev) => {
-      const b = ev.target.closest('[data-lv]'); if (!b) return;
-      const id = +b.closest('tr').dataset.id, l = lvItems.find(x => x.id === id);
-      if (b.dataset.lv === 'approve') {
-        if (confirm(`Duyệt đơn ${l.label.toLowerCase()} của ${l.name} (${fmtDMY(l.from)}${l.to !== l.from ? ' → ' + fmtDMY(l.to) : ''}, ${fmtH(l.count)} ngày công)?\nCác ngày nghỉ sẽ tự ghi vào bảng công.`)) decideLeave(id, 'approve');
-      } else {
-        lvRejectId = id; $('lvRejectLabel').textContent = `Lý do không duyệt đơn của ${l.name} (fitter nhận email)`;
-        $('lvRejectBox').hidden = false; $('lvRejectNote').focus();
-      }
-    });
-    $('btnLvRejectCancel').addEventListener('click', () => { $('lvRejectBox').hidden = true; });
-    $('btnLvReject').addEventListener('click', () => {
-      const note = $('lvRejectNote').value.trim();
-      if (note.length < 3) { $('lvMsg').className = 'ac-note err'; $('lvMsg').textContent = 'Cần ghi lý do không duyệt.'; return; }
-      decideLeave(lvRejectId, 'reject', note);
-    });
+
     $('btnAllowExcel').addEventListener('click', downloadAllowance);
     $('btnClose').addEventListener('click', () => { $('secDetail').hidden = true; current = null; });
     $('btnApprove').addEventListener('click', () => {
@@ -387,7 +342,7 @@
     const roleName = { admin: 'Admin', pm: 'Quản lý dự án', sitesup: 'Site Sup' };
     $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ${esc(me.roles.map(r => roleName[r] || r).join(', ') || 'Nhân viên')}`;
     if (!me.isAdmin && !me.roles.includes('pm') && !me.roles.includes('sitesup')) { gate('Chỉ <b>Site Sup</b>, <b>Quản lý dự án</b> và <b>Admin</b> dùng trang này.'); return; }
-    $('secInbox').hidden = false; $('secOt').hidden = false; $('secLeave').hidden = false;
+    $('secInbox').hidden = false; $('secOt').hidden = false; $('leaveMoved').hidden = false;
     wire();
     await loadAll();
     openFromHash();
