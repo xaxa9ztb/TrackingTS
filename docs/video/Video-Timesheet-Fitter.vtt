@@ -1,151 +1,166 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:04.950
+00:00.000 --> 00:04.950
 Timesheet cá nhân — hướng dẫn cho Fitter
 
-00:00:04.950 --> 00:00:12.450
+00:04.950 --> 00:12.450
 3 điều cần nhớ: chấm công mỗi ngày; nộp trước ngày 12; mất sóng vẫn chấm được.
 
-00:00:12.450 --> 00:00:22.950
+00:12.450 --> 00:22.950
 Kỳ lương từ ngày 16 tháng trước đến ngày 15 tháng này. Ngày 9 app nhắc, ngày 11 nhắc lần 2, ngày 12 là hạn nộp.
 
-00:00:22.950 --> 00:00:26.980
+00:22.950 --> 00:26.980
 Mở Timesheet cá nhân — Mở Bộ công cụ dự án trên điện thoại (đăng nhập bằng email, mã gửi về hộp thư).
 
-00:00:26.980 --> 00:00:32.610
+00:26.980 --> 00:32.610
 Ở trang chủ, bấm thẻ Timesheet cá nhân.
 
-00:00:32.610 --> 00:00:35.890
+00:32.610 --> 00:35.890
 Màn hình Timesheet — Mọi thứ của kỳ lương đang xem nằm trên một màn hình.
 
-00:00:35.890 --> 00:00:39.570
+00:35.890 --> 00:39.570
 Kỳ lương đang xem. Bấm ‹ › để xem kỳ trước / kỳ sau.
 
-00:00:39.570 --> 00:00:43.250
+00:39.570 --> 00:43.250
 Nút Nộp bảng công — chỉ dùng ở cuối kỳ (phần 5).
 
-00:00:43.250 --> 00:00:47.270
+00:43.250 --> 00:47.270
 ✓ Đã lưu trên máy chủ = dữ liệu đã an toàn.
 
-00:00:47.270 --> 00:00:51.170
+00:47.270 --> 00:51.170
 Bên dưới: lộ trình kỳ lương — mỗi ngày làm dự án nào, bao nhiêu giờ.
 
-00:00:51.170 --> 00:00:56.770
+00:51.170 --> 00:56.770
 Và các ô thống kê: giờ thường, tăng ca, tổng giờ, số ngày đã chấm.
 
-00:00:56.770 --> 00:01:00.760
+00:56.770 --> 01:00.760
 Thêm chấm công — Hết ca, bấm nút tròn ＋ ở góc dưới.
 
-00:01:00.760 --> 00:01:03.260
+01:00.760 --> 01:03.260
 ① Ngày — mặc định là hôm nay.
 
-00:01:03.260 --> 00:01:07.070
+01:03.260 --> 01:07.070
 ② Giờ vào – giờ ra – nghỉ. Ví dụ sáng nay làm 08:00 → 12:00 ở dự án Hoà Bình.
 
-00:01:07.070 --> 00:01:11.200
+01:07.070 --> 01:11.200
 ③ Tự tính giờ thường / OT — để nguyên dấu tick, app tự chia giờ thường, tăng ca.
 
-00:01:11.200 --> 00:01:14.880
+01:11.200 --> 01:14.880
 ④ Mã công việc — chọn đúng loại việc (ví dụ 1110 – giờ lắp đặt).
 
-00:01:14.880 --> 00:01:20.920
+01:14.880 --> 01:20.920
 ⑤ Dự án — gõ vài chữ rồi chọn trong gợi ý, WBS tự điền.
 
-00:01:20.920 --> 00:01:23.675
+01:20.920 --> 01:23.675
 ⑥ Báo cáo thi công — hôm nay làm gì, vướng gì. Giám sát đọc trong email 18:30.
 
-00:01:23.675 --> 00:01:26.435
+01:23.675 --> 01:26.435
 Bấm Lưu.
 
-00:01:26.435 --> 00:01:31.755
+01:26.435 --> 01:31.755
 Xong! Dòng chấm công đã lưu trên máy chủ. Mất khoảng 1 phút mỗi ngày.
 
-00:01:31.755 --> 00:01:40.397
+01:31.755 --> 01:40.397
 Mất sóng vẫn chấm được — Chiều làm dự án khác? Thêm dòng thứ 2. Thử khi điện thoại mất sóng…
 
-00:01:40.397 --> 00:01:44.527
+01:40.397 --> 01:44.527
 Không có mạng: dữ liệu vẫn lưu trên điện thoại, không mất.
 
-00:01:44.527 --> 00:01:49.097
+01:44.527 --> 01:49.097
 Có mạng lại — app tự gửi lên máy chủ. Không cần làm gì thêm.
 
-00:01:49.097 --> 00:01:54.097
+01:49.097 --> 01:55.897
 Danh sách chấm công trong kỳ: hôm nay có 2 dòng, 2 dự án. Sửa ✏️ / xoá 🗑 ở cuối mỗi dòng.
 
-00:01:54.097 --> 00:02:04.597
+01:55.897 --> 01:58.887
+Chấm nhiều ngày · OT · Nghỉ phép — Cùng một dự án, cùng giờ trong nhiều ngày liên tiếp? Không phải nhập từng ngày.
+
+01:58.887 --> 02:03.897
+Tick Chấm nhiều ngày liên tiếp, chọn đến ngày. App tạo mỗi ngày một dòng.
+
+02:03.897 --> 02:08.317
+Có tuỳ chọn bỏ qua Chủ nhật và ngày lễ; app báo trước sẽ tạo bao nhiêu dòng.
+
+02:08.317 --> 02:19.417
+Tăng ca cần xin duyệt nhưng không chặn nộp bảng công, hệ thống nhắc qua email. Nghỉ phép, nghỉ ốm xin ở trang riêng, nộp trước theo hạn và do quản lý trực tiếp duyệt. Quên chấm công thì có email nhắc cuối ngày.
+
+02:19.417 --> 02:28.117
+Bạn có thể nhập lương cơ bản để app tính thu nhập dự kiến gồm lương, tăng ca và phụ cấp xăng xe. Thông tin này chỉ lưu trên điện thoại của bạn.
+
+02:28.117 --> 02:38.617
 Hai loại phụ cấp xe: xăng xe 60.000 đồng mỗi ngày cho dự án cách trụ sở 25 đến dưới 35 km; xe đi tỉnh 1.000.000 đồng mỗi tháng khi làm dự án tỉnh trên 20 ngày và tự mang xe. Số ngày app tự tính.
 
-00:02:04.597 --> 00:02:07.727
+02:38.617 --> 02:41.747
 Khai phụ cấp xe — Thẻ Phụ cấp xe nằm dưới lịch kỳ lương.
 
-00:02:07.727 --> 00:02:10.487
+02:41.747 --> 02:44.507
 Bấm ＋ Thêm phụ cấp.
 
-00:02:10.487 --> 00:02:14.167
+02:44.507 --> 02:48.187
 ① Chọn loại: ví dụ Xăng xe — dự án Sao Mai cách trụ sở ~30 km.
 
-00:02:14.167 --> 00:02:17.397
+02:48.187 --> 02:51.417
 ② Chọn dự án — chỉ hiện các dự án bạn đã chấm công trong kỳ.
 
-00:02:17.397 --> 00:02:21.527
+02:51.417 --> 02:55.547
 Mã WBS tự điền. Từ ngày – đến ngày lấy sẵn theo ngày đầu / cuối đã chấm ở dự án.
 
-00:02:21.527 --> 00:02:23.495
+02:55.547 --> 02:57.515
 ③ Địa điểm (phường / quận) — in vào mẫu phụ cấp.
 
-00:02:23.495 --> 00:02:27.345
+02:57.515 --> 03:01.365
 Số ngày, số tiền tự tính từ chấm công: ngày × 60.000 đ.
 
-00:02:27.345 --> 00:02:29.955
+03:01.365 --> 03:03.975
 Bấm Lưu phụ cấp.
 
-00:02:29.955 --> 00:02:37.635
+03:03.975 --> 03:11.655
 Đã thêm! Làm nhiều dự án thì thêm nhiều dòng. Sửa ✏️ / xoá 🗑 trước khi nộp.
 
-00:02:37.635 --> 00:02:41.085
+03:11.655 --> 03:15.105
 Cuối kỳ: kiểm tra rồi nộp — Ví dụ kỳ 10/2026 đã chấm đủ. Trước khi nộp, xem lịch kỳ lương.
 
-00:02:41.085 --> 00:02:45.835
+03:15.105 --> 03:19.855
 Chấm đỏ = ngày làm việc chưa chấm → bấm vào ngày đó để chấm bù. Kỳ này không còn ngày đỏ.
 
-00:02:45.835 --> 00:02:50.135
+03:19.855 --> 03:24.155
 Kỳ này làm dự án tỉnh cả tháng, tự mang xe → thêm Xe đi tỉnh.
 
-00:02:50.135 --> 00:02:55.145
+03:24.155 --> 03:29.165
 Thiếu điều kiện là app báo ⚠ ngay — ở đây: chưa xác nhận tự mang xe.
 
-00:02:55.145 --> 00:03:00.655
+03:29.165 --> 03:34.675
 Tick Tôi tự mang xe máy → đủ điều kiện (trên 20 ngày chấm công): 1.000.000 đ.
 
-00:03:00.655 --> 00:03:04.315
+03:34.675 --> 03:38.335
 Bấm Nộp bảng công. Hạn chót: ngày 12.
 
-00:03:04.315 --> 00:03:08.895
+03:38.335 --> 03:42.915
 Bảng xác nhận: giờ công + phụ cấp xe nộp kèm. Dòng phụ cấp có ⚠ phải sửa thì mới nộp được.
 
-00:03:08.895 --> 00:03:12.105
+03:42.915 --> 03:46.125
 Kiểm tra xong → Nộp cho giám sát.
 
-00:03:12.105 --> 00:03:16.685
+03:46.125 --> 03:50.705
 Đã nộp! Bảng công khoá sửa trong lúc chờ giám sát duyệt. Giám sát nhận email ngay.
 
-00:03:16.685 --> 00:03:23.515
+03:50.705 --> 03:57.535
 Nộp nhầm? Bấm Thu hồi để sửa (chỉ được khi giám sát chưa duyệt).
 
-00:03:23.515 --> 00:03:29.175
+03:57.535 --> 04:03.195
 Nếu bị trả lại — Giám sát thấy sai sẽ trả lại kèm lý do. Bạn nhận email và thấy ngay trên app.
 
-00:03:29.175 --> 00:03:34.205
+04:03.195 --> 04:08.225
 Đọc kỹ lý do: ngày nào, sai gì. Sửa đúng dòng đó (✏️ trong danh sách)…
 
-00:03:34.205 --> 00:03:40.385
+04:08.225 --> 04:14.405
 …rồi bấm Nộp bảng công lại.
 
-00:03:40.385 --> 00:03:45.555
-Giám sát và Quản lý dự án duyệt xong → giờ công tự chuyển vào Thống kê giờ công. Bạn không cần làm gì thêm.
+04:14.405 --> 04:22.575
+Giám sát → Quản lý dự án → Admin xử lý xong: giờ công tự vào Thống kê giờ công, và bạn nhận email kèm file Excel bảng công + phụ cấp ( TEN.xlsx, Pc Xang - TEN - thang M YYYY.xlsx ).
 
-00:03:45.555 --> 00:03:55.755
+04:22.575 --> 04:32.775
 Ghi nhớ: mỗi ngày bấm ＋ thêm chấm công; cuối kỳ hết ngày đỏ, khai phụ cấp xe nếu có, rồi nộp trước ngày 12; bị trả lại thì sửa và nộp lại.
 
-00:03:55.755 --> 00:04:01.755
+04:32.775 --> 04:38.775
 Cần xem lại? Bấm nút Hướng dẫn trong app.
