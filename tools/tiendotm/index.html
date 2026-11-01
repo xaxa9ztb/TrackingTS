@@ -152,13 +152,13 @@ table.edit td.x{width:36px;text-align:center}
 .gt{border-collapse:collapse;width:100%;margin-top:14px;font-size:11px;table-layout:auto}
 .gt th{background:#dfe3ea;color:#000;border:1px solid #808080;padding:3px 4px;font-size:10.5px;font-weight:700}
 .gt th small{font-weight:400;font-size:9px}
-.gt th.tm{font-size:10px;text-align:left;padding:2px 4px;white-space:nowrap;overflow:hidden}
+.gt th.tm{font-size:10.5px;text-align:center;padding:2px 4px;white-space:nowrap;overflow:hidden}
 .gt th.tw{font-size:8.5px;font-weight:600;text-align:left;padding:1px 2px;white-space:nowrap;overflow:hidden}
-.gt th.td{font-size:7px;font-weight:600;padding:1px 0;width:9px;min-width:9px;text-align:center;border-color:#b6bcc6}
+.gt th.td{font-size:9px;font-weight:600;padding:2px 0;width:32px;min-width:32px;text-align:center;border-color:#b6bcc6}
 .gt th.td.we{background:#c9ced8}.gt th.td.hol{background:#e6b3b3;color:#8b1a1a}
 .gt td{border:1px solid #9aa4b2;padding:2px 6px;height:20px}
 .gt td.nm.ind{padding-left:22px}
-.gt td.g{border:0;border-left:1px solid #e3e7ee;border-bottom:1px solid #e3e7ee;padding:0;width:9px;min-width:9px;text-align:center;font-size:9px;line-height:1}
+.gt td.g{border:0;border-left:1px solid #e3e7ee;border-bottom:1px solid #e3e7ee;padding:0;width:32px;min-width:32px;text-align:center;font-size:11px;line-height:1}
 .gt tr.sec td{background:var(--sec);font-weight:700}
 .gt tr.sec td.g:not(.we):not(.hol):not(.b-P):not(.b-I):not(.b-H):not(.b-M){background:#fff}
 .gt tr.tot td{background:var(--total);font-weight:700}
@@ -870,30 +870,33 @@ function computeSchedule(){
   rows.push({id:"III",name:"BÀN GIAO ĐƯA VÀO SỬ DỤNG",days:hand,s:hS,e:hE,ph:"H",sec:true});
   return {rows,total:prodTotal+instDays+hand,base,end:hE,mode,H};
 }
-// Lưới tiến độ theo NGÀY (kiểu MS Project): từ thứ Hai của tuần chứa mốc khởi tính đến Chủ nhật của tuần chứa ngày kết thúc.
-// Ngày nghỉ (lễ; thêm T7, CN khi tính theo ngày làm việc) KHÔNG tô thanh tiến độ, chỉ tô nền nhạt.
+// Lưới tiến độ theo TUẦN (bảng tiến độ ban đầu, không cần chi tiết từng ngày): mỗi tháng đúng 4 cột
+// tuần 1 = ngày 1–7, tuần 2 = 8–14, tuần 3 = 15–21, tuần 4 = 22–hết tháng. Ngày nghỉ không được tính là ngày làm → không tô thanh tiến độ.
 function dayGrid(a,b,mode,H){
-  let d=new Date(a.getTime());while(d.getUTCDay()!==1)d=new Date(d.getTime()-DAY);
-  let z=new Date(b.getTime());while(z.getUTCDay()!==0)z=new Date(z.getTime()+DAY);
-  const days=[];for(;d<=z;d=nextDay(d)){
-    const hol=H.has(iso(d)),we=!hol&&mode!=="cal"&&(d.getUTCDay()===0||d.getUTCDay()===6);
-    days.push({d:new Date(d.getTime()),hol,we,off:hol||we});
+  const bks=[],months=[];
+  let y=a.getUTCFullYear(),m=a.getUTCMonth();
+  const ey=b.getUTCFullYear(),em=b.getUTCMonth();
+  for(;y<ey||(y===ey&&m<=em);){
+    const last=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+    months.push({y,m:m+1,n:4,i:bks.length});
+    [[1,7],[8,14],[15,21],[22,last]].forEach(([d1,d2],k)=>{
+      const s=new Date(Date.UTC(y,m,d1)),e=new Date(Date.UTC(y,m,d2));
+      let work=0,hol=0,we=0,n=0;
+      for(let d=new Date(s.getTime());d<=e;d=nextDay(d)){n++;if(isWork(d,H,mode))work++;else if(H.has(iso(d)))hol++;else we++;}
+      bks.push({s,e,w:k+1,work,hol,off:work===0,n});
+    });
+    m++;if(m>11){m=0;y++;}
   }
-  const weeks=[],months=[];
-  days.forEach((x,i)=>{
-    if(i%7===0)weeks.push({s:x.d,n:7,i});
-    const k=x.d.getUTCFullYear()*100+x.d.getUTCMonth(),m=months[months.length-1];
-    if(m&&m.k===k)m.n++;else months.push({k,n:1,y:x.d.getUTCFullYear(),m:x.d.getUTCMonth()+1,i});
-  });
-  return {days,weeks,months};
+  return {days:bks,months};
 }
 const DOW_L=["C","2","3","4","5","6","7"],DOW_T=["CN","T2","T3","T4","T5","T6","T7"];
 function fmtDow(d){return DOW_T[d.getUTCDay()]+" "+fmt(d,true);}
-// ô tiến độ của một dòng tại ngày x: "bar" (tô màu) | "ms" (mốc) | "" (trống)
-function barAt(r,x){
-  if(r.ph==="M")return iso(x.d)===iso(r.s)?"ms":"";
-  if(x.d<r.s||x.d>r.e||x.off)return "";
-  return "bar";
+// ô tiến độ của một dòng trong cột (tuần) x: "bar" (tô màu) | "ms" (mốc) | "" (trống). Chỉ tô khi trong tuần đó có ngày LÀM VIỆC thuộc công việc
+function barAt(r,x,mode,H){
+  if(r.ph==="M")return (r.s>=x.s&&r.s<=x.e)?"ms":"";
+  if(r.e<x.s||r.s>x.e)return "";
+  for(let d=new Date(Math.max(r.s.getTime(),x.s.getTime()));d<=r.e&&d<=x.e;d=nextDay(d))if(isWork(d,H,mode))return "bar";
+  return "";
 }
 // nội dung hiển thị theo cách tính (ngày lịch chỉ loại trừ ngày lễ)
 function basisText(P,mode){
@@ -1276,7 +1279,7 @@ function renderPreview(){
   const {rows,total,base,end,mode,H}=computeSchedule();
   const G=dayGrid(base,end,mode,H);
   const P=S.project;
-  const hasWe=G.days.some(x=>x.we),hasHol=G.days.some(x=>x.hol);
+  
   const sheet=document.getElementById("sheet");
   sheet.style.width="max-content";sheet.style.minWidth="1560px";
 
@@ -1291,14 +1294,12 @@ function renderPreview(){
 
   // bảng kiểu MS Project: cột ID | Tên công việc | Thời lượng | Bắt đầu | Kết thúc | thang thời gian theo ngày (tháng → tuần → thứ)
   h+=`<table class="gt"><thead><tr>
-    <th rowspan="3" style="width:34px">STT</th><th rowspan="3" style="min-width:340px">NỘI DUNG CÔNG VIỆC</th>
-    <th rowspan="3" style="width:62px">THỜI LƯỢNG<br><small>(${mode==="work"?"ngày làm việc":"ngày"})</small></th>
-    <th rowspan="3" style="width:84px">BẮT ĐẦU</th><th rowspan="3" style="width:84px">KẾT THÚC</th>`;
-  G.months.forEach(m=>h+=`<th colspan="${m.n}" class="tm">${m.n>=4?`Tháng ${m.m}/${m.y}`:`T${m.m}`}</th>`);
+    <th rowspan="2" style="width:34px">STT</th><th rowspan="2" style="min-width:340px">NỘI DUNG CÔNG VIỆC</th>
+    <th rowspan="2" style="width:92px">THỜI LƯỢNG<br><small>(${mode==="work"?"ngày làm việc":"ngày"})</small></th>
+    <th rowspan="2" style="width:84px">BẮT ĐẦU</th><th rowspan="2" style="width:84px">KẾT THÚC</th>`;
+  G.months.forEach(m=>h+=`<th colspan="4" class="tm">Tháng ${m.m}/${m.y}</th>`);
   h+=`</tr><tr>`;
-  G.weeks.forEach(w=>h+=`<th colspan="7" class="tw">${fmt(w.s,true).slice(0,5)}</th>`);
-  h+=`</tr><tr>`;
-  G.days.forEach(x=>h+=`<th class="td${x.hol?" hol":x.we?" we":""}">${DOW_L[x.d.getUTCDay()]}</th>`);
+  G.days.forEach(x=>h+=`<th class="td${x.off?" hol":""}" title="${fmt(x.s,true)} – ${fmt(x.e,true)}">T${x.w}</th>`);
   h+=`</tr></thead><tbody>`;
 
   rows.forEach(r=>{
@@ -1306,8 +1307,8 @@ function renderPreview(){
     h+=`<tr class="${r.sec?"sec":""}"><td class="c">${r.id}</td><td class="nm${r.sec?"":" ind"}">${esc(r.name)}</td>
         <td class="c">${r.days==="–"?"–":r.days+" ngày"}</td><td class="c">${r.ph==="M"?fmtDow(r.s):fmtDow(r.s)}</td><td class="c">${fmtDow(r.e)}</td>`;
     G.days.forEach(x=>{
-      const k=barAt(r,x);
-      h+=`<td class="g${k==="bar"?" b-"+r.ph+(r.sec?" s":""):k==="ms"?" b-M":x.hol?" hol":x.we?" we":""}">${k==="ms"?"◆":""}</td>`;
+      const k=barAt(r,x,mode,H);
+      h+=`<td class="g${k==="bar"?" b-"+r.ph+(r.sec?" s":""):k==="ms"?" b-M":x.off?" hol":""}">${k==="ms"?"◆":""}</td>`;
     });
     h+=`</tr>`;
   });
@@ -1320,8 +1321,8 @@ function renderPreview(){
       <span><i style="background:var(--red)"></i>Lắp đặt thiết bị</span>
       <span><i style="background:var(--green)"></i>Bàn giao đưa vào sử dụng</span>
       <span><i style="background:#000"></i>Mốc tiến độ (bản vẽ được duyệt)</span>
-      ${hasWe?`<span><i style="background:#e9ebef;border:1px solid #b6bcc6"></i>Thứ 7, Chủ nhật (không tô tiến độ)</span>`:""}
-      <span><i style="background:#f6dede;border:1px solid #8b1a1a"></i>Ngày nghỉ lễ (không tô tiến độ)</span></div>`;
+      <span><i style="background:#f6dede;border:1px solid #8b1a1a"></i>Tuần nghỉ (không có ngày làm việc — không tô tiến độ)</span>
+      <span style="color:#555">Mỗi tháng 4 cột: T1 = ngày 1–7 · T2 = 8–14 · T3 = 15–21 · T4 = 22–hết tháng</span></div>`;
 
   h+=`<div class="notes"><b>GHI CHÚ &amp; ĐIỀU KIỆN THỰC HIỆN:</b>`;
   S.conds.forEach((c,i)=>h+=`<p>${i+1}. ${esc(condText(i,mode))}</p>`);
@@ -1357,8 +1358,8 @@ async function exportExcel(){
   const bAll={top:thin,bottom:thin,left:thin,right:thin},bG={top:hair,bottom:hair,left:hair,right:hair};
   const F=(sz,b,c)=>({name:"Arial",size:sz,bold:!!b,color:c?{argb:c}:undefined});
   const col=i=>ws.getColumn(i);
-  col(1).width=5;col(2).width=62;col(3).width=8;col(4).width=11.5;col(5).width=11.5;
-  for(let i=0;i<NW;i++)col(C_G0+i).width=2.3;
+  col(1).width=5;col(2).width=62;col(3).width=13;col(4).width=11.5;col(5).width=11.5;
+  for(let i=0;i<NW;i++)col(C_G0+i).width=4.4;
   const cell=(r,c,v)=>{const x=ws.getCell(r,c);if(v!==undefined)x.value=v;return x;};
   const M=(r1,c1,r2,c2)=>ws.mergeCells(r1,c1,r2,c2);
 
@@ -1377,14 +1378,14 @@ async function exportExcel(){
     ["Mốc khởi tính / Baseline date:",`${fmt(base)} – Ngày bản vẽ thi công được phê duyệt`]];
   r=3;
   info.forEach(([a,b])=>{M(r,1,r,2);M(r,3,r,LASTC);
-    Object.assign(cell(r,1,a),{font:F(10,1)});Object.assign(cell(r,3,b),{font:F(10)});r++;});
+    Object.assign(cell(r,1,a),{font:F(10,1)});Object.assign(cell(r,3,b),{font:F(10),alignment:{vertical:"top",wrapText:true}});if(String(b).length>170)ws.getRow(r).height=28;r++;});
   r++;
-  const H1=r,H2=r+1,H3=r+2;
+  const H1=r,H2=r+1;
   const HDRF=F(10,1,BLK);
   [["STT",1],["NỘI DUNG CÔNG VIỆC",2],[mode==="work"?"THỜI LƯỢNG (ngày làm việc)":"THỜI LƯỢNG (ngày)",3],["BẮT ĐẦU",4],["KẾT THÚC",5]].forEach(([t,c])=>{
-    M(H1,c,H3,c);
+    M(H1,c,H2,c);
     Object.assign(cell(H1,c,t),{font:HDRF,fill:fill(NAVY),alignment:{horizontal:"center",vertical:"middle",wrapText:true},border:bAll});
-    for(const q of [H2,H3]){cell(q,c).fill=fill(NAVY);cell(q,c).border=bAll;}
+    cell(H2,c).fill=fill(NAVY);cell(H2,c).border=bAll;
   });
   const HOLB="FFF6DEDE",WEB="FFEEF0F3",HOLH="FFE6B3B3",WEH="FFC9CED8";
   const tier=(row,items,txt)=>items.forEach(it=>{
@@ -1392,15 +1393,14 @@ async function exportExcel(){
     Object.assign(cell(row,C_G0+it.i,txt(it)),{font:F(it.n<4?7:9,1,BLK),fill:fill(NAVY),border:bAll,alignment:{horizontal:"left",vertical:"middle"}});
     for(let k=0;k<it.n;k++){cell(row,C_G0+it.i+k).fill=fill(NAVY);cell(row,C_G0+it.i+k).border=bAll;}
   });
-  tier(H1,G.months,m=>m.n>=4?`Tháng ${m.m}/${m.y}`:`T${m.m}`);
-  tier(H2,G.weeks,w=>fmt(w.s,true).slice(0,5));
+  tier(H1,G.months,m=>`Tháng ${m.m}/${m.y}`);
   G.days.forEach((x,i)=>{
-    Object.assign(cell(H3,C_G0+i,DOW_L[x.d.getUTCDay()]),
-      {font:F(7,1,x.hol?"FF8B1A1A":BLK),fill:fill(x.hol?HOLH:x.we?WEH:NAVY),border:bAll,alignment:{horizontal:"center",vertical:"middle"}});
+    Object.assign(cell(H2,C_G0+i,`T${x.w}`),
+      {font:F(9,1,x.off?"FF8B1A1A":BLK),fill:fill(x.off?HOLH:NAVY),border:bAll,alignment:{horizontal:"center",vertical:"middle"}});
   });
-  ws.getRow(H1).height=18;ws.getRow(H2).height=16;ws.getRow(H3).height=14;
+  ws.getRow(H1).height=20;ws.getRow(H2).height=18;
   const FM={M:BLK,P:BLUE,I:RED,H:GREEN};
-  r=H3+1;const sumRows=[];
+  r=H2+1;const sumRows=[];
   rows.forEach(t=>{
     const fB=t.sec?F(10,1):F(10);
     Object.assign(cell(r,1,t.id),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
@@ -1413,11 +1413,10 @@ async function exportExcel(){
     // thang tiến độ theo NGÀY: ngày nghỉ (lễ; T7, CN khi tính ngày làm việc) chỉ tô nền nhạt, KHÔNG tô thanh tiến độ
     G.days.forEach((dx,i)=>{
       const x=cell(r,C_G0+i);x.border=bG;
-      const k=barAt(t,dx);
+      const k=barAt(t,dx,mode,H);
       if(k==="bar")x.fill=fill(FM[t.ph]);
       else if(k==="ms"){x.fill=fill(BLK);}
-      else if(dx.hol)x.fill=fill(HOLB);
-      else if(dx.we)x.fill=fill(WEB);
+      else if(dx.off)x.fill=fill(HOLB);
     });
     ws.getRow(r).height=t.sec?20:18;r++;
   });
@@ -1431,12 +1430,12 @@ async function exportExcel(){
   // legend
   Object.assign(cell(r,2,"CHÚ GIẢI / LEGEND:"),{font:F(10,1)});
   [["Sản xuất & vận chuyển thiết bị",BLUE],["Lắp đặt thiết bị",RED],["Bàn giao đưa vào sử dụng",GREEN],["Mốc tiến độ (bản vẽ được duyệt)",BLK],
-    ...(G.days.some(x=>x.we)?[["Thứ 7, Chủ nhật (không tô tiến độ)",WEB]]:[]),["Ngày nghỉ lễ (không tô tiến độ)",HOLB]].forEach((L,k)=>{
-    const rr=r+Math.floor(k/2),cc=C_G0+(k%2)*28;
+    ["Tuần nghỉ (không có ngày làm việc)",HOLB]].forEach((L,k)=>{
+    const rr=r+Math.floor(k/2),cc=C_G0+(k%2)*14;
     cell(rr,cc).fill=fill(L[1]);cell(rr,cc).border=bAll;
-    M(rr,cc+1,rr,cc+26);Object.assign(cell(rr,cc+1,L[0]),{font:F(10)});
+    M(rr,cc+1,rr,cc+12);Object.assign(cell(rr,cc+1,L[0]),{font:F(10)});
   });
-  r+=Math.ceil((G.days.some(x=>x.we)?6:5)/2)+1;
+  r+=Math.ceil(5/2)+1;
   M(r,1,r,LASTC);Object.assign(cell(r,1,"GHI CHÚ & ĐIỀU KIỆN THỰC HIỆN:"),{font:F(10,1)});r++;
   S.conds.forEach((c,i)=>{M(r,1,r,LASTC);
     Object.assign(cell(r,1,`${i+1}. ${condText(i,mode)}`),{font:F(10),alignment:{horizontal:"left",vertical:"top",wrapText:true}});
