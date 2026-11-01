@@ -172,7 +172,7 @@
 
   // ---------- 2. nhân viên ----------
   function rolesText(e) {
-    const r = e.roles && e.roles.length ? e.roles.map(x => ROLE_LABEL[x] || x).join(', ') : 'Nhân viên';
+    const r = e.roles && e.roles.length ? e.roles.map(x => ROLE_LABEL[x] || x).join(' + ') : 'Nhân viên';
     return e.roleOverride ? r + ' (chỉnh tay)' : r;
   }
 
@@ -188,8 +188,10 @@
         <td><input type="email" value="${esc(e.email)}" placeholder="email@…" aria-label="Email của ${esc(e.name)}" data-f="email"></td>
         ${full ? `<td><select data-f="roleOverride" aria-label="Vai trò của ${esc(e.name)}" title="${esc(rolesText(e))}">
           <option value="">Theo chức danh${!e.roleOverride ? ' — ' + esc(rolesText(e)) : ''}</option>
-          ${['admin', 'projadmin', 'pm', 'sitesup', 'staff'].map(r => `<option value="${r}"${e.roleOverride === r ? ' selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
-        </select></td>
+          ${['admin', 'pm', 'sitesup', 'staff'].map(r => `<option value="${r}"${e.roleOverride === r ? ' selected' : ''}>${ROLE_LABEL[r]}</option>`).join('')}
+        </select>
+        <div class="ac-extra" title="Kiêm nhiệm: người này có thêm các vai trò tick bên dưới (cộng với vai trò chính)"><small>Kiêm thêm:</small>
+          ${['admin', 'projadmin', 'pm', 'sitesup'].map(r => `<label><input type="checkbox" data-x="${r}"${(e.extraRoles || []).includes(r) ? ' checked' : ''}> ${ROLE_LABEL[r]}</label>`).join(' ')}</div></td>
         <td><input type="checkbox" data-f="active"${e.active ? ' checked' : ''} aria-label="${esc(e.name)} đang làm"></td>` : ''}
         <td><button class="btn small" data-save disabled>Lưu</button></td>
       </tr>`;
@@ -231,6 +233,8 @@
     const email = field('email').value.trim().toLowerCase();
     if (email !== (e.email || '')) out.email = email;
     if (field('roleOverride') && field('roleOverride').value !== (e.roleOverride || '')) out.roleOverride = field('roleOverride').value;
+    const xs = [...tr.querySelectorAll('[data-x]')];
+    if (xs.length) { const now = ['admin', 'projadmin', 'pm', 'sitesup'].filter(r => xs.some(x => x.dataset.x === r && x.checked)); if (now.join() !== (e.extraRoles || []).join()) out.extraRoles = now; }
     if (field('active') && field('active').checked !== !!e.active) out.active = field('active').checked;
     return out;
   }
@@ -421,7 +425,7 @@
 
   // ---------- 5. nhật ký ----------
   const ACTION = { mail_test: 'Gửi thử email', import: 'Đưa dữ liệu lên', update: 'Sửa nhân viên', set_staff: 'Phân công dự án', set_emails: 'Gắn email hàng loạt', auto_staff: 'Tự phân công Site Sup', assign_pm: 'Gán Quản lý dự án' };
-  const FIELD = { email: 'email', roleOverride: 'vai trò chỉnh tay', active: 'đang làm', sitesup: 'Site Sup', pm: 'QLDA',
+  const FIELD = { email: 'email', roleOverride: 'vai trò chính (chỉnh tay)', extraRoles: 'vai trò kiêm nhiệm', active: 'đang làm', sitesup: 'Site Sup', pm: 'QLDA',
     employees: 'nhân viên', projects: 'dự án', deactivated: 'khoá', changes: 'thay đổi', assigned: 'số dự án', groups: 'nhóm', onlyEmpty: 'chỉ dự án chưa có' };
   const val = (v) => Array.isArray(v) ? (v.length && typeof v[0] === 'object' ? v.length + ' dòng' : (v.join(', ') || '—')) : v === true ? 'có' : v === false ? 'không' : (v === '' || v == null ? '—' : (ROLE_LABEL[v] || v));
   function detail(e) {

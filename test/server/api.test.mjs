@@ -1379,7 +1379,7 @@ test('báo cáo tối: tăng ca chờ duyệt gửi Site Sup; đơn nghỉ chờ
   const sum = await runDigest(env, { now: new Date() });
   assert.ok(sum.ot >= 1 && sum.leave >= 1, JSON.stringify(sum));
   const m1 = mailsTo('ap1@example.com')[0];
-  assert.ok(m1, 'Site Sup nhận thư'); assert.match(m1.htmlContent, /Tăng ca chờ bạn duyệt/); assert.match(m1.htmlContent, /Thợ Một/);
+  assert.ok(m1, 'Site Sup nhận thư'); assert.match(m1.htmlContent, /Đề nghị phê duyệt tăng ca/); assert.match(m1.htmlContent, /Thợ Một/);
   assert.doesNotMatch(m1.htmlContent, /Cưới em gái/, 'đơn nghỉ không gửi Site Sup của dự án');
   assert.match(m1.subject, /Chấm công\/báo cáo ngày .* - Duyệt OT/);
   const m2 = mailsTo(TS3_SUP).find(m => /Cưới em gái/.test(m.htmlContent));
@@ -1472,6 +1472,32 @@ test('báo cáo tối: nhắc fitter chưa chấm hôm nay (kèm ngày thiếu);
   assert.equal(again.fitterReminders, 0); assert.equal(sentMail.length, 0, 'chạy lại không gửi trùng');
 });
 
+test('báo cáo tối: ngày có OT → "Đề nghị phê duyệt OT và chấm công"; chấm sau 18:30 → thư tổng hợp sáng hôm sau', async () => {
+  const day = '2027-07-12', eve = new Date('2027-07-12T11:30:00Z'), morn = new Date('2027-07-13T01:00:00Z');
+  const at = (hm) => Date.parse(`${day}T${hm}:00+07:00`);
+  const e1 = otEntry(7101, day, '19:00', { u: at('17:30'), report: 'lắp ray' });
+  await putDoc('ts1@example.com', '2027-07', [e1], 0);
+  await putOt('ts1@example.com', '2027-07', otDaysOf([e1]));
+  await putDoc('ts2@example.com', '2027-07', [okEntry(7201, day, { u: at('19:45'), report: 'chấm muộn' })], 0);   // sau 18:30
+  await env.DB.prepare("DELETE FROM mail_log WHERE key LIKE 'digest%'").run();
+  sentMail.length = 0;
+  const sum = await runDigest(env, { now: eve });
+  const ap = mailsTo('ap1@example.com').filter(m => /Chấm công|chấm công/.test(m.subject));
+  assert.equal(ap.length, 1, JSON.stringify(sum));
+  assert.match(ap[0].subject, /^Thợ Một - Dự án duyệt - WA-1 - Đề nghị phê duyệt OT và chấm công ngày 12\.07\.2027/);
+  assert.match(ap[0].htmlContent, /lắp ray/); assert.doesNotMatch(ap[0].htmlContent, /chấm muộn/, 'dòng chấm sau 18:30 không vào thư 18:30');
+  sentMail.length = 0;
+  const am = await runDigest(env, { now: morn, morning: true });
+  assert.equal(am.date, day); assert.equal(am.morning, true);
+  const apm = mailsTo('ap1@example.com');
+  assert.equal(apm.length, 1, JSON.stringify(am));
+  assert.match(apm[0].subject, /^Thợ Hai - Dự án duyệt - WA-1 - Chấm công\/báo cáo ngày 12\.07\.2027/);
+  assert.match(apm[0].htmlContent, /chấm muộn/); assert.doesNotMatch(apm[0].htmlContent, /lắp ray/);
+  sentMail.length = 0;
+  await runDigest(env, { now: morn, morning: true });
+  assert.equal(sentMail.length, 0, 'thư sáng không gửi trùng');
+});
+
 test('giám sát: bảng công chỉ giờ OT nộp thẳng Quản lý dự án; đăng ký OT báo ngay QLDA; QLDA duyệt OT; không tự duyệt của mình', async () => {
   const lead = 'ap1@example.com', pm = 'ap3@example.com';
   const ot = (id, date) => okEntry(id, date, { startTime: '17:00', endTime: '19:00', breakTime: '0', bd: { OT1: 2 } });
@@ -1525,6 +1551,25 @@ test('Admin dự án: tạo vai trò; không quản lý tài khoản nhưng phâ
   assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'pa1@example.com' })).status, 200);
   assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'ap1@example.com' })).status, 403, 'Site Sup không dùng');
   assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'ts1@example.com' })).status, 403);
+});
+
+test('Kiêm nhiệm nhiều vai trò: Quản lý dự án kiêm Admin + Admin dự án; chỉ admin chỉnh được, không tự chỉnh mình', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [{ empId: 'MR1', fullName: 'Quản Lý Kiêm Nhiệm', position: 'Project Manager' }] } });
+  assert.equal((await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [{ empId: 'MR1', email: 'mr1@example.com' }] } })).data.applied, 1);
+  let me = (await call('GET', '/api/me', { email: 'mr1@example.com' })).data;
+  assert.deepEqual(me.roles, ['pm']); assert.equal(me.isAdmin, false);
+  const patch = (body, who = 'boss@example.com') => call('PATCH', '/api/admin/employees/MR1', { email: who, body });
+  assert.equal((await patch({ extraRoles: ['admin', 'projadmin'] })).status, 200);
+  me = (await call('GET', '/api/me', { email: 'mr1@example.com' })).data;
+  assert.deepEqual(me.roles, ['admin', 'projadmin', 'pm'], 'vai trò chính theo chức danh + kiêm nhiệm');
+  assert.equal(me.isAdmin, true); assert.equal(me.isProjAdmin, true);
+  const out = (await call('GET', '/api/employees', { email: 'boss@example.com' })).data.employees.find(e => e.empId === 'MR1');
+  assert.deepEqual(out.extraRoles, ['admin', 'projadmin']); assert.deepEqual(out.roles, ['admin', 'projadmin', 'pm']);
+  assert.equal((await patch({ extraRoles: ['boss'] })).status, 400);
+  assert.equal((await patch({ extraRoles: ['admin'] }, 'mr1@example.com')).status, 400, 'không tự đổi vai trò của mình');
+  assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'mr1@example.com' })).status, 200, 'dùng được chức năng Admin dự án');
+  assert.equal((await patch({ extraRoles: [] })).status, 200);
+  assert.deepEqual((await call('GET', '/api/me', { email: 'mr1@example.com' })).data.roles, ['pm']);
 });
 
 test('Xuất cho HR: chỉ Admin / Admin dự án lấy được bảng công ĐÃ DUYỆT XONG của kỳ, kèm dữ liệu', async () => {
