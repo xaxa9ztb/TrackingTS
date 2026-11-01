@@ -305,11 +305,18 @@ async function logKeys(env, keys) {
 //   ⏱ ngày tăng ca chờ họ duyệt (Site Sup duyệt hằng ngày), 🏖 đơn nghỉ chờ họ duyệt (phải duyệt trước ngày bắt đầu),
 //   ⚠️ fitter họ quản lý trực tiếp đang dùng Timesheet mà hôm nay chưa chấm công (T2–T7).
 // Chỉ đọc đúng các dòng của ngày (json_each trong D1); mọi tra cứu khác gom vào 2 lượt batch (giới hạn lượt gọi của cron).
-export async function runDigest(env, { now = new Date() } = {}) {
-  const summary = { date: vnDate(now), entries: 0, pending: 0, ot: 0, leave: 0, missing: 0, recipients: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
+// Fitter chấm công SAU 18:30 thì dòng đó không vào thư 18:30 mà vào thư tổng hợp SÁNG HÔM SAU (runDigest(env, { morning: true }), 08:00).
+export const DIGEST_CUTOFF = '18:30';
+export async function runDigest(env, { now = new Date(), morning = false } = {}) {
+  const am = !!morning;
+  const summary = { date: vnDate(am ? new Date(now.getTime() - 864e5) : now), morning: am, entries: 0, pending: 0, ot: 0, leave: 0, missing: 0, recipients: 0, sent: 0, failed: 0, skipped: 0, errors: [] };
   try {
     if (!mailConfigured(env)) { summary.skipped = 1; summary.errors.push('Chưa cấu hình gửi email'); return summary; }
-    const date = summary.date, period = periodOfDate(date), workday = weekdayOf(date) !== 0;
+    const date = summary.date, period = periodOfDate(date), workday = !am && weekdayOf(date) !== 0;
+    const cutoffMs = Date.parse(`${date}T${DIGEST_CUTOFF}:00+07:00`), cutoffIso = new Date(cutoffMs).toISOString();
+    const uOf = "json_extract(x.value, '$.u')";
+    // 18:30: chỉ dòng chấm trước giờ chốt; sáng hôm sau: chỉ dòng của hôm qua chấm từ 18:30 đến hết ngày
+    const rowCond = am ? `AND ${uOf} >= ${cutoffMs} AND ${uOf} < ${cutoffMs + 5.5 * 36e5}` : `AND (${uOf} IS NULL OR ${uOf} < ${cutoffMs})`;
     // đầu ngày Việt Nam (ms) — các dòng có u (thời điểm sửa) từ đây trở đi là chấm hôm nay; dùng để gộp ngày chấm bù vào MỘT thư
     const dayStartMs = Date.parse(date + 'T00:00:00+07:00');
     const [rowsQ, pendQ, wbsQ, openQ, otQ, leaveQ, lateQ, datesQ, apprQ] = await env.DB.batch([
@@ -318,7 +325,7 @@ export async function runDigest(env, { now = new Date() } = {}) {
           json_extract(x.value, '$.endTime') et, json_extract(x.value, '$.breakTime') br, json_extract(x.value, '$.activityCode') ac,
           json_extract(x.value, '$.report') rp, json_extract(x.value, '$.remarks') rm
         FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id, json_each(d.data, '$.entries') x
-        WHERE d.period = ? AND json_extract(x.value, '$.date') = ?`).bind(period, date),
+        WHERE d.period = ? AND json_extract(x.value, '$.date') = ? ${rowCond}`).bind(period, date),
       env.DB.prepare(`SELECT d.emp_id, d.period, d.status, d.submitted_at, e.full_name, e.supervisor FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
         WHERE d.status IN ('submitted', 'sitesup_ok', 'pm_ok') ORDER BY d.submitted_at`),
       env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status IN ('submitted', 'sitesup_ok', 'pm_ok')`),
@@ -340,6 +347,9 @@ export async function runDigest(env, { now = new Date() } = {}) {
         WHERE d.period = ? AND d.status IN ('draft', 'rejected')`).bind(period),
       env.DB.prepare(`SELECT a.emp_id, a.period, a.level, a.wbs FROM ts_approvals a JOIN ts_docs d ON d.emp_id = a.emp_id AND d.period = a.period WHERE d.status IN ('submitted', 'sitesup_ok')`),
     ]);
+    // sáng hôm sau chỉ gửi phần chấm muộn của hôm qua (và OT đăng ký muộn); các mục khác đã gửi ở thư 18:30
+    const pendR = am ? [] : pendQ.results, leaveR = am ? [] : leaveQ.results, lateR = am ? [] : lateQ.results, openR = am ? [] : openQ.results;
+    const otR = otQ.results.filter(o => { const lateReq = o.date === date && String(o.requested_at || '') >= cutoffIso; return am ? lateReq && o.date === date : !lateReq; });
     const rows = rowsQ.results, work = rows.filter(r => !LEAVE_CODES.includes(String(r.ac)));
     summary.entries = work.length;
     const idx = await approverIndex(env);
@@ -361,7 +371,7 @@ export async function runDigest(env, { now = new Date() } = {}) {
     wbsQ.results.forEach(r => { const k = r.emp_id + '|' + r.period; if (!wbsOf.has(k)) wbsOf.set(k, []); wbsOf.get(k).push(r.wbs); });
     const doneWbs = new Map();       // 'emp|period|level' → Set các dự án đã duyệt ở cấp đó
     apprQ.results.forEach(a => { const k = `${a.emp_id}|${a.period}|${a.level}`; if (!doneWbs.has(k)) doneWbs.set(k, new Set()); doneWbs.get(k).add(a.wbs); });
-    for (const d of pendQ.results) {
+    for (const d of pendR) {
       const level = d.status === 'submitted' ? 'sitesup' : d.status === 'sitesup_ok' ? 'pm' : 'admin';
       summary.pending++;
       // chỉ người còn dự án chưa duyệt mới được nhắc; cấp admin → Admin / Admin dự án
@@ -370,17 +380,17 @@ export async function runDigest(env, { now = new Date() } = {}) {
     }
     // ⏱ tăng ca chờ duyệt → Site Sup của dự án trong ngày / Quản lý trực tiếp; 🏖 đơn nghỉ → thêm QLDA của dự án
     const wl = (s) => String(s || '').split(',').filter(Boolean);
-    summary.ot = otQ.results.length; summary.leave = leaveQ.results.length;
+    summary.ot = otR.length; summary.leave = leaveR.length;
     // OT của fitter → Site Sup; OT / đơn nghỉ của giám sát → Quản lý dự án
-    for (const o of otQ.results) for (const p of idx.approvers(isLead(env, o) ? 'pm' : 'sitesup', wl(o.wbs), o.supervisor)) recOf(p).ot.push(o);
-    for (const l of leaveQ.results) {
+    for (const o of otR) for (const p of idx.approvers(isLead(env, o) ? 'pm' : 'sitesup', wl(o.wbs), o.supervisor)) recOf(p).ot.push(o);
+    for (const l of leaveR) {
       // đơn nghỉ: chỉ Quản lý trực tiếp duyệt (không có → admin)
       const ppl = idx.directAny(l.supervisor).length ? idx.directAny(l.supervisor) : idx.admins();
       const seen = new Set();
       for (const p of ppl) { if (seen.has(p.email)) continue; seen.add(p.email); recOf(p).leave.push(l); }
     }
     // 📌 chấm công BÙ hôm nay cho các ngày trước: gộp vào CÙNG thư báo cáo của hôm nay (mỗi người một thư duy nhất)
-    const late = lateQ.results.filter(r => !LEAVE_CODES.includes(String(r.ac)) && !r.lv);
+    const late = lateR.filter(r => !LEAVE_CODES.includes(String(r.ac)) && !r.lv);
     summary.late = late.length;
     for (const r of late) {
       const w = String(r.wbs || '').trim();
@@ -393,7 +403,7 @@ export async function runDigest(env, { now = new Date() } = {}) {
     // ⚠️ chưa chấm công hôm nay (chỉ người đang dùng Timesheet kỳ này, chưa nộp; Chủ nhật bỏ qua).
     // Giám sát (Site Sup / QLDA) chỉ chấm giờ OT nên không bị nhắc / không báo vào danh sách chưa chấm.
     const present = new Set(rows.map(r => r.emp_id));
-    const open = openQ.results.filter(d => !isLead(env, d));
+    const open = openR.filter(d => !isLead(env, d));
     if (workday) {
       for (const d of open) {
         if (present.has(d.emp_id)) continue;
@@ -430,14 +440,15 @@ export async function runDigest(env, { now = new Date() } = {}) {
 
     summary.recipients = byPerson.size;
     if (!byPerson.size) return summary;
-    const done = await loggedKeys(env, `digest:${date}:`);
+    const kp = am ? 'digestam' : 'digest';
+    const done = await loggedKeys(env, `${kp}:${date}:`);
     const sentKeys = [];
     let mails = 0;
     const url = link(env, '/tools/approvals/');
     const dayLabel = `${WEEKDAY[weekdayOf(date)]} ${fmtDMY(date)}`;
     const h3 = (t) => `<h3 style="font-size:15px;margin:18px 0 6px">${t}</h3>`;
     for (const [email, rec] of byPerson) {
-      const key = `digest:${date}:${email}`;
+      const key = `${kp}:${date}:${email}`;
       if (done.has(key)) { summary.skipped++; continue; }
       if (mails >= MAX_MAILS_PER_RUN) { summary.errors.push('Đã đạt giới hạn số thư mỗi lần chạy'); break; }
       mails++;
@@ -471,11 +482,11 @@ export async function runDigest(env, { now = new Date() } = {}) {
         rec.ot.length ? `<b style="color:#b45309">${rec.ot.length}</b> ngày tăng ca chờ duyệt` : '',
         rec.leave.length ? `<b style="color:#b45309">${rec.leave.length}</b> đơn nghỉ chờ duyệt` : '',
         rec.missing.length ? `<b style="color:#b91c1c">${rec.missing.length}</b> fitter chưa chấm công` : ''].filter(Boolean).join(' · ');
-      const body = `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px">Hôm nay: ${top}.</p>`
+      const body = `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px">${am ? `Chấm công sau ${DIGEST_CUTOFF} ngày ${fmtDM(date)}` : 'Hôm nay'}: ${top}.</p>`
         + (nRows ? h3('📝 Chấm công trong ngày — dự án bạn phụ trách') + blocks : '')
         + (lateRows.length ? h3('📌 Chấm công bù hôm nay cho các ngày trước (tổng hợp một thư)') + `<ul style="margin:0;padding-left:18px">${lateHtml}</ul>` : '')
         + (rec.pending.length ? h3('⏳ Bảng công chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${pend}</ul><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Bấm tên để mở thẳng bảng công đó.</p>` : '')
-        + (rec.ot.length ? h3('⏱ Tăng ca chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${otList}</ul><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Mở <b>Duyệt bảng công → Tăng ca chờ duyệt</b> để duyệt (chọn nhiều ngày một lần). Bảng công vẫn nộp được khi còn tăng ca chưa duyệt, nhưng giờ chưa duyệt có thể không được tính.</p>` : '')
+        + (rec.ot.length ? h3('⏱ Đề nghị phê duyệt tăng ca (OT)') + `<ul style="margin:0;padding-left:18px">${otList}</ul><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Mở <b>Duyệt bảng công → Tăng ca chờ duyệt</b> để duyệt (chọn nhiều ngày một lần). Bảng công vẫn nộp được khi còn tăng ca chưa duyệt, nhưng giờ chưa duyệt có thể không được tính.</p>` : '')
         + (rec.leave.length ? h3('🏖 Đơn nghỉ chờ bạn duyệt') + `<ul style="margin:0;padding-left:18px">${lvList}</ul>` : '')
         + (rec.missing.length ? h3('⚠️ Hôm nay chưa chấm công') + `<p style="margin:0">${miss}</p><p style="color:#6b7280;font-size:13px;margin:6px 0 0">Fitter bạn quản lý trực tiếp đang dùng Timesheet kỳ này — nhắc chấm công trước khi hết ngày.</p>` : '');
       // Tiêu đề ngắn: "Tên fitter - Tên dự án - WBS - Chấm công/báo cáo ngày dd.mm.yyyy"; nhiều fitter / dự án thì gọn thành số lượng;
@@ -488,10 +499,12 @@ export async function runDigest(env, { now = new Date() } = {}) {
       if (fitters.size === 1 && projs.size === 1) { const p = [...projs.values()][0]; head = `${[...fitters][0]} - ${p.name}${p.wbs ? ' - ' + p.wbs : ''}`; }
       else if (fitters.size === 1 && !projs.size) head = [...fitters][0];
       else head = `${fitters.size || 0} fitter - ${projs.size} dự án`;
-      const duyet = [rec.ot.length ? 'Duyệt OT' : '', rec.leave.length ? 'Duyệt nghỉ phép' : '', rec.pending.length ? 'Duyệt bảng công' : ''].filter(Boolean).join(' + ');
-      const subject = `${head} - Chấm công/báo cáo ngày ${dmy}${duyet ? ' - ' + duyet : ''}`;
+      // ngày công có giờ OT cần duyệt → tiêu đề "Đề nghị phê duyệt OT và chấm công ngày …"; OT các ngày cũ vẫn chờ → thêm "Duyệt OT"
+      const otToday = rec.ot.some(o => o.date === date);
+      const duyet = [rec.ot.length && !otToday ? 'Duyệt OT' : '', rec.leave.length ? 'Duyệt nghỉ phép' : '', rec.pending.length ? 'Duyệt bảng công' : ''].filter(Boolean).join(' + ');
+      const subject = `${head} - ${otToday ? 'Đề nghị phê duyệt OT và chấm công' : 'Chấm công/báo cáo ngày'} ${otToday ? 'ngày ' : ''}${dmy}${duyet ? ' - ' + duyet : ''}`;
       const needAction = rec.pending.length || rec.ot.length || rec.leave.length;
-      const html = layout(`Chấm công / báo cáo thi công ${dayLabel}`, body, needAction ? { url, label: 'Mở Duyệt bảng công' } : null);
+      const html = layout(`${otToday ? 'Đề nghị phê duyệt OT và chấm công' : 'Chấm công / báo cáo thi công'} ${dayLabel}`, body, needAction ? { url, label: 'Mở Duyệt bảng công' } : null);
       const r = await sendMail(env, { to: [rec.person], subject, html });
       if (r.ok) { summary.sent++; sentKeys.push(key); } else { summary.failed++; summary.errors.push(`${email}: ${r.error}`); }
     }
