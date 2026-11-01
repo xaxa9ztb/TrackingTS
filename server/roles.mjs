@@ -25,12 +25,17 @@ export function adminEmails(env) {
 }
 
 // emp: dòng employees (có thể null). Trả về danh sách vai trò, 'admin' đứng đầu nếu có.
+// Một người có thể kiêm nhiều vai trò: vai trò chính (chỉnh tay role_override hoặc theo chức danh) + vai trò kiêm nhiệm
+// (employees.extra_role = danh sách cách nhau bởi dấu phẩy, vd "admin,projadmin"). Kết quả là hợp của hai nhóm.
+export const ALL_ROLES = ['admin', 'projadmin', 'pm', 'sitesup'];
+export function parseExtraRoles(s) {
+  return [...new Set(String(s || '').split(',').map(x => x.trim()).filter(r => ALL_ROLES.includes(r)))];
+}
 export function effectiveRoles(emp, email, env) {
   const isBootAdmin = adminEmails(env).includes(String(email || '').toLowerCase());
-  if (isBootAdmin || (emp && emp.role_override === 'admin')) return ['admin'];
-  if (!emp) return [];
-  if (emp.extra_role === 'projadmin') return ['projadmin'];       // Admin dự án (cột extra_role)
-  if (emp.role_override === 'staff') return [];     // role_override: admin | projadmin (Admin dự án) | pm | sitesup | staff
-  if (emp.role_override) return [emp.role_override];
-  return rolesFromPosition(emp.position);
+  if (!emp) return isBootAdmin ? ['admin'] : [];
+  const base = emp.role_override === 'staff' ? [] : emp.role_override ? [emp.role_override] : rolesFromPosition(emp.position);
+  const all = new Set([...base, ...parseExtraRoles(emp.extra_role)]);
+  if (isBootAdmin) all.add('admin');
+  return ALL_ROLES.filter(r => all.has(r));      // admin đứng đầu
 }

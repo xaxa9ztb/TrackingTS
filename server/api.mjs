@@ -3,7 +3,7 @@
 // tìm nhân viên theo email rồi kiểm tra vai trò cho TỪNG yêu cầu. Mọi thao tác ghi đều vào nhật ký.
 
 import { verifyAccessJwt, teamHost } from './auth.mjs';
-import { effectiveRoles, rolesFromPosition, adminEmails } from './roles.mjs';
+import { effectiveRoles, rolesFromPosition, adminEmails, parseExtraRoles, ALL_ROLES } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
@@ -65,8 +65,8 @@ function employeeOut(e, full) {
   const base = { empId: e.emp_id, name: e.full_name, position: e.position, supervisor: e.supervisor, hireDate: e.hire_date || '', startDate: e.start_date || '' };
   if (!full) return base;
   return {
-    ...base, email: e.email || '', roleOverride: e.extra_role === 'projadmin' ? 'projadmin' : e.role_override,
-    active: !!e.active, roles: e.extra_role === 'projadmin' ? ['projadmin'] : e.role_override ? (e.role_override === 'staff' ? [] : [e.role_override]) : rolesFromPosition(e.position),
+    ...base, email: e.email || '', roleOverride: e.role_override, extraRoles: parseExtraRoles(e.extra_role),
+    active: !!e.active, roles: effectiveRoles(e, '', {}),
     updatedAt: e.updated_at,
   };
 }
@@ -777,9 +777,13 @@ async function patchEmployee(env, me, empId, request) {
   if ('roleOverride' in body) {
     const r = str(body.roleOverride, 20);
     if (!['', 'admin', 'projadmin', 'pm', 'sitesup', 'staff'].includes(r)) throw new HttpError(400, 'Vai trò không hợp lệ');
-    // 'projadmin' (Admin dự án) lưu ở cột extra_role; các vai trò khác ở role_override
-    next.extra_role = r === 'projadmin' ? 'projadmin' : '';
-    next.role_override = r === 'projadmin' ? '' : r;
+    // (tương thích) 'projadmin' chọn như vai trò chính → chuyển thành vai trò kiêm nhiệm
+    if (r === 'projadmin') { next.role_override = ''; if (!parseExtraRoles(next.extra_role).includes('projadmin')) next.extra_role = [...parseExtraRoles(next.extra_role), 'projadmin'].join(','); }
+    else next.role_override = r;
+  }
+  if ('extraRoles' in body) {
+    if (!Array.isArray(body.extraRoles) || body.extraRoles.some(x => !ALL_ROLES.includes(x))) throw new HttpError(400, 'Vai trò kiêm nhiệm không hợp lệ');
+    next.extra_role = ALL_ROLES.filter(r => body.extraRoles.includes(r)).join(',');
   }
   if ('active' in body) next.active = body.active ? 1 : 0;
   if (isSelf && (next.active !== emp.active || next.role_override !== emp.role_override || next.extra_role !== (emp.extra_role || '') || next.email !== emp.email)) {
@@ -792,7 +796,7 @@ async function patchEmployee(env, me, empId, request) {
     if (/UNIQUE/i.test(String(e && e.message))) throw new HttpError(409, 'Email này đã gắn cho nhân viên khác');
     throw e;
   }
-  const pick = (r) => ({ email: r.email || '', roleOverride: r.extra_role === 'projadmin' ? 'projadmin' : r.role_override, active: !!r.active });
+  const pick = (r) => ({ email: r.email || '', roleOverride: r.role_override, extraRoles: parseExtraRoles(r.extra_role), active: !!r.active });
   await audit(env, me, 'update', 'employee', empId, pick(emp), pick(next));
   const after = await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(empId).first();
   return json({ ok: true, employee: employeeOut(after, true) });

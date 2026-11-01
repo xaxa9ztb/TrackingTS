@@ -33,7 +33,7 @@ export function periodOfDate(date) {
 export async function adminsFor(env) {
   const out = new Map();
   adminEmails(env).forEach(email => out.set(email, { email, name: '' }));
-  const { results } = await env.DB.prepare("SELECT full_name, email FROM employees WHERE active = 1 AND email <> '' AND (role_override = 'admin' OR extra_role = 'projadmin')").all();
+  const { results } = await env.DB.prepare("SELECT full_name, email FROM employees WHERE active = 1 AND email <> '' AND (role_override = 'admin' OR (',' || extra_role || ',') LIKE '%,admin,%' OR (',' || extra_role || ',') LIKE '%,projadmin,%')").all();
   results.forEach(e => { const k = String(e.email).toLowerCase(); out.set(k, { email: k, name: e.full_name || '' }); });
   return [...out.values()];
 }
@@ -68,7 +68,7 @@ export async function approversFor(env, level, wbsList, ownerSupervisor, ctx = {
   }
   if (!out.size && fallback) {
     adminEmails(env).forEach(email => out.set(email, { email, name: '' }));
-    if (!ctx.admins) ctx.admins = (await env.DB.prepare("SELECT full_name, email FROM employees WHERE active = 1 AND email <> '' AND role_override = 'admin'").all()).results;
+    if (!ctx.admins) ctx.admins = (await env.DB.prepare("SELECT full_name, email FROM employees WHERE active = 1 AND email <> '' AND (role_override = 'admin' OR (',' || extra_role || ',') LIKE '%,admin,%')").all()).results;
     ctx.admins.forEach(add);
   }
   return [...out.values()];
@@ -90,8 +90,8 @@ async function approverIndex(env) {
   }
   const sups = em.results.filter(e => effectiveRoles(e, e.email, env).includes('sitesup'));
   const pms = em.results.filter(e => effectiveRoles(e, e.email, env).includes('pm'));
-  const admins = [...adminEmails(env).map(email => ({ email, name: '' })), ...em.results.filter(e => e.role_override === 'admin').map(person)];
-  const projAdmins = em.results.filter(e => e.extra_role === 'projadmin').map(person);
+  const admins = [...adminEmails(env).map(email => ({ email, name: '' })), ...em.results.filter(e => effectiveRoles(e, e.email, {}).includes('admin')).map(person)];
+  const projAdmins = em.results.filter(e => effectiveRoles(e, e.email, {}).includes('projadmin')).map(person);
   const direct = (name) => (name ? sups.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
   const directAny = (name) => (name ? em.results.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);
   const directPm = (name) => (name ? pms.filter(e => keyOf(e.full_name) === keyOf(name)).map(person) : []);

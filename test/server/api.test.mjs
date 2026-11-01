@@ -1527,6 +1527,25 @@ test('Admin dự án: tạo vai trò; không quản lý tài khoản nhưng phâ
   assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'ts1@example.com' })).status, 403);
 });
 
+test('Kiêm nhiệm nhiều vai trò: Quản lý dự án kiêm Admin + Admin dự án; chỉ admin chỉnh được, không tự chỉnh mình', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [{ empId: 'MR1', fullName: 'Quản Lý Kiêm Nhiệm', position: 'Project Manager' }] } });
+  assert.equal((await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [{ empId: 'MR1', email: 'mr1@example.com' }] } })).data.applied, 1);
+  let me = (await call('GET', '/api/me', { email: 'mr1@example.com' })).data;
+  assert.deepEqual(me.roles, ['pm']); assert.equal(me.isAdmin, false);
+  const patch = (body, who = 'boss@example.com') => call('PATCH', '/api/admin/employees/MR1', { email: who, body });
+  assert.equal((await patch({ extraRoles: ['admin', 'projadmin'] })).status, 200);
+  me = (await call('GET', '/api/me', { email: 'mr1@example.com' })).data;
+  assert.deepEqual(me.roles, ['admin', 'projadmin', 'pm'], 'vai trò chính theo chức danh + kiêm nhiệm');
+  assert.equal(me.isAdmin, true); assert.equal(me.isProjAdmin, true);
+  const out = (await call('GET', '/api/employees', { email: 'boss@example.com' })).data.employees.find(e => e.empId === 'MR1');
+  assert.deepEqual(out.extraRoles, ['admin', 'projadmin']); assert.deepEqual(out.roles, ['admin', 'projadmin', 'pm']);
+  assert.equal((await patch({ extraRoles: ['boss'] })).status, 400);
+  assert.equal((await patch({ extraRoles: ['admin'] }, 'mr1@example.com')).status, 400, 'không tự đổi vai trò của mình');
+  assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'mr1@example.com' })).status, 200, 'dùng được chức năng Admin dự án');
+  assert.equal((await patch({ extraRoles: [] })).status, 200);
+  assert.deepEqual((await call('GET', '/api/me', { email: 'mr1@example.com' })).data.roles, ['pm']);
+});
+
 test('Xuất cho HR: chỉ Admin / Admin dự án lấy được bảng công ĐÃ DUYỆT XONG của kỳ, kèm dữ liệu', async () => {
   const get = (period, email) => call('GET', '/api/admin/ts/approved?period=' + period, { email });
   const r = await get('2027-07', 'pa1@example.com');

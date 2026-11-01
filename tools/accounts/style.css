@@ -63,3 +63,4 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* nhúng trong trang Quản trị (admin.html): bỏ thanh điều hướng và tiêu đề trang */
 .embed .tsn-bar, .embed .ac-top { display: none; }
+.ac-extra { margin-top: 4px; font-size: 12px; line-height: 1.7; } .ac-extra label { display: inline-block; margin-right: 8px; white-space: nowrap; } .ac-extra small { color: var(--muted, #6b7280); }
