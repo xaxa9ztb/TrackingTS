@@ -195,6 +195,7 @@
       flags.push(`<div class="ap-flag">✔ Đã duyệt — ${[txt('sitesup', 'Site Sup'), txt('pm', 'QLDA')].filter(Boolean).join(' · ')}${(doc.remaining || []).length ? ` · <b>còn chờ dự án: ${doc.remaining.map(esc).join(', ')}</b>` : ''}</div>`);
     } else if ((doc.remaining || []).length) flags.push(`<div class="ap-flag">Dự án cần duyệt ở cấp này: ${doc.remaining.map(esc).join(', ')}</div>`);
     if (doc.level === 'admin') flags.push('<div class="ap-flag">Bảng công đã được Site Sup và Quản lý dự án của mọi dự án duyệt. Admin kiểm tra các <b>hoạt động ngoài dự án</b> (họp, huấn luyện, nghỉ…) rồi bấm <b>Process</b>: dữ liệu sang Theo dõi giờ công và hệ thống gửi thư kèm Excel cho Fitter, Site Sup, Quản lý dự án.</div>');
+    if ((doc.unlisted || []).length) flags.push(`<div class="ap-flag err">⚠ Dự án / WBS <b>chưa có trong danh sách dự án</b> (fitter tự gõ): ${doc.unlisted.map(esc).join(', ')} — không có Site Sup / QLDA phụ trách nên do <b>Admin / Admin dự án</b> kiểm tra: đúng tên dự án / WBS chưa, cần thêm vào danh sách dự án không.</div>`);
     if (doc.direct) flags.push('<div class="ap-flag">Bảng công của giám sát — chỉ gồm giờ tăng ca, nộp thẳng Quản lý dự án (không qua Site Sup).</div>');
     const otDays = new Set(entries.filter(e => !isLeave(e) && Object.keys(e.bd || {}).some(k => k !== 'NORMAL' && e.bd[k] > 0)).map(e => e.date));
     if (otDays.size) flags.push(`<div class="ap-flag">⏱ ${otDays.size} ngày tăng ca (${fmtH(ot)} giờ) — đã được Site Sup duyệt từng ngày trước khi nộp.</div>`);

@@ -11,7 +11,7 @@ import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
 import { routeTsImport } from './tsimport.mjs';
-import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs } from './tsflow.mjs';
+import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs, projectWbsKnown } from './tsflow.mjs';
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
 export class HttpError extends Error {
@@ -686,7 +686,7 @@ async function startApproval(env, me, emp, period, version, entries, allowanceAm
   }
   // tăng ca chưa duyệt KHÔNG chặn nộp: vẫn nhận, thư nhắc người nộp và người duyệt
   const otPending = await otPendingDays(env, emp, period, entries);
-  const wbsList = projectWbs(entries);       // chỉ dự án (hoạt động ngoài dự án do Admin xử lý)
+  const { known: wbsList, unknown: unlisted } = await projectWbsKnown(env, entries);       // chỉ dự án CÓ TRONG DANH SÁCH (hoạt động ngoài dự án và dự án fitter tự gõ chưa có trong danh sách do Admin / Admin dự án xử lý)
   const t = now();
   const status = lead ? 'sitesup_ok' : 'submitted';     // giám sát: bỏ cấp Site Sup, chờ Quản lý dự án (sitesup_by để trống)
   const r = await env.DB.prepare(`UPDATE ts_docs SET status = ?, submitted_at = ?, sitesup_by = '', sitesup_at = '', pm_by = '', pm_at = '', note = '' WHERE emp_id = ? AND period = ? AND version = ? AND status IN ('draft', 'rejected')`)
@@ -695,7 +695,7 @@ async function startApproval(env, me, emp, period, version, entries, allowanceAm
   const stmts = [env.DB.prepare('DELETE FROM ts_doc_wbs WHERE emp_id = ? AND period = ?').bind(emp, period)];
   if (wbsList.length) stmts.push(env.DB.prepare(`INSERT INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbsList.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbsList.flatMap(w => [emp, period, w])));
   await env.DB.batch(stmts);
-  await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length, allowance: allowanceAmount, by: me.email, otPending: otPending.length, direct: lead });
+  await audit(env, me, 'ts_submit', 'ts_doc', `${emp}:${period}`, undefined, { entries: entries.length, wbs: wbsList.length, allowance: allowanceAmount, by: me.email, otPending: otPending.length, direct: lead, unlisted });
   // cấp nào không có dự án cần duyệt thì tự bỏ qua (bảng công chỉ có hoạt động ngoài dự án → thẳng Admin)
   const s = await settle(H, env, emp, period, status, wbsList);
   if (s.moved.length) await notifyStage(env, s.status, { empId: emp, period, wbs: wbsList, by: '' });
