@@ -767,6 +767,40 @@ function App() {
     return p;
   });
   const [projects, setProjects] = useState([]);
+  // Dự án / WBS fitter tự gõ (chưa có trong danh sách dự án chung): nhớ RIÊNG cho từng người (theo mã nhân viên, trên máy này) để lần sau chọn lại, không dùng chung với người khác
+  const myProjKey = 'ts_myproj_v1:' + String(profile.empId || '').trim().toLowerCase();
+  const [myProj, setMyProj] = useState([]);
+  useEffect(() => {
+    try {
+      const l = JSON.parse(localStorage.getItem(myProjKey) || '[]');
+      setMyProj(Array.isArray(l) ? l : []);
+    } catch (e) {
+      setMyProj([]);
+    }
+  }, [myProjKey]);
+  const rememberProject = data => {
+    const act = ACTIVITY_META.find(a => a.id === data.activityCode);
+    const name = String(data.projectName || '').trim(),
+      wbs = String(data.workNumber || '').trim();
+    if (!name && !wbs || act && act.cat === 'HR' || HR_WORK_NUMBERS.includes(wbs)) return;
+    const kw = normalizeString(wbs),
+      kn = normalizeString(name);
+    if (wbs && projects.some(p => normalizeString(p.workNumber) === kw)) return; // đã có trong danh sách chung
+    setMyProj(prev => {
+      const next = [{
+        projectName: name,
+        workNumber: wbs
+      }, ...prev.filter(p => !(normalizeString(p.workNumber || '') === kw && normalizeString(p.projectName || '') === kn))].slice(0, 100);
+      try {
+        localStorage.setItem(myProjKey, JSON.stringify(next));
+      } catch (e) {/* bộ nhớ đầy / bị chặn: bỏ qua */}
+      return next;
+    });
+  };
+  const allProjects = useMemo(() => [...myProj.filter(m => m && (m.workNumber || m.projectName)).map(m => ({
+    ...m,
+    mine: true
+  })), ...projects], [projects, myProj]);
   // Mặc định mở KỲ LƯƠNG ĐANG DIỄN RA (chứa hôm nay) — chấm công hôm nay hiện ngay trong danh sách
   const [currentMonth, setCurrentMonth] = useState(periodMonthOf(getTodayLocal()));
   const [drawer, setDrawer] = useState(null); // null | {type:'form', entry, date, key} | {type:'settings'}
@@ -1157,6 +1191,7 @@ function App() {
     });
   };
   const handleSaveEntry = formData => {
+    rememberProject(formData);
     const editing = drawer && drawer.entry;
     const u = Date.now(); // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
     const {
@@ -1749,7 +1784,7 @@ function App() {
     onCancel: closeDrawer,
     onDelete: drawer.entry ? () => handleDelete(drawer.entry) : null,
     entries: entries,
-    projects: projects,
+    projects: allProjects,
     sch: sch,
     onLeave: openLeave
   })), drawer && drawer.type === 'mail' && /*#__PURE__*/React.createElement(Drawer, {
@@ -4668,6 +4703,33 @@ function EntryForm({
       setSuggestions([]);
     }
   };
+
+  // WBS gợi ý: dự án fitter đã gõ trước đây (đứng đầu) + danh sách dự án chung
+  const wbsOptions = useMemo(() => {
+    const seen = new Set();
+    return projects.filter(p => {
+      const k = String(p.workNumber || '').trim();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).slice(0, 400);
+  }, [projects]);
+  const onWbsChange = v => setFormData(prev => {
+    const key = normalizeString(String(v).trim());
+    const hit = key ? projects.find(p => normalizeString(String(p.workNumber || '').trim()) === key) : null;
+    return {
+      ...prev,
+      workNumber: v,
+      projectName: (prev.projectName || '').trim() ? prev.projectName : hit ? hit.projectName : prev.projectName
+    };
+  });
+  // dự án / WBS chưa có trong danh sách chung (chỉ cảnh báo khi máy đã có danh sách chung)
+  const unlisted = useMemo(() => {
+    const wb = String(formData.workNumber || '').trim(),
+      nm = String(formData.projectName || '').trim();
+    if (isHR || !wb && !nm || !projects.some(p => !p.mine)) return false;
+    return !(wb && projects.some(p => !p.mine && normalizeString(String(p.workNumber || '').trim()) === normalizeString(wb)));
+  }, [formData.workNumber, formData.projectName, projects, isHR]);
   const selectProject = proj => {
     setFormData(prev => ({
       ...prev,
@@ -4902,7 +4964,7 @@ function EntryForm({
   }, "M\u1EDF Xin ngh\u1EC9 \u2192"))), /*#__PURE__*/React.createElement(Field, {
     label: "T\xEAn d\u1EF1 \xE1n",
     htmlFor: "tsProject",
-    hint: projects.length ? `Gõ tên hoặc WBS để chọn trong ${projects.length} dự án.` : null
+    hint: projects.length ? `Chọn trong ${projects.length} dự án, hoặc tự gõ tên dự án mới — app nhớ cho riêng bạn.` : 'Tự gõ tên dự án — app nhớ cho riêng bạn.'
   }, /*#__PURE__*/React.createElement("div", {
     className: "relative"
   }, /*#__PURE__*/React.createElement("input", {
@@ -4943,7 +5005,9 @@ function EntryForm({
     className: "suggestion-item"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
-  }, p.projectName), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
+  }, p.projectName || '(chưa có tên)'), p.mine && /*#__PURE__*/React.createElement("span", {
+    className: "ml-2 text-[11px] text-emerald-700 bg-emerald-50 rounded px-1"
+  }, "c\u1EE7a t\xF4i"), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
     className: "text-slate-500 text-xs font-mono"
   }, p.workNumber)))))), /*#__PURE__*/React.createElement(Field, {
     label: "Work Number / WBS / M\xE3 chi ph\xED",
@@ -4958,13 +5022,23 @@ function EntryForm({
   }, "-- Ch\u1ECDn lo\u1EA1i ngh\u1EC9 --"), HR_WORK_NUMBERS.map(wn => /*#__PURE__*/React.createElement("option", {
     key: wn,
     value: wn
-  }, wn))) : /*#__PURE__*/React.createElement("input", {
+  }, wn))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
     id: "tsWbs",
     type: "text",
+    list: "tsWbsList",
+    autoComplete: "off",
     value: formData.workNumber,
-    onChange: set('workNumber'),
+    onChange: e => onWbsChange(e.target.value),
     className: `${inputCls} font-mono`
-  })), /*#__PURE__*/React.createElement(Field, {
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "tsWbsList"
+  }, wbsOptions.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.workNumber,
+    value: p.workNumber
+  }, p.projectName))), unlisted && /*#__PURE__*/React.createElement("span", {
+    id: "tsUnlisted",
+    className: "block mt-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+  }, "D\u1EF1 \xE1n / WBS n\xE0y ch\u01B0a c\xF3 trong danh s\xE1ch d\u1EF1 \xE1n chung. V\u1EABn ch\u1EA5m c\xF4ng \u0111\u01B0\u1EE3c v\xE0 app nh\u1EDB cho ri\xEAng b\u1EA1n; khi n\u1ED9p b\u1EA3ng c\xF4ng, ph\u1EA7n n\xE0y do ", /*#__PURE__*/React.createElement("b", null, "Admin d\u1EF1 \xE1n"), " duy\u1EC7t."))), /*#__PURE__*/React.createElement(Field, {
     label: "Ghi ch\xFA",
     htmlFor: "tsRemarks"
   }, /*#__PURE__*/React.createElement("input", {

@@ -916,11 +916,11 @@ test('thư: nộp → báo Site Sup; Site Sup duyệt → báo Quản lý dự �
   assert.match(sentMail[0].htmlContent, /Thiếu ngày 20\/11 &lt;b&gt;gấp&lt;\/b&gt;/, 'nội dung người dùng nhập được thoát HTML');
 });
 
-test('thư: không có người phụ trách dự án → Quản lý trực tiếp; không ai cả → admin', async () => {
+test('thư: WBS không có trong danh sách dự án → Admin / Admin dự án duyệt', async () => {
   sentMail.length = 0;
   await putDoc(staffEmail(7), '2026-12', [okEntry(71, '2026-11-18', { workNumber: 'KHONG-DU-AN' })], 0);
   assert.equal((await submit(staffEmail(7), '2026-12')).status, 200);
-  assert.deepEqual(sentMail.map(x => x.to.map(t => t.email)), [['ap2@example.com']], 'Thợ Bảy có Quản lý trực tiếp là Giám Sát Khác (AP2)');
+  assert.deepEqual(sentMail[0].to.map(t => t.email).sort(), ['boss@example.com', 'pm@example.com'], 'WBS không có trong danh sách dự án → Admin / Admin dự án duyệt (không đi qua Site Sup, QLDA)');
   sentMail.length = 0;
   await putDoc(staffEmail(6), '2026-12', [okEntry(61, '2026-11-18', { workNumber: 'KHONG-DU-AN' })], 0);
   assert.equal((await submit(staffEmail(6), '2026-12')).status, 200);
@@ -972,9 +972,8 @@ test('báo cáo tối: mỗi người phụ trách một thư với dòng chấm
   assert.doesNotMatch(ap1[0].htmlContent, /hôm qua|nghỉ phép|Thợ Bảy/);
   assert.match(ap2[0].htmlContent, /Thợ Bảy/); assert.doesNotMatch(ap2[0].htmlContent, /Thợ Bốn/, 'AP2 chỉ nhận fitter mình quản lý trực tiếp');
   // ⏳ bảng công chờ duyệt: TS7 (Quản lý trực tiếp AP2) đã nộp kỳ 12/2026 → thư của AP2 có mục chờ duyệt, bấm mở thẳng bảng công
-  assert.match(ap2[0].subject, / - Duyệt bảng công$/); assert.match(ap2[0].htmlContent, /Bảng công chờ bạn duyệt/);
-  assert.match(ap2[0].htmlContent, /tools\/approvals\/#xem=TS7\/2026-12/);
-  assert.ok(sentMail.some(m => m.to.some(t => t.email === 'boss@example.com') && /#xem=TS6\/2026-12/.test(m.htmlContent)), 'bảng công không ai phụ trách → admin thấy trong mục chờ duyệt');
+  assert.doesNotMatch(ap2[0].htmlContent, /#xem=TS7\/2026-12/, 'WBS không có trong danh sách dự án → không chờ Site Sup / QLDA');
+  for (const id of ['TS6', 'TS7']) assert.ok(sentMail.some(m => m.to.some(t => t.email === 'boss@example.com') && new RegExp('#xem=' + id + '/2026-12').test(m.htmlContent)), 'bảng công có WBS không có trong danh sách → Admin thấy trong mục chờ duyệt');
   sentMail.length = 0;
   const again = await runDigest(env, { now });
   assert.equal(again.sent, 0); assert.equal(again.skipped, sum.sent); assert.equal(sentMail.length, 0);
@@ -1570,6 +1569,24 @@ test('Kiêm nhiệm nhiều vai trò: Quản lý dự án kiêm Admin + Admin d�
   assert.equal((await call('GET', '/api/admin/ts/docs?period=2027-05', { email: 'mr1@example.com' })).status, 200, 'dùng được chức năng Admin dự án');
   assert.equal((await patch({ extraRoles: [] })).status, 200);
   assert.deepEqual((await call('GET', '/api/me', { email: 'mr1@example.com' })).data.roles, ['pm']);
+});
+
+test('Dự án / WBS fitter tự gõ chưa có trong danh sách → Admin / Admin dự án duyệt; dự án có trong danh sách vẫn qua Site Sup + QLDA', async () => {
+  const dateOf = (n) => `2027-12-${16 + n}`;
+  // 1) chỉ có WBS tự gõ: bỏ qua cấp Site Sup / QLDA, chờ Admin xử lý
+  await putDoc('ts1@example.com', '2028-01', [okEntry(10101, dateOf(1), { workNumber: 'ZZ-TAYGO', projectName: 'Dự án tự gõ' })], 0);
+  let r = await submit('ts1@example.com', '2028-01');
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'pm_ok');
+  assert.equal((await call('POST', '/api/ts/review/TS1/2028-01/approve', { email: 'ap1@example.com', body: {} })).status, 403, 'Site Sup của dự án khác không duyệt được');
+  const rv = (await call('GET', '/api/ts/review/TS1/2028-01', { email: 'pa1@example.com' })).data;
+  assert.deepEqual(rv.unlisted, ['ZZ-TAYGO']); assert.equal(rv.canAct, true, 'Admin dự án xử lý được');
+  // 2) lẫn dự án có trong danh sách: chỉ WBS có trong danh sách đi qua Site Sup
+  await putDoc('ts2@example.com', '2028-01', [okEntry(10201, dateOf(1)), okEntry(10202, dateOf(2), { workNumber: 'zz-tay-go-2', projectName: 'Khác' })], 0);
+  r = await submit('ts2@example.com', '2028-01');
+  assert.equal(r.data.status, 'submitted');
+  const wbs = (await env.DB.prepare("SELECT wbs FROM ts_doc_wbs WHERE emp_id = 'TS2' AND period = '2028-01'").all()).results.map(x => x.wbs);
+  assert.deepEqual(wbs, ['WA-1'], 'WBS ngoài danh sách không bắt Site Sup / QLDA duyệt');
+  assert.deepEqual((await call('GET', '/api/ts/review/TS2/2028-01', { email: 'pa1@example.com' })).data.unlisted, ['zz-tay-go-2']);
 });
 
 test('Xuất cho HR: chỉ Admin / Admin dự án lấy được bảng công ĐÃ DUYỆT XONG của kỳ, kèm dữ liệu', async () => {

@@ -101,9 +101,11 @@ export async function reviewDoc(h, env, me, emp, period) {
   let otPending = [];
   try { otPending = await otPendingOfDoc(env, emp, period, JSON.parse(row.data).entries || []); } catch (e) { otPending = []; }
   const all = (await env.DB.prepare('SELECT level, wbs, by_name FROM ts_approvals WHERE emp_id = ? AND period = ?').bind(emp, period).all()).results;
+  let unlisted = [];
+  try { unlisted = (await projectWbsKnown(env, JSON.parse(row.data).entries || [])).unknown; } catch (e) { unlisted = []; }
   const text = `{"ok":true,"period":${JSON.stringify(row.period)},"emp":${JSON.stringify(row.emp_id)},"version":${row.version},"status":${JSON.stringify(row.status)}` +
     `,"name":${JSON.stringify(row.full_name)},"position":${JSON.stringify(row.position)},"level":${JSON.stringify(level || '')},"canAct":${!!mine},"canResend":${!!resend},"pmBy":${JSON.stringify(row.pm_by)},"finalBy":${JSON.stringify(row.final_by)},` +
-    `"wbs":${JSON.stringify(wbs)},"remaining":${JSON.stringify(level && level !== 'admin' ? remainingOf(wbs, appr) : [])},"approvals":${JSON.stringify(all)},` +
+    `"wbs":${JSON.stringify(wbs)},"unlisted":${JSON.stringify(unlisted)},"remaining":${JSON.stringify(level && level !== 'admin' ? remainingOf(wbs, appr) : [])},"approvals":${JSON.stringify(all)},` +
     `"direct":${row.status === 'sitesup_ok' && !row.sitesup_by},"otPending":${JSON.stringify(otPending)},` +
     `"submittedAt":${JSON.stringify(row.submitted_at)},"sitesupBy":${JSON.stringify(row.sitesup_by)},"sitesupAt":${JSON.stringify(row.sitesup_at)},"note":${JSON.stringify(row.note)},"data":${row.data}}`;
   return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
@@ -227,3 +229,17 @@ export async function withdrawDoc(h, env, emp, period) {
 }
 
 export { projectWbs };
+
+// Dự án trong bảng công chia hai nhóm: "known" = có trong danh sách dự án của hệ thống (bảng projects hoặc đã được phân công Site Sup / QLDA) → Site Sup + QLDA của dự án duyệt;
+// "unknown" = fitter tự gõ tên dự án / WBS chưa có trong danh sách → không có người phụ trách nên chuyển thẳng cho Admin / Admin dự án duyệt (như hoạt động ngoài dự án).
+// Danh sách dự án còn trống (hệ thống mới, chưa nạp dự án) thì coi mọi dự án là có trong danh sách, giữ cách làm cũ.
+export async function projectWbsKnown(env, entries) {
+  const all = projectWbs(entries);
+  if (!all.length) return { known: [], unknown: [] };
+  const rows = (await env.DB.prepare('SELECT wbs FROM projects UNION SELECT wbs FROM project_staff').all()).results;
+  if (!rows.length) return { known: all, unknown: [] };
+  const map = new Map(rows.map(r => [String(r.wbs).trim().toUpperCase(), String(r.wbs).trim()]));
+  const known = new Set(), unknown = [];
+  for (const w of all) { const c = map.get(w.toUpperCase()); if (c) known.add(c); else unknown.push(w); }
+  return { known: [...known], unknown };
+}
