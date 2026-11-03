@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="help">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hướng dẫn sử dụng — Bộ công cụ dự án</title>
 <meta name="description" content="Hướng dẫn sử dụng Bộ công cụ dự án cho Fitter, Giám sát (Site Sup), Quản lý dự án và Quản trị viên: chấm công, nộp và duyệt bảng công, hồ sơ chất lượng, điều phối nhân sự.">
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#0f1b2d">
+<link rel="stylesheet" href="css/ni.css?v=1">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -19,12 +20,12 @@
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; scroll-padding-top: 72px; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--ni-font); -webkit-font-smoothing: antialiased; }
   a { color: var(--blue); }
   img { max-width: 100%; }
 
   /* ---------- thanh trên ---------- */
-  .top { position: sticky; top: 0; z-index: 20; background: #111827; color: #f9fafb; }
+  .top { position: sticky; top: 0; z-index: 20; background: var(--ni-bar); color: var(--ni-bar-ink); border-bottom: 3px solid var(--ni-app); }
   .top .in { max-width: 1240px; margin: 0 auto; padding: 0 16px; height: 56px; display: flex; align-items: center; gap: 12px; }
   .top a.home { color: #f9fafb; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 6px 10px 6px 6px; margin-left: -6px; border-radius: 8px; }
   .top a.home:hover, .top a.home:focus-visible { background: #1f2937; outline: none; }
@@ -417,7 +418,7 @@
       <li>Từ <b>ngày 9</b> app hiện nhắc hạn ⏰; email nhắc vào sáng <b>ngày 9 và ngày 11</b>. Hạn cuối là <b>ngày 12</b>.</li>
       <li>Có <b>phụ cấp xe</b> (xăng xe 60.000 đ/ngày cho dự án cách trụ sở 25 – dưới 35 km; xe đi tỉnh 1.000.000 đ/tháng khi làm dự án tỉnh trên 20 ngày và tự mang xe): thẻ <b>Phụ cấp xe</b> → <span class="btnlike">Thêm phụ cấp</span> → chọn loại, dự án (WBS tự điền), khoảng ngày. Số ngày tự tính từ chấm công; phụ cấp được nộp kèm và đính kèm khi Gửi mail.</li>
       <li>Bấm <span class="btnlike pri">Nộp bảng công</span> → kiểm tra bảng xác nhận (giờ công + phụ cấp xe) → <span class="btnlike pri">Nộp cho giám sát</span>.</li>
-      <li>Trạng thái chuyển thành <span class="chip amber">Đã nộp — chờ giám sát</span>. Bảng công bị <b>khoá</b> (không thêm / sửa được) trong lúc chờ duyệt.</li>
+      <li>Trạng thái chuyển thành <span class="chip amber">Chờ Site Sup</span>. Bảng công bị <b>khoá</b> (không thêm / sửa được) trong lúc chờ duyệt.</li>
     </ol>
     <figure class="shot"><img src="docs/huong-dan/ts-submitted.jpg" alt="Trạng thái đã nộp" loading="lazy" width="1280" height="330"><figcaption>Sau khi nộp</figcaption></figure>
     <ol class="legend">
@@ -427,17 +428,17 @@
     <h4>Các trạng thái bảng công</h4>
     <div class="flow">
       <div class="st" style="--c:#475569"><b>Đang chấm</b>Bạn chấm công, sửa thoải mái.</div><span class="ar">→</span>
-      <div class="st" style="--c:#b45309"><b>Đã nộp — chờ giám sát</b>Khoá sửa. Site Sup xem và duyệt.</div><span class="ar">→</span>
-      <div class="st" style="--c:#b45309"><b>Giám sát đã duyệt — chờ quản lý</b>Quản lý dự án duyệt lần 2.</div><span class="ar">→</span>
+      <div class="st" style="--c:#b45309"><b>Chờ Site Sup</b>Khoá sửa. Site Sup xem và duyệt.</div><span class="ar">→</span>
+      <div class="st" style="--c:#b45309"><b>Chờ QLDA</b>Quản lý dự án duyệt lần 2.</div><span class="ar">→</span>
       <div class="st" style="--c:#047857"><b>Đã duyệt xong</b>Giờ công tự chuyển sang bảng Theo dõi giờ công.</div>
     </div>
-    <p>Ở bất kỳ bước duyệt nào, nếu có sai sót giám sát / quản lý có thể <span class="chip rose">Bị trả lại — cần sửa</span> kèm lý do.</p>
+    <p>Ở bất kỳ bước duyệt nào, nếu có sai sót giám sát / quản lý có thể <span class="chip rose">Bị trả lại</span> kèm lý do.</p>
 
     <div class="note tip"><p><b>Tải file Excel:</b> chọn đúng kỳ lương rồi bấm <b>Xuất Excel</b> (⬇) để tải bảng công (<i>TÊN VIẾT LIỀN KHÔNG DẤU.xlsx</i>); ở thẻ <b>Phụ cấp xe</b> bấm <b>Tải form phụ cấp (Excel)</b> để tải bảng phụ cấp. Tải được cả khi đã nộp. Chi tiết: <a href="huong-dan-timesheet.html#tai-file">Hướng dẫn Timesheet</a>.</p></div>
     <h3 id="ts-tralai">2.6. Khi bảng công bị trả lại</h3>
     <figure class="shot"><img src="docs/huong-dan/ts-rejected.jpg" alt="Bảng công bị trả lại kèm lý do" loading="lazy" width="1280" height="380"><figcaption>Bảng công bị trả lại</figcaption></figure>
     <ol class="legend">
-      <li>Trạng thái đổi thành <span class="chip rose">Bị trả lại — cần sửa</span>; bạn cũng nhận email thông báo.</li>
+      <li>Trạng thái đổi thành <span class="chip rose">Bị trả lại</span>; bạn cũng nhận email thông báo.</li>
       <li><b>Lý do</b> của người duyệt hiện ngay bên cạnh — đọc kỹ để sửa đúng chỗ.</li>
       <li>Sửa các dòng cần sửa, rồi bấm <span class="btnlike pri">Nộp bảng công</span> lại.</li>
     </ol>
@@ -556,7 +557,7 @@
     <div class="note tip"><p>Dữ liệu hồ sơ nằm trên trình duyệt của bạn. Lần sau mở lại vẫn còn; đổi máy thì phải nhập lại (hoặc chọn dự án từ danh sách chung để điền nhanh).</p></div>
 
     <h3 id="gs-thongke">3.5. Thống kê giờ công dự án</h3>
-    <figure class="shot"><img src="docs/huong-dan/tracking-dashboard.jpg" alt="Dashboard thống kê giờ công" loading="lazy" width="1280" height="800"><figcaption>Dashboard giờ công theo dự án</figcaption></figure>
+    <figure class="shot"><img src="docs/huong-dan/tracking-dashboard.jpg" alt="Tổng quan thống kê giờ công" loading="lazy" width="1280" height="800"><figcaption>Tổng quan giờ công theo dự án</figcaption></figure>
     <ol class="legend">
       <li><b>Dự án</b> — gõ tên hoặc WBS để chọn.</li>
       <li>Lọc theo <b>Site Sup / Fitter</b>.</li>

@@ -1,26 +1,30 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="tsadmin">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Quản lý bảng công — Bộ công cụ dự án</title>
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="../accounts/style.css?v=5">
-<link rel="stylesheet" href="../approvals/style.css?v=2">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="../../css/ni.css?v=1">
+<link rel="stylesheet" href="../accounts/style.css?v=7">
+<link rel="stylesheet" href="../approvals/style.css?v=9">
+<link rel="stylesheet" href="style.css?v=9">
 <script src="../../js/demo.js?v=2"></script>
 <script src="../../js/session.js?v=45"></script>
 <script>Session.guard('tsadmin');</script>
+<script src="../../js/status.js?v=1"></script>
+<script src="../../js/cards.js?v=1" defer></script>
 </head>
 <body>
-<script src="../toolset-nav.js?v=38" data-tool="Quản lý bảng công" data-help="huong-dan-timesheet.html#admin"></script>
+<script src="../toolset-nav.js?v=39" data-app="tsadmin" data-tool="Quản lý bảng công" data-help="huong-dan-timesheet.html#admin"></script>
 
 <header class="ac-top">
   <div class="ac-wrap">
     <h1>Quản lý bảng công <span class="ac-badge">Admin</span></h1>
-    <p class="ac-sub">Xem bảng công của <b>mọi nhân viên</b> (kể cả người không có tài khoản app) và sửa khi cần. Mỗi lần sửa phải ghi chú — người chủ bảng công thấy
-      "<b>Quản trị viên đã sửa</b>" kèm ghi chú và nhận email.</p>
+    <p class="ac-sub">Xem và sửa bảng công của mọi nhân viên, xuất file cho HR.</p>
+    <details class="ni-howto"><summary>Cách dùng</summary><div>Xem bảng công của <b>mọi nhân viên</b> (kể cả người không có tài khoản app) và sửa khi cần. Mỗi lần sửa phải ghi chú — người chủ bảng công thấy
+      "<b>Quản trị viên đã sửa</b>" kèm ghi chú và nhận email.</div></details>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
   </div>
 </header>
@@ -32,12 +36,12 @@
     <div class="ap-head"><h2>Bảng công theo kỳ lương</h2>
       <span class="ta-period"><button class="btn small" id="pPrev" aria-label="Kỳ trước">‹</button> <b id="pLabel"></b> <button class="btn small" id="pNext" aria-label="Kỳ sau">›</button></span></div>
     <div class="ac-row"><input id="fFilter" type="search" placeholder="Lọc theo tên, mã NV, trạng thái…" class="ta-filter"><span class="ac-note" id="listNote"></span></div>
-    <div class="ac-scroll ac-tall ac-short"><table class="ac-table" id="tDocs">
+    <div class="ac-scroll ac-tall ac-short"><table class="ac-table ni-cards" id="tDocs">
       <thead><tr><th>Mã NV</th><th>Nhân viên</th><th>Trạng thái</th><th class="r">Dòng</th><th>Sửa gần nhất</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
     <details class="ta-new"><summary>＋ Nhân viên chưa có bảng công kỳ này (tạo / nhập hộ)</summary>
-      <div class="ac-scroll ac-short"><table class="ac-table" id="tOthers"><thead><tr><th>Mã NV</th><th>Nhân viên</th><th>Chức danh</th><th>Tài khoản</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="ac-scroll ac-short"><table class="ac-table ni-cards" id="tOthers"><thead><tr><th>Mã NV</th><th>Nhân viên</th><th>Chức danh</th><th>Tài khoản</th><th></th></tr></thead><tbody></tbody></table></div>
     </details>
   </section>
 
@@ -47,7 +51,7 @@
       <b>Bảng công</b> (mỗi nhân viên 1 file Excel) và <b>Phụ cấp</b> (1 file phụ cấp xe, 1 file phụ cấp xăng — mỗi nhân viên 1 tab). File do bạn tự tải về, hệ thống <b>không gửi email</b>.</p>
     <div class="ac-row"><label><input type="checkbox" id="hrAll" checked> Chọn tất cả</label><span class="ac-note" id="hrNote"></span>
       <button class="btn primary" id="hrExport">Xuất file nén</button></div>
-    <div class="ac-scroll ac-short"><table class="ac-table" id="tHr"><thead><tr><th></th><th>Mã NV</th><th>Nhân viên</th><th class="r">Dòng</th><th>Duyệt cuối</th></tr></thead><tbody></tbody></table></div>
+    <div class="ac-scroll ac-short"><table class="ac-table ni-cards" id="tHr"><thead><tr><th></th><th>Mã NV</th><th>Nhân viên</th><th class="r">Dòng</th><th>Duyệt cuối</th></tr></thead><tbody></tbody></table></div>
     <div id="hrMsg" class="ac-note"></div>
   </section>
 
@@ -80,6 +84,6 @@
 <script src="../timesheet/tsexcel.js?v=3"></script>
 <script src="../timesheet/allowance.js?v=1"></script>
 <script src="hrexport.js?v=1"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

@@ -228,7 +228,9 @@
         // Giám sát (Site Sup / Quản lý dự án): chỉ chấm giờ OT, đăng ký OT trước khi làm, Quản lý dự án duyệt, bảng công cuối kỳ nộp thẳng Quản lý dự án
         const IS_LEAD = SERVER && (() => { try { return Session.roles(Session.current()).some(r => r === 'sitesup' || r === 'pm'); } catch (e) { return false; } })();
         const SALARY_KEY = 'ts_salary_v1';      // lương cơ bản: chỉ lưu trên máy này, không đồng bộ, không nằm trong sao lưu / báo cáo / email
-        const STATUS_LABEL = { draft: 'Đang chấm', rejected: 'Bị trả lại — cần sửa', submitted: 'Đã nộp — chờ giám sát', sitesup_ok: 'Giám sát đã duyệt — chờ quản lý', pm_ok: 'Đã qua giám sát & quản lý — chờ Admin xử lý', approved: 'Đã duyệt xong' };
+        // tên trạng thái dùng chung toàn bộ công cụ (js/status.js — hệ thiết kế NI)
+        const STATUS_LABEL = (window.NiStatus && window.NiStatus.MAP) ? Object.fromEntries(Object.keys(window.NiStatus.MAP).map(k => [k, window.NiStatus.label(k)]))
+            : { draft: 'Đang chấm', submitted: 'Chờ Site Sup', sitesup_ok: 'Chờ QLDA', pm_ok: 'Chờ Admin xử lý', approved: 'Đã duyệt xong', rejected: 'Bị trả lại' };
         const sameEntries = (a, b) => {
             if (a.length !== b.length) return false;
             const m = new Map(a.map(e => [String(e.id), JSON.stringify(e)]));
@@ -893,7 +895,7 @@
             return (
                 <div id="tsSyncBar" className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" role="status">
                     <span id="tsPeriodStatus" className={`inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`}>
-                        Kỳ {parseInt(m, 10)}/{y}: {lead && status === 'sitesup_ok' ? 'Đã nộp — chờ Quản lý dự án duyệt' : (STATUS_LABEL[status] || status)}
+                        Kỳ {parseInt(m, 10)}/{y}: {STATUS_LABEL[status] || status}
                     </span>
                     {(status === 'submitted' || (lead && status === 'sitesup_ok')) && <button id="tsWithdrawBtn" type="button" onClick={onWithdraw} className={btnGhost}>Thu hồi để sửa</button>}
                     {(status === 'draft' || status === 'rejected') && (

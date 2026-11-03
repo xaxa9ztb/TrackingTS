@@ -52,7 +52,7 @@
     const list = docs.filter(hit);
     $('tDocs').tBodies[0].innerHTML = list.map(d => `<tr data-emp="${esc(d.empId)}"><td class="mono">${esc(d.empId)}</td>
         <td><b>${esc(d.name)}</b>${d.account ? '' : ' <span class="pill">không có tài khoản</span>'}<div class="ac-note">${esc(d.position)}</div></td>
-        <td><span class="ta-st ${esc(d.status)}">${esc(STATUS[d.status] || d.status)}</span></td><td class="r">${d.entries}</td>
+        <td>${window.NiStatus ? NiStatus.pill(d.status) : esc(STATUS[d.status] || d.status)}</td><td class="r">${d.entries}</td>
         <td>${d.adminBy ? `<span class="ta-adm">Quản trị viên ${esc(d.adminBy)} · ${esc(fmtTime(d.adminAt))}<br>${esc(d.adminNote)}</span>` : `<span class="ac-note">${esc(d.savedBy || '')}</span>`}</td>
         <td><button class="btn small primary" data-open>Xem / sửa</button></td></tr>`).join('') || '<tr><td colspan="6" class="ac-note">Chưa có bảng công nào trong kỳ này.</td></tr>';
     $('listNote').textContent = `${list.length}/${docs.length} bảng công`;
@@ -74,7 +74,7 @@
       cur = { emp, d, rows: (d.data.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.startTime).localeCompare(String(b.startTime))).map(e => ({ ...e })), del: new Set(), orig: new Map() };
       cur.rows.forEach(e => cur.orig.set(String(e.id), JSON.stringify(e)));
       $('eTitle').textContent = `${d.name} — ${labelOf(period)}`;
-      $('eMeta').innerHTML = `<b>${esc(d.name)}</b> (${esc(emp)}) · ${esc(d.position)} · <span class="ta-st ${esc(d.status)}">${esc(STATUS[d.status] || d.status)}</span> · phiên bản ${d.version}${d.account ? '' : ' · <span class="pill">không có tài khoản app</span>'}`;
+      $('eMeta').innerHTML = `<b>${esc(d.name)}</b> (${esc(emp)}) · ${esc(d.position)} · ${window.NiStatus ? NiStatus.pill(d.status) : esc(STATUS[d.status] || d.status)} · phiên bản ${d.version}${d.account ? '' : ' · <span class="pill">không có tài khoản app</span>'}`;
       $('eFlags').innerHTML = (d.adminBy ? `<div class="ap-flag">Lần sửa gần nhất: Quản trị viên <b>${esc(d.adminBy)}</b> · ${esc(fmtTime(d.adminAt))} — ${esc(d.adminNote)}</div>` : '')
         + (['approved'].includes(d.status) ? '<div class="ap-flag err">⚠ Bảng công đã duyệt xong — sửa sẽ cập nhật lại bảng Theo dõi giờ công.</div>' : '')
         + (d.status !== 'draft' && d.status !== 'rejected' ? '<div class="ap-flag">Bảng công đã nộp: người chủ không tự sửa được; bản sửa của bạn thay các dòng tương ứng.</div>' : '');

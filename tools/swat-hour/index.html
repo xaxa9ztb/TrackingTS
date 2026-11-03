@@ -1,44 +1,43 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="swat">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SWAT Hour Calculator — Schindler Vietnam</title>
 <meta name="description" content="Công cụ ước tính giờ công lắp đặt thang máy (SWAT/fitter hour) và tiền thưởng theo Installation Incentive Scheme 2024/2025/2026 của Schindler Vietnam.">
 <meta name="author" content="Schindler Vietnam NI">
-<meta name="theme-color" content="#e2001a">
-<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f1b2d">
+<meta name="color-scheme" content="light">
+<link rel="stylesheet" href="../../css/ni.css?v=1">
 <meta property="og:title" content="SWAT Hour Calculator — Schindler Vietnam">
 <meta property="og:description" content="Ước tính giờ công lắp đặt & giờ công còn lại theo bảng công.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e2001a'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3E%E2%8F%B1%3C/text%3E%3C/svg%3E">
 <meta name="robots" content="noindex">
 <style>
+  /* hệ thiết kế NI (css/ni.css): giao diện sáng như mọi chức năng khác; biểu mẫu in (.efdoc/.scdoc) giữ nguyên */
   :root{
-    --bg:#0f172a; --panel:#1e293b; --panel2:#243349; --line:#334155;
-    --txt:#e2e8f0; --muted:#94a3b8; --accent:#e2001a; --accent2:#38bdf8;
-    --good:#22c55e; --warn:#f59e0b; --chip:#0b3b57;
-  }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#f1f5f9; --panel:#ffffff; --panel2:#f8fafc; --line:#e2e8f0;
-      --txt:#0f172a; --muted:#64748b; --chip:#e0f2fe; }
+    --bg:var(--ni-bg); --panel:var(--ni-surface); --panel2:var(--ni-surface); --line:var(--ni-line);
+    --txt:var(--ni-ink); --muted:var(--ni-muted); --accent:var(--ni-danger); --accent2:var(--ni-action);
+    --good:var(--ni-ok); --warn:var(--ni-warn); --chip:var(--ni-info-soft);
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.5}
-  header{background:linear-gradient(90deg,var(--accent),#8b0010);color:#fff;padding:16px 22px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,.25)}
-  header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.3px}
-  header .sub{font-size:12px;opacity:.85;margin-top:2px}
+  body{margin:0;font-family:var(--ni-font);background:var(--bg);color:var(--txt);font-size:14px;line-height:1.5}
+  header{background:var(--ni-surface);color:var(--ni-ink);border-bottom:1px solid var(--ni-line);padding:18px 22px 14px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+  header h1{font-size:var(--ni-fs-h1);margin:0;font-weight:700;line-height:1.25;display:flex;align-items:center;gap:10px}
+  header h1::before{content:"";width:4px;height:22px;border-radius:2px;background:var(--ni-app);flex:none}
+  header .sub{font-size:14px;color:var(--ni-muted);margin-top:6px}
   .wrap{max-width:1180px;margin:0 auto;padding:18px}
-  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:var(--ni-r-card);box-shadow:var(--ni-shadow);padding:14px;margin-bottom:16px}
   .field{display:flex;flex-direction:column;gap:4px}
-  .field label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
-  select,input[type=text],input[type=number]{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:14px;min-width:110px}
-  input:focus,select:focus{outline:2px solid var(--accent2);outline-offset:0}
+  .field label{font-size:12px;color:var(--muted);font-weight:600}
+  select,input[type=text],input[type=number]{background:var(--panel2);border:1px solid var(--ni-line-strong);color:var(--txt);border-radius:var(--ni-r-ctl);min-height:38px;padding:6px 10px;font:400 14px var(--ni-font);min-width:110px}
+  input:focus,select:focus{outline:none;border-color:var(--ni-action);box-shadow:0 0 0 3px var(--ni-focus)}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:880px){.grid{grid-template-columns:1fr}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
-  .card h2{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px}
-  .card h2 .num{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--ni-r-card);box-shadow:var(--ni-shadow);padding:16px;margin-bottom:16px}
+  .card h2{margin:0 0 12px;font-size:var(--ni-fs-h2);font-weight:600;display:flex;align-items:center;gap:8px}
+  .card h2 .num{background:var(--ni-action-soft);color:var(--ni-action);width:24px;height:24px;border-radius:var(--ni-r-pill);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
   .row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line)}
   .row:last-child{border-bottom:none}
   .row .k{color:var(--muted)}
@@ -70,7 +69,7 @@
   .addons{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
   @media(max-width:620px){.addons{grid-template-columns:1fr}}
   .chk{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
-  .chk input{width:16px;height:16px;accent-color:var(--accent)}
+  .chk input{width:16px;height:16px;accent-color:var(--ni-action)}
   .chk .h{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
   table{width:100%;border-collapse:collapse;font-size:13px}
   .rt th,.rt td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
@@ -81,14 +80,16 @@
   .total.money .big{color:var(--good)}
   .pill{display:inline-block;background:var(--chip);color:var(--accent2);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600}
   .note{font-size:12px;color:var(--muted);background:var(--panel2);border-left:3px solid var(--warn);border-radius:6px;padding:8px 10px;margin-top:10px}
-  .btn{background:var(--accent2);color:#032a3d;border:none;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px}
-  .btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--ni-h-ctl);background:var(--ni-action);color:#fff;border:1px solid var(--ni-action);border-radius:var(--ni-r-ctl);padding:0 16px;font-weight:600;cursor:pointer;font-size:14px;font-family:var(--ni-font)}
+  .btn:hover{background:var(--ni-action-hover)}
+  .btn.sec{background:var(--ni-surface);color:var(--txt);border:1px solid var(--ni-line-strong)}
+  .btn.sec:hover{background:var(--ni-sunk)}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
   .hide{display:none!important}
-  .warnbox{background:#7f1d1d22;border:1px solid #ef444455;color:#fca5a5;border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px}
-  .seg{display:inline-flex;border:1px solid rgba(255,255,255,.4);border-radius:8px;overflow:hidden}
-  .seg button{background:transparent;border:none;color:#fff;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600}
-  .seg button.on{background:#fff;color:var(--accent)}
+  .warnbox{background:var(--ni-danger-soft);border:1px solid var(--ni-danger-line);color:var(--ni-danger);border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px}
+  .seg{display:inline-flex;gap:4px;padding:4px;background:var(--ni-sunk);border-radius:var(--ni-r-card)}
+  .seg button{background:transparent;border:none;color:var(--ni-ink-2);min-height:32px;padding:0 12px;cursor:pointer;font:600 13px var(--ni-font);border-radius:var(--ni-r-ctl)}
+  .seg button.on{background:var(--ni-surface);color:var(--ni-ink);box-shadow:var(--ni-shadow)}
 
   /* ============ EXCEL-LIKE PRINT FORM (styling qua class .efdoc để dùng lại cho batch) ============ */
   #excelform{display:none}
@@ -220,9 +221,11 @@
 </style>
 </head>
 <body>
+<script src="../../js/session.js?v=45"></script>
+<script src="../toolset-nav.js?v=39" data-app="swat" data-tool="SWAT Hour" data-help="#gs-thongke"></script>
 <header>
   <div>
-    <h1>SWAT Hour Calculator</h1>
+    <h1>Tính giờ SWAT</h1>
     <div class="sub" data-i18n="subtitle">Schindler Vietnam — Ước tính giờ lắp đặt & thưởng hiệu quả (Installation Incentive Scheme)</div>
   </div>
   <div class="seg" id="lang">

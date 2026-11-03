@@ -1,60 +1,64 @@
-/* Tài khoản & phân quyền — cùng phong cách với Quản lý dự án */
+/* Nhóm Tài khoản / Duyệt / Nghỉ phép / Quản lý bảng công / Nhập Excel — theo hệ thiết kế NI (css/ni.css).
+   Biến cũ (--blue, --red…) giữ tên nhưng trỏ về token --ni-* để mọi màu đi theo hệ. */
 :root {
-  --bg: #f4f5f7; --card: #fff; --ink: #111827; --ink-2: #374151; --muted: #6b7280;
-  --line: #e5e7eb; --blue: #1d4ed8; --blue-bg: #eff6ff; --red: #b91c1c; --red-bg: #fef2f2;
-  --amber: #92400e; --amber-bg: #fffbeb; --green: #047857;
+  --bg: var(--ni-bg, #f4f6f9); --card: var(--ni-surface, #fff); --ink: var(--ni-ink, #0f1b2d); --ink-2: var(--ni-ink-2, #344054); --muted: var(--ni-muted, #667085);
+  --line: var(--ni-line, #e3e7ee); --blue: var(--ni-action, #1d4ed8); --blue-bg: var(--ni-action-soft, #eef4ff); --red: var(--ni-danger, #b42318); --red-bg: var(--ni-danger-soft, #fef3f2);
+  --amber: var(--ni-warn, #b45309); --amber-bg: var(--ni-warn-soft, #fff7e6); --green: var(--ni-ok, #047857);
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14.5px/1.5 var(--ni-font, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
-.ac-wrap { max-width: 1200px; margin: 0 auto; padding-inline: 16px; }
-.ac-top { background: #fff; border-bottom: 1px solid var(--line); padding-block: 14px 10px; }
-.ac-top h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ac-badge { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--blue); background: var(--blue-bg); border: 1px solid #bfdbfe; border-radius: 999px; padding: 2px 8px; }
-.ac-sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.ac-wrap { max-width: var(--ni-wrap, 1200px); margin: 0 auto; padding-inline: 16px; }
+/* đầu trang chung (ni-head): tiêu đề có sọc màu chức năng, mô tả 1 dòng, "Cách dùng" thu gọn */
+.ac-top { background: var(--card); border-bottom: 1px solid var(--line); padding-block: 18px 14px; }
+.ac-top h1 { margin: 0; font-size: var(--ni-fs-h1, 22px); line-height: 1.25; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ac-top h1::before { content: ""; width: 4px; height: 22px; border-radius: 2px; background: var(--ni-app, #dc0000); flex: none; }
+.ac-badge { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--ni-sunk, #eef1f5); border-radius: 999px; padding: 2px 10px; }
+.ac-sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 80ch; }
 .ac-who { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); }
-.ac-msg { margin: 16px 0; padding: 14px 16px; border-radius: 10px; background: var(--amber-bg); border: 1px solid #fcd34d; color: var(--amber); }
-.ac-msg.err { background: var(--red-bg); border-color: #fecaca; color: var(--red); }
-.ac-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 16px 0; }
-.ac-card h2 { margin: 0 0 6px; font-size: 16px; }
+.ac-msg { margin: 16px 0; padding: 12px 16px; border-radius: 10px; background: var(--amber-bg); border: 1px solid var(--ni-warn-line, #f8d48a); color: var(--amber); }
+.ac-msg.err { background: var(--red-bg); border-color: var(--ni-danger-line, #fecdca); color: var(--red); }
+.ac-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--ni-r-card, 10px); padding: 16px 18px; margin: 16px 0; box-shadow: var(--ni-shadow, none); }
+.ac-card h2 { margin: 0 0 6px; font-size: var(--ni-fs-h2, 17px); font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .ac-help { margin: 0 0 10px; color: var(--ink-2); font-size: 13px; max-width: 75ch; }
 .ac-counts { margin: 0 0 8px; font-weight: 600; }
 .ac-check { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13.5px; }
 .ac-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; }
-.ac-row input[type=search] { flex: 1 1 260px; max-width: 420px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; }
+.ac-row input[type=search] { flex: 1 1 260px; max-width: 420px; min-height: var(--ni-h-ctl, 40px); padding: 8px 12px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: var(--ni-r-ctl, 6px); font-size: 16px; background: var(--card); }
 .ac-note { color: var(--muted); font-size: 13px; }
 .ac-note.ok { color: var(--green); } .ac-note.err { color: var(--red); }
-.btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
-.btn:hover:not(:disabled) { background: #f9fafb; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--ni-h-ctl, 40px); border: 1px solid var(--ni-line-strong, #c9d0db); background: var(--card); color: var(--ink); border-radius: var(--ni-r-ctl, 6px); padding: 0 16px; font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; }
+.btn:hover:not(:disabled) { background: var(--ni-sunk, #eef1f5); }
+.btn:focus-visible { outline: 3px solid var(--ni-focus, rgba(29,78,216,.35)); outline-offset: 2px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: #1e40af; }
-.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn.primary:hover:not(:disabled) { background: var(--ni-action-hover, #1e40af); border-color: var(--ni-action-hover, #1e40af); }
+.btn.small { min-height: var(--ni-h-ctl-sm, 32px); padding: 0 12px; font-size: 13px; }
 .ac-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.ac-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.ac-table th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); padding: 6px 8px; white-space: nowrap; }
-.ac-table td { border-bottom: 1px solid #f1f5f9; padding: 6px 8px; vertical-align: middle; }
+.ac-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ac-table th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; background: var(--ni-sunk, #eef1f5); border-bottom: 1px solid var(--line); padding: 8px 10px; white-space: nowrap; }
+.ac-table td { border-bottom: 1px solid var(--line); padding: 8px 10px; vertical-align: middle; }
 .ac-table tr.off td { color: var(--muted); }
-.ac-table input[type=email] { width: 100%; min-width: 200px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 16px; }
-.ac-table select { padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; background: #fff; max-width: 280px; }
+.ac-table input[type=email] { width: 100%; min-width: 200px; padding: 6px 8px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 6px; font-size: 16px; }
+.ac-table select { padding: 5px 6px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 6px; font-size: 14px; background: var(--card); max-width: 280px; }
 .ac-table select[multiple] { min-width: 160px; }
-.ac-table .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+.ac-table .mono { font-family: var(--ni-mono, ui-monospace, Menlo, Consolas, monospace); font-size: 12.5px; }
 .ac-table .dirty input, .ac-table .dirty select { border-color: #f59e0b; }
 .ac-table .detail { color: var(--ink-2); font-size: 12.5px; max-width: 420px; }
-.ac-tall { max-height: 380px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ac-tall { max-height: 380px; overflow: auto; border: 1px solid var(--line); border-radius: var(--ni-r-card, 10px); }
 .ac-tall.ac-short { max-height: 240px; }
-.ac-tall .ac-table th { position: sticky; top: 0; z-index: 1; background: #f9fafb; }
+.ac-tall .ac-table th { position: sticky; top: 0; z-index: 1; background: var(--ni-sunk, #eef1f5); }
 .ac-auto .ac-tall { max-height: 300px; }
 .ac-access { margin-top: 12px; }
 .ac-access summary { cursor: pointer; font-weight: 600; }
 .ac-access textarea { width: 100%; margin: 6px 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font: 13px ui-monospace, Menlo, Consolas, monospace; }
-.ac-toast { position: fixed; left: 0; right: 0; bottom: 20px; margin: auto; width: fit-content; max-width: calc(100% - 32px); background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+.ac-toast { position: fixed; left: 0; right: 0; bottom: 20px; margin: auto; width: fit-content; max-width: calc(100% - 32px); z-index: 1000; background: var(--ni-bar, #0f1b2d); color: var(--ni-bar-ink, #e6ebf2); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--ni-shadow-pop, 0 8px 24px rgba(0,0,0,.2)); }
 @media (max-width: 640px) {
-  .ac-table th:nth-child(3), .ac-table td:nth-child(3) { display: none; }
+  .ac-table:not(.ni-cards) th:nth-child(3), .ac-table:not(.ni-cards) td:nth-child(3) { display: none; }
 }
 .ac-pre { white-space: pre-wrap; margin: 4px 0 0; font-family: inherit; }
-.ac-auto { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; background: #fafbfc; }
+.ac-auto { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; background: var(--ni-bg, #f4f6f9); }
 .ac-auto h3 { margin: 0 0 4px; font-size: 14.5px; }
 .ac-auto .ac-check { margin: 0; }
 .ac-auto select { max-width: 340px; width: 100%; }
@@ -64,3 +68,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* nhúng trong trang Quản trị (admin.html): bỏ thanh điều hướng và tiêu đề trang */
 .embed .tsn-bar, .embed .ac-top { display: none; }
 .ac-extra { margin-top: 4px; font-size: 12px; line-height: 1.7; } .ac-extra label { display: inline-block; margin-right: 8px; white-space: nowrap; } .ac-extra small { color: var(--muted, #6b7280); }
+
+/* "Cách dùng" thu gọn ở đầu trang (thay đoạn giới thiệu dài) */
+.ac-top .ni-howto { margin-top: 8px; }
+/* bảng → thẻ trên điện thoại: bảng có lớp ni-cards, ô có data-label (gán bằng js/cards.js) */
+@media (max-width: 640px) {
+  .ac-tall:has(table.ni-cards) { max-height: none; border: 0; overflow: visible; }
+  table.ni-cards.ac-table td { border: 0; padding: 4px 0; }
+  table.ni-cards.ac-table tr.bad { border-color: var(--ni-danger-line, #fecdca); background: var(--red-bg); }
+  table.ni-cards.ac-table tr.bad td { background: transparent; }
+  .ap-actions .btn { flex: 1 1 auto; }
+}
+/* ô nhập ngoài bảng (kỳ lương, ngày…) theo hệ NI */
+.ac-card :is(input[type=month], input[type=date], input[type=number], input[type=text], select):not(.ac-table *) { min-height: 36px; padding: 4px 10px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: var(--ni-r-ctl, 6px); background: var(--card); }
