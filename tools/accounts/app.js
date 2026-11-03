@@ -42,6 +42,62 @@
     return data;
   }
 
+  // ---------- yêu cầu đăng ký (email lạ gửi họ tên + mã NV) ----------
+  async function loadRegs() {
+    const tb = $('regTable').tBodies[0], note = $('regNote');
+    let d;
+    try { d = await api('GET', '/api/admin/registrations'); } catch (e) { note.className = 'ac-note err'; note.textContent = '✗ ' + e.message; return; }
+    const list = d.requests || [];
+    $('regCount').textContent = list.length ? String(list.length) : '';
+    note.className = 'ac-note'; note.textContent = list.length ? '' : 'Không có yêu cầu nào đang chờ.';
+    tb.innerHTML = list.map(r => {
+      const e = r.employee;
+      const nameOk = e && e.name.trim().toLowerCase() === r.name.trim().toLowerCase();
+      const check = !e ? '<span class="ac-note err">✗ Chưa có mã NV này trong dữ liệu</span>'
+        : e.email && e.email.toLowerCase() !== r.email.toLowerCase() ? `<span class="ac-note err">⚠ Đang gắn email ${esc(e.email)}</span><div class="ac-note">${esc(e.name)} · ${esc(e.position)}</div>`
+        : `<span class="${nameOk ? 'ac-note ok' : 'ac-note'}">${nameOk ? '✓' : '⚠ khác tên:'} ${esc(e.name)}</span><div class="ac-note">${esc(e.position)}${e.active ? '' : ' · đang khoá'}</div>`;
+      return `<tr data-id="${r.id}">
+        <td><b>${esc(r.name)}</b><div class="ac-note">${esc(r.email)}</div>${r.note ? `<div class="ac-note">“${esc(r.note)}”</div>` : ''}</td>
+        <td><input class="reg-emp" value="${esc(r.empId)}" maxlength="30" aria-label="Mã NV sẽ gắn" style="width:110px;padding:6px 8px;border:1px solid var(--ni-line-strong,#c9d0db);border-radius:6px;font-size:15px"></td>
+        <td>${check}</td>
+        <td class="ac-note">${esc(fmtTime(r.updatedAt))}</td>
+        <td><div class="ac-row" style="margin:0;flex-wrap:nowrap"><button class="btn small primary" data-act="approve" type="button">Duyệt</button><button class="btn small danger" data-act="reject" type="button">Không duyệt…</button></div>
+          <div class="reg-why ap-reject" hidden><label>Lý do (người đăng ký nhận qua email)<input maxlength="300" style="width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--ni-line-strong,#c9d0db);border-radius:6px;font-size:15px" placeholder="Ví dụ: Mã NV không khớp với họ tên"></label>
+            <div class="ac-row" style="margin:6px 0 0"><button class="btn small danger" data-act="send-reject" type="button">Gửi không duyệt</button><button class="btn small" data-act="cancel" type="button">Huỷ</button></div></div></td>
+      </tr>`;
+    }).join('');
+  }
+  function wireRegs() {
+    $('btnRegReload').addEventListener('click', loadRegs);
+    $('regTable').addEventListener('click', async (ev) => {
+      const b = ev.target.closest('button[data-act]');
+      if (!b) return;
+      const tr = b.closest('tr'), id = tr.dataset.id;
+      // Không duyệt: mở ô lý do ngay trong dòng
+      if (b.dataset.act === 'reject') {
+        const box = tr.querySelector('.reg-why');
+        if (box) { box.hidden = !box.hidden; if (!box.hidden) box.querySelector('input').focus(); }
+        return;
+      }
+      if (b.dataset.act === 'cancel') { tr.querySelector('.reg-why').hidden = true; return; }
+      const body = {};
+      if (b.dataset.act === 'approve') body.empId = tr.querySelector('.reg-emp').value.trim();
+      else {
+        const why = tr.querySelector('.reg-why input').value.trim();
+        if (!why) { toast('Nhập lý do không duyệt'); tr.querySelector('.reg-why input').focus(); return; }
+        body.note = why;
+      }
+      const act = b.dataset.act === 'approve' ? 'approve' : 'reject';
+      tr.querySelectorAll('button').forEach(x => { x.disabled = true; });
+      try {
+        const r = await api('POST', `/api/admin/registrations/${id}/${act}`, body);
+        toast(act === 'approve' ? `✓ Đã cấp tài khoản cho ${r.employee.name} (${r.employee.empId}) — đã gửi email báo` : '✓ Đã từ chối — người đăng ký nhận email lý do');
+        await loadRegs();
+        if (act === 'approve') { try { await loadAll(); } catch (e) { /* bỏ qua */ } }
+      } catch (e) { toast('✗ ' + e.message); tr.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
+    });
+  }
+
   function gate(msg, isErr) {
     const el = $('gate');
     el.innerHTML = msg; el.className = 'ac-msg' + (isErr ? ' err' : ''); el.hidden = false;
@@ -477,7 +533,9 @@
     wireAuto();
     wirePm();
     if (me.isAdmin) {
-      ['secImport', 'secPeople', 'secAccounts', 'secAudit', 'secMail'].forEach(id => { $(id).hidden = false; });
+      ['dangky', 'secImport', 'secPeople', 'secAccounts', 'secAudit', 'secMail'].forEach(id => { $(id).hidden = false; });
+      wireRegs();
+      loadRegs().then(() => { if (location.hash === '#dangky') $('dangky').scrollIntoView(); });
       wirePeople();
       wirePaste();
       initImport();

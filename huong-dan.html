@@ -267,14 +267,16 @@
       <div class="scr"><div class="h"><span class="n">3</span>Nhập mã</div><div class="in">482917</div><div class="bt">Sign in</div><div class="cap">Nhập mã → <b>Sign in</b>. Trình duyệt sẽ <b>ghi nhớ đăng nhập khoảng 1 tháng</b>.</div></div>
     </div>
     <div class="side">
-      <figure class="shot phone"><img src="docs/huong-dan/hub-denied.jpg" alt="Thông báo email chưa được gắn với nhân viên" loading="lazy" width="780" height="1688"><figcaption>Email chưa được cấp quyền</figcaption></figure>
+      <figure class="shot phone"><img src="docs/huong-dan/hub-register.jpg" alt="Form đăng ký tài khoản khi email chưa có tài khoản" loading="lazy" width="780" height="1688"><figcaption>Lần đầu: đăng ký tài khoản</figcaption></figure>
       <div>
-        <p>Nếu thấy thông báo như hình bên:</p>
+        <p><b>Lần đầu đăng nhập</b> bằng email chưa có tài khoản, app chuyển sang bước <b>Đăng ký tài khoản</b>:</p>
         <ol class="legend">
-          <li><b>“Email này chưa được gắn với nhân viên nào”</b> — quản trị viên chưa gắn email của bạn. Gửi cho quản trị viên <b>họ tên, mã NV và email</b> bạn dùng để đăng nhập.</li>
+          <li>Nhập <b>họ và tên đầy đủ</b> và <b>mã nhân viên</b> (theo dữ liệu nhân sự). Ghi chú cho admin nếu cần (đội, dự án đang làm).</li>
+          <li>Bấm <span class="btnlike">Gửi yêu cầu đăng ký</span> — admin nhận email ngay. Trang hiện <i>“Đã gửi yêu cầu… đang chờ admin duyệt”</i>; ghi sai thì bấm <span class="btnlike">Sửa thông tin đã gửi</span>.</li>
+          <li>Admin duyệt xong, bạn nhận email <i>“Tài khoản … đã được cấp”</i> → mở lại app (hoặc bấm <i>Admin đã duyệt? Bấm để vào lại</i>) là vào thẳng trang chủ. Nếu admin không duyệt, email và trang đăng ký ghi rõ lý do — sửa rồi gửi lại.</li>
           <li><b>Đăng xuất / dùng email khác</b> — nếu bạn lỡ nhập nhầm email.</li>
         </ol>
-        <div class="note info"><p>Mỗi người <b>một email</b>. Có thể dùng Gmail cá nhân hoặc email công ty, miễn là quản trị viên đã gắn đúng email đó.</p></div>
+        <div class="note info"><p>Mỗi người <b>một email</b>. Có thể dùng Gmail cá nhân hoặc email công ty. Tài khoản bị khoá thì liên hệ quản trị viên.</p></div>
       </div>
     </div>
 
@@ -649,6 +651,13 @@
       <li><b>Bảng công</b> — bảng Theo dõi giờ công: tìm, lọc, tìm dòng trùng lặp, sửa / xoá.</li>
       <li><b>Tài khoản &amp; phân quyền</b> — gắn email đăng nhập, chỉnh vai trò, khoá tài khoản, phân công Site Sup / Quản lý dự án cho dự án, nhật ký thay đổi, gửi email thử.</li>
       <li><span class="btnlike pri">Cập nhật Data</span> — nạp bảng công Excel hằng tháng.</li>
+    </ol>
+    <h3 id="ad-dangky">5.0a. Duyệt yêu cầu đăng ký tài khoản</h3>
+    <ol class="steps">
+      <li>Người lạ đăng nhập bằng email <b>chưa có tài khoản</b> sẽ gửi <b>họ tên + mã NV</b> ở trang chủ. Mọi admin nhận email <i>“[Đăng ký] Họ tên (mã NV) xin cấp tài khoản”</i>; thẻ <b>Quản trị</b> ở trang chủ hiện <i>“N đăng ký mới”</i>.</li>
+      <li>Mở <b>Tài khoản &amp; phân quyền</b> → mục <b>Yêu cầu đăng ký</b> (nút trong email mở thẳng mục này). Cột <i>Đối chiếu</i> cho biết mã NV có trong dữ liệu không, tên có khớp không, đã gắn email khác chưa.</li>
+      <li><span class="btnlike pri">Duyệt</span> — email được gắn vào nhân viên đó (sửa ô mã NV nếu họ ghi sai) và người đăng ký nhận email báo. Mã NV chưa có trong dữ liệu: thêm nhân viên trước (Quản trị → Nhân viên) rồi duyệt.</li>
+      <li><span class="btnlike">Không duyệt…</span> — nhập lý do; người đăng ký nhận email và thấy lý do ở trang chủ, có thể sửa rồi gửi lại.</li>
     </ol>
     <h3 id="ad-moi">5.0. Vai trò Admin dự án, xử lý cuối, sửa và xuất HR</h3>
     <ol class="steps">

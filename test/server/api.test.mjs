@@ -1796,3 +1796,73 @@ test('nhập hộ từ Excel: giám sát / QLDA / Admin ghi bảng công cho nh�
   const bad = await post('ap3@example.com', [item('HX2', [mk(5401, '2027-10-23', { bd: { NORMAL: 3 } })])]);
   assert.match(bad.data.results[0].error, /không khớp/);
 });
+
+test('đăng ký tài khoản: email lạ gửi họ tên + mã NV → admin nhận email; duyệt gắn email vào nhân viên; không duyệt có lý do; chống gửi dồn', async () => {
+  const S = 'nguoila@example.com';
+  await env.DB.prepare('INSERT INTO employees (emp_id, full_name, position, updated_at) VALUES (?, ?, ?, ?)').bind('R01', 'Phạm Văn Rèn', 'Fitter', new Date().toISOString()).run();
+  // /api/me báo cần đăng ký
+  const me = await call('GET', '/api/me', { email: S });
+  assert.equal(me.status, 403);
+  assert.equal(me.data.register, true);
+  assert.equal(me.data.email, S);
+  // chưa có yêu cầu
+  assert.deepEqual((await call('GET', '/api/register', { email: S })).data, { email: S, request: null });
+  // kiểm tra dữ liệu
+  assert.equal((await call('POST', '/api/register', { email: S, body: { name: 'An', empId: 'R01' } })).status, 400);
+  assert.equal((await call('POST', '/api/register', { email: S, body: { name: 'Phạm Văn Rèn', empId: 'R 01 !' } })).status, 400);
+  // gửi yêu cầu → thư cho admin (ADMIN_EMAILS)
+  const before = sentMail.length;
+  const r = await call('POST', '/api/register', { email: S, body: { name: '  Phạm   Văn Rèn ', empId: 'r01', note: 'Fitter đội 2' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.mailed, true);
+  assert.equal(r.data.request.status, 'pending');
+  assert.equal(r.data.request.name, 'Phạm Văn Rèn');
+  assert.equal(r.data.request.empId, 'R01');
+  const m = sentMail.slice(before).find(x => x.to.some(t => t.email === 'boss@example.com'));
+  assert.ok(m, 'admin nhận thư');
+  assert.match(m.subject, /\[Đăng ký\] Phạm Văn Rèn \(R01\)/);
+  assert.match(m.htmlContent, /tools\/accounts\/#dangky/);
+  // gửi lại ngay (sửa ghi chú) → cập nhật, không gửi thư dồn
+  const n2 = sentMail.length;
+  const r2 = await call('POST', '/api/register', { email: S, body: { name: 'Phạm Văn Rèn', empId: 'R01', note: 'Fitter đội 2 - Sao Mai' } });
+  assert.equal(r2.data.mailed, false);
+  assert.equal(sentMail.length, n2);
+  assert.equal((await call('GET', '/api/register', { email: S })).data.request.note, 'Fitter đội 2 - Sao Mai');
+  // admin thấy số chờ trong /api/me và danh sách có đối chiếu nhân viên
+  assert.ok((await call('GET', '/api/me', { email: 'boss@example.com' })).data.registrations >= 1);
+  assert.equal((await call('GET', '/api/admin/registrations', { email: S })).status, 403);
+  assert.equal((await call('GET', '/api/admin/registrations', { email: 'sup@example.com' })).status, 403);
+  const list = await call('GET', '/api/admin/registrations', { email: 'boss@example.com' });
+  const item = list.data.requests.find(x => x.email === S);
+  assert.ok(item);
+  assert.equal(item.employee.empId, 'R01');
+  // không duyệt cần lý do; mã NV không có → báo rõ
+  assert.equal((await call('POST', `/api/admin/registrations/${item.id}/reject`, { email: 'boss@example.com', body: {} })).status, 400);
+  assert.equal((await call('POST', `/api/admin/registrations/${item.id}/approve`, { email: 'boss@example.com', body: { empId: 'KHONGCO' } })).status, 400);
+  // duyệt → email gắn vào F02, người đăng ký nhận thư, vào được app
+  const nb = sentMail.length;
+  const ok = await call('POST', `/api/admin/registrations/${item.id}/approve`, { email: 'boss@example.com', body: {} });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.equal(ok.data.request.status, 'approved');
+  assert.ok(sentMail.slice(nb).some(x => x.to.some(t => t.email === S) && /đã được cấp/.test(x.subject)));
+  const me2 = await call('GET', '/api/me', { email: S });
+  assert.equal(me2.status, 200);
+  assert.equal(me2.data.empId, 'R01');
+  assert.equal((await call('POST', `/api/admin/registrations/${item.id}/approve`, { email: 'boss@example.com', body: {} })).status, 409);
+  // đã có tài khoản thì không đăng ký nữa
+  assert.equal((await call('POST', '/api/register', { email: S, body: { name: 'Phạm Văn Rèn', empId: 'R01' } })).status, 409);
+  // email lạ thứ hai xin mã NV đã có email → admin bị chặn khi duyệt; không duyệt có lý do → thư báo
+  const S2 = 'mao@example.com';
+  await call('POST', '/api/register', { email: S2, body: { name: 'Người Mạo Danh', empId: 'R01' } });
+  const it2 = (await call('GET', '/api/admin/registrations', { email: 'boss@example.com' })).data.requests.find(x => x.email === S2);
+  assert.equal(it2.employee.email, S);
+  assert.equal((await call('POST', `/api/admin/registrations/${it2.id}/approve`, { email: 'boss@example.com', body: {} })).status, 409);
+  const nr = sentMail.length;
+  const rj = await call('POST', `/api/admin/registrations/${it2.id}/reject`, { email: 'boss@example.com', body: { note: 'Mã NV không khớp' } });
+  assert.equal(rj.status, 200);
+  assert.ok(sentMail.slice(nr).some(x => x.to.some(t => t.email === S2) && /Mã NV không khớp/.test(x.htmlContent)));
+  assert.equal((await call('GET', '/api/register', { email: S2 })).data.request.status, 'rejected');
+  // gửi lại sau khi bị từ chối → chờ duyệt lại
+  const again = await call('POST', '/api/register', { email: S2, body: { name: 'Người Mạo Danh', empId: 'F01' } });
+  assert.equal(again.data.request.status, 'pending');
+});

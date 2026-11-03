@@ -6,7 +6,7 @@ import { verifyAccessJwt, teamHost } from './auth.mjs';
 import { effectiveRoles, rolesFromPosition, adminEmails, parseExtraRoles, ALL_ROLES } from './roles.mjs';
 import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
-import { mailConfigured, sendMail, layout, senderName } from './mail.mjs';
+import { mailConfigured, sendMail, layout, senderName, esc } from './mail.mjs';
 import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
@@ -15,7 +15,7 @@ import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, no
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
 export class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, extra) { super(message); this.status = status; this.extra = extra || null; }
 }
 
 const json = (data, status = 200, extraHeaders) => new Response(JSON.stringify(data), {
@@ -45,7 +45,8 @@ async function loadMe(env, email) {
   const emp = await env.DB.prepare('SELECT * FROM employees WHERE email = ? COLLATE NOCASE').bind(email).first();
   if (emp && !emp.active) throw new HttpError(403, 'Tài khoản này đã bị khoá — liên hệ admin');
   const roles = effectiveRoles(emp, email, env);
-  if (!emp && !roles.includes('admin')) throw new HttpError(403, 'Email này chưa được gắn với nhân viên nào — liên hệ admin');
+  // email lạ: trang chủ chuyển sang bước Đăng ký (register: true) — xem /api/register
+  if (!emp && !roles.includes('admin')) throw new HttpError(403, 'Email này chưa được gắn với nhân viên nào — gửi yêu cầu đăng ký để admin cấp tài khoản', { register: true, email });
   return {
     email, roles,
     isAdmin: roles.includes('admin'),
@@ -54,6 +55,125 @@ async function loadMe(env, email) {
     name: emp ? emp.full_name : email,
     position: emp ? emp.position : '',
   };
+}
+
+// ---------- đăng ký tài khoản (email lạ → gửi họ tên + mã NV → admin duyệt) ----------
+const EMPID_RE = /^[A-Za-z0-9._-]{1,30}$/;
+const regOut = (r) => r && ({ id: r.id, email: r.email, name: r.full_name, empId: r.emp_id, note: r.note, status: r.status,
+  createdAt: r.created_at, updatedAt: r.updated_at, decidedAt: r.decided_at, decidedBy: r.decided_by, decisionNote: r.decision_note });
+
+// email đã gắn nhân viên thì không cần đăng ký
+async function regGuard(env, email) {
+  const emp = await env.DB.prepare('SELECT emp_id, active FROM employees WHERE email = ? COLLATE NOCASE').bind(email).first();
+  if (emp) throw new HttpError(409, emp.active ? 'Email này đã có tài khoản — tải lại trang để vào' : 'Tài khoản này đã bị khoá — liên hệ admin');
+}
+
+async function registerGet(env, email) {
+  await regGuard(env, email);
+  const r = await env.DB.prepare('SELECT * FROM registrations WHERE email = ? COLLATE NOCASE').bind(email).first();
+  return json({ email, request: regOut(r) });
+}
+
+// người nhận thư báo có yêu cầu đăng ký: ADMIN_EMAILS + nhân viên có vai trò admin
+async function adminRecipients(env) {
+  const list = adminEmails(env).map(e => ({ email: e }));
+  const { results } = await env.DB.prepare("SELECT * FROM employees WHERE active = 1 AND email <> ''").all();
+  for (const e of results) if (effectiveRoles(e, e.email, env).includes('admin')) list.push({ email: String(e.email).toLowerCase(), name: e.full_name });
+  return list;
+}
+
+async function registerPost(env, email, request) {
+  await regGuard(env, email);
+  const body = await readJson(request);
+  const name = str(body.name, 100).replace(/\s+/g, ' '), empId = str(body.empId, 30).toUpperCase(), note = str(body.note, 300);
+  if (name.length < 4 || !/\s/.test(name)) throw new HttpError(400, 'Nhập họ và tên đầy đủ');
+  if (!EMPID_RE.test(empId)) throw new HttpError(400, 'Mã nhân viên chỉ gồm chữ, số, dấu chấm, gạch (tối đa 30 ký tự)');
+  const t = now();
+  const cur = await env.DB.prepare('SELECT * FROM registrations WHERE email = ? COLLATE NOCASE').bind(email).first();
+  const changed = !cur || cur.status !== 'pending' || cur.full_name !== name || cur.emp_id !== empId || cur.note !== note;
+  if (cur) {
+    await env.DB.prepare("UPDATE registrations SET full_name = ?, emp_id = ?, note = ?, status = 'pending', updated_at = ?, decided_at = '', decided_by = '', decision_note = '' WHERE id = ?")
+      .bind(name, empId, note, t, cur.id).run();
+  } else {
+    await env.DB.prepare('INSERT INTO registrations (email, full_name, emp_id, note, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(email.toLowerCase(), name, empId, note, 'pending', t, t).run();
+  }
+  const r = await env.DB.prepare('SELECT * FROM registrations WHERE email = ? COLLATE NOCASE').bind(email).first();
+  // báo admin: khi có thay đổi, tối đa 1 thư / 10 phút cho mỗi email (chống gửi dồn)
+  let mailed = false;
+  const recent = r.notified_at && (Date.parse(t) - Date.parse(r.notified_at) < 10 * 60e3);
+  if (changed && !recent) {
+    const emp = await env.DB.prepare('SELECT emp_id, full_name, email FROM employees WHERE emp_id = ?').bind(empId).first();
+    const check = !emp ? '<p style="color:#b45309">⚠ Mã NV này <b>chưa có</b> trong dữ liệu nhân viên — cần thêm nhân viên trước khi duyệt.</p>'
+      : emp.email ? `<p style="color:#b45309">⚠ Mã NV này đang gắn email <b>${esc(emp.email)}</b> (${esc(emp.full_name)}).</p>`
+      : `<p style="color:#047857">✓ Mã NV có trong dữ liệu: <b>${esc(emp.full_name)}</b> — chưa có email.</p>`;
+    const to = await adminRecipients(env);
+    const res = await sendMail(env, { to, subject: `[Đăng ký] ${name} (${empId}) xin cấp tài khoản`,
+      html: layout('Có yêu cầu đăng ký tài khoản mới', `<p><b>${esc(name)}</b> vừa đăng nhập bằng email <b>${esc(r.email)}</b> và xin cấp tài khoản.</p>
+<table style="border-collapse:collapse;font-size:14px"><tr><td style="padding:3px 12px 3px 0;color:#667085">Họ tên</td><td><b>${esc(name)}</b></td></tr>
+<tr><td style="padding:3px 12px 3px 0;color:#667085">Mã NV</td><td><b>${esc(empId)}</b></td></tr>
+<tr><td style="padding:3px 12px 3px 0;color:#667085">Email</td><td>${esc(r.email)}</td></tr>${note ? `<tr><td style="padding:3px 12px 3px 0;color:#667085">Ghi chú</td><td>${esc(note)}</td></tr>` : ''}</table>
+${check}<p>Duyệt trong trang <b>Tài khoản &amp; phân quyền</b> → mục <i>Yêu cầu đăng ký</i>: email sẽ được gắn vào nhân viên và người đăng ký nhận thư báo.</p>`,
+        { url: `${env.APP_URL}/tools/accounts/#dangky`, label: 'Mở yêu cầu đăng ký' }) }).catch(e => ({ ok: false, error: String(e && e.message || e) }));
+    mailed = !!(res && res.ok);
+    if (mailed) await env.DB.prepare('UPDATE registrations SET notified_at = ? WHERE id = ?').bind(t, r.id).run();
+  }
+  return json({ ok: true, mailed, request: regOut(r) });
+}
+
+async function regList(env, me, url) {
+  need(me);
+  const all = url.searchParams.get('all') === '1';
+  const { results } = await env.DB.prepare(all ? 'SELECT * FROM registrations ORDER BY updated_at DESC LIMIT 200'
+    : "SELECT * FROM registrations WHERE status = 'pending' ORDER BY created_at").all();
+  const ids = [...new Set(results.map(r => r.emp_id))];
+  const emps = new Map();
+  if (ids.length) {
+    const q = await env.DB.prepare(`SELECT emp_id, full_name, position, email, active FROM employees WHERE emp_id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+    for (const e of q.results) emps.set(e.emp_id, e);
+  }
+  return json({ requests: results.map(r => {
+    const e = emps.get(r.emp_id);
+    return { ...regOut(r), employee: e ? { empId: e.emp_id, name: e.full_name, position: e.position, email: e.email || '', active: !!e.active } : null };
+  }) });
+}
+
+async function regDecide(env, me, id, action, request) {
+  need(me);
+  const body = await readJson(request);
+  const r = await env.DB.prepare('SELECT * FROM registrations WHERE id = ?').bind(id).first();
+  if (!r) throw new HttpError(404, 'Không có yêu cầu này');
+  if (r.status !== 'pending') throw new HttpError(409, 'Yêu cầu này đã được xử lý');
+  const t = now(), note = str(body.note, 300);
+  let empOut = null;
+  if (action === 'approve') {
+    const empId = str(body.empId || r.emp_id, 30).toUpperCase();
+    const emp = await env.DB.prepare('SELECT * FROM employees WHERE emp_id = ?').bind(empId).first();
+    if (!emp) throw new HttpError(400, `Mã NV ${empId} chưa có trong dữ liệu nhân viên — thêm nhân viên (Quản trị → Nhân viên) rồi duyệt lại, hoặc sửa mã NV`);
+    if (!emp.active) throw new HttpError(409, `Nhân viên ${empId} đang bị khoá`);
+    if (emp.email && emp.email.toLowerCase() !== r.email.toLowerCase())
+      throw new HttpError(409, `Nhân viên ${empId} (${emp.full_name}) đang gắn email ${emp.email} — gỡ email cũ ở bảng Tài khoản trước nếu đúng là người này`);
+    const owner = await env.DB.prepare('SELECT emp_id FROM employees WHERE email = ? COLLATE NOCASE AND emp_id <> ?').bind(r.email, empId).first();
+    if (owner) throw new HttpError(409, `Email này đã gắn cho nhân viên ${owner.emp_id}`);
+    await env.DB.batch([
+      env.DB.prepare('UPDATE employees SET email = ?, updated_at = ? WHERE emp_id = ?').bind(r.email.toLowerCase(), t, empId),
+      env.DB.prepare("UPDATE registrations SET status = 'approved', emp_id = ?, decided_at = ?, decided_by = ?, decision_note = ? WHERE id = ?").bind(empId, t, me.name || me.email, note, id),
+    ]);
+    await audit(env, me, 'register_approve', 'employee', empId, { email: emp.email || '' }, { email: r.email, request: id });
+    empOut = { empId, name: emp.full_name };
+    await sendMail(env, { to: [{ email: r.email, name: emp.full_name }], subject: 'Tài khoản Bộ công cụ dự án đã được cấp',
+      html: layout('Tài khoản của bạn đã sẵn sàng', `<p>Chào ${esc(emp.full_name)},</p><p>Admin đã duyệt yêu cầu đăng ký: email <b>${esc(r.email)}</b> đã được gắn với mã nhân viên <b>${esc(empId)}</b>.</p>${note ? `<p>Ghi chú của admin: ${esc(note)}</p>` : ''}<p>Mở Bộ công cụ, đăng nhập bằng email này (mã gửi về hộp thư) để bắt đầu dùng.</p>`,
+        { url: `${env.APP_URL}/`, label: 'Mở Bộ công cụ dự án' }) }).catch(() => {});
+  } else {
+    if (!note) throw new HttpError(400, 'Nhập lý do không duyệt (người đăng ký nhận được qua email)');
+    await env.DB.prepare("UPDATE registrations SET status = 'rejected', decided_at = ?, decided_by = ?, decision_note = ? WHERE id = ?").bind(t, me.name || me.email, note, id).run();
+    await audit(env, me, 'register_reject', 'registration', String(id), undefined, { email: r.email, empId: r.emp_id, note });
+    await sendMail(env, { to: [{ email: r.email, name: r.full_name }], subject: 'Yêu cầu đăng ký Bộ công cụ dự án chưa được duyệt',
+      html: layout('Yêu cầu đăng ký chưa được duyệt', `<p>Chào ${esc(r.full_name)},</p><p>Admin chưa duyệt yêu cầu đăng ký của email <b>${esc(r.email)}</b>.</p><p>Lý do: <b>${esc(note)}</b></p><p>Bạn có thể mở lại Bộ công cụ, sửa thông tin và gửi lại yêu cầu.</p>`,
+        { url: `${env.APP_URL}/`, label: 'Mở Bộ công cụ dự án' }) }).catch(() => {});
+  }
+  const after = await env.DB.prepare('SELECT * FROM registrations WHERE id = ?').bind(id).first();
+  return json({ ok: true, request: regOut(after), employee: empOut });
 }
 
 function need(me, ...roles) {
@@ -87,7 +207,9 @@ async function getMe(env, me) {
   const { results } = me.empId
     ? await env.DB.prepare('SELECT wbs, role FROM project_staff WHERE emp_id = ? ORDER BY wbs').bind(me.empId).all()
     : { results: [] };
-  return json({ ...me, projects: results, demo: !!env.DEMO });
+  let registrations = 0;
+  if (me.isAdmin) { const c = await env.DB.prepare("SELECT COUNT(*) AS n FROM registrations WHERE status = 'pending'").first(); registrations = c ? c.n : 0; }
+  return json({ ...me, projects: results, demo: !!env.DEMO, registrations });
 }
 
 // ---------- chế độ Demo: cơ sở dữ liệu D1 riêng (DB_DEMO), xem server/demo.mjs ----------
@@ -848,6 +970,9 @@ export async function handle(request, env, opts = {}) {
       if (!demo) throw new HttpError(400, 'Chỉ dùng trong chế độ demo');
       return await demoRole(env, email, request);
     }
+    // Đăng ký tài khoản: dùng được khi email CHƯA gắn với nhân viên nào (chưa qua loadMe) — luôn trên dữ liệu thật
+    if (path === '/api/register' && method === 'GET') return await registerGet(realEnv, email);
+    if (path === '/api/register' && method === 'POST') return await registerPost(realEnv, email, request);
     const me = await loadMe(env, email);
     if (path === '/api/demo/reset' && method === 'POST') {       // dựng lại dữ liệu mẫu (giữ nguyên vai trò đang thử)
       if (!demo) throw new HttpError(400, 'Chỉ dùng trong chế độ demo');
@@ -862,6 +987,8 @@ export async function handle(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/projects\/([^/]+)\/staff$/)) && method === 'PUT') return await putProjectStaff(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/import' && method === 'POST') return await importData(env, me, request);
     if (path === '/api/admin/emails' && method === 'POST') return await setEmails(env, me, request);
+    if (path === '/api/admin/registrations' && method === 'GET') return await regList(env, me, url);
+    if ((m = path.match(/^\/api\/admin\/registrations\/(\d+)\/(approve|reject)$/)) && method === 'POST') return await regDecide(env, me, Number(m[1]), m[2], request);
     if (path === '/api/timesheets/meta' && method === 'GET') return await tsMeta(env);
     if (path === '/api/timesheets' && method === 'GET') return await tsList(env, url);
     if (path === '/api/admin/timesheets/begin' && method === 'POST') return await tsBegin(env, me);
@@ -897,7 +1024,7 @@ export async function handle(request, env, opts = {}) {
     }
     throw new HttpError(404, 'Không có đường dẫn này');
   } catch (e) {
-    if (e && e.status) return json({ error: e.message }, e.status);
+    if (e && e.status) return json({ error: e.message, ...(e.extra || {}) }, e.status);
     console.error(e);
     return json({ error: 'Lỗi máy chủ' }, 500);
   }
