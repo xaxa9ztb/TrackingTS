@@ -119,6 +119,14 @@ Tăng `?v=` của `js/session.js` và `VERSION` trong `sw.js` (thêm trang mới
 
 ---
 
+## Đăng ký tài khoản (email lạ)
+
+Cloudflare Access cho **mọi email** nhận mã đăng nhập (policy *Everyone*); quyền vào app do máy chủ quyết định. Email **chưa gắn** với nhân viên nào:
+
+1. `/api/me` trả 403 kèm `register: true` → trang chủ chuyển sang form **Đăng ký tài khoản** (họ tên, mã NV, ghi chú).
+2. `POST /api/register` lưu yêu cầu (bảng `registrations`, migration `0011`) và gửi email cho admin (`ADMIN_EMAILS` + nhân viên có vai trò Admin); gửi lại liên tục chỉ báo tối đa 1 thư / 10 phút.
+3. Admin duyệt ở **Tài khoản & phân quyền → Yêu cầu đăng ký**: *Duyệt* gắn email vào nhân viên (mã NV phải có trong dữ liệu, chưa gắn email khác); *Không duyệt* cần lý do. Người đăng ký nhận email kết quả; mọi thao tác ghi nhật ký.
+
 ## Giao diện chung — Hệ thiết kế NI
 
 Mọi chức năng dùng chung một bộ giao diện. Mẫu sống của từng thành phần: **`/design.html`**.

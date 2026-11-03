@@ -152,7 +152,7 @@ const Session = (() => {
   }
 
   // ---- chế độ máy chủ: hỏi /api/me ----
-  // Trả { status, me?, error? }: 'ok' | 'login' (phiên Cloudflare Access hết hạn) | 'denied' (email chưa gắn / bị khoá) | 'offline' | 'error'
+  // Trả { status, me?, error? }: 'ok' | 'login' (phiên Cloudflare Access hết hạn) | 'register' (email lạ — cần đăng ký) | 'denied' (bị khoá) | 'offline' | 'error'
   async function fetchMe() {
     let resp;
     try { resp = await fetch('/api/me', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' }); }
@@ -160,6 +160,8 @@ const Session = (() => {
     if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400) || resp.status === 401) return { status: 'login' };
     let body = {};
     try { body = await resp.json(); } catch (e) { /* không phải JSON */ }
+    // email chưa gắn với nhân viên nào → trang chủ chuyển sang bước Đăng ký
+    if (resp.status === 403 && body.register) return { status: 'register', email: body.email || '', error: body.error || '' };
     if (resp.status === 403) return { status: 'denied', error: body.error || 'Tài khoản chưa được cấp quyền' };
     if (!resp.ok) return { status: 'error', error: body.error || ('Lỗi máy chủ (HTTP ' + resp.status + ')') };
     return { status: 'ok', me: body };
@@ -175,7 +177,7 @@ const Session = (() => {
     const s = current();
     if (!s) return null;
     const r = await fetchMe();
-    if (r.status === 'denied') { clear(); return 'removed'; }       // khoá tài khoản / gỡ email → thoát ngay
+    if (r.status === 'denied' || r.status === 'register') { clear(); return 'removed'; }       // khoá tài khoản / gỡ email → thoát ngay
     if (r.status !== 'ok') return null;                              // mất mạng / hết phiên Access: giữ nguyên, lần sau hỏi lại
     const n = fromMe(r.me);
     const changed = n.name !== s.name || n.position !== s.position || n.admin !== s.admin || JSON.stringify(n.roles) !== JSON.stringify(s.roles || []);

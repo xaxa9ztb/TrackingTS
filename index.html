@@ -253,6 +253,8 @@
     .login-intro > p:not(.intro-apps-label) { display: none; }
     .login-intro h1 { font-size: 20px; }
   }
+  /* bước Đăng ký trên điện thoại: đưa form lên đầu (ẩn danh sách chức năng) */
+  @media (max-width: 860px) { .registering .login-intro { display: none; } }
   @media (max-width: 560px) {
     .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .sync { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
@@ -322,6 +324,32 @@
         <button class="btn-primary" type="button" id="serverRetry" hidden>Thử lại</button>
         <button type="button" class="link" id="serverLogout" hidden>Đăng xuất / dùng email khác</button>
       </div>
+
+      <!-- Email lạ (chưa gắn với nhân viên nào): gửi yêu cầu đăng ký cho admin -->
+      <form id="formRegister" novalidate hidden>
+        <h2>Đăng ký tài khoản</h2>
+        <p class="sub">Email này chưa có tài khoản. Nhập họ tên và mã nhân viên — admin sẽ kiểm tra và cấp tài khoản, bạn nhận email báo khi xong.</p>
+        <div class="note note-info" id="regStatus" role="status" hidden></div>
+        <div id="regFields">
+          <label class="field">Email đăng nhập
+            <input id="regEmail" type="email" readonly>
+          </label>
+          <label class="field">Họ và tên đầy đủ
+            <input id="regName" type="text" autocomplete="name" maxlength="100" placeholder="Ví dụ: Nguyễn Văn A" required>
+          </label>
+          <label class="field">Mã nhân viên
+            <input id="regEmpId" type="text" autocomplete="off" maxlength="30" placeholder="Theo dữ liệu nhân sự" required>
+          </label>
+          <label class="field">Ghi chú cho admin <span style="font-weight:400;color:var(--muted)">(không bắt buộc)</span>
+            <input id="regNote" type="text" maxlength="300" placeholder="Ví dụ: Fitter đội 2, dự án Sao Mai">
+          </label>
+          <p class="msg" id="regMsg" role="alert"></p>
+          <button class="btn-primary" type="submit" id="regSubmit">Gửi yêu cầu đăng ký</button>
+        </div>
+        <button class="btn-primary" type="button" id="regEdit" hidden>Sửa thông tin đã gửi</button>
+        <button type="button" class="link" id="regRecheck" hidden>Admin đã duyệt? Bấm để vào lại</button>
+        <button type="button" class="link" id="regLogout">Đăng xuất / dùng email khác</button>
+      </form>
 
       <form id="formUser" novalidate>
         <h2 id="loginTitle">Đăng nhập</h2>
@@ -435,7 +463,7 @@
 <script src="js/config.js?v=37"></script>
 <script src="js/db.js?v=37"></script>
 <script src="js/cloud.js?v=42"></script>
-<script src="js/session.js?v=45"></script>
+<script src="js/session.js?v=46"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -548,6 +576,7 @@
       afterLogin();
       return;
     }
+    if (r.status === 'register') { showRegister(r.email); return; }
     msg.textContent = r.status === 'denied' ? r.error
       : r.status === 'login' ? 'Phiên đăng nhập đã hết hạn. Bấm “Thử lại” để đăng nhập lại.'
       : r.status === 'offline' ? 'Không có kết nối mạng. Kiểm tra mạng rồi bấm “Thử lại”.'
@@ -564,6 +593,48 @@
     const run = Cloud.loadFromDrive().then(() => { if (!$('viewHome').hidden) renderSync(); }).catch(() => { /* dùng dữ liệu trên máy */ });
     if (wait) await run;
   }
+  // ---------- đăng ký: email lạ gửi họ tên + mã NV, admin duyệt ----------
+  const fmtAt = (iso) => { try { return new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }); } catch (e) { return iso; } };
+  function regView(req) {
+    const st = $('regStatus'), fields = $('regFields'), edit = $('regEdit'), again = $('regRecheck');
+    if (req) { $('regName').value = req.name || ''; $('regEmpId').value = req.empId || ''; $('regNote').value = req.note || ''; }
+    const pending = req && req.status === 'pending';
+    st.hidden = !req;
+    st.className = 'note ' + (req && req.status === 'rejected' ? 'note-warn' : 'note-info');
+    if (pending) st.innerHTML = `<b>Đã gửi yêu cầu</b> lúc ${esc(fmtAt(req.updatedAt))}: ${esc(req.name)} · mã NV <b>${esc(req.empId)}</b>. Đang chờ admin duyệt — bạn sẽ nhận email khi xong.`;
+    else if (req && req.status === 'rejected') st.innerHTML = `<b>Yêu cầu chưa được duyệt.</b> Lý do: ${esc(req.decisionNote || '—')}. Sửa thông tin rồi gửi lại.`;
+    fields.hidden = !!pending; edit.hidden = !pending; again.hidden = !pending;
+  }
+  async function showRegister(email) {
+    $('serverLogin').hidden = true; $('formRegister').hidden = false; document.body.classList.add('registering');
+    $('regEmail').value = email || '';
+    try {
+      const resp = await fetch('/api/register', { credentials: 'same-origin', cache: 'no-store' });
+      const d = await resp.json().catch(() => ({}));
+      if (resp.ok) { $('regEmail').value = d.email || email || ''; regView(d.request); }
+      else if (resp.status === 409) location.reload();   // vừa được cấp tài khoản
+    } catch (e) { regView(null); }
+  }
+  $('formRegister').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const name = $('regName').value.trim().replace(/\s+/g, ' '), empId = $('regEmpId').value.trim(), note = $('regNote').value.trim();
+    const m = $('regMsg'); m.className = 'msg';
+    if (name.length < 4 || !/\s/.test(name)) { m.textContent = 'Nhập họ và tên đầy đủ.'; $('regName').focus(); return; }
+    if (!/^[A-Za-z0-9._-]{1,30}$/.test(empId)) { m.textContent = 'Mã nhân viên chỉ gồm chữ, số, dấu chấm, gạch.'; $('regEmpId').focus(); return; }
+    const btn = $('regSubmit'); btn.disabled = true; m.className = 'msg info'; m.textContent = 'Đang gửi…';
+    try {
+      const resp = await fetch('/api/register', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, empId, note }) });
+      const d = await resp.json().catch(() => ({}));
+      if (resp.status === 409) { location.reload(); return; }
+      if (!resp.ok) { m.className = 'msg'; m.textContent = d.error || 'Chưa gửi được — thử lại.'; return; }
+      m.textContent = '';
+      regView(d.request);
+    } catch (e) { m.className = 'msg'; m.textContent = 'Không có kết nối mạng — thử lại khi có sóng.'; }
+    finally { btn.disabled = false; }
+  });
+  $('regEdit').addEventListener('click', () => { $('regFields').hidden = false; $('regEdit').hidden = true; $('regName').focus(); });
+  $('regRecheck').addEventListener('click', () => location.reload());
+  $('regLogout').addEventListener('click', () => Session.logout());
   $('serverRetry').addEventListener('click', () => { if (Session.SERVER) location.reload(); });
   $('serverLogout').addEventListener('click', () => Session.logout());
 
@@ -633,17 +704,22 @@
       const resp = await fetch('/api/ts/inbox', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' });
       if (!resp.ok) return;
       const d = await resp.json();
-      const set = (tool, n) => {
+      const set = (tool, n, label = 'chờ duyệt') => {
         const el = document.querySelector(`a.tool[data-tool="${tool}"]`);
         if (!el) return;
         let b = el.querySelector('.app-badge');
         if (n > 0) {
           if (!b) { b = document.createElement('span'); b.className = 'app-badge'; el.prepend(b); }
-          b.textContent = `${n} chờ duyệt`; b.dataset.count = String(n);
+          b.textContent = `${n} ${label}`; b.dataset.count = String(n);
         } else if (b && b.dataset.count !== undefined) b.remove();
       };
       set('approvals', (d.items || []).length + (d.ot || 0));
       set('leave', d.leave || 0);
+      const s = Session.current();
+      if (s && s.admin) {
+        const rr = await fetch('/api/admin/registrations', { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' });
+        if (rr.ok) set('admin', ((await rr.json()).requests || []).length, 'đăng ký mới');
+      }
     } catch (e) { /* mất mạng: bỏ qua */ }
   }
 

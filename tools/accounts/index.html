@@ -8,6 +8,7 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="stylesheet" href="../../css/ni.css?v=1">
 <link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="../approvals/style.css?v=9">
 <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');   // nhúng trong trang Quản trị: bỏ thanh đầu</script>
 <!-- Dữ liệu trên máy (IndexedDB) — để đưa EE Data + Dự án hiện có lên máy chủ -->
 <script src="../../js/demo.js?v=2"></script>
@@ -28,6 +29,17 @@
 
 <main class="ac-wrap">
   <div class="ac-msg" id="gate" hidden></div>
+
+  <section class="ac-card" id="dangky" hidden>
+    <div class="ap-head"><h2>Yêu cầu đăng ký <span class="ap-count" id="regCount"></span></h2><button class="btn small" id="btnRegReload" type="button">Tải lại</button></div>
+    <p class="ac-help">Người đăng nhập bằng email <b>chưa có tài khoản</b> gửi họ tên + mã NV ở trang chủ; bạn nhận email báo. <b>Duyệt</b> = gắn email vào nhân viên có mã đó (sửa mã NV nếu họ ghi sai);
+      <b>Không duyệt</b> cần lý do. Người đăng ký nhận email kết quả. Mã NV chưa có trong dữ liệu thì thêm nhân viên trước (Quản trị → Nhân viên).</p>
+    <div class="ac-scroll ac-tall ac-short"><table class="ac-table ni-cards" id="regTable">
+      <thead><tr><th>Người đăng ký</th><th>Mã NV khai</th><th>Đối chiếu dữ liệu nhân viên</th><th>Gửi lúc</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="ac-note" id="regNote"></p>
+  </section>
 
   <section class="ac-card" id="secImport" hidden>
     <h2>1. Đưa dữ liệu từ máy này lên máy chủ</h2>
@@ -112,6 +124,6 @@
 </main>
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
