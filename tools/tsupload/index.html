@@ -1,28 +1,32 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="tsupload">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Nhập bảng công từ Excel — Bộ công cụ dự án</title>
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="../accounts/style.css?v=5">
-<link rel="stylesheet" href="../approvals/style.css?v=2">
-<link rel="stylesheet" href="../tsadmin/style.css?v=1">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="../../css/ni.css?v=1">
+<link rel="stylesheet" href="../accounts/style.css?v=7">
+<link rel="stylesheet" href="../approvals/style.css?v=9">
+<link rel="stylesheet" href="../tsadmin/style.css?v=9">
+<link rel="stylesheet" href="style.css?v=9">
 <script src="../../js/demo.js?v=2"></script>
 <script src="../../js/session.js?v=45"></script>
 <script>Session.guard('tsupload');</script>
+<script src="../../js/status.js?v=1"></script>
+<script src="../../js/cards.js?v=1" defer></script>
 </head>
 <body>
-<script src="../toolset-nav.js?v=38" data-tool="Nhập bảng công từ Excel" data-help="huong-dan-timesheet.html#nhap"></script>
+<script src="../toolset-nav.js?v=39" data-app="tsupload" data-tool="Nhập bảng công từ Excel" data-help="huong-dan-timesheet.html#nhap"></script>
 
 <header class="ac-top">
   <div class="ac-wrap">
     <h1>Nhập bảng công từ Excel <span class="ac-badge">Giám sát · QLDA · Admin</span></h1>
-    <p class="ac-sub">Dành cho trường hợp nhân viên <b>không tự chấm công trên app</b> (kể cả fitter không có tài khoản): tải file Excel bảng chấm công (mẫu Schindler), chỉnh lại cho đúng
+    <p class="ac-sub">Nộp bảng công từ file Excel cho nhân viên không tự chấm công trên app.</p>
+    <details class="ni-howto"><summary>Cách dùng</summary><div>Dành cho trường hợp nhân viên <b>không tự chấm công trên app</b> (kể cả fitter không có tài khoản): tải file Excel bảng chấm công (mẫu Schindler), chỉnh lại cho đúng
       <b>định dạng, quy tắc tính giờ và dữ liệu dự án</b>, rồi nộp — hệ thống ghi bảng công cho từng nhân viên và chạy quy trình duyệt từ đầu
-      (Site Sup và Quản lý dự án của từng dự án → Admin).</p>
+      (Site Sup và Quản lý dự án của từng dự án → Admin).</div></details>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
   </div>
 </header>

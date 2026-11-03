@@ -1,7 +1,8 @@
 // Lightweight canvas/SVG chart helpers (no external chart library needed)
 const Charts = (() => {
 
-  const PALETTE = ['#2f7ed8', '#1b4f8a', '#e08030', '#8e44ad', '#d63384', '#27ae60', '#f2b705', '#16a085', '#c0392b', '#7f8c8d'];
+  // bảng màu biểu đồ theo hệ thiết kế NI (xanh hành động đứng đầu)
+  const PALETTE = ['#1d4ed8', '#0891b2', '#ea580c', '#7c3aed', '#059669', '#b45309', '#db2777', '#475569', '#0d9488', '#b42318'];
 
   function colorFor(index) {
     return PALETTE[index % PALETTE.length];
@@ -130,7 +131,7 @@ const Charts = (() => {
 
     let html = '';
     html += `<path d="${arcPath(0, 180)}" fill="none" stroke="#e2e6ea" stroke-width="18" stroke-linecap="round"/>`;
-    html += `<path d="${arcPath(0, filledAngle)}" fill="none" stroke="${overflow ? '#c0392b' : '#2f7ed8'}" stroke-width="18" stroke-linecap="round"/>`;
+    html += `<path d="${arcPath(0, filledAngle)}" fill="none" stroke="${overflow ? '#b42318' : '#1d4ed8'}" stroke-width="18" stroke-linecap="round"/>`;
     svg.innerHTML = html;
   }
 

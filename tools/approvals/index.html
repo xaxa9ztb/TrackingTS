@@ -1,26 +1,30 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="approvals">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Duyệt bảng công — Bộ công cụ dự án</title>
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="../accounts/style.css?v=5">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="../../css/ni.css?v=1">
+<link rel="stylesheet" href="../accounts/style.css?v=7">
+<link rel="stylesheet" href="style.css?v=9">
 <script src="../../js/demo.js?v=2"></script>
 <script src="../../js/session.js?v=45"></script>
 <script>Session.guard('approvals');</script>
+<script src="../../js/status.js?v=1"></script>
+<script src="../../js/cards.js?v=1" defer></script>
 </head>
 <body>
-<script src="../toolset-nav.js?v=38" data-tool="Duyệt bảng công" data-help="huong-dan-timesheet.html#duyet"></script>
+<script src="../toolset-nav.js?v=39" data-app="approvals" data-tool="Duyệt bảng công" data-help="huong-dan-timesheet.html#duyet"></script>
 
 <header class="ac-top">
   <div class="ac-wrap">
-    <h1>Duyệt bảng công <span class="ac-badge">Máy chủ mới</span></h1>
-    <p class="ac-sub"><b>Hằng ngày:</b> Site Sup duyệt <b>tăng ca</b> của fitter (từng ngày). Đơn nghỉ phép / ốm có chức năng riêng.
+    <h1>Duyệt bảng công</h1>
+    <p class="ac-sub">Duyệt tăng ca hằng ngày và bảng công cuối kỳ của fitter ở dự án bạn phụ trách.</p>
+    <details class="ni-howto"><summary>Cách dùng</summary><div><b>Hằng ngày:</b> Site Sup duyệt <b>tăng ca</b> của fitter (từng ngày). Đơn nghỉ phép / ốm có chức năng riêng.
       <b>Cuối kỳ:</b> bảng công fitter đã nộp — <b>Site Sup</b> của <u>từng dự án</u> duyệt, rồi <b>Quản lý dự án</b> của từng dự án duyệt, cuối cùng <b>Admin</b> xử lý (hoạt động ngoài dự án) và bấm <b>Process</b>: dữ liệu tự sang bảng <i>Theo dõi giờ công các công trình</i> và hệ thống gửi thư kèm Excel.
-      Thấy có chỗ chưa đúng thì <b>Trả lại</b> / <b>Không duyệt</b> kèm lý do (fitter nhận email).</p>
+      Thấy có chỗ chưa đúng thì <b>Trả lại</b> / <b>Không duyệt</b> kèm lý do (fitter nhận email).</div></details>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
   </div>
 </header>
@@ -31,7 +35,7 @@
   <section class="ac-card" id="secOt" hidden>
     <div class="ap-head"><h2>⏱ Tăng ca chờ duyệt <span class="ap-count" id="otCount"></span></h2><button class="btn small" id="btnReloadOt">Tải lại</button></div>
     <p class="ac-note">Mỗi ngày fitter chấm công có giờ OT là một yêu cầu. Xem giờ vào – ra và báo cáo thi công rồi duyệt (chọn nhiều ngày một lần). Fitter sửa giờ của ngày đã duyệt thì ngày đó quay lại chờ duyệt.</p>
-    <div class="ac-scroll ac-tall ac-short"><table class="ac-table" id="otTable">
+    <div class="ac-scroll ac-tall ac-short"><table class="ac-table ni-cards" id="otTable">
       <thead><tr><th><input type="checkbox" id="otAll" aria-label="Chọn tất cả"></th><th>Fitter</th><th>Ngày</th><th class="r">Tăng ca</th><th>Giờ làm / dự án / báo cáo thi công</th></tr></thead>
       <tbody></tbody>
     </table></div>
@@ -51,7 +55,7 @@
 
   <section class="ac-card" id="secInbox" hidden>
     <div class="ap-head"><h2>📋 Bảng công chờ bạn duyệt</h2><button class="btn small" id="btnReload">Tải lại</button></div>
-    <div class="ac-scroll ac-tall ac-short"><table class="ac-table" id="inbox">
+    <div class="ac-scroll ac-tall ac-short"><table class="ac-table ni-cards" id="inbox">
       <thead><tr><th>Người nộp</th><th>Kỳ lương</th><th>Cấp duyệt</th><th>Dự án</th><th class="r">Số dòng</th><th>Nộp lúc</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
@@ -74,14 +78,14 @@
     <div id="dFlags"></div>
     <div class="ap-kpis" id="dKpis"></div>
     <h3>Theo dự án</h3>
-    <div class="ac-scroll"><table class="ac-table" id="dProjects"><thead><tr><th>Dự án</th><th>WBS</th><th class="r">Ngày</th><th class="r">Thường</th><th class="r">OT</th><th class="r">Tổng</th></tr></thead><tbody></tbody></table></div>
+    <div class="ac-scroll"><table class="ac-table ni-cards" id="dProjects"><thead><tr><th>Dự án</th><th>WBS</th><th class="r">Ngày</th><th class="r">Thường</th><th class="r">OT</th><th class="r">Tổng</th></tr></thead><tbody></tbody></table></div>
     <div id="dAllow" hidden>
       <div class="ap-head"><h3>Phụ cấp xe nộp kèm</h3><button class="btn small" id="btnAllowExcel">Tải Bảng phụ cấp xe (Excel)</button></div>
-      <div class="ac-scroll"><table class="ac-table" id="dAllowTable"><thead><tr><th>Loại</th><th>Dự án</th><th>WBS</th><th>Thời gian</th><th>Địa điểm</th><th class="r">Ngày</th><th class="r">Số tiền (đ)</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
+      <div class="ac-scroll"><table class="ac-table ni-cards" id="dAllowTable"><thead><tr><th>Loại</th><th>Dự án</th><th>WBS</th><th>Thời gian</th><th>Địa điểm</th><th class="r">Ngày</th><th class="r">Số tiền (đ)</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
       <p class="ac-note">Số ngày tính lại từ chính các dòng chấm công của dự án trong khoảng ngày đã khai. Hãy xác nhận khoảng cách dự án (xăng xe: 25 – dưới 35 km từ trụ sở) / việc tự mang xe đi tỉnh trước khi duyệt.</p>
     </div>
     <h3>Từng ngày</h3>
-    <div class="ac-scroll ac-tall"><table class="ac-table" id="dDays"><thead><tr><th>Ngày</th><th>Giờ</th><th class="r">Tổng</th><th>Loại giờ</th><th>Mã CV</th><th>Dự án / báo cáo thi công</th></tr></thead><tbody></tbody></table></div>
+    <div class="ac-scroll ac-tall"><table class="ac-table ni-cards" id="dDays"><thead><tr><th>Ngày</th><th>Giờ</th><th class="r">Tổng</th><th>Loại giờ</th><th>Mã CV</th><th>Dự án / báo cáo thi công</th></tr></thead><tbody></tbody></table></div>
     <div class="ap-actions" id="dActions">
       <button class="btn primary" id="btnApprove">Duyệt</button>
       <button class="btn danger" id="btnRejectOpen">Trả lại…</button>
@@ -99,6 +103,6 @@
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="../timesheet/allowance.js?v=1"></script>
 <script src="../timesheet/tsexcel.js?v=3"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>

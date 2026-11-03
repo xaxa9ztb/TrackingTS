@@ -1,25 +1,29 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="leave">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Nghỉ phép / ốm — Bộ công cụ dự án</title>
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="../accounts/style.css?v=5">
-<link rel="stylesheet" href="../approvals/style.css?v=2">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="../../css/ni.css?v=1">
+<link rel="stylesheet" href="../accounts/style.css?v=7">
+<link rel="stylesheet" href="../approvals/style.css?v=9">
+<link rel="stylesheet" href="style.css?v=9">
 <script src="../../js/demo.js?v=2"></script>
 <script src="../../js/session.js?v=45"></script>
 <script>Session.guard('leave');</script>
+<script src="../../js/status.js?v=1"></script>
+<script src="../../js/cards.js?v=1" defer></script>
 </head>
 <body>
-<script src="../toolset-nav.js?v=38" data-tool="Nghỉ phép / ốm" data-help="huong-dan-timesheet.html#nghi"></script>
+<script src="../toolset-nav.js?v=39" data-app="leave" data-tool="Nghỉ phép / ốm" data-help="huong-dan-timesheet.html#nghi"></script>
 
 <header class="ac-top">
   <div class="ac-wrap">
-    <h1>Nghỉ phép / ốm <span class="ac-badge">Máy chủ mới</span></h1>
-    <p class="ac-sub">Làm đơn nghỉ phép năm, nghỉ ốm, nghỉ không lương. <b>Quản lý trực tiếp</b> duyệt; duyệt xong, các ngày nghỉ <b>tự ghi vào Timesheet</b> của bạn (không cần chấm công những ngày đó).</p>
+    <h1>Nghỉ phép / ốm</h1>
+    <p class="ac-sub">Làm đơn nghỉ phép năm, nghỉ ốm, nghỉ không lương; quản lý trực tiếp duyệt.</p>
+    <details class="ni-howto"><summary>Cách dùng</summary><div>Gửi đơn trước hạn của từng loại nghỉ. <b>Quản lý trực tiếp</b> duyệt; duyệt xong, các ngày nghỉ <b>tự ghi vào Timesheet</b> của bạn (không cần chấm công những ngày đó).</div></details>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
   </div>
 </header>
@@ -50,7 +54,7 @@
 
   <section class="ac-card" id="secMine" hidden>
     <div class="ap-head"><h2>Đơn của tôi</h2><a class="btn small" href="../timesheet/">Mở Timesheet</a></div>
-    <div class="ac-scroll ac-short"><table class="ac-table" id="lvMine">
+    <div class="ac-scroll ac-short"><table class="ac-table ni-cards" id="lvMine">
       <thead><tr><th>Loại</th><th>Thời gian</th><th class="r">Ngày công</th><th>Trạng thái</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
@@ -59,7 +63,7 @@
   <section class="ac-card" id="secInbox" hidden>
     <div class="ap-head"><h2>Đơn chờ tôi duyệt <span class="ap-count" id="lvCount"></span></h2><button class="btn small" id="btnReload">Tải lại</button></div>
     <p class="ac-note">Bạn là <b>quản lý trực tiếp</b> của người xin nghỉ. Nghỉ phép phải duyệt <b>trước giờ bắt đầu</b>; nghỉ ốm duyệt được đến hết ngày nghỉ cuối.</p>
-    <div class="ac-scroll ac-short"><table class="ac-table" id="lvInbox">
+    <div class="ac-scroll ac-short"><table class="ac-table ni-cards" id="lvInbox">
       <thead><tr><th>Người xin nghỉ</th><th>Loại</th><th>Thời gian</th><th class="r">Ngày công</th><th>Lý do</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>

@@ -724,13 +724,14 @@ const IS_LEAD = SERVER && (() => {
   }
 })();
 const SALARY_KEY = 'ts_salary_v1'; // lương cơ bản: chỉ lưu trên máy này, không đồng bộ, không nằm trong sao lưu / báo cáo / email
-const STATUS_LABEL = {
+// tên trạng thái dùng chung toàn bộ công cụ (js/status.js — hệ thiết kế NI)
+const STATUS_LABEL = window.NiStatus && window.NiStatus.MAP ? Object.fromEntries(Object.keys(window.NiStatus.MAP).map(k => [k, window.NiStatus.label(k)])) : {
   draft: 'Đang chấm',
-  rejected: 'Bị trả lại — cần sửa',
-  submitted: 'Đã nộp — chờ giám sát',
-  sitesup_ok: 'Giám sát đã duyệt — chờ quản lý',
-  pm_ok: 'Đã qua giám sát & quản lý — chờ Admin xử lý',
-  approved: 'Đã duyệt xong'
+  submitted: 'Chờ Site Sup',
+  sitesup_ok: 'Chờ QLDA',
+  pm_ok: 'Chờ Admin xử lý',
+  approved: 'Đã duyệt xong',
+  rejected: 'Bị trả lại'
 };
 const sameEntries = (a, b) => {
   if (a.length !== b.length) return false;
@@ -1920,7 +1921,7 @@ function SyncBar({
   }, /*#__PURE__*/React.createElement("span", {
     id: "tsPeriodStatus",
     className: `inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`
-  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", lead && status === 'sitesup_ok' ? 'Đã nộp — chờ Quản lý dự án duyệt' : STATUS_LABEL[status] || status), (status === 'submitted' || lead && status === 'sitesup_ok') && /*#__PURE__*/React.createElement("button", {
+  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", STATUS_LABEL[status] || status), (status === 'submitted' || lead && status === 'sitesup_ok') && /*#__PURE__*/React.createElement("button", {
     id: "tsWithdrawBtn",
     type: "button",
     onClick: onWithdraw,

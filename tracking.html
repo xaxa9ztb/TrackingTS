@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="tracking">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Thống Kê Giờ Công Dự Án</title>
+<title>Thống kê giờ công dự án — Bộ công cụ dự án</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script src="js/pwa.js?v=36" defer></script>
@@ -13,17 +13,19 @@
 <script src="js/demo.js?v=2"></script>
 <script src="js/session.js?v=45"></script>
 <script>Session.guard('tracking');</script>
-<link rel="stylesheet" href="css/style.css?v=37">
+<link rel="stylesheet" href="css/ni.css?v=1">
+<link rel="stylesheet" href="css/style.css?v=38">
 <script src="js/xlsx.full.min.js?v=36"></script>
 </head>
 <body>
+<script src="tools/toolset-nav.js?v=39" data-app="tracking" data-tool="Thống kê giờ công dự án" data-help="#gs-thongke"></script>
 
 <div id="app">
 
   <header class="topbar">
-    <div class="brand"><a class="brand-home" href="index.html" title="Về trang chủ Bộ công cụ" aria-label="Về trang chủ Bộ công cụ">‹</a>Thống Kê Giờ Công Dự Án</div>
+    <h1 class="brand">Thống kê giờ công dự án</h1>
     <nav class="tabs">
-      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn active" data-tab="dashboard">Tổng quan</button>
       <button class="tab-btn" data-tab="timesheet">Bảng công</button>
       <button class="tab-btn" data-tab="swat">SWAT</button>
     </nav>
@@ -46,14 +48,14 @@
           <div id="projectCombo"></div>
         </div>
         <div class="field roles-field">
-          <label>Select</label>
+          <label>Vai trò</label>
           <div class="role-toggles">
             <label class="role-chip chip-sitesup"><input type="checkbox" id="chkSiteSup"> Site Sup</label>
             <label class="role-chip chip-fitter"><input type="checkbox" id="chkFitter"> Fitter</label>
           </div>
         </div>
         <div class="field date-field">
-          <label>Date / Ngày</label>
+          <label>Khoảng thời gian</label>
           <div class="date-range">
             <input type="date" id="dateFrom">
             <input type="date" id="dateTo">
@@ -63,12 +65,12 @@
             <input type="range" id="sliderTo" min="0" max="100" value="100" step="1">
           </div>
         </div>
-        <a class="btn btn-secondary btn-guide" id="btnGuide" href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener" title="Mở tài liệu hướng dẫn sử dụng (PDF)">📖 Hướng dẫn sử dụng</a>
+        <a class="btn btn-secondary btn-guide" id="btnGuide" href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener" title="Mở tài liệu hướng dẫn sử dụng (PDF)">Hướng dẫn (PDF)</a>
       </div>
 
       <div class="dash-grid">
         <div class="card pie-card">
-          <h3>Bảng Tỉ lệ Giờ Công</h3>
+          <h3>Tỉ lệ giờ công</h3>
           <div class="pie-wrap">
             <canvas id="pieChart"></canvas>
           </div>
@@ -78,8 +80,8 @@
           <table id="empTable" class="data-table">
             <thead>
               <tr>
-                <th>Name(Tên NV)</th><th>Mã NV</th><th class="num">Normal</th><th class="num">OT1</th>
-                <th class="num">OT2</th><th class="num">OT3</th><th class="num">Total Hour</th><th class="num">Tỉ lệ %</th>
+                <th>Tên NV</th><th>Mã NV</th><th class="num">Thường</th><th class="num">OT1</th>
+                <th class="num">OT2</th><th class="num">OT3</th><th class="num">Tổng giờ</th><th class="num">Tỉ lệ %</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -88,7 +90,7 @@
         </div>
 
         <div class="card act-card">
-          <h3>Thống kê Giờ Công theo Activities</h3>
+          <h3>Giờ công theo hoạt động (Activities)</h3>
           <div class="act-flex">
             <table id="actTable" class="data-table">
               <thead>
@@ -191,7 +193,7 @@
     <!-- ================= SWAT (toàn màn hình) ================= -->
     <section id="tab-swat" class="tab-panel">
       <div class="swat-batchbar admin-only">
-        <button class="btn btn-primary" id="btnBatchReport">📑 Batch report</button>
+        <button class="btn btn-primary" id="btnBatchReport">📑 Báo cáo hàng loạt</button>
         <span class="batch-hint">Xuất báo cáo hàng loạt — chỉ các dự án đã ghi Swat Target Hour</span>
       </div>
       <div class="swat-frame-wrap">
@@ -209,7 +211,7 @@
 <script src="js/backup.js?v=36"></script>
 <script src="js/cloud.js?v=42"></script>
 <script src="js/importer.js?v=40"></script>
-<script src="js/charts.js?v=36"></script>
+<script src="js/charts.js?v=37"></script>
 <script src="js/combo.js?v=36"></script>
 <script src="js/tablefilter.js?v=36"></script>
 <script src="js/dashboard.js?v=36"></script>

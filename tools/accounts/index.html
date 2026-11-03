@@ -1,25 +1,27 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="ni" data-app="accounts">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Tài khoản & phân quyền — Bộ công cụ dự án</title>
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="../../css/ni.css?v=1">
+<link rel="stylesheet" href="style.css?v=7">
 <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');   // nhúng trong trang Quản trị: bỏ thanh đầu</script>
 <!-- Dữ liệu trên máy (IndexedDB) — để đưa EE Data + Dự án hiện có lên máy chủ -->
 <script src="../../js/demo.js?v=2"></script>
 <script src="../../js/db.js?v=37"></script>
+<script src="../../js/status.js?v=1"></script>
+<script src="../../js/cards.js?v=1" defer></script>
 </head>
 <body>
-<script src="../toolset-nav.js?v=38" data-tool="Tài khoản & phân quyền" data-help="#quantri"></script>
+<script src="../toolset-nav.js?v=39" data-app="accounts" data-tool="Tài khoản & phân quyền" data-help="#quantri"></script>
 
 <header class="ac-top">
   <div class="ac-wrap">
-    <h1>Tài khoản & phân quyền <span class="ac-badge">Máy chủ mới</span></h1>
-    <p class="ac-sub">Gắn email đăng nhập cho từng nhân viên, chỉnh vai trò, phân công Site Sup / Quản lý dự án cho dự án.
-      Dữ liệu lưu trên máy chủ Cloudflare, mọi thay đổi có nhật ký.</p>
+    <h1>Tài khoản & phân quyền</h1>
+    <p class="ac-sub">Gắn email đăng nhập, chỉnh vai trò, phân công Site Sup / Quản lý dự án cho dự án. Mọi thay đổi có nhật ký.</p>
     <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
   </div>
 </header>
@@ -94,7 +96,7 @@
 
   <section class="ac-card" id="secAudit" hidden>
     <h2>5. Nhật ký thay đổi</h2>
-    <div class="ac-scroll ac-tall ac-short"><table class="ac-table" id="audit">
+    <div class="ac-scroll ac-tall ac-short"><table class="ac-table ni-cards" id="audit">
       <thead><tr><th>Lúc</th><th>Ai</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead>
       <tbody></tbody>
     </table></div>

@@ -146,7 +146,7 @@
     const entries = (doc.data.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.startTime).localeCompare(String(b.startTime)));
     const recomputed = LaborVN.breakdownAll(entries, sch, hoursOf);
     $('dTitle').textContent = `${doc.name} — kỳ ${period.slice(5)}/${period.slice(0, 4)}`;
-    $('dMeta').innerHTML = `<b>${esc(doc.name)}</b> (${esc(emp)}) · ${esc(doc.position)} · ${esc(STATUS_LABEL[doc.status] || doc.status)} · nộp lúc ${esc(fmtTime(doc.submittedAt))}`
+    $('dMeta').innerHTML = `<b>${esc(doc.name)}</b> (${esc(emp)}) · ${esc(doc.position)} · ${window.NiStatus ? NiStatus.pill(doc.status) : esc(STATUS_LABEL[doc.status] || doc.status)} · nộp lúc ${esc(fmtTime(doc.submittedAt))}`
       + (doc.sitesupBy ? ` · Site Sup <b>${esc(doc.sitesupBy)}</b> đã duyệt lúc ${esc(fmtTime(doc.sitesupAt))}` : '');
 
     let normal = 0, ot = 0; const days = new Set(), leaveDays = new Set(), projects = new Map(), mismatches = [];

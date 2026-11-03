@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi" class="ni" data-app="approvals">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Hệ thiết kế NI — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#0f1b2d">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="stylesheet" href="css/ni.css?v=1">
+<script src="js/status.js?v=1"></script>
+<script src="js/cards.js?v=1" defer></script>
+<style>
+  body { margin: 0; }
+  main { padding-block: 24px 64px; display: grid; gap: 20px; }
+  h2 { margin: 0 0 12px; font-size: var(--ni-fs-h2); font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .tok { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .tok div { display: flex; gap: 10px; align-items: center; font-size: 13px; }
+  .tok i { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--ni-line); flex: none; }
+  .tok code { display: block; color: var(--ni-muted); font: 12px var(--ni-mono); }
+  .scale > div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--ni-line); }
+  .scale code { color: var(--ni-muted); font: 12px var(--ni-mono); }
+</style>
+</head>
+<body>
+<script src="tools/toolset-nav.js?v=39" data-app="approvals" data-tool="Hệ thiết kế NI"></script>
+<header class="ni-head">
+  <div class="ni-wrap">
+    <h1>Hệ thiết kế NI</h1>
+    <p class="ni-lede">Mẫu sống của mọi thành phần dùng chung — css/ni.css, js/status.js, js/cards.js. Trang nội bộ để soát giao diện.</p>
+    <details class="ni-howto"><summary>Cách dùng</summary><div>
+      Mỗi trang: <code>&lt;html class="ni" data-app="…"&gt;</code>, nạp <code>css/ni.css</code> trước CSS riêng, gắn thanh công cụ
+      <code>tools/toolset-nav.js</code> (có <code>data-app</code>). Chỉ dùng token <code>--ni-*</code> cho màu, chữ, khoảng cách.
+      Một màu hành động (xanh). Đỏ Schindler chỉ để nhận diện. Màu chức năng chỉ cho sọc đầu trang.
+    </div></details>
+  </div>
+</header>
+<main class="ni-wrap">
+  <section class="ni-card">
+    <h2>Màu</h2>
+    <div class="tok">
+      <div><i style="background:var(--ni-ink)"></i><span>Mực<code>--ni-ink</code></span></div>
+      <div><i style="background:var(--ni-muted)"></i><span>Chữ phụ<code>--ni-muted</code></span></div>
+      <div><i style="background:var(--ni-line)"></i><span>Đường kẻ<code>--ni-line</code></span></div>
+      <div><i style="background:var(--ni-bg)"></i><span>Nền trang<code>--ni-bg</code></span></div>
+      <div><i style="background:var(--ni-action)"></i><span>Hành động<code>--ni-action</code></span></div>
+      <div><i style="background:var(--ni-brand)"></i><span>Thương hiệu<code>--ni-brand</code></span></div>
+      <div><i style="background:var(--ni-ok)"></i><span>Đạt<code>--ni-ok</code></span></div>
+      <div><i style="background:var(--ni-warn)"></i><span>Chờ / cảnh báo<code>--ni-warn</code></span></div>
+      <div><i style="background:var(--ni-danger)"></i><span>Lỗi / xoá<code>--ni-danger</code></span></div>
+      <div><i style="background:var(--ni-info)"></i><span>Thông tin<code>--ni-info</code></span></div>
+    </div>
+  </section>
+  <section class="ni-card">
+    <h2>Chữ — Be Vietnam Pro</h2>
+    <div class="scale">
+      <div><code>28 / 700</code><span style="font-size:28px;font-weight:700">Duyệt bảng công</span></div>
+      <div><code>22 / 700</code><span style="font-size:22px;font-weight:700">Bảng công chờ bạn duyệt</span></div>
+      <div><code>17 / 600</code><span style="font-size:17px;font-weight:600">Tăng ca chờ duyệt</span></div>
+      <div><code>15 / 400</code><span>Phạm Minh Dũng · 08:00–17:00 · Chung cư Sao Mai - Block A</span></div>
+      <div><code>13 / 500</code><span style="font-size:13px;font-weight:500;color:var(--ni-muted)">Nộp lúc 14:29 · 03/11/2026</span></div>
+      <div><code>12.5 mono</code><span class="ni-mono">DEMO-002 · D101 · 1110</span></div>
+    </div>
+  </section>
+  <section class="ni-card">
+    <h2>Nút</h2>
+    <div class="row">
+      <button class="ni-btn primary" type="button">Duyệt các ngày đã chọn</button>
+      <button class="ni-btn" type="button">Xuất Excel</button>
+      <button class="ni-btn ghost" type="button">Xem chi tiết</button>
+      <button class="ni-btn danger" type="button">Trả lại…</button>
+      <button class="ni-btn primary small" type="button">Lưu</button>
+      <button class="ni-btn" type="button" disabled>Không dùng được</button>
+    </div>
+  </section>
+  <section class="ni-card">
+    <h2>Trạng thái bảng công</h2>
+    <div class="row" id="pills"></div>
+  </section>
+  <section class="ni-card">
+    <h2>Ô nhập, thanh phân đoạn, hộp báo</h2>
+    <div style="display:grid;gap:16px;max-width:420px">
+      <label class="ni-field">WBS / Mã chi phí<input value="DEMO-002"><small>Chọn trong danh sách hoặc tự gõ</small></label>
+      <div class="ni-tabs" role="tablist"><button role="tab" aria-selected="true">Tổng quan</button><button role="tab" aria-selected="false">Bảng công</button><button role="tab" aria-selected="false">SWAT</button></div>
+    </div>
+    <div style="display:grid;gap:8px;margin-top:16px">
+      <div class="ni-note">Thông tin: dữ liệu đồng bộ lúc 15:11.</div>
+      <div class="ni-note warn">Còn 1 ngày T2–T6 chưa chấm.</div>
+      <div class="ni-note err">Không lưu được — kiểm tra mạng rồi thử lại.</div>
+      <div class="ni-note ok">Đã duyệt 2 ngày tăng ca.</div>
+    </div>
+  </section>
+  <section class="ni-card">
+    <h2>Bảng (dưới 640px tự chuyển thành thẻ)</h2>
+    <table class="ni-table ni-cards">
+      <thead><tr><th>Người nộp</th><th>Kỳ lương</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><b>Hoàng Văn Em</b><div class="ni-muted">D102 · Fitter</div></td><td>10/2026</td><td data-st="submitted"></td><td><button class="ni-btn primary small" type="button">Xem &amp; duyệt</button></td></tr>
+        <tr><td><b>Phạm Minh Dũng</b><div class="ni-muted">D101 · Fitter</div></td><td>10/2026</td><td data-st="approved"></td><td><button class="ni-btn small" type="button">Xem</button></td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+<script>
+  document.getElementById('pills').innerHTML = Object.keys(NiStatus.MAP).map(k => NiStatus.pill(k)).join('');
+  document.querySelectorAll('[data-st]').forEach(td => { td.innerHTML = NiStatus.pill(td.dataset.st); });
+</script>
+</body>
+</html>

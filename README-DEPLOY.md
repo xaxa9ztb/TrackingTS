@@ -119,6 +119,25 @@ Tăng `?v=` của `js/session.js` và `VERSION` trong `sw.js` (thêm trang mới
 
 ---
 
+## Giao diện chung — Hệ thiết kế NI
+
+Mọi chức năng dùng chung một bộ giao diện. Mẫu sống của từng thành phần: **`/design.html`**.
+
+| File | Vai trò |
+|---|---|
+| `css/ni.css` | Token màu / chữ / khoảng cách / bo góc (`--ni-*`), font **Be Vietnam Pro** đóng gói sẵn (`css/fonts/`, giấy phép SIL OFL — chạy được khi mất mạng), nút, ô nhập, nhãn trạng thái, bảng → thẻ trên điện thoại, thanh phân đoạn |
+| `js/status.js` | Tên + màu trạng thái bảng công dùng chung: Đang chấm · Chờ Site Sup · Chờ QLDA · Chờ Admin xử lý · Đã duyệt xong · Bị trả lại |
+| `js/cards.js` | Bảng có lớp `ni-cards` tự gắn nhãn cột để hiện dạng thẻ dưới 640px |
+| `tools/toolset-nav.js` | Thanh công cụ trên cùng (về trang chủ, Hướng dẫn, người đăng nhập, Đăng xuất); tự nạp `css/ni.css` nếu trang chưa nạp |
+
+Quy ước khi thêm / sửa một trang:
+
+- `<html lang="vi" class="ni" data-app="<id chức năng>">`, nạp `css/ni.css` **trước** CSS riêng, gắn `toolset-nav.js` ngay sau `<body>` với `data-app` cùng id.
+- Chỉ dùng token `--ni-*`. **Một màu hành động** (xanh `--ni-action`) cho nút chính; đỏ Schindler (`--ni-brand`) chỉ để nhận diện; màu riêng của chức năng (`--ni-app`, theo `data-app`) chỉ cho sọc đầu trang / thanh công cụ.
+- Đầu trang: tiêu đề + **một dòng** mô tả; giải thích dài cho vào `<details class="ni-howto"><summary>Cách dùng</summary>…`.
+- Nhãn tiếng Việt; không dùng nhãn kỹ thuật (“Máy chủ mới”, “Dashboard”…).
+- Bản in / file xuất (bảng tiến độ A3, biểu mẫu SWAT, Excel, Word) giữ định dạng riêng, không theo hệ giao diện.
+
 ## Máy chủ mới trên Cloudflare (đang chuyển dần)
 
 Theo đề xuất đã duyệt: giao diện chạy trên **Cloudflare Pages**, dữ liệu trong **D1**, đăng nhập bằng
