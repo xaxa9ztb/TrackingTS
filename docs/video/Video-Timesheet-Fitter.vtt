@@ -130,7 +130,7 @@ Bảng xác nhận: giờ công + phụ cấp xe nộp kèm. Dòng phụ cấp c
 Kiểm tra xong → Nộp cho giám sát.
 
 03:21.082 --> 03:25.662
-Đã nộp! Bảng công khoá sửa trong lúc chờ giám sát duyệt. Giám sát nhận email ngay.
+Đã nộp! Trạng thái Chờ Site Sup: bảng công khoá sửa trong lúc chờ duyệt. Site Sup nhận email ngay.
 
 03:25.662 --> 03:31.732
 Nộp nhầm? Bấm Thu hồi để sửa (chỉ được khi giám sát chưa duyệt).
