@@ -39,21 +39,22 @@ const Importer = (() => {
     return isNaN(n) ? 0 : n;
   }
 
+  // EE Data: đọc THEO TÊN CỘT (js/eemap.js) — file HRMS của HR, sheet EE DATA, file app xuất ra… không lệch cột khi thứ tự cột khác
+  let lastEEInfo = null;
   function mapEmployees(rows) {
-    // EE DATA columns (0-indexed): 0 EmpID,1 PersonId,2 First,3 Last,4 FullNameVN,5 Username,
-    // 6 DOB,7 Gender,8 HireDate,9 GroupStartDate,10 SeniorityStartDate(K),11 Position,12 Supervisor
-    return rows.slice(1).filter(r => r[0] !== undefined && r[0] !== '').map(r => ({
-      empId: String(r[0]).trim(),
-      personId: r[1] !== undefined ? String(r[1]) : '',
-      fullName: String(r[4] || `${r[2] || ''} ${r[3] || ''}`.trim()),
-      username: r[5] || '',
-      dob: r[6] !== undefined ? String(r[6]) : '',
-      gender: r[7] || '',
-      hireDate: r[8] !== undefined ? String(r[8]) : '',
-      startDate: r[10] !== undefined ? String(r[10]) : '',
-      position: r[11] || '',
-      supervisor: r[12] || '',
-    }));
+    const r = EEMap.mapEmployees(rows);
+    lastEEInfo = r;
+    if (r.mode === 'header' && r.missing.includes('empId')) throw new Error('Không tìm thấy cột Mã NV (vd "User/Employee ID", "Employee ID")');
+    if (r.mode === 'header' && r.missing.includes('fullName')) throw new Error('Không tìm thấy cột Họ tên (vd "Full name in Vietnamese", hoặc "First Name" + "Last Name")');
+    return r.employees;
+  }
+  // mô tả ngắn cách đã đọc file (hiện cho admin sau khi nạp)
+  function eeReport() {
+    const r = lastEEInfo;
+    if (!r) return '';
+    if (r.mode === 'legacy') return 'Đọc theo vị trí cột (mẫu EE DATA cũ).';
+    const miss = r.missing.filter(f => f !== 'empId' && f !== 'fullName').map(f => EEMap.LABELS[f] || f);
+    return 'Đọc theo tên cột' + (miss.length ? ` — ⚠ không thấy cột: ${miss.join(', ')} (các ô này để trống).` : ' — đủ cột Mã NV, Họ tên, Chức danh, Quản lý trực tiếp, Ngày vào làm.');
   }
 
   // Technical spec columns in Yan_COM: V (21) .. AR (43), headers taken from row 1
@@ -348,11 +349,12 @@ const Importer = (() => {
   // employee IDs are skipped
   async function importEmployeesFile(file, overwrite = false) {
     const wb = await readWorkbook(file);
-    const sheet = findSheet(wb, ['EE DATA', 'EE Data']) || wb.Sheets[wb.SheetNames[0]];
+    const sheet = findSheet(wb, ['EE DATA', 'EE Data', 'HRMS EE DATA']) || wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    const mapped = mapEmployees(rows);
+    let mapped;
+    try { mapped = mapEmployees(rows); } catch (e) { throw new Error(`File "${file.name}": ${e.message}`); }
     if (!mapped.length) {
-      throw new Error(`File "${file.name}": không nhận dạng được dữ liệu nhân viên (cần cấu trúc cột như sheet EE DATA, mã NV ở cột A)`);
+      throw new Error(`File "${file.name}": không nhận dạng được dữ liệu nhân viên (cần dòng tiêu đề có cột Mã NV, Họ tên…)`);
     }
     const existing = await DB.getAll('employees');
     const existingIds = new Set(existing.map(e => e.empId));
@@ -360,11 +362,11 @@ const Importer = (() => {
     if (overwrite) {
       // GHI ĐÈ: ghi cả dòng trùng mã NV (thay thế toàn bộ dữ liệu nhân viên đó)
       await DB.bulkPut('employees', mapped);
-      return { added: mapped.length - dup, overwritten: dup, skipped: 0 };
+      return { added: mapped.length - dup, overwritten: dup, skipped: 0, report: eeReport() };
     }
     const fresh = mapped.filter(e => !existingIds.has(e.empId));
     await DB.bulkPut('employees', fresh);
-    return { added: fresh.length, overwritten: 0, skipped: dup };
+    return { added: fresh.length, overwritten: 0, skipped: dup, report: eeReport() };
   }
 
   // Mode 2c: one or more monthly timesheet files (one per employee per month).
@@ -425,8 +427,8 @@ const Importer = (() => {
 
     const wb = XLSX.utils.book_new();
 
-    const eeAoa = [['Employee ID', 'Person Id', 'Full Name', 'Username', 'DOB', 'Gender', 'Hire Date', 'Position', 'Supervisor']];
-    employees.forEach(e => eeAoa.push([e.empId, e.personId, e.fullName, e.username, e.dob, e.gender, e.hireDate, e.position, e.supervisor]));
+    const eeAoa = [['Employee ID', 'Person Id', 'Full Name', 'Username', 'DOB', 'Gender', 'Hire Date', 'Seniority Start Date', 'Position Title', 'Supervisor']];
+    employees.forEach(e => eeAoa.push([e.empId, e.personId, e.fullName, e.username, e.dob, e.gender, e.hireDate, e.startDate, e.position, e.supervisor]));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(eeAoa), 'EE DATA');
 
     const projAoa = [['WBS Element', 'Project Number', 'Project Name', 'Customer', 'Product Line', 'Supervisor', 'Sales Rep', 'Net Value', 'Target Hour']];
@@ -440,5 +442,5 @@ const Importer = (() => {
     XLSX.writeFile(wb, 'Timesheet_Export.xlsx');
   }
 
-  return { importFile, importProjectsFile, importEmployeesFile, importTimesheetFiles, exportWorkbook, removeDuplicateTimesheets };
+  return { importFile, importProjectsFile, importEmployeesFile, importTimesheetFiles, exportWorkbook, removeDuplicateTimesheets, mapEmployees };
 })();
