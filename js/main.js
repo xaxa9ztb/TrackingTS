@@ -395,6 +395,7 @@ function openUpdateModal() {
             msg = overwrite
               ? `Đã thêm ${r.added} nhân viên mới, GHI ĐÈ ${r.overwritten} nhân viên trùng mã NV.`
               : `Đã thêm ${r.added} nhân viên mới, bỏ qua ${r.skipped} dòng trùng mã NV.`;
+            if (r.report) msg += ' ' + r.report;
           } else {
             const r = await Importer.importTimesheetFiles(files, overwrite);
             msg = overwrite
