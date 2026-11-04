@@ -217,17 +217,16 @@ function openUpdateModal() {
 
   if (Cloud.SERVER) {
     // Nhân viên + dự án do trang "Tài khoản" quản lý và đồng bộ từ máy chủ → ở đây chỉ nhập bảng công
-    ['full', 'projects', 'employees'].forEach(m => {
+    // "Cập nhật toàn bộ" (thay cả bảng công) không dùng ở bản máy chủ; Bổ sung Dự án / Nhân viên từ Excel thì ĐẨY THẲNG lên máy chủ
+    ['full'].forEach(m => {
       const opt = root.querySelector(`[data-mode="${m}"]`);
       if (opt) opt.closest('.update-option').remove();
     });
-    const ow = root.querySelector('.update-overwrite');
-    if (ow) ow.remove();
     root.querySelectorAll('.update-option .update-info > b:first-child').forEach((b, i) => {
       b.textContent = b.textContent.replace(/^\d+\./, (i + 1) + '.');
     });
     const h = root.querySelector('.update-modal h3');
-    if (h) h.insertAdjacentHTML('afterend', '<p style="margin:0 0 10px;font-size:13px;color:#4b5563">Nhân viên và dự án được quản lý ở trang <b>Tài khoản</b> và đồng bộ từ máy chủ. Ở đây chỉ nhập <b>bảng công</b> (sau đó bấm <b>Lưu lên máy chủ</b>).</p>');
+    if (h) h.insertAdjacentHTML('afterend', '<p style="margin:0 0 10px;font-size:13px;color:#4b5563"><b>Dự án</b> và <b>Nhân viên</b> từ Excel được đưa <b>thẳng lên máy chủ</b> ngay sau khi chọn file (email đăng nhập, vai trò, khoá tài khoản đã đặt không bị ghi đè). <b>Bảng công</b> nhập xong bấm <b>Lưu lên máy chủ</b>.</p>');
   }
 
   const close = () => { root.innerHTML = ''; };
@@ -382,12 +381,17 @@ function openUpdateModal() {
             msg = `Đã thay thế toàn bộ: ${r.employees} nhân viên, ${r.projects} dự án, ${r.timesheets} dòng bảng công.` +
               (r.duplicates ? ` Đã loại ${r.duplicates} dòng trùng lặp.` : '');
           } else if (mode === 'projects') {
+            const before = Cloud.SERVER ? await snapshot('projects', 'wbs') : null;
             const r = await Importer.importProjectsFile(files[0], overwrite);
+            if (Cloud.SERVER) r.sent = await pushChanged('projects', 'wbs', before, ({ staff, updatedAt, ...p }) => p, 40, statusEl);   // phân công + mốc thời gian do máy chủ giữ
             msg = overwrite
               ? `Đã thêm ${r.added} dự án mới, GHI ĐÈ ${r.updated} dự án trùng WBS.`
               : `Đã thêm ${r.added} dự án mới, bổ sung thông tin cho ${r.updated} dự án đã có, bỏ qua ${r.skipped} dòng không có gì mới.`;
           } else if (mode === 'employees') {
+            const before = Cloud.SERVER ? await snapshot('employees', 'empId') : null;
             const r = await Importer.importEmployeesFile(files[0], overwrite);
+            // chỉ gửi trường cần thiết — không gửi ngày sinh, giới tính, mã cá nhân
+            if (Cloud.SERVER) r.sent = await pushChanged('employees', 'empId', before, (e) => ({ empId: e.empId, fullName: e.fullName, position: e.position, supervisor: e.supervisor, hireDate: e.hireDate, startDate: e.startDate }), 100, statusEl);
             msg = overwrite
               ? `Đã thêm ${r.added} nhân viên mới, GHI ĐÈ ${r.overwritten} nhân viên trùng mã NV.`
               : `Đã thêm ${r.added} nhân viên mới, bỏ qua ${r.skipped} dòng trùng mã NV.`;
@@ -396,6 +400,10 @@ function openUpdateModal() {
             msg = overwrite
               ? `Đã import ${r.files} file: thêm ${r.added} dòng mới, GHI ĐÈ ${r.overwritten} dòng trùng.`
               : `Đã import ${r.files} file: thêm ${r.added} dòng mới, bỏ qua ${r.skipped} dòng trùng.`;
+          }
+          if (Cloud.SERVER && (mode === 'projects' || mode === 'employees')) {
+            msg += ` Đã lưu lên máy chủ ${lastPushed} ${mode === 'projects' ? 'dự án' : 'nhân viên'}.`;
+            try { await Cloud.loadFromDrive(); } catch (e) { /* giữ dữ liệu trên máy */ }
           }
           await refreshAllPages();
           statusEl.textContent = '✓ ' + msg;
@@ -410,6 +418,34 @@ function openUpdateModal() {
       input.click();
     });
   });
+}
+
+// Bản máy chủ: Bổ sung Dự án / Nhân viên từ Excel → đẩy các dòng mới / đã đổi lên máy chủ (/api/admin/import, ghi theo mã nên gửi lại an toàn)
+let lastPushed = 0;
+async function snapshot(store, key) {
+  const m = new Map();
+  for (const x of (await DB.getAll(store)) || []) m.set(String(x[key]), JSON.stringify(x));
+  return m;
+}
+async function pushChanged(store, key, before, shape, batch, statusEl) {
+  const rows = ((await DB.getAll(store)) || []).filter(x => x && x[key] && before.get(String(x[key])) !== JSON.stringify(x)).map(shape);
+  lastPushed = 0;
+  for (let i = 0; i < rows.length; i += batch) {
+    statusEl.textContent = `Đang lưu lên máy chủ… ${Math.min(i + batch, rows.length)}/${rows.length}`;
+    const body = store === 'projects' ? { projects: rows.slice(i, i + batch) } : { employees: rows.slice(i, i + batch) };
+    let resp, d;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        resp = await fetch('/api/admin/import', { method: 'POST', credentials: 'same-origin', redirect: 'manual', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        d = await resp.json().catch(() => ({}));
+        if (resp.ok || attempt >= 2 || (resp.status && resp.status < 500)) break;
+      } catch (e) { if (attempt >= 2) throw new Error('Mất kết nối khi lưu lên máy chủ — chọn lại file để gửi tiếp (gửi lại an toàn)'); }
+      await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+    }
+    if (!resp.ok) throw new Error((d && d.error) || ('Máy chủ báo lỗi HTTP ' + resp.status) + ` — đã lưu ${lastPushed}/${rows.length}, chọn lại file để gửi tiếp`);
+    lastPushed += (store === 'projects' ? d.projects : d.employees) || 0;
+  }
+  return lastPushed;
 }
 
 // trang Quản trị và trang Thống kê giờ công dùng chung mã nhưng mỗi trang chỉ có một số bảng
