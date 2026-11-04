@@ -38,9 +38,11 @@ const tokenFor = (email, over = {}) => sign(keys, { aud: [AUD], iss: ISS, email,
 let keySet = () => [keys.jwk];
 const getKeys = async () => keySet();
 
-async function call(method, p, { email, token, body, contentType, envOver, cookie } = {}) {
+async function call(method, p, { email, token, body, contentType, envOver, cookie, demoHeader = true } = {}) {
   const headers = {};
   if (cookie) headers.cookie = cookie;
+  // trình duyệt ở chế độ demo luôn gửi kèm header này (js/demo.js)
+  if (cookie && /ts_demo=1/.test(cookie) && demoHeader) headers['x-ts-demo'] = '1';
   if (email) headers['cf-access-jwt-assertion'] = await tokenFor(email);
   if (token) headers['cf-access-jwt-assertion'] = token;
   if (body !== undefined) headers['content-type'] = contentType || 'application/json';
@@ -1865,4 +1867,19 @@ test('đăng ký tài khoản: email lạ gửi họ tên + mã NV → admin nh�
   // gửi lại sau khi bị từ chối → chờ duyệt lại
   const again = await call('POST', '/api/register', { email: S2, body: { name: 'Người Mạo Danh', empId: 'F01' } });
   assert.equal(again.data.request.status, 'pending');
+});
+
+test('demo: cookie còn sót nhưng trình duyệt không ở chế độ demo (không có header) → dữ liệu thật + xoá cookie', async () => {
+  const DEMO = 'ts_demo=1';
+  const real = await call('GET', '/api/me', { email: 'boss@example.com', cookie: DEMO, demoHeader: false });
+  assert.equal(real.status, 200);
+  assert.equal(real.data.demo, false);
+  assert.ok(real.data.roles.includes('admin'), 'admin trong ADMIN_EMAILS vẫn là admin');
+  assert.match(real.setCookie, /ts_demo=;.*Max-Age=0/);
+  const st = await call('GET', '/api/demo/status', { email: 'boss@example.com', cookie: DEMO, demoHeader: false });
+  assert.equal(st.data.active, false);
+  // có header → vẫn vào demo như cũ, không xoá cookie
+  const d = await call('GET', '/api/me', { email: 'boss@example.com', cookie: DEMO });
+  assert.equal(d.data.demo, true);
+  assert.equal(d.setCookie, '');
 });

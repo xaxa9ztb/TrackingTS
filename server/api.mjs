@@ -7,7 +7,7 @@ import { effectiveRoles, rolesFromPosition, adminEmails, parseExtraRoles, ALL_RO
 import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName, esc } from './mail.mjs';
-import { demoRequested, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
+import { demoRequested, staleDemoCookie, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
 import { routeTsImport } from './tsimport.mjs';
@@ -938,6 +938,15 @@ const H = { startApproval, HttpError, json, need, needOwnEmp, audit, projectStaf
 
 // opts.getKeys: chỉ dùng khi kiểm thử (thay nguồn khoá công khai của Access)
 export async function handle(request, env, opts = {}) {
+  const resp = await handleApi(request, env, opts);
+  // cookie demo còn sót mà trình duyệt không ở chế độ demo: xoá đi cho sạch (dữ liệu thật vẫn được phục vụ bình thường)
+  if (staleDemoCookie(request) && !resp.headers.has('set-cookie')) {
+    try { resp.headers.append('set-cookie', demoCookie(false)); } catch (e) { /* header không sửa được: bỏ qua */ }
+  }
+  return resp;
+}
+
+async function handleApi(request, env, opts = {}) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '');
   const method = request.method.toUpperCase();
