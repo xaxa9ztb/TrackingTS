@@ -1,6 +1,6 @@
 // Gom các file giao diện vào dist/ để đưa lên Cloudflare Pages (thư mục functions/ ở gốc repo
 // được wrangler đóng gói riêng thành /api). Không đưa mã máy chủ, kiểm thử, tài liệu nội bộ lên.
-import { cpSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { cpSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,5 +43,16 @@ writeFileSync(path.join(OUT, '_headers'), [
   '  X-Frame-Options: SAMEORIGIN',
   '',
 ].join('\n'));
+
+// Cloudflare Pages chỉ nhận file tối đa 25 MiB — báo lỗi ngay khi build (thay vì lúc deploy). Video: nén lại (ffmpeg -crf 30).
+const MAX = 25 * 1024 * 1024;
+const big = [];
+(function walk(dir) {
+  for (const n of readdirSync(dir)) {
+    const p = path.join(dir, n), st = statSync(p);
+    if (st.isDirectory()) walk(p); else if (st.size > MAX) big.push(`${path.relative(OUT, p)} (${(st.size / 1048576).toFixed(1)} MiB)`);
+  }
+})(OUT);
+if (big.length) throw new Error('File quá 25 MiB — Cloudflare Pages không nhận:\n  ' + big.join('\n  '));
 
 console.log('Đã gom giao diện vào', path.relative(ROOT, OUT) + '/');
