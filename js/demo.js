@@ -37,6 +37,23 @@
       for (var i = 0; i < this.length; i++) { var n = k.call(this, i); if (n && n.indexOf(PREFIX) === 0) del.push(n); }
       del.forEach(function (n) { r.call(this, n); }, this);
     };
+    // ---- báo máy chủ "trình duyệt đang ở chế độ demo": header x-ts-demo cho mọi yêu cầu cùng nguồn ----
+    // Máy chủ chỉ dùng dữ liệu demo khi có CẢ cookie và header này → cookie còn sót không thể lặng lẽ đưa người dùng vào demo.
+    if (window.fetch) {
+      var rawFetch = window.fetch;
+      window.fetch = function (input, init) {
+        try {
+          var url = typeof input === 'string' ? input : (input && input.url) || '';
+          if (new URL(url, location.href).origin === location.origin) {
+            init = Object.assign({}, init || {});
+            var h = new Headers(init.headers || (typeof input !== 'string' && input.headers) || {});
+            h.set('x-ts-demo', '1');
+            init.headers = h;
+          }
+        } catch (e) { /* để nguyên yêu cầu */ }
+        return rawFetch.call(this, input, init);
+      };
+    }
     // ---- IndexedDB ----
     if (window.IDBFactory) {
       var idbProto = IDBFactory.prototype, open = idbProto.open, del = idbProto.deleteDatabase;

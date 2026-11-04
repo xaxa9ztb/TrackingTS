@@ -18,8 +18,16 @@ import Labor from '../tools/timesheet/labor.js';
 export const DEMO_COOKIE = 'ts_demo';
 export const DEMO_ROLES = ['admin', 'pm', 'sitesup', 'staff'];
 
+// Demo chỉ bật khi CÓ CẢ cookie ts_demo (máy chủ đặt) VÀ header x-ts-demo: 1 (js/demo.js gắn vào mọi yêu cầu khi trình duyệt
+// đang ở chế độ demo). Nhờ vậy cookie còn sót (thoát demo lúc mất mạng, xoá dữ liệu trình duyệt…) không thể lặng lẽ đưa
+// người dùng vào dữ liệu demo mà không có thanh "CHẾ ĐỘ DEMO".
+export const DEMO_HEADER = 'x-ts-demo';
 export function demoRequested(request) {
-  return /(?:^|;\s*)ts_demo=1(?:;|$)/.test(request.headers.get('cookie') || '');
+  return /(?:^|;\s*)ts_demo=1(?:;|$)/.test(request.headers.get('cookie') || '') && request.headers.get(DEMO_HEADER) === '1';
+}
+// cookie demo còn nhưng trình duyệt không ở chế độ demo → xoá cookie
+export function staleDemoCookie(request) {
+  return /(?:^|;\s*)ts_demo=1(?:;|$)/.test(request.headers.get('cookie') || '') && request.headers.get(DEMO_HEADER) !== '1';
 }
 export function demoCookie(on) {
   // HttpOnly: trang không đọc được; trình duyệt tự gửi kèm mọi yêu cầu cùng nguồn
