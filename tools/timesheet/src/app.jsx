@@ -603,12 +603,11 @@
                 if (SERVER) { TsSync.markPeriodDirty(currentMonth); scheduleSync(); }
             };
             const openAllowance = (row) => { if (locked) return lockedMsg(); setDrawer({ type: 'allow', row: row || null, key: Date.now() }); };
-            const handleSaveAllowance = (row) => {
-                const rows = allow ? allow.rows : [];
-                const editing = rows.some(r => r.id === row.id);
-                saveAllowRows(editing ? rows.map(r => (r.id === row.id ? row : r)) : [...rows, row]);
+            const handleSaveAllowance = (next) => {
+                const before = allow ? allow.rows : [];
+                saveAllowRows(next);
                 setDrawer(null);
-                showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} ${TsAllowance.TYPES[row.type].label.toLowerCase()} — ${row.wbs}.`);
+                showToast(`Đã lưu bảng phụ cấp xe — ${next.length} dòng.`, { label: 'Hoàn tác', run: () => saveAllowRows(before) });
             };
             const handleDeleteAllowance = (row) => {
                 if (locked) return lockedMsg();
@@ -844,10 +843,9 @@
                         </Drawer>
                     )}
                     {drawer && drawer.type === 'allow' && (
-                        <Drawer title={drawer.row ? 'Sửa phụ cấp xe' : 'Thêm phụ cấp xe'} onClose={closeDrawer}>
+                        <Drawer title="Bảng phụ cấp xe" onClose={closeDrawer}>
                             <AllowanceForm key={drawer.key} initial={drawer.row} projects={allowProjects} catalog={allProjects} entries={monthlyEntries} period={period}
-                                rows={allow ? allow.rows : []} onSave={handleSaveAllowance} onCancel={closeDrawer}
-                                onDelete={drawer.row ? () => handleDeleteAllowance(drawer.row) : null}/>
+                                rows={allow ? allow.rows : []} onSave={handleSaveAllowance} onCancel={closeDrawer}/>
                         </Drawer>
                     )}
                     {drawer && drawer.type === 'submit' && (
@@ -964,21 +962,28 @@
             );
         }
 
+        // Bảng phụ cấp xe: sửa NHIỀU DÒNG cùng lúc — mỗi dòng một dự án / WBS / giai đoạn với số ngày riêng.
         // Phụ cấp hiện ĐỘC LẬP với chấm công (TsAllowance.LINK_TIMESHEET = false): tự nhập dự án, khoảng ngày, số ngày.
         // Dự án đã chấm trong kỳ và danh sách dự án chung chỉ là GỢI Ý để điền nhanh.
-        function AllowanceForm({ initial, projects, catalog, entries, period, rows, onSave, onCancel, onDelete }) {
-            const span = (a, b) => (a && b && a <= b ? TsAllowance.spanDays(a, b) : 0);
-            const [f, setF] = useState(() => {
-                const base = initial ? { ...initial } : {
-                    // không mặc định cả kỳ: mỗi dòng là một giai đoạn tại một dự án — tự chọn từ ngày / đến ngày
-                    id: String(Date.now()), type: 'fuel', wbs: '', project: '', from: '', to: '', location: '', remarks: '', ownVehicle: false,
-                };
+        let allowSeq = 0;
+        const newAllowId = () => String(Date.now() * 100 + (allowSeq++ % 100));
+        function AllowanceForm({ initial, projects, catalog, entries, period, rows, onSave, onCancel }) {
+            const blank = (type) => ({ id: newAllowId(), type, wbs: '', project: '', from: '', to: '', days: '', location: '', remarks: '', ownVehicle: type === 'province' });
+            const [type, setType] = useState(initial ? initial.type : 'fuel');
+            const [lines, setLines] = useState(() => {
                 // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
-                if (!Number.isInteger(base.days)) base.days = initial ? (TsAllowance.compute(entries, { rows: [initial] }, period).rows[0] || {}).days || '' : '';
-                return base;
+                const calc = TsAllowance.compute(entries, { rows }, period);
+                const list = rows.map(r => ({ ...r, days: Number.isInteger(r.days) ? r.days : ((calc.rows.find(x => x.id === r.id) || {}).days || '') }));
+                const t = initial ? initial.type : 'fuel';
+                if (!initial || !list.some(r => r.type === t)) list.push(blank(t));      // "Thêm phụ cấp" → thêm sẵn một dòng trống
+                return list;
             });
+            const [focusId] = useState(() => (initial ? initial.id : null));
             const [touched, setTouched] = useState(false);
-            const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+            const setLine = (id, k, v) => setLines(prev => prev.map(l => (l.id === id ? { ...l, [k]: v } : l)));
+            const addLine = () => setLines(prev => [...prev, blank(type)]);
+            const removeLine = (id) => setLines(prev => prev.filter(l => l.id !== id));
+            const chooseType = (t) => { setType(t); setLines(prev => (prev.some(l => l.type === t) ? prev : [...prev, blank(t)])); };
             // gợi ý dự án: đã chấm trong kỳ trước, rồi danh sách dự án chung (không trùng WBS)
             const suggest = useMemo(() => {
                 const seen = new Set(), out = [];
@@ -987,82 +992,111 @@
                 (catalog || []).forEach(p => add(p.workNumber, p.projectName, ''));
                 return out.slice(0, 400);
             }, [projects, catalog]);
-            const setWbs = (v) => setF(prev => {
+            const setWbs = (id, v) => setLines(prev => prev.map(l => {
+                if (l.id !== id) return l;
                 const hit = suggest.find(p => p.wbs.toUpperCase() === v.trim().toUpperCase());
-                return { ...prev, wbs: v, project: hit && hit.project && !prev.project ? hit.project : prev.project };
-            });
-            const days = f.days === '' || f.days === undefined ? '' : f.days;
-            const clean = { ...f, days: days === '' ? undefined : Number(days) };
-            const others = rows.filter(r => r.id !== f.id);
-            const previewAll = TsAllowance.compute(entries, { rows: [...others, clean] }, period);
-            const preview = previewAll.rows.find(r => r.id === f.id);
-            let invalid = '';
-            try { TsAllowance.sanitize({ rows: [clean] }, period); } catch (e) { invalid = e.message; }
-            if (!f.from || !f.to) invalid = 'Chọn từ ngày và đến ngày của giai đoạn này';
-            else if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
-            if (!invalid && days === '') invalid = 'Nhập số ngày';
-            const submit = (e) => { e.preventDefault(); setTouched(true); if (invalid) return; onSave(TsAllowance.sanitize({ rows: [clean] }, period).rows[0]); };
-            const maxDays = span(f.from, f.to);
+                return { ...l, wbs: v, project: hit && hit.project && !l.project ? hit.project : l.project };
+            }));
+            const isBlank = (l) => !String(l.wbs || '').trim() && !l.from && !l.to && (l.days === '' || l.days === undefined) && !l.location && !l.remarks;
+            const filled = lines.filter(l => !isBlank(l));
+            const clean = (l) => ({ ...l, days: l.days === '' || l.days === undefined ? undefined : Number(l.days) });
+            // lỗi nhập (chặn lưu) theo từng dòng
+            const errOf = (l) => {
+                if (!String(l.wbs || '').trim()) return 'Nhập mã WBS / dự án';
+                if (!l.from || !l.to) return 'Chọn từ ngày và đến ngày';
+                if (l.days === '' || l.days === undefined) return 'Nhập số ngày';
+                try { TsAllowance.sanitize({ rows: [clean(l)] }, period); } catch (e) { return e.message; }
+                return '';
+            };
+            const calc = TsAllowance.compute(entries, { rows: filled.map(clean) }, period);
+            const calcOf = (id) => calc.rows.find(x => x.id === id);
+            const errors = filled.map((l, i) => ({ l, e: errOf(l) })).filter(x => x.e);
+            const shown = lines.filter(l => l.type === type);
+            const submit = (e) => {
+                e.preventDefault(); setTouched(true);
+                if (errors.length) return;
+                onSave(TsAllowance.sanitize({ rows: filled.map(clean) }, period).rows);
+            };
+            const T = TsAllowance.TYPES[type];
+            const count = (t) => filled.filter(l => l.type === t).length;
             return (
                 <form onSubmit={submit} className="px-5 py-5 space-y-5" noValidate>
                     <fieldset>
                         <legend className="block text-sm font-medium text-slate-700 mb-2">Loại phụ cấp</legend>
                         <div className="grid gap-2">
                             {Object.keys(TsAllowance.TYPES).map(k => {
-                                const T = TsAllowance.TYPES[k];
+                                const X = TsAllowance.TYPES[k];
                                 return (
-                                    <label key={k} className={`flex gap-3 rounded-xl border p-3 cursor-pointer ${f.type === k ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-600/15' : 'border-slate-300 hover:bg-slate-50'}`}>
-                                        <input type="radio" name="tsAllowType" value={k} checked={f.type === k} onChange={() => set('type', k)} className="mt-1"/>
-                                        <span><span className="font-semibold">{T.label}</span><span className="block text-xs text-slate-600">{T.rule}</span></span>
+                                    <label key={k} className={`flex gap-3 rounded-xl border p-3 cursor-pointer ${type === k ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-600/15' : 'border-slate-300 hover:bg-slate-50'}`}>
+                                        <input type="radio" name="tsAllowType" value={k} checked={type === k} onChange={() => chooseType(k)} className="mt-1"/>
+                                        <span className="flex-1"><span className="font-semibold">{X.label}</span>{count(k) > 0 && <span className="ml-2 text-xs font-semibold text-blue-700">{count(k)} dòng</span>}
+                                            <span className="block text-xs text-slate-600">{X.rule}</span></span>
                                     </label>
                                 );
                             })}
                         </div>
                     </fieldset>
+                    <datalist id="tsAllowWbsList">{suggest.map(p => <option key={p.wbs} value={p.wbs}>{[p.project, p.note].filter(Boolean).join(' · ')}</option>)}</datalist>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <Field label="Mã WBS" htmlFor="tsAllowWbs" hint="Gõ hoặc chọn trong gợi ý">
-                            <input id="tsAllowWbs" data-autofocus className={inputCls} value={f.wbs} maxLength={100} list="tsAllowWbsList" autoComplete="off" onChange={e => setWbs(e.target.value)}/>
-                            <datalist id="tsAllowWbsList">{suggest.map(p => <option key={p.wbs} value={p.wbs}>{[p.project, p.note].filter(Boolean).join(' · ')}</option>)}</datalist>
-                        </Field>
-                        <Field label="Tên dự án" htmlFor="tsAllowName"><input id="tsAllowName" className={inputCls} value={f.project} maxLength={200} onChange={e => set('project', e.target.value)}/></Field>
-                        <Field label="Từ ngày" htmlFor="tsAllowFrom"><input id="tsAllowFrom" type="date" className={inputCls} value={f.from} min={period.start} max={period.end} onChange={e => e.target.value && set('from', e.target.value)}/></Field>
-                        <Field label="Đến ngày" htmlFor="tsAllowTo"><input id="tsAllowTo" type="date" className={inputCls} value={f.to} min={period.start} max={period.end} onChange={e => e.target.value && set('to', e.target.value)}/></Field>
+                    <div className="space-y-3" id="tsAllowLines">
+                        <p className="text-sm text-slate-600">Mỗi dòng là <b>một dự án / WBS</b> trong một khoảng ngày, với số ngày riêng. Bấm <b>Thêm dòng</b> để khai thêm dự án hoặc giai đoạn khác.</p>
+                        {shown.map((l, i) => {
+                            const x = calcOf(l.id), err = touched && !isBlank(l) ? errOf(l) : '';
+                            const span = l.from && l.to && l.from <= l.to ? TsAllowance.spanDays(l.from, l.to) : 0;
+                            const n = i + 1, idp = `tsAllow${n}`;
+                            return (
+                                <div key={l.id} data-line={n} className={`rounded-xl border p-3 space-y-3 ${err || (x && x.problems.length) ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-semibold">Dòng {n}{l.wbs ? ` · ${l.wbs}` : ''}</span>
+                                        {x && <span className="ml-auto text-sm font-semibold tabular-nums">{money(x.amount)} đ</span>}
+                                        <button type="button" onClick={() => removeLine(l.id)} aria-label={`Xóa dòng ${n}`} className={`${x ? '' : 'ml-auto '}w-8 h-8 inline-grid place-items-center rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50`}><Icons.Trash/></button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Field label="Mã WBS" htmlFor={`${idp}Wbs`}>
+                                            <input id={`${idp}Wbs`} data-autofocus={(focusId ? l.id === focusId : i === shown.length - 1) ? true : undefined} className={inputCls} value={l.wbs} maxLength={100} list="tsAllowWbsList" autoComplete="off" onChange={e => setWbs(l.id, e.target.value)}/>
+                                        </Field>
+                                        <Field label="Tên dự án" htmlFor={`${idp}Name`}><input id={`${idp}Name`} className={inputCls} value={l.project} maxLength={200} onChange={e => setLine(l.id, 'project', e.target.value)}/></Field>
+                                        <Field label="Từ ngày" htmlFor={`${idp}From`}><input id={`${idp}From`} type="date" className={inputCls} value={l.from} min={period.start} max={period.end} onChange={e => setLine(l.id, 'from', e.target.value)}/></Field>
+                                        <Field label="Đến ngày" htmlFor={`${idp}To`}><input id={`${idp}To`} type="date" className={inputCls} value={l.to} min={l.from || period.start} max={period.end} onChange={e => setLine(l.id, 'to', e.target.value)}/></Field>
+                                        <Field label="Số ngày" htmlFor={`${idp}Days`} hint={span ? `tối đa ${span}` : ''}>
+                                            <input id={`${idp}Days`} type="number" inputMode="numeric" min="0" max={span || 62} step="1" className={inputCls} value={l.days === undefined ? '' : l.days}
+                                                onChange={e => setLine(l.id, 'days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))}/>
+                                        </Field>
+                                        <Field label={type === 'province' ? 'Tỉnh / địa điểm' : 'Địa điểm'} htmlFor={`${idp}Loc`}>
+                                            <input id={`${idp}Loc`} className={inputCls} value={l.location} maxLength={200} onChange={e => setLine(l.id, 'location', e.target.value)} placeholder={type === 'province' ? 'VD: Bình Dương' : 'VD: TP Thủ Đức'}/>
+                                        </Field>
+                                        <Field label="Ghi chú" htmlFor={`${idp}Note`} className="col-span-2">
+                                            <input id={`${idp}Note`} className={inputCls} value={l.remarks} maxLength={300} onChange={e => setLine(l.id, 'remarks', e.target.value)} placeholder="Không bắt buộc"/>
+                                        </Field>
+                                    </div>
+                                    {type === 'province' && (
+                                        <label className="flex items-start gap-2 text-sm">
+                                            <input type="checkbox" checked={!!l.ownVehicle} onChange={e => setLine(l.id, 'ownVehicle', e.target.checked)} className="mt-0.5"/>
+                                            <span>Tôi <b>tự mang xe máy</b> đi dự án tỉnh này</span>
+                                        </label>
+                                    )}
+                                    {err && <p className="text-sm text-rose-700 font-medium">⚠ {err}</p>}
+                                    {!err && x && x.problems.map(p => <p key={p} className="text-xs text-amber-900 font-medium">⚠ {p}</p>)}
+                                </div>
+                            );
+                        })}
+                        <button id="tsAllowAddLine" type="button" onClick={addLine} className={`${btnGhost} w-full h-11 border-dashed`}><Icons.Plus/> Thêm dòng {T.short.toLowerCase()} (dự án / giai đoạn khác)</button>
                     </div>
-                    <Field label="Số ngày làm việc tại dự án" htmlFor="tsAllowDays" hint={maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cộng ngày mọi dòng, cần tổng trên 20 ngày' : ''}` : 'Tự khai'}>
-                        <input id="tsAllowDays" type="number" inputMode="numeric" min="0" max={maxDays || 62} step="1" className={inputCls} value={days}
-                            onChange={e => set('days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))}/>
-                    </Field>
-                    <Field label={f.type === 'province' ? 'Tỉnh / địa điểm dự án' : 'Địa điểm (phường / quận)'} htmlFor="tsAllowLoc">
-                        <input id="tsAllowLoc" className={inputCls} value={f.location} maxLength={200} onChange={e => set('location', e.target.value)} placeholder={f.type === 'province' ? 'VD: Bình Dương' : 'VD: P. Long Trường, TP Thủ Đức'}/>
-                    </Field>
-                    <Field label="Ghi chú (không bắt buộc)" htmlFor="tsAllowNote">
-                        <input id="tsAllowNote" className={inputCls} value={f.remarks} maxLength={300} onChange={e => set('remarks', e.target.value)}/>
-                    </Field>
-                    {f.type === 'province' && (
-                        <label className="flex items-start gap-2 text-sm">
-                            <input id="tsAllowOwn" type="checkbox" checked={!!f.ownVehicle} onChange={e => set('ownVehicle', e.target.checked)} className="mt-0.5"/>
-                            <span>Tôi <b>tự mang xe máy</b> đi dự án tỉnh này</span>
-                        </label>
-                    )}
 
-                    <div id="tsAllowPreview" className={`rounded-xl px-4 py-3 text-sm ${preview && preview.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`} aria-live="polite">
-                        {preview && f.wbs && days !== '' ? (
-                            <React.Fragment>
-                                {f.type === 'fuel'
-                                    ? <p><b className="tabular-nums">{preview.days}</b> ngày × 60.000 đ → <b className="tabular-nums">{money(preview.amount)} đ</b></p>
-                                    : <p><b className="tabular-nums">{preview.days}</b> ngày · tổng xe đi tỉnh trong kỳ <b className="tabular-nums">{previewAll.totals.provinceDays}</b> ngày → phần của giai đoạn này <b className="tabular-nums">{money(preview.amount)} đ</b> (1.000.000 đ / tháng chia theo số ngày)</p>}
-                                {preview.problems.map(p => <p key={p} className="text-amber-900 font-medium">⚠ {p}</p>)}
-                            </React.Fragment>
-                        ) : <p className="text-slate-500">Nhập mã WBS và số ngày để xem số tiền.</p>}
-                        <p className="mt-1 text-xs text-slate-500">Phụ cấp khai riêng, không lấy từ chấm công. Số ngày và khoảng cách 25–35 km do giám sát xác nhận khi duyệt.</p>
+                    <div id="tsAllowPreview" className={`rounded-xl px-4 py-3 text-sm ${calc.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`} aria-live="polite">
+                        {filled.length ? (
+                            <p>{count('fuel') > 0 && <span>Xăng xe <b className="tabular-nums">{calc.totals.fuelDays}</b> ngày = <b className="tabular-nums">{money(calc.totals.fuelAmount)} đ</b></span>}
+                                {count('fuel') > 0 && count('province') > 0 && ' · '}
+                                {count('province') > 0 && <span>Xe đi tỉnh <b className="tabular-nums">{calc.totals.provinceDays}</b> ngày = <b className="tabular-nums">{money(calc.totals.provinceAmount)} đ</b></span>}
+                                {' '}→ tổng <b className="tabular-nums">{money(calc.totals.amount)} đ</b></p>
+                        ) : <p className="text-slate-500">Nhập mã WBS, khoảng ngày và số ngày để xem số tiền.</p>}
+                        <p className="mt-1 text-xs text-slate-500">Phụ cấp khai riêng, không lấy từ chấm công. Xe đi tỉnh: cộng ngày mọi dòng, tổng trên 20 ngày được 1.000.000 đ chia theo số ngày. Giám sát xác nhận khi duyệt.</p>
                     </div>
-                    <p role="alert" className="text-sm text-rose-700 empty:hidden">{touched ? invalid : ''}</p>
+                    <p role="alert" className="text-sm text-rose-700 empty:hidden">{touched && errors.length ? `Còn ${errors.length} dòng chưa nhập đủ — xem các dòng có ⚠${errors.some(x => x.l.type !== type) ? ' (kể cả ở loại phụ cấp còn lại)' : ''}.` : ''}</p>
 
                     <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
-                        {onDelete && <button type="button" onClick={onDelete} className="h-11 px-3 rounded-lg text-rose-700 font-semibold hover:bg-rose-50 inline-flex items-center gap-2"><Icons.Trash/> Xóa</button>}
                         <button type="button" onClick={onCancel} className={`${btnGhost} h-11 ml-auto`}>Hủy</button>
-                        <button id="tsAllowSave" type="submit" className={`${btnPrimary} h-11`}>Lưu phụ cấp</button>
+                        <button id="tsAllowSave" type="submit" className={`${btnPrimary} h-11`}>Lưu bảng phụ cấp</button>
                     </div>
                 </form>
             );
