@@ -780,7 +780,7 @@
                             <StatsPanel stats={stats}/>
                             <PeriodCalendar period={period} dayTotals={dayTotals} missing={stats.missing} selected={dayFilter} sch={sch} holidays={holidays}
                                 onPick={(d) => (dayTotals[d] ? setDayFilter(dayFilter === d ? null : d) : openNewEntry(d))}/>
-                            <AllowanceCard calc={allowCalc} locked={locked} busy={allowBusy} hasEntries={allowProjects.length > 0}
+                            <AllowanceCard calc={allowCalc} locked={locked} busy={allowBusy}
                                 onAdd={() => openAllowance(null)} onEdit={openAllowance} onDelete={handleDeleteAllowance} onDownload={handleAllowanceExcel}/>
                             <IncomeCard salary={salary} onSave={saveSalary} month={currentMonth}
                                 calc={TsIncome.compute({ base: salary, entries: monthlyEntries, bdOf, allowance: allowCalc.totals.amount })}/>
@@ -845,7 +845,7 @@
                     )}
                     {drawer && drawer.type === 'allow' && (
                         <Drawer title={drawer.row ? 'Sửa phụ cấp xe' : 'Thêm phụ cấp xe'} onClose={closeDrawer}>
-                            <AllowanceForm key={drawer.key} initial={drawer.row} projects={allowProjects} entries={monthlyEntries} period={period}
+                            <AllowanceForm key={drawer.key} initial={drawer.row} projects={allowProjects} catalog={allProjects} entries={monthlyEntries} period={period}
                                 rows={allow ? allow.rows : []} onSave={handleSaveAllowance} onCancel={closeDrawer}
                                 onDelete={drawer.row ? () => handleDeleteAllowance(drawer.row) : null}/>
                         </Drawer>
@@ -941,7 +941,7 @@
                 </li>
             );
         }
-        function AllowanceCard({ calc, locked, busy, hasEntries, onAdd, onEdit, onDelete, onDownload }) {
+        function AllowanceCard({ calc, locked, busy, onAdd, onEdit, onDelete, onDownload }) {
             const rows = calc.rows.slice().sort((a, b) => a.type.localeCompare(b.type) || a.from.localeCompare(b.from));
             return (
                 <section id="tsAllowCard" className="bg-white rounded-2xl border border-slate-200 p-4" aria-labelledby="tsAllowTitle">
@@ -956,33 +956,50 @@
                     )}
                     {!calc.ok && <p className="mt-1 text-xs text-rose-700">Sửa các dòng có ⚠ (hoặc xóa) thì mới nộp bảng công được.</p>}
                     <div className="mt-3 flex flex-wrap gap-2">
-                        {!locked && <button id="tsAllowAdd" type="button" onClick={onAdd} disabled={!hasEntries} className={`${btnGhost} h-9 text-sm`}
-                            title={hasEntries ? 'Thêm phụ cấp xe cho kỳ này' : 'Chấm công trước rồi thêm phụ cấp (số ngày tính từ chấm công)'}><Icons.Plus/> Thêm phụ cấp</button>}
+                        {!locked && <button id="tsAllowAdd" type="button" onClick={onAdd} className={`${btnGhost} h-9 text-sm`}
+                            title="Thêm phụ cấp xe cho kỳ này"><Icons.Plus/> Thêm phụ cấp</button>}
                         {rows.length > 0 && <button id="tsAllowExcel" type="button" onClick={onDownload} disabled={busy} className={`${btnGhost} h-9 text-sm`}><Icons.Download/> {busy ? 'Đang tạo file…' : 'Tải form phụ cấp (Excel)'}</button>}
                     </div>
-                    {!hasEntries && !locked && <p className="mt-1 text-xs text-slate-500">Chấm công trong kỳ trước — số ngày phụ cấp được tính từ các ngày đã chấm ở dự án.</p>}
                 </section>
             );
         }
 
-        function AllowanceForm({ initial, projects, entries, period, rows, onSave, onCancel, onDelete }) {
-            const pick = (wbs) => projects.find(p => p.wbs.toUpperCase() === String(wbs || '').trim().toUpperCase());
-            const [f, setF] = useState(() => initial ? { ...initial } : {
-                id: String(Date.now()), type: 'fuel', wbs: '', project: '', from: period.start, to: period.end, location: '', remarks: '', ownVehicle: false,
+        // Phụ cấp hiện ĐỘC LẬP với chấm công (TsAllowance.LINK_TIMESHEET = false): tự nhập dự án, khoảng ngày, số ngày.
+        // Dự án đã chấm trong kỳ và danh sách dự án chung chỉ là GỢI Ý để điền nhanh.
+        function AllowanceForm({ initial, projects, catalog, entries, period, rows, onSave, onCancel, onDelete }) {
+            const span = (a, b) => (a && b && a <= b ? TsAllowance.spanDays(a, b) : 0);
+            const [f, setF] = useState(() => {
+                const base = initial ? { ...initial } : {
+                    id: String(Date.now()), type: 'fuel', wbs: '', project: '', from: period.start, to: period.end, location: '', remarks: '', ownVehicle: false,
+                };
+                // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
+                if (!Number.isInteger(base.days)) base.days = initial ? (TsAllowance.compute(entries, { rows: [initial] }, period).rows[0] || {}).days || '' : '';
+                return base;
             });
             const [touched, setTouched] = useState(false);
             const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
-            const chooseProject = (wbs) => {
-                const p = pick(wbs);
-                setF(prev => p ? { ...prev, wbs: p.wbs, project: p.project, from: p.first, to: p.last } : { ...prev, wbs: '', project: '' });
-            };
+            // gợi ý dự án: đã chấm trong kỳ trước, rồi danh sách dự án chung (không trùng WBS)
+            const suggest = useMemo(() => {
+                const seen = new Set(), out = [];
+                const add = (wbs, name, note) => { const k = String(wbs || '').trim().toUpperCase(); if (!k || seen.has(k)) return; seen.add(k); out.push({ wbs: String(wbs).trim(), project: String(name || '').trim(), note }); };
+                projects.forEach(p => add(p.wbs, p.project, `${p.days} ngày đã chấm`));
+                (catalog || []).forEach(p => add(p.workNumber, p.projectName, ''));
+                return out.slice(0, 400);
+            }, [projects, catalog]);
+            const setWbs = (v) => setF(prev => {
+                const hit = suggest.find(p => p.wbs.toUpperCase() === v.trim().toUpperCase());
+                return { ...prev, wbs: v, project: hit && hit.project && !prev.project ? hit.project : prev.project };
+            });
+            const days = f.days === '' || f.days === undefined ? '' : f.days;
+            const clean = { ...f, days: days === '' ? undefined : Number(days) };
             const others = rows.filter(r => r.id !== f.id);
-            const preview = TsAllowance.compute(entries, { rows: [...others, f] }, period).rows.find(r => r.id === f.id);
-            const known = !f.wbs || pick(f.wbs);
+            const preview = TsAllowance.compute(entries, { rows: [...others, clean] }, period).rows.find(r => r.id === f.id);
             let invalid = '';
-            try { TsAllowance.sanitize({ rows: [f] }, period); } catch (e) { invalid = e.message; }
-            if (!f.wbs) invalid = 'Chọn dự án';
-            const submit = (e) => { e.preventDefault(); setTouched(true); if (invalid) return; onSave(TsAllowance.sanitize({ rows: [f] }, period).rows[0]); };
+            try { TsAllowance.sanitize({ rows: [clean] }, period); } catch (e) { invalid = e.message; }
+            if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
+            if (!invalid && days === '') invalid = 'Nhập số ngày';
+            const submit = (e) => { e.preventDefault(); setTouched(true); if (invalid) return; onSave(TsAllowance.sanitize({ rows: [clean] }, period).rows[0]); };
+            const maxDays = span(f.from, f.to);
             return (
                 <form onSubmit={submit} className="px-5 py-5 space-y-5" noValidate>
                     <fieldset>
@@ -1000,19 +1017,19 @@
                         </div>
                     </fieldset>
 
-                    <Field label="Dự án" htmlFor="tsAllowProject" hint="Chỉ hiện các dự án bạn đã chấm công trong kỳ. Mã WBS tự điền.">
-                        <select id="tsAllowProject" data-autofocus className={inputCls} value={known ? (pick(f.wbs) || {}).wbs || '' : f.wbs} onChange={e => chooseProject(e.target.value)}>
-                            <option value="">— Chọn dự án —</option>
-                            {!known && <option value={f.wbs}>{f.wbs} (không còn chấm công trong kỳ)</option>}
-                            {projects.map(p => <option key={p.wbs} value={p.wbs}>{p.wbs} — {p.project || 'không tên'} ({p.days} ngày)</option>)}
-                        </select>
-                    </Field>
                     <div className="grid grid-cols-2 gap-3">
-                        <Field label="Mã WBS" htmlFor="tsAllowWbs"><input id="tsAllowWbs" className={inputCls} value={f.wbs} readOnly disabled/></Field>
-                        <Field label="Tên dự án" htmlFor="tsAllowName"><input id="tsAllowName" className={inputCls} value={f.project} readOnly disabled/></Field>
+                        <Field label="Mã WBS" htmlFor="tsAllowWbs" hint="Gõ hoặc chọn trong gợi ý">
+                            <input id="tsAllowWbs" data-autofocus className={inputCls} value={f.wbs} maxLength={100} list="tsAllowWbsList" autoComplete="off" onChange={e => setWbs(e.target.value)}/>
+                            <datalist id="tsAllowWbsList">{suggest.map(p => <option key={p.wbs} value={p.wbs}>{[p.project, p.note].filter(Boolean).join(' · ')}</option>)}</datalist>
+                        </Field>
+                        <Field label="Tên dự án" htmlFor="tsAllowName"><input id="tsAllowName" className={inputCls} value={f.project} maxLength={200} onChange={e => set('project', e.target.value)}/></Field>
                         <Field label="Từ ngày" htmlFor="tsAllowFrom"><input id="tsAllowFrom" type="date" className={inputCls} value={f.from} min={period.start} max={period.end} onChange={e => e.target.value && set('from', e.target.value)}/></Field>
                         <Field label="Đến ngày" htmlFor="tsAllowTo"><input id="tsAllowTo" type="date" className={inputCls} value={f.to} min={period.start} max={period.end} onChange={e => e.target.value && set('to', e.target.value)}/></Field>
                     </div>
+                    <Field label="Số ngày làm việc tại dự án" htmlFor="tsAllowDays" hint={maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cần trên 20 ngày' : ''}` : 'Tự khai'}>
+                        <input id="tsAllowDays" type="number" inputMode="numeric" min="0" max={maxDays || 62} step="1" className={inputCls} value={days}
+                            onChange={e => set('days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))}/>
+                    </Field>
                     <Field label={f.type === 'province' ? 'Tỉnh / địa điểm dự án' : 'Địa điểm (phường / quận)'} htmlFor="tsAllowLoc">
                         <input id="tsAllowLoc" className={inputCls} value={f.location} maxLength={200} onChange={e => set('location', e.target.value)} placeholder={f.type === 'province' ? 'VD: Bình Dương' : 'VD: P. Long Trường, TP Thủ Đức'}/>
                     </Field>
@@ -1027,14 +1044,13 @@
                     )}
 
                     <div id="tsAllowPreview" className={`rounded-xl px-4 py-3 text-sm ${preview && preview.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`} aria-live="polite">
-                        {preview && f.wbs ? (
+                        {preview && f.wbs && days !== '' ? (
                             <React.Fragment>
-                                <p><b className="tabular-nums">{preview.days}</b> ngày chấm công tại dự án trong khoảng đã chọn
-                                    {preview.overlap ? ` (${preview.overlap} ngày đã tính ở dòng xăng xe khác)` : ''} → <b className="tabular-nums">{money(preview.amount)} đ</b></p>
+                                <p><b className="tabular-nums">{preview.days}</b> ngày{f.type === 'fuel' ? ' × 60.000 đ' : ' (1.000.000 đ / tháng)'} → <b className="tabular-nums">{money(preview.amount)} đ</b></p>
                                 {preview.problems.map(p => <p key={p} className="text-amber-900 font-medium">⚠ {p}</p>)}
                             </React.Fragment>
-                        ) : <p className="text-slate-500">Chọn dự án để xem số ngày và số tiền.</p>}
-                        <p className="mt-1 text-xs text-slate-500">Số ngày tính từ chính các dòng chấm công của dự án (không tính ngày nghỉ phép). Khoảng cách 25–35 km do giám sát xác nhận khi duyệt.</p>
+                        ) : <p className="text-slate-500">Nhập mã WBS và số ngày để xem số tiền.</p>}
+                        <p className="mt-1 text-xs text-slate-500">Phụ cấp khai riêng, không lấy từ chấm công. Số ngày và khoảng cách 25–35 km do giám sát xác nhận khi duyệt.</p>
                     </div>
                     <p role="alert" className="text-sm text-rose-700 empty:hidden">{touched ? invalid : ''}</p>
 
