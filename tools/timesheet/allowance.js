@@ -5,8 +5,8 @@
 //   province  Phụ cấp xe đi tỉnh: làm dự án tỉnh TỔNG TRÊN 20 ngày trong kỳ và tự mang xe máy đi — 1.000.000 đ / tháng.
 //             Được chia nhiều giai đoạn / nhiều dự án tỉnh: cộng số ngày các dòng; đủ thì 1.000.000 đ chia cho các dòng theo số ngày.
 //   Cả hai loại đều có thể nhiều dòng (nhiều giai đoạn, nhiều dự án) trong kỳ — không cố định cả tháng.
-// HIỆN TẠI phụ cấp ĐỘC LẬP với chấm công (LINK_TIMESHEET = false): fitter tự nhập dự án / WBS, khoảng ngày (trong kỳ lương)
-// và SỐ NGÀY; tiền tính từ số ngày khai. Dòng cũ chưa có số ngày (lưu trước khi tách) → lấy số ngày chấm công như trước.
+// HIỆN TẠI phụ cấp ĐỘC LẬP với chấm công (LINK_TIMESHEET = false): fitter tự nhập dự án / WBS và khoảng ngày (trong kỳ lương);
+// SỐ NGÀY TỰ TÍNH = đến ngày − từ ngày + 1. Các dòng (mọi loại) không được trùng ngày nhau.
 // Bật LINK_TIMESHEET = true để quay lại cách cũ: số ngày luôn đếm từ các dòng chấm công của dự án trong khoảng đã chọn
 // (không tính ngày nghỉ phép), một ngày chỉ được tính xăng xe một lần.
 // Dữ liệu nằm trong bảng công của kỳ: data.allow = { rows: [...], u: thời điểm sửa } (gộp giữa các máy: bản sửa sau thắng).
@@ -81,11 +81,8 @@
       if (!TYPES[r.type]) throw new Error('Loại phụ cấp xe không hợp lệ');
       if (!DATE_RE.test(String(r.from)) || !DATE_RE.test(String(r.to))) throw new Error('Ngày của phụ cấp xe không hợp lệ');
       if (range && (r.from < range.start || r.to > range.end)) throw new Error(`Phụ cấp xe phải nằm trong kỳ lương ${fmtDMY(range.start)} → ${fmtDMY(range.end)}`);
-      let days;                                       // số ngày tự khai (không có ở dòng lưu trước khi tách khỏi chấm công)
-      if (r.days !== undefined && r.days !== null && r.days !== '') {
-        days = Number(r.days);
-        if (!Number.isInteger(days) || days < 0 || days > 62) throw new Error('Số ngày phụ cấp xe phải là số nguyên từ 0 đến 62');
-      }
+      // độc lập: lưu số ngày = số ngày của khoảng (để file / người duyệt đọc thẳng); liên kết chấm công: không lưu
+      const days = LINK_TIMESHEET ? undefined : (r.from <= r.to ? spanDays(r.from, r.to) : 0);
       out.push({
         id, type: r.type, wbs: str(r.wbs, 100), project: str(r.project, 200), from: r.from, to: r.to,
         location: str(r.location, 200), remarks: str(r.remarks, 300), ownVehicle: r.type === 'province' ? !!r.ownVehicle : false,
@@ -109,14 +106,14 @@
       if (!norm(r.wbs)) x.problems.push('Chưa nhập dự án / WBS');
       if (r.from > r.to) x.problems.push('Ngày bắt đầu sau ngày kết thúc');
       if (range && (r.from < range.start || r.to > range.end)) x.problems.push('Ngoài kỳ lương');
-      const declared = !LINK_TIMESHEET && Number.isInteger(r.days);
+      const span = DATE_RE.test(String(r.from)) && DATE_RE.test(String(r.to)) && r.from <= r.to ? spanDays(r.from, r.to) : 0;
+      const declared = !LINK_TIMESHEET;              // độc lập: số ngày = số ngày của khoảng đã chọn
+      if (declared) r = { ...r, days: span };
       const dates = !declared && norm(r.wbs) && r.from <= r.to ? workDates(entries, r.wbs, r.from, r.to) : [];
-      const span = r.from <= r.to ? spanDays(r.from, r.to) : 0;
       if (r.type === 'fuel') {
         if (declared) {
           x.days = r.days;
-          if (!x.days) x.problems.push('Chưa nhập số ngày');
-          else if (x.days > span) x.problems.push(`Số ngày (${x.days}) nhiều hơn số ngày của khoảng đã chọn (${span})`);
+          if (!x.days && !(r.from > r.to)) x.problems.push('Chưa chọn khoảng ngày');
         } else {
           const fresh = dates.filter((d) => !used.has(d));
           fresh.forEach((d) => used.add(d));
@@ -126,11 +123,8 @@
         x.amount = x.days * TYPES.fuel.rate;
       } else {
         x.days = declared ? r.days : dates.length;
-        if (declared && !x.days) x.problems.push('Chưa nhập số ngày');
-        else if (declared && x.days > span) x.problems.push(`Số ngày (${x.days}) nhiều hơn số ngày của khoảng đã chọn (${span})`);
+        if (declared && !x.days && !(r.from > r.to)) x.problems.push('Chưa chọn khoảng ngày');
         if (!r.ownVehicle) x.problems.push('Chưa xác nhận tự mang xe máy đi');
-        // cùng dự án vừa xăng xe vừa xe đi tỉnh trong khoảng ngày chồng nhau
-        if (rows.some((o) => o.type === 'fuel' && norm(o.wbs) === norm(r.wbs) && o.from <= r.to && r.from <= o.to)) x.problems.push('Dự án này đã có phụ cấp xăng xe trong cùng khoảng ngày');
       }
     });
     // Xe đi tỉnh: cộng ngày mọi dòng; tổng trên 20 ngày → 1.000.000 đ chia cho các dòng theo số ngày (dòng cuối nhận phần làm tròn)
@@ -138,8 +132,7 @@
     const provDays = provRows.reduce((a, x) => a + (x.days || 0), 0);
     if (provRows.length) {
       if (provDays < TYPES.province.minDays) {
-        const linked = LINK_TIMESHEET || rows.some((r) => r.type === 'province' && !Number.isInteger(r.days));
-        const how = linked ? ' — chỉ đếm ngày có dòng chấm công đúng WBS, không đếm ngày nghỉ / ngày chưa chấm' : '';
+        const how = LINK_TIMESHEET ? ' — chỉ đếm ngày có dòng chấm công đúng WBS, không đếm ngày nghỉ / ngày chưa chấm' : '';
         provRows.forEach((x) => x.problems.push(`Cần làm dự án tỉnh tổng trên 20 ngày trong kỳ (đang có ${provDays} ngày${provRows.length > 1 ? ` ở ${provRows.length} dòng` : ''}${how})`));
       } else {
         let left = TYPES.province.amount;
@@ -149,15 +142,12 @@
         });
       }
     }
-    // Khai trùng: các dòng có khoảng ngày chồng nhau không được khai nhiều ngày hơn số ngày thực có của các khoảng đó
-    res.forEach((x) => {
-      if (!TYPES[x.type] || !(x.from <= x.to)) return;
-      const group = res.filter((o) => TYPES[o.type] && o.from <= o.to && o.from <= x.to && x.from <= o.to);
-      if (group.length < 2) return;
-      const cover = new Set();
-      group.forEach((o) => { for (let d = Date.parse(o.from + 'T00:00:00Z'), e = Date.parse(o.to + 'T00:00:00Z'); d <= e; d += 86400000) cover.add(d); });
-      const claimed = group.reduce((a, o) => a + (o.days || 0), 0);
-      if (claimed > cover.size) x.problems.push(`Các dòng phụ cấp trùng khoảng ngày khai tổng ${claimed} ngày, nhiều hơn ${cover.size} ngày thực có`);
+    // Không trùng ngày: một ngày chỉ thuộc một dòng phụ cấp (kể cả khác loại). Báo ở dòng nằm SAU (theo từ ngày).
+    const order = res.filter((x) => TYPES[x.type] && DATE_RE.test(String(x.from)) && DATE_RE.test(String(x.to)) && x.from <= x.to)
+      .sort((a, b) => a.from.localeCompare(b.from) || String(a.id).localeCompare(String(b.id)));
+    order.forEach((x, i) => {
+      const hit = order.slice(0, i).filter((o) => o.from <= x.to && x.from <= o.to);
+      if (hit.length) x.problems.push(`Trùng ngày với dòng ${hit.map((o) => `${TYPES[o.type].short} ${o.wbs || ''} (${fmtDMY(o.from).slice(0, 5)}–${fmtDMY(o.to).slice(0, 5)})`.replace(/\s+\(/, ' (')).join(', ')} — mỗi ngày chỉ khai ở một dòng`);
     });
     const fuel = res.filter((x) => x.type === 'fuel'), prov = res.filter((x) => x.type === 'province');
     const sum = (list, k) => list.reduce((a, x) => a + (x[k] || 0), 0);
