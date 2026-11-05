@@ -2125,30 +2125,38 @@ function AllowanceForm({
   onSave,
   onCancel
 }) {
-  const blank = type => ({
-    id: newAllowId(),
-    type,
-    wbs: '',
-    project: '',
-    from: '',
-    to: '',
-    days: '',
-    location: '',
-    remarks: '',
-    ownVehicle: type === 'province'
-  });
+  const nextDay = iso => {
+    const d = new Date(iso + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  };
+  // ngày trống đầu tiên sau mọi dòng đã có — dòng mới bắt đầu từ đây (ngày đã khai ở dòng trước không chọn lại được)
+  const freeFrom = (list, exceptId) => {
+    const last = list.filter(l => l.id !== exceptId && l.to).reduce((m, l) => l.to > m ? l.to : m, '');
+    return last ? nextDay(last) : period.start;
+  };
+  const blank = (type, list = []) => {
+    const f = freeFrom(list);
+    return {
+      id: newAllowId(),
+      type,
+      wbs: '',
+      project: '',
+      from: f <= period.end ? f : '',
+      to: '',
+      location: '',
+      remarks: '',
+      ownVehicle: type === 'province'
+    };
+  };
   const [type, setType] = useState(initial ? initial.type : 'fuel');
   const [lines, setLines] = useState(() => {
     // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
-    const calc = TsAllowance.compute(entries, {
-      rows
-    }, period);
     const list = rows.map(r => ({
-      ...r,
-      days: Number.isInteger(r.days) ? r.days : (calc.rows.find(x => x.id === r.id) || {}).days || ''
+      ...r
     }));
     const t = initial ? initial.type : 'fuel';
-    if (!initial || !list.some(r => r.type === t)) list.push(blank(t)); // "Thêm phụ cấp" → thêm sẵn một dòng trống
+    if (!initial || !list.some(r => r.type === t)) list.push(blank(t, list)); // "Thêm phụ cấp" → thêm sẵn một dòng trống
     return list;
   });
   const [focusId] = useState(() => initial ? initial.id : null);
@@ -2157,11 +2165,11 @@ function AllowanceForm({
     ...l,
     [k]: v
   } : l));
-  const addLine = () => setLines(prev => [...prev, blank(type)]);
+  const addLine = () => setLines(prev => [...prev, blank(type, prev)]);
   const removeLine = id => setLines(prev => prev.filter(l => l.id !== id));
   const chooseType = t => {
     setType(t);
-    setLines(prev => prev.some(l => l.type === t) ? prev : [...prev, blank(t)]);
+    setLines(prev => prev.some(l => l.type === t) ? prev : [...prev, blank(t, prev)]);
   };
   // gợi ý dự án: đã chấm trong kỳ trước, rồi danh sách dự án chung (không trùng WBS)
   const suggest = useMemo(() => {
@@ -2190,17 +2198,20 @@ function AllowanceForm({
       project: hit && hit.project && !l.project ? hit.project : l.project
     };
   }));
-  const isBlank = l => !String(l.wbs || '').trim() && !l.from && !l.to && (l.days === '' || l.days === undefined) && !l.location && !l.remarks;
+  const isBlank = l => !String(l.wbs || '').trim() && !l.to && !l.location && !l.remarks; // dòng mới chỉ có sẵn "từ ngày" → coi là trống
   const filled = lines.filter(l => !isBlank(l));
-  const clean = l => ({
-    ...l,
-    days: l.days === '' || l.days === undefined ? undefined : Number(l.days)
-  });
+  const clean = l => {
+    const {
+      days,
+      ...rest
+    } = l;
+    return rest;
+  }; // số ngày tự tính từ khoảng ngày
   // lỗi nhập (chặn lưu) theo từng dòng
   const errOf = l => {
     if (!String(l.wbs || '').trim()) return 'Nhập mã WBS / dự án';
     if (!l.from || !l.to) return 'Chọn từ ngày và đến ngày';
-    if (l.days === '' || l.days === undefined) return 'Nhập số ngày';
+    if (l.from > l.to) return 'Đến ngày phải sau hoặc bằng từ ngày';
     try {
       TsAllowance.sanitize({
         rows: [clean(l)]
@@ -2208,7 +2219,8 @@ function AllowanceForm({
     } catch (e) {
       return e.message;
     }
-    return '';
+    const dup = ((calcOf(l.id) || {}).problems || []).find(p => p.startsWith('Trùng ngày'));
+    return dup || '';
   };
   const calc = TsAllowance.compute(entries, {
     rows: filled.map(clean)
@@ -2268,12 +2280,18 @@ function AllowanceForm({
     id: "tsAllowLines"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-slate-600"
-  }, "M\u1ED7i d\xF2ng l\xE0 ", /*#__PURE__*/React.createElement("b", null, "m\u1ED9t d\u1EF1 \xE1n / WBS"), " trong m\u1ED9t kho\u1EA3ng ng\xE0y, v\u1EDBi s\u1ED1 ng\xE0y ri\xEAng. B\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "Th\xEAm d\xF2ng"), " \u0111\u1EC3 khai th\xEAm d\u1EF1 \xE1n ho\u1EB7c giai \u0111o\u1EA1n kh\xE1c."), shown.map((l, i) => {
+  }, "M\u1ED7i d\xF2ng l\xE0 ", /*#__PURE__*/React.createElement("b", null, "m\u1ED9t d\u1EF1 \xE1n / WBS"), " trong m\u1ED9t kho\u1EA3ng ng\xE0y; s\u1ED1 ng\xE0y t\u1EF1 t\xEDnh. B\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "Th\xEAm d\xF2ng"), " \u0111\u1EC3 khai d\u1EF1 \xE1n ho\u1EB7c giai \u0111o\u1EA1n ti\u1EBFp theo \u2014 d\xF2ng m\u1EDBi b\u1EAFt \u0111\u1EA7u sau ng\xE0y cu\u1ED1i c\u1EE7a c\xE1c d\xF2ng tr\u01B0\u1EDBc."), shown.map((l, i) => {
     const x = calcOf(l.id),
       err = touched && !isBlank(l) ? errOf(l) : '';
     const span = l.from && l.to && l.from <= l.to ? TsAllowance.spanDays(l.from, l.to) : 0;
     const n = i + 1,
       idp = `tsAllow${n}`;
+    // ngày đã khai ở các dòng nhập TRƯỚC (mọi loại) không chọn lại được
+    const before = lines.slice(0, lines.indexOf(l));
+    const minFrom = before.some(o => o.to) ? (() => {
+      const f = freeFrom(before);
+      return f > period.start ? f : period.start;
+    })() : period.start;
     return /*#__PURE__*/React.createElement("div", {
       key: l.id,
       "data-line": n,
@@ -2320,7 +2338,7 @@ function AllowanceForm({
       type: "date",
       className: inputCls,
       value: l.from,
-      min: period.start,
+      min: minFrom,
       max: period.end,
       onChange: e => setLine(l.id, 'from', e.target.value)
     })), /*#__PURE__*/React.createElement(Field, {
@@ -2337,18 +2355,11 @@ function AllowanceForm({
     })), /*#__PURE__*/React.createElement(Field, {
       label: "S\u1ED1 ng\xE0y",
       htmlFor: `${idp}Days`,
-      hint: span ? `tối đa ${span}` : ''
-    }, /*#__PURE__*/React.createElement("input", {
+      hint: "T\u1EF1 t\xEDnh: \u0111\u1EBFn ng\xE0y \u2212 t\u1EEB ng\xE0y + 1"
+    }, /*#__PURE__*/React.createElement("output", {
       id: `${idp}Days`,
-      type: "number",
-      inputMode: "numeric",
-      min: "0",
-      max: span || 62,
-      step: "1",
-      className: inputCls,
-      value: l.days === undefined ? '' : l.days,
-      onChange: e => setLine(l.id, 'days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))
-    })), /*#__PURE__*/React.createElement(Field, {
+      className: `${inputCls} flex items-center bg-slate-50 font-semibold tabular-nums`
+    }, span || '—')), /*#__PURE__*/React.createElement(Field, {
       label: type === 'province' ? 'Tỉnh / địa điểm' : 'Địa điểm',
       htmlFor: `${idp}Loc`
     }, /*#__PURE__*/React.createElement("input", {
@@ -2403,9 +2414,9 @@ function AllowanceForm({
     className: "tabular-nums"
   }, money(calc.totals.amount), " \u0111")) : /*#__PURE__*/React.createElement("p", {
     className: "text-slate-500"
-  }, "Nh\u1EADp m\xE3 WBS, kho\u1EA3ng ng\xE0y v\xE0 s\u1ED1 ng\xE0y \u0111\u1EC3 xem s\u1ED1 ti\u1EC1n."), /*#__PURE__*/React.createElement("p", {
+  }, "Nh\u1EADp m\xE3 WBS v\xE0 kho\u1EA3ng ng\xE0y \u0111\u1EC3 xem s\u1ED1 ti\u1EC1n."), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-xs text-slate-500"
-  }, "Ph\u1EE5 c\u1EA5p khai ri\xEAng, kh\xF4ng l\u1EA5y t\u1EEB ch\u1EA5m c\xF4ng. Xe \u0111i t\u1EC9nh: c\u1ED9ng ng\xE0y m\u1ECDi d\xF2ng, t\u1ED5ng tr\xEAn 20 ng\xE0y \u0111\u01B0\u1EE3c 1.000.000 \u0111 chia theo s\u1ED1 ng\xE0y. Gi\xE1m s\xE1t x\xE1c nh\u1EADn khi duy\u1EC7t.")), /*#__PURE__*/React.createElement("p", {
+  }, "S\u1ED1 ng\xE0y t\u1EF1 t\xEDnh theo kho\u1EA3ng ng\xE0y; m\u1ED7i ng\xE0y ch\u1EC9 khai \u1EDF m\u1ED9t d\xF2ng. Xe \u0111i t\u1EC9nh: c\u1ED9ng ng\xE0y m\u1ECDi d\xF2ng, t\u1ED5ng tr\xEAn 20 ng\xE0y \u0111\u01B0\u1EE3c 1.000.000 \u0111 chia theo s\u1ED1 ng\xE0y. Gi\xE1m s\xE1t x\xE1c nh\u1EADn khi duy\u1EC7t.")), /*#__PURE__*/React.createElement("p", {
     role: "alert",
     className: "text-sm text-rose-700 empty:hidden"
   }, touched && errors.length ? `Còn ${errors.length} dòng chưa nhập đủ — xem các dòng có ⚠${errors.some(x => x.l.type !== type) ? ' (kể cả ở loại phụ cấp còn lại)' : ''}.` : ''), /*#__PURE__*/React.createElement("div", {

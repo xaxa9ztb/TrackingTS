@@ -1163,12 +1163,12 @@ test('phụ cấp xe: lưu cùng bảng công (đã làm sạch), dữ liệu sa
 });
 
 test('phụ cấp xe: còn lỗi thì không nộp được; hợp lệ thì nộp, thư báo Site Sup có số tiền, người duyệt thấy phụ cấp', async () => {
-  const prov = { id: '502', type: 'province', wbs: 'WA-1', project: 'Dự án duyệt', from: '2027-01-16', to: '2027-02-15', ownVehicle: true };
+  const prov = { id: '502', type: 'province', wbs: 'WA-1', project: 'Dự án duyệt', from: '2027-01-16', to: '2027-02-15', ownVehicle: false };
   await call('PUT', '/api/ts/docs/2027-02', { email: 'ts1@example.com', body: { baseVersion: 1, data: { entries: [okEntry(901, '2027-01-18'), okEntry(902, '2027-01-19')], deleted: {}, allow: { rows: [prov], u: 80 } } } });
   let r = await submit('ts1@example.com', '2027-02');
-  assert.equal(r.status, 400); assert.match(r.data.error, /Phụ cấp xe chưa hợp lệ.*trên 20 ngày/);
+  assert.equal(r.status, 400); assert.match(r.data.error, /Phụ cấp xe chưa hợp lệ.*tự mang xe/);
   await call('PUT', '/api/ts/docs/2027-02', { email: 'ts1@example.com', body: { baseVersion: 2, data: { entries: [okEntry(901, '2027-01-18'), okEntry(902, '2027-01-19')], deleted: {},
-    allow: { rows: [{ id: '501', type: 'fuel', wbs: 'WA-1', project: 'Dự án duyệt', from: '2027-01-16', to: '2027-02-15' }], u: 90 } } } });
+    allow: { rows: [{ id: '501', type: 'fuel', wbs: 'WA-1', project: 'Dự án duyệt', from: '2027-01-18', to: '2027-01-19' }], u: 90 } } } });
   sentMail.length = 0;
   r = await submit('ts1@example.com', '2027-02');
   assert.equal(r.status, 200, JSON.stringify(r.data));

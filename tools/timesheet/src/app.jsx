@@ -1002,22 +1002,27 @@
         let allowSeq = 0;
         const newAllowId = () => String(Date.now() * 100 + (allowSeq++ % 100));
         function AllowanceForm({ initial, projects, catalog, entries, period, rows, onSave, onCancel }) {
-            const blank = (type) => ({ id: newAllowId(), type, wbs: '', project: '', from: '', to: '', days: '', location: '', remarks: '', ownVehicle: type === 'province' });
+            const nextDay = (iso) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
+            // ngày trống đầu tiên sau mọi dòng đã có — dòng mới bắt đầu từ đây (ngày đã khai ở dòng trước không chọn lại được)
+            const freeFrom = (list, exceptId) => {
+                const last = list.filter(l => l.id !== exceptId && l.to).reduce((m, l) => (l.to > m ? l.to : m), '');
+                return last ? nextDay(last) : period.start;
+            };
+            const blank = (type, list = []) => { const f = freeFrom(list); return { id: newAllowId(), type, wbs: '', project: '', from: f <= period.end ? f : '', to: '', location: '', remarks: '', ownVehicle: type === 'province' }; };
             const [type, setType] = useState(initial ? initial.type : 'fuel');
             const [lines, setLines] = useState(() => {
                 // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
-                const calc = TsAllowance.compute(entries, { rows }, period);
-                const list = rows.map(r => ({ ...r, days: Number.isInteger(r.days) ? r.days : ((calc.rows.find(x => x.id === r.id) || {}).days || '') }));
+                const list = rows.map(r => ({ ...r }));
                 const t = initial ? initial.type : 'fuel';
-                if (!initial || !list.some(r => r.type === t)) list.push(blank(t));      // "Thêm phụ cấp" → thêm sẵn một dòng trống
+                if (!initial || !list.some(r => r.type === t)) list.push(blank(t, list));      // "Thêm phụ cấp" → thêm sẵn một dòng trống
                 return list;
             });
             const [focusId] = useState(() => (initial ? initial.id : null));
             const [touched, setTouched] = useState(false);
             const setLine = (id, k, v) => setLines(prev => prev.map(l => (l.id === id ? { ...l, [k]: v } : l)));
-            const addLine = () => setLines(prev => [...prev, blank(type)]);
+            const addLine = () => setLines(prev => [...prev, blank(type, prev)]);
             const removeLine = (id) => setLines(prev => prev.filter(l => l.id !== id));
-            const chooseType = (t) => { setType(t); setLines(prev => (prev.some(l => l.type === t) ? prev : [...prev, blank(t)])); };
+            const chooseType = (t) => { setType(t); setLines(prev => (prev.some(l => l.type === t) ? prev : [...prev, blank(t, prev)])); };
             // gợi ý dự án: đã chấm trong kỳ trước, rồi danh sách dự án chung (không trùng WBS)
             const suggest = useMemo(() => {
                 const seen = new Set(), out = [];
@@ -1031,16 +1036,17 @@
                 const hit = suggest.find(p => p.wbs.toUpperCase() === v.trim().toUpperCase());
                 return { ...l, wbs: v, project: hit && hit.project && !l.project ? hit.project : l.project };
             }));
-            const isBlank = (l) => !String(l.wbs || '').trim() && !l.from && !l.to && (l.days === '' || l.days === undefined) && !l.location && !l.remarks;
+            const isBlank = (l) => !String(l.wbs || '').trim() && !l.to && !l.location && !l.remarks;      // dòng mới chỉ có sẵn "từ ngày" → coi là trống
             const filled = lines.filter(l => !isBlank(l));
-            const clean = (l) => ({ ...l, days: l.days === '' || l.days === undefined ? undefined : Number(l.days) });
+            const clean = (l) => { const { days, ...rest } = l; return rest; };      // số ngày tự tính từ khoảng ngày
             // lỗi nhập (chặn lưu) theo từng dòng
             const errOf = (l) => {
                 if (!String(l.wbs || '').trim()) return 'Nhập mã WBS / dự án';
                 if (!l.from || !l.to) return 'Chọn từ ngày và đến ngày';
-                if (l.days === '' || l.days === undefined) return 'Nhập số ngày';
+                if (l.from > l.to) return 'Đến ngày phải sau hoặc bằng từ ngày';
                 try { TsAllowance.sanitize({ rows: [clean(l)] }, period); } catch (e) { return e.message; }
-                return '';
+                const dup = ((calcOf(l.id) || {}).problems || []).find(p => p.startsWith('Trùng ngày'));
+                return dup || '';
             };
             const calc = TsAllowance.compute(entries, { rows: filled.map(clean) }, period);
             const calcOf = (id) => calc.rows.find(x => x.id === id);
@@ -1073,11 +1079,14 @@
                     <datalist id="tsAllowWbsList">{suggest.map(p => <option key={p.wbs} value={p.wbs}>{[p.project, p.note].filter(Boolean).join(' · ')}</option>)}</datalist>
 
                     <div className="space-y-3" id="tsAllowLines">
-                        <p className="text-sm text-slate-600">Mỗi dòng là <b>một dự án / WBS</b> trong một khoảng ngày, với số ngày riêng. Bấm <b>Thêm dòng</b> để khai thêm dự án hoặc giai đoạn khác.</p>
+                        <p className="text-sm text-slate-600">Mỗi dòng là <b>một dự án / WBS</b> trong một khoảng ngày; số ngày tự tính. Bấm <b>Thêm dòng</b> để khai dự án hoặc giai đoạn tiếp theo — dòng mới bắt đầu sau ngày cuối của các dòng trước.</p>
                         {shown.map((l, i) => {
                             const x = calcOf(l.id), err = touched && !isBlank(l) ? errOf(l) : '';
                             const span = l.from && l.to && l.from <= l.to ? TsAllowance.spanDays(l.from, l.to) : 0;
                             const n = i + 1, idp = `tsAllow${n}`;
+                            // ngày đã khai ở các dòng nhập TRƯỚC (mọi loại) không chọn lại được
+                            const before = lines.slice(0, lines.indexOf(l));
+                            const minFrom = before.some(o => o.to) ? (() => { const f = freeFrom(before); return f > period.start ? f : period.start; })() : period.start;
                             return (
                                 <div key={l.id} data-line={n} className={`rounded-xl border p-3 space-y-3 ${err || (x && x.problems.length) ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'}`}>
                                     <div className="flex items-center gap-2">
@@ -1090,11 +1099,10 @@
                                             <input id={`${idp}Wbs`} data-autofocus={(focusId ? l.id === focusId : i === shown.length - 1) ? true : undefined} className={inputCls} value={l.wbs} maxLength={100} list="tsAllowWbsList" autoComplete="off" onChange={e => setWbs(l.id, e.target.value)}/>
                                         </Field>
                                         <Field label="Tên dự án" htmlFor={`${idp}Name`}><input id={`${idp}Name`} className={inputCls} value={l.project} maxLength={200} onChange={e => setLine(l.id, 'project', e.target.value)}/></Field>
-                                        <Field label="Từ ngày" htmlFor={`${idp}From`}><input id={`${idp}From`} type="date" className={inputCls} value={l.from} min={period.start} max={period.end} onChange={e => setLine(l.id, 'from', e.target.value)}/></Field>
+                                        <Field label="Từ ngày" htmlFor={`${idp}From`}><input id={`${idp}From`} type="date" className={inputCls} value={l.from} min={minFrom} max={period.end} onChange={e => setLine(l.id, 'from', e.target.value)}/></Field>
                                         <Field label="Đến ngày" htmlFor={`${idp}To`}><input id={`${idp}To`} type="date" className={inputCls} value={l.to} min={l.from || period.start} max={period.end} onChange={e => setLine(l.id, 'to', e.target.value)}/></Field>
-                                        <Field label="Số ngày" htmlFor={`${idp}Days`} hint={span ? `tối đa ${span}` : ''}>
-                                            <input id={`${idp}Days`} type="number" inputMode="numeric" min="0" max={span || 62} step="1" className={inputCls} value={l.days === undefined ? '' : l.days}
-                                                onChange={e => setLine(l.id, 'days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))}/>
+                                        <Field label="Số ngày" htmlFor={`${idp}Days`} hint="Tự tính: đến ngày − từ ngày + 1">
+                                            <output id={`${idp}Days`} className={`${inputCls} flex items-center bg-slate-50 font-semibold tabular-nums`}>{span || '—'}</output>
                                         </Field>
                                         <Field label={type === 'province' ? 'Tỉnh / địa điểm' : 'Địa điểm'} htmlFor={`${idp}Loc`}>
                                             <input id={`${idp}Loc`} className={inputCls} value={l.location} maxLength={200} onChange={e => setLine(l.id, 'location', e.target.value)} placeholder={type === 'province' ? 'VD: Bình Dương' : 'VD: TP Thủ Đức'}/>
@@ -1123,8 +1131,8 @@
                                 {count('fuel') > 0 && count('province') > 0 && ' · '}
                                 {count('province') > 0 && <span>Xe đi tỉnh <b className="tabular-nums">{calc.totals.provinceDays}</b> ngày = <b className="tabular-nums">{money(calc.totals.provinceAmount)} đ</b></span>}
                                 {' '}→ tổng <b className="tabular-nums">{money(calc.totals.amount)} đ</b></p>
-                        ) : <p className="text-slate-500">Nhập mã WBS, khoảng ngày và số ngày để xem số tiền.</p>}
-                        <p className="mt-1 text-xs text-slate-500">Phụ cấp khai riêng, không lấy từ chấm công. Xe đi tỉnh: cộng ngày mọi dòng, tổng trên 20 ngày được 1.000.000 đ chia theo số ngày. Giám sát xác nhận khi duyệt.</p>
+                        ) : <p className="text-slate-500">Nhập mã WBS và khoảng ngày để xem số tiền.</p>}
+                        <p className="mt-1 text-xs text-slate-500">Số ngày tự tính theo khoảng ngày; mỗi ngày chỉ khai ở một dòng. Xe đi tỉnh: cộng ngày mọi dòng, tổng trên 20 ngày được 1.000.000 đ chia theo số ngày. Giám sát xác nhận khi duyệt.</p>
                     </div>
                     <p role="alert" className="text-sm text-rose-700 empty:hidden">{touched && errors.length ? `Còn ${errors.length} dòng chưa nhập đủ — xem các dòng có ⚠${errors.some(x => x.l.type !== type) ? ' (kể cả ở loại phụ cấp còn lại)' : ''}.` : ''}</p>
 
