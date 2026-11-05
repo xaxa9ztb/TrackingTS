@@ -950,7 +950,7 @@
                         {rows.length > 0 && <span id="tsAllowTotal" className="text-sm font-semibold tabular-nums text-slate-900">{money(calc.totals.amount)} đ</span>}
                     </div>
                     {rows.length === 0 ? (
-                        <p className="mt-1 text-sm text-slate-500">Đi dự án cách trụ sở 25–35 km (xăng xe 60.000 đ/ngày) hoặc làm dự án tỉnh trên 20 ngày, tự mang xe (1.000.000 đ/tháng)? Thêm phụ cấp — được nộp kèm bảng công.</p>
+                        <p className="mt-1 text-sm text-slate-500">Đi dự án cách trụ sở 25–35 km (xăng xe 60.000 đ/ngày) hoặc làm dự án tỉnh tổng trên 20 ngày, tự mang xe (1.000.000 đ/tháng)? Thêm phụ cấp — mỗi dòng một giai đoạn / một dự án, thêm được nhiều dòng; nộp kèm bảng công.</p>
                     ) : (
                         <ul className="mt-1 divide-y divide-slate-100">{rows.map(x => <AllowanceRowView key={x.id} x={x} locked={locked} onEdit={onEdit} onDelete={onDelete}/>)}</ul>
                     )}
@@ -970,7 +970,8 @@
             const span = (a, b) => (a && b && a <= b ? TsAllowance.spanDays(a, b) : 0);
             const [f, setF] = useState(() => {
                 const base = initial ? { ...initial } : {
-                    id: String(Date.now()), type: 'fuel', wbs: '', project: '', from: period.start, to: period.end, location: '', remarks: '', ownVehicle: false,
+                    // không mặc định cả kỳ: mỗi dòng là một giai đoạn tại một dự án — tự chọn từ ngày / đến ngày
+                    id: String(Date.now()), type: 'fuel', wbs: '', project: '', from: '', to: '', location: '', remarks: '', ownVehicle: false,
                 };
                 // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
                 if (!Number.isInteger(base.days)) base.days = initial ? (TsAllowance.compute(entries, { rows: [initial] }, period).rows[0] || {}).days || '' : '';
@@ -993,10 +994,12 @@
             const days = f.days === '' || f.days === undefined ? '' : f.days;
             const clean = { ...f, days: days === '' ? undefined : Number(days) };
             const others = rows.filter(r => r.id !== f.id);
-            const preview = TsAllowance.compute(entries, { rows: [...others, clean] }, period).rows.find(r => r.id === f.id);
+            const previewAll = TsAllowance.compute(entries, { rows: [...others, clean] }, period);
+            const preview = previewAll.rows.find(r => r.id === f.id);
             let invalid = '';
             try { TsAllowance.sanitize({ rows: [clean] }, period); } catch (e) { invalid = e.message; }
-            if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
+            if (!f.from || !f.to) invalid = 'Chọn từ ngày và đến ngày của giai đoạn này';
+            else if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
             if (!invalid && days === '') invalid = 'Nhập số ngày';
             const submit = (e) => { e.preventDefault(); setTouched(true); if (invalid) return; onSave(TsAllowance.sanitize({ rows: [clean] }, period).rows[0]); };
             const maxDays = span(f.from, f.to);
@@ -1026,7 +1029,7 @@
                         <Field label="Từ ngày" htmlFor="tsAllowFrom"><input id="tsAllowFrom" type="date" className={inputCls} value={f.from} min={period.start} max={period.end} onChange={e => e.target.value && set('from', e.target.value)}/></Field>
                         <Field label="Đến ngày" htmlFor="tsAllowTo"><input id="tsAllowTo" type="date" className={inputCls} value={f.to} min={period.start} max={period.end} onChange={e => e.target.value && set('to', e.target.value)}/></Field>
                     </div>
-                    <Field label="Số ngày làm việc tại dự án" htmlFor="tsAllowDays" hint={maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cần trên 20 ngày' : ''}` : 'Tự khai'}>
+                    <Field label="Số ngày làm việc tại dự án" htmlFor="tsAllowDays" hint={maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cộng ngày mọi dòng, cần tổng trên 20 ngày' : ''}` : 'Tự khai'}>
                         <input id="tsAllowDays" type="number" inputMode="numeric" min="0" max={maxDays || 62} step="1" className={inputCls} value={days}
                             onChange={e => set('days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))}/>
                     </Field>
@@ -1046,7 +1049,9 @@
                     <div id="tsAllowPreview" className={`rounded-xl px-4 py-3 text-sm ${preview && preview.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`} aria-live="polite">
                         {preview && f.wbs && days !== '' ? (
                             <React.Fragment>
-                                <p><b className="tabular-nums">{preview.days}</b> ngày{f.type === 'fuel' ? ' × 60.000 đ' : ' (1.000.000 đ / tháng)'} → <b className="tabular-nums">{money(preview.amount)} đ</b></p>
+                                {f.type === 'fuel'
+                                    ? <p><b className="tabular-nums">{preview.days}</b> ngày × 60.000 đ → <b className="tabular-nums">{money(preview.amount)} đ</b></p>
+                                    : <p><b className="tabular-nums">{preview.days}</b> ngày · tổng xe đi tỉnh trong kỳ <b className="tabular-nums">{previewAll.totals.provinceDays}</b> ngày → phần của giai đoạn này <b className="tabular-nums">{money(preview.amount)} đ</b> (1.000.000 đ / tháng chia theo số ngày)</p>}
                                 {preview.problems.map(p => <p key={p} className="text-amber-900 font-medium">⚠ {p}</p>)}
                             </React.Fragment>
                         ) : <p className="text-slate-500">Nhập mã WBS và số ngày để xem số tiền.</p>}

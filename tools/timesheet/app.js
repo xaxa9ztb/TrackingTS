@@ -2022,7 +2022,7 @@ function AllowanceCard({
     className: "text-sm font-semibold tabular-nums text-slate-900"
   }, money(calc.totals.amount), " \u0111")), rows.length === 0 ? /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-sm text-slate-500"
-  }, "\u0110i d\u1EF1 \xE1n c\xE1ch tr\u1EE5 s\u1EDF 25\u201335 km (x\u0103ng xe 60.000 \u0111/ng\xE0y) ho\u1EB7c l\xE0m d\u1EF1 \xE1n t\u1EC9nh tr\xEAn 20 ng\xE0y, t\u1EF1 mang xe (1.000.000 \u0111/th\xE1ng)? Th\xEAm ph\u1EE5 c\u1EA5p \u2014 \u0111\u01B0\u1EE3c n\u1ED9p k\xE8m b\u1EA3ng c\xF4ng.") : /*#__PURE__*/React.createElement("ul", {
+  }, "\u0110i d\u1EF1 \xE1n c\xE1ch tr\u1EE5 s\u1EDF 25\u201335 km (x\u0103ng xe 60.000 \u0111/ng\xE0y) ho\u1EB7c l\xE0m d\u1EF1 \xE1n t\u1EC9nh t\u1ED5ng tr\xEAn 20 ng\xE0y, t\u1EF1 mang xe (1.000.000 \u0111/th\xE1ng)? Th\xEAm ph\u1EE5 c\u1EA5p \u2014 m\u1ED7i d\xF2ng m\u1ED9t giai \u0111o\u1EA1n / m\u1ED9t d\u1EF1 \xE1n, th\xEAm \u0111\u01B0\u1EE3c nhi\u1EC1u d\xF2ng; n\u1ED9p k\xE8m b\u1EA3ng c\xF4ng.") : /*#__PURE__*/React.createElement("ul", {
     className: "mt-1 divide-y divide-slate-100"
   }, rows.map(x => /*#__PURE__*/React.createElement(AllowanceRowView, {
     key: x.id,
@@ -2067,12 +2067,13 @@ function AllowanceForm({
     const base = initial ? {
       ...initial
     } : {
+      // không mặc định cả kỳ: mỗi dòng là một giai đoạn tại một dự án — tự chọn từ ngày / đến ngày
       id: String(Date.now()),
       type: 'fuel',
       wbs: '',
       project: '',
-      from: period.start,
-      to: period.end,
+      from: '',
+      to: '',
       location: '',
       remarks: '',
       ownVehicle: false
@@ -2120,9 +2121,10 @@ function AllowanceForm({
     days: days === '' ? undefined : Number(days)
   };
   const others = rows.filter(r => r.id !== f.id);
-  const preview = TsAllowance.compute(entries, {
+  const previewAll = TsAllowance.compute(entries, {
     rows: [...others, clean]
-  }, period).rows.find(r => r.id === f.id);
+  }, period);
+  const preview = previewAll.rows.find(r => r.id === f.id);
   let invalid = '';
   try {
     TsAllowance.sanitize({
@@ -2131,7 +2133,7 @@ function AllowanceForm({
   } catch (e) {
     invalid = e.message;
   }
-  if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
+  if (!f.from || !f.to) invalid = 'Chọn từ ngày và đến ngày của giai đoạn này';else if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
   if (!invalid && days === '') invalid = 'Nhập số ngày';
   const submit = e => {
     e.preventDefault();
@@ -2221,7 +2223,7 @@ function AllowanceForm({
   }))), /*#__PURE__*/React.createElement(Field, {
     label: "S\u1ED1 ng\xE0y l\xE0m vi\u1EC7c t\u1EA1i d\u1EF1 \xE1n",
     htmlFor: "tsAllowDays",
-    hint: maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cần trên 20 ngày' : ''}` : 'Tự khai'
+    hint: maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cộng ngày mọi dòng, cần tổng trên 20 ngày' : ''}` : 'Tự khai'
   }, /*#__PURE__*/React.createElement("input", {
     id: "tsAllowDays",
     type: "number",
@@ -2263,11 +2265,17 @@ function AllowanceForm({
     id: "tsAllowPreview",
     className: `rounded-xl px-4 py-3 text-sm ${preview && preview.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`,
     "aria-live": "polite"
-  }, preview && f.wbs && days !== '' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", {
+  }, preview && f.wbs && days !== '' ? /*#__PURE__*/React.createElement(React.Fragment, null, f.type === 'fuel' ? /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, preview.days), " ng\xE0y", f.type === 'fuel' ? ' × 60.000 đ' : ' (1.000.000 đ / tháng)', " \u2192 ", /*#__PURE__*/React.createElement("b", {
+  }, preview.days), " ng\xE0y \xD7 60.000 \u0111 \u2192 ", /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, money(preview.amount), " \u0111")), preview.problems.map(p => /*#__PURE__*/React.createElement("p", {
+  }, money(preview.amount), " \u0111")) : /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", {
+    className: "tabular-nums"
+  }, preview.days), " ng\xE0y \xB7 t\u1ED5ng xe \u0111i t\u1EC9nh trong k\u1EF3 ", /*#__PURE__*/React.createElement("b", {
+    className: "tabular-nums"
+  }, previewAll.totals.provinceDays), " ng\xE0y \u2192 ph\u1EA7n c\u1EE7a giai \u0111o\u1EA1n n\xE0y ", /*#__PURE__*/React.createElement("b", {
+    className: "tabular-nums"
+  }, money(preview.amount), " \u0111"), " (1.000.000 \u0111 / th\xE1ng chia theo s\u1ED1 ng\xE0y)"), preview.problems.map(p => /*#__PURE__*/React.createElement("p", {
     key: p,
     className: "text-amber-900 font-medium"
   }, "\u26A0 ", p))) : /*#__PURE__*/React.createElement("p", {
