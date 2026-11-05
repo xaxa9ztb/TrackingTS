@@ -7,6 +7,10 @@ Kiến trúc: app chạy trên **GitHub Pages** (miễn phí), dữ liệu dùng
 > **Lưu ý bảo mật:** mật khẩu admin chỉ khoá giao diện. Lớp bảo vệ thật sự là tài khoản
 > Google — chỉ tài khoản đã tạo file Drive mới ghi đè được dữ liệu chung.
 
+> **Link cũ đã ngừng (11/2026):** bản GitHub Pages `https://xaxa9ztb.github.io/TrackingTS/` không còn dùng. Mọi trang ở link cũ
+> tự chuyển sang bản chính **https://nihan-ts.pages.dev** (giữ nguyên trang đang mở, vd. `…/TrackingTS/tools/timesheet/` → `…/tools/timesheet/`).
+> Muốn gỡ hẳn link cũ: GitHub → *Settings → Pages* → **Unpublish site** (khi đó link cũ báo 404 thay vì tự chuyển).
+
 ## Bộ công cụ (tất cả trong 1 repo)
 
 Trang chủ hiển thị các chức năng dạng **biểu tượng** (màu riêng cho từng chức năng; xám = đang phát triển),
