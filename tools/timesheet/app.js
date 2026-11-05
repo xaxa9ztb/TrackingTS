@@ -826,6 +826,7 @@ function App() {
   });
   const allowRef = useRef(allowAll);
   const [allowBusy, setAllowBusy] = useState(false);
+  const [exportMenu, setExportMenu] = useState(false);
   const scheduleRef = useRef('');
   const syncTimer = useRef(null);
   // Tăng ca chờ Site Sup duyệt từng ngày + đơn nghỉ (bản máy chủ, xem otleave.js)
@@ -1456,12 +1457,27 @@ function App() {
     };
   };
   const excelError = err => 'Không xuất được Excel: ' + err.message + (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
-  const handleExportExcel = async () => {
-    if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+  // Xuất Excel: kind = 'ts' (bảng chấm công) | 'allow' (phụ cấp xe) | 'both'
+  const handleExportExcel = async (kind = 'ts') => {
+    setExportMenu(false);
+    const wantTs = kind !== 'allow',
+      wantAllow = kind !== 'ts';
+    if (wantTs && monthlyEntries.length === 0 && !(wantAllow && allowCalc.rows.length)) return alert("Chưa có dữ liệu chấm công trong kỳ!");
+    if (kind === 'allow' && !allowCalc.rows.length) return alert('Kỳ này chưa có phụ cấp xe.');
     setSyncStatus('Đang tạo file...');
     try {
-      const f = await buildExcelFile();
-      saveAs(f.blob, f.name);
+      const files = [];
+      if (wantTs && monthlyEntries.length) files.push(await buildExcelFile());
+      if (wantAllow && allowCalc.rows.length) files.push(await buildAllowanceFile({
+        profile,
+        calc: allowCalc,
+        month: currentMonth
+      }));
+      for (let i = 0; i < files.length; i++) {
+        if (i) await new Promise(r => setTimeout(r, 600)); // trình duyệt dễ chặn 2 lượt tải liền nhau
+        saveAs(files[i].blob, files[i].name);
+      }
+      if (kind === 'both' && files.length < 2) showToast(monthlyEntries.length ? 'Kỳ này chưa có phụ cấp xe — chỉ tải bảng chấm công.' : 'Chưa có chấm công — chỉ tải phụ cấp xe.');
     } catch (err) {
       alert(excelError(err));
     } finally {
@@ -1556,6 +1572,22 @@ function App() {
     e.target.value = '';
   };
   const exporting = syncStatus === 'Đang tạo file...';
+  const exportItems = [{
+    kind: 'ts',
+    label: 'Bảng chấm công',
+    sub: 'Mẫu Schindler',
+    off: !monthlyEntries.length
+  }, {
+    kind: 'allow',
+    label: 'Phụ cấp xe',
+    sub: allowCalc.rows.length ? `${allowCalc.rows.length} dòng · ${TsAllowance.money(allowCalc.totals.amount)} đ` : 'Kỳ này chưa có phụ cấp',
+    off: !allowCalc.rows.length
+  }, {
+    kind: 'both',
+    label: 'Cả hai',
+    sub: 'Tải 2 file',
+    off: !monthlyEntries.length || !allowCalc.rows.length
+  }];
   const todayPeriod = periodMonthOf(getTodayLocal());
   return /*#__PURE__*/React.createElement("div", {
     className: "min-h-screen bg-slate-100 text-slate-800"
@@ -1595,17 +1627,45 @@ function App() {
     "aria-label": "B\xE1o c\xE1o t\u1ED5ng quan"
   }, /*#__PURE__*/React.createElement(Icons.Chart, null), /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
-  }, "B\xE1o c\xE1o")), /*#__PURE__*/React.createElement("button", {
+  }, "B\xE1o c\xE1o")), /*#__PURE__*/React.createElement("div", {
+    className: "relative"
+  }, /*#__PURE__*/React.createElement("button", {
     id: "tsExportBtn",
     type: "button",
-    onClick: handleExportExcel,
+    onClick: () => setExportMenu(v => !v),
     disabled: exporting,
     className: btnGhost,
-    title: "Xu\u1EA5t b\u1EA3ng ch\u1EA5m c\xF4ng c\u1EE7a k\u1EF3 ra Excel (m\u1EABu Schindler)",
-    "aria-label": "Xu\u1EA5t Excel"
+    title: "Xu\u1EA5t Excel: b\u1EA3ng ch\u1EA5m c\xF4ng / ph\u1EE5 c\u1EA5p xe / c\u1EA3 hai",
+    "aria-label": "Xu\u1EA5t Excel",
+    "aria-haspopup": "menu",
+    "aria-expanded": exportMenu
   }, /*#__PURE__*/React.createElement(Icons.Download, null), /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
-  }, exporting ? 'Đang tạo file...' : 'Xuất Excel')), /*#__PURE__*/React.createElement("button", {
+  }, exporting ? 'Đang tạo file...' : 'Xuất Excel')), exportMenu && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-30",
+    onClick: () => setExportMenu(false),
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("div", {
+    id: "tsExportMenu",
+    role: "menu",
+    className: "absolute right-0 mt-1 z-40 w-60 rounded-xl border border-slate-200 bg-white shadow-lg p-1",
+    onKeyDown: e => {
+      if (e.key === 'Escape') setExportMenu(false);
+    }
+  }, exportItems.map((it, i) => /*#__PURE__*/React.createElement("button", {
+    key: it.kind,
+    type: "button",
+    role: "menuitem",
+    "data-kind": it.kind,
+    disabled: it.off,
+    autoFocus: i === 0 && !it.off,
+    onClick: () => handleExportExcel(it.kind),
+    className: "w-full text-left rounded-lg px-3 py-2 hover:bg-slate-50 focus-visible:bg-slate-50 outline-none disabled:opacity-50 disabled:hover:bg-transparent"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block text-sm font-semibold text-slate-900"
+  }, it.label), /*#__PURE__*/React.createElement("span", {
+    className: "block text-xs text-slate-500"
+  }, it.sub)))))), /*#__PURE__*/React.createElement("button", {
     id: "tsMailBtn",
     type: "button",
     onClick: openMail,

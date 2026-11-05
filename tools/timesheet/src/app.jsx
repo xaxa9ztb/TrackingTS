@@ -285,6 +285,7 @@
             const [allowAll, setAllowAll] = useState(() => { try { return JSON.parse(localStorage.getItem('ts_allow_v1') || '{}') || {}; } catch (e) { return {}; } });
             const allowRef = useRef(allowAll);
             const [allowBusy, setAllowBusy] = useState(false);
+            const [exportMenu, setExportMenu] = useState(false);
             const scheduleRef = useRef('');
             const syncTimer = useRef(null);
             // Tăng ca chờ Site Sup duyệt từng ngày + đơn nghỉ (bản máy chủ, xem otleave.js)
@@ -651,12 +652,22 @@
             };
             const excelError = (err) => 'Không xuất được Excel: ' + err.message +
                 (navigator.onLine === false ? ' — đang ngoại tuyến, hãy thử lại khi có mạng.' : '.');
-            const handleExportExcel = async () => {
-                if (monthlyEntries.length === 0) return alert("Chưa có dữ liệu!");
+            // Xuất Excel: kind = 'ts' (bảng chấm công) | 'allow' (phụ cấp xe) | 'both'
+            const handleExportExcel = async (kind = 'ts') => {
+                setExportMenu(false);
+                const wantTs = kind !== 'allow', wantAllow = kind !== 'ts';
+                if (wantTs && monthlyEntries.length === 0 && !(wantAllow && allowCalc.rows.length)) return alert("Chưa có dữ liệu chấm công trong kỳ!");
+                if (kind === 'allow' && !allowCalc.rows.length) return alert('Kỳ này chưa có phụ cấp xe.');
                 setSyncStatus('Đang tạo file...');
                 try {
-                    const f = await buildExcelFile();
-                    saveAs(f.blob, f.name);
+                    const files = [];
+                    if (wantTs && monthlyEntries.length) files.push(await buildExcelFile());
+                    if (wantAllow && allowCalc.rows.length) files.push(await buildAllowanceFile({ profile, calc: allowCalc, month: currentMonth }));
+                    for (let i = 0; i < files.length; i++) {
+                        if (i) await new Promise(r => setTimeout(r, 600));      // trình duyệt dễ chặn 2 lượt tải liền nhau
+                        saveAs(files[i].blob, files[i].name);
+                    }
+                    if (kind === 'both' && files.length < 2) showToast(monthlyEntries.length ? 'Kỳ này chưa có phụ cấp xe — chỉ tải bảng chấm công.' : 'Chưa có chấm công — chỉ tải phụ cấp xe.');
                 } catch (err) {
                     alert(excelError(err));
                 } finally {
@@ -704,6 +715,11 @@
             };
 
             const exporting = syncStatus === 'Đang tạo file...';
+            const exportItems = [
+                { kind: 'ts', label: 'Bảng chấm công', sub: 'Mẫu Schindler', off: !monthlyEntries.length },
+                { kind: 'allow', label: 'Phụ cấp xe', sub: allowCalc.rows.length ? `${allowCalc.rows.length} dòng · ${TsAllowance.money(allowCalc.totals.amount)} đ` : 'Kỳ này chưa có phụ cấp', off: !allowCalc.rows.length },
+                { kind: 'both', label: 'Cả hai', sub: 'Tải 2 file', off: !monthlyEntries.length || !allowCalc.rows.length },
+            ];
             const todayPeriod = periodMonthOf(getTodayLocal());
 
             return (
@@ -731,10 +747,28 @@
                                     title="Báo cáo tổng quan của kỳ (in / lưu PDF gửi giám sát)" aria-label="Báo cáo tổng quan">
                                     <Icons.Chart/><span className="hidden sm:inline">Báo cáo</span>
                                 </button>
-                                <button id="tsExportBtn" type="button" onClick={handleExportExcel} disabled={exporting}
-                                    className={btnGhost} title="Xuất bảng chấm công của kỳ ra Excel (mẫu Schindler)" aria-label="Xuất Excel">
-                                    <Icons.Download/><span className="hidden sm:inline">{exporting ? 'Đang tạo file...' : 'Xuất Excel'}</span>
-                                </button>
+                                <div className="relative">
+                                    <button id="tsExportBtn" type="button" onClick={() => setExportMenu(v => !v)} disabled={exporting}
+                                        className={btnGhost} title="Xuất Excel: bảng chấm công / phụ cấp xe / cả hai" aria-label="Xuất Excel" aria-haspopup="menu" aria-expanded={exportMenu}>
+                                        <Icons.Download/><span className="hidden sm:inline">{exporting ? 'Đang tạo file...' : 'Xuất Excel'}</span>
+                                    </button>
+                                    {exportMenu && (
+                                        <React.Fragment>
+                                            <div className="fixed inset-0 z-30" onClick={() => setExportMenu(false)} aria-hidden="true"></div>
+                                            <div id="tsExportMenu" role="menu" className="absolute right-0 mt-1 z-40 w-60 rounded-xl border border-slate-200 bg-white shadow-lg p-1"
+                                                onKeyDown={e => { if (e.key === 'Escape') setExportMenu(false); }}>
+                                                {exportItems.map((it, i) => (
+                                                    <button key={it.kind} type="button" role="menuitem" data-kind={it.kind} disabled={it.off} autoFocus={i === 0 && !it.off}
+                                                        onClick={() => handleExportExcel(it.kind)}
+                                                        className="w-full text-left rounded-lg px-3 py-2 hover:bg-slate-50 focus-visible:bg-slate-50 outline-none disabled:opacity-50 disabled:hover:bg-transparent">
+                                                        <span className="block text-sm font-semibold text-slate-900">{it.label}</span>
+                                                        <span className="block text-xs text-slate-500">{it.sub}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </React.Fragment>
+                                    )}
+                                </div>
                                 <button id="tsMailBtn" type="button" onClick={openMail} className={btnGhost}
                                     title="Gửi bảng chấm công của kỳ cho giám sát / quản lý qua email" aria-label="Gửi mail">
                                     <Icons.Mail/><span className="hidden sm:inline">Gửi mail</span>
