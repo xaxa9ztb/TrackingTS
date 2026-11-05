@@ -1383,12 +1383,14 @@ function App() {
       key: Date.now()
     });
   };
-  const handleSaveAllowance = row => {
-    const rows = allow ? allow.rows : [];
-    const editing = rows.some(r => r.id === row.id);
-    saveAllowRows(editing ? rows.map(r => r.id === row.id ? row : r) : [...rows, row]);
+  const handleSaveAllowance = next => {
+    const before = allow ? allow.rows : [];
+    saveAllowRows(next);
     setDrawer(null);
-    showToast(`${editing ? 'Đã cập nhật' : 'Đã thêm'} ${TsAllowance.TYPES[row.type].label.toLowerCase()} — ${row.wbs}.`);
+    showToast(`Đã lưu bảng phụ cấp xe — ${next.length} dòng.`, {
+      label: 'Hoàn tác',
+      run: () => saveAllowRows(before)
+    });
   };
   const handleDeleteAllowance = row => {
     if (locked) return lockedMsg();
@@ -1810,7 +1812,7 @@ function App() {
     },
     onCancel: closeDrawer
   })), drawer && drawer.type === 'allow' && /*#__PURE__*/React.createElement(Drawer, {
-    title: drawer.row ? 'Sửa phụ cấp xe' : 'Thêm phụ cấp xe',
+    title: "B\u1EA3ng ph\u1EE5 c\u1EA5p xe",
     onClose: closeDrawer
   }, /*#__PURE__*/React.createElement(AllowanceForm, {
     key: drawer.key,
@@ -1821,8 +1823,7 @@ function App() {
     period: period,
     rows: allow ? allow.rows : [],
     onSave: handleSaveAllowance,
-    onCancel: closeDrawer,
-    onDelete: drawer.row ? () => handleDeleteAllowance(drawer.row) : null
+    onCancel: closeDrawer
   })), drawer && drawer.type === 'submit' && /*#__PURE__*/React.createElement(Drawer, {
     title: "N\u1ED9p b\u1EA3ng c\xF4ng",
     onClose: closeDrawer
@@ -2049,8 +2050,11 @@ function AllowanceCard({
   }, /*#__PURE__*/React.createElement(Icons.Download, null), " ", busy ? 'Đang tạo file…' : 'Tải form phụ cấp (Excel)')));
 }
 
+// Bảng phụ cấp xe: sửa NHIỀU DÒNG cùng lúc — mỗi dòng một dự án / WBS / giai đoạn với số ngày riêng.
 // Phụ cấp hiện ĐỘC LẬP với chấm công (TsAllowance.LINK_TIMESHEET = false): tự nhập dự án, khoảng ngày, số ngày.
 // Dự án đã chấm trong kỳ và danh sách dự án chung chỉ là GỢI Ý để điền nhanh.
+let allowSeq = 0;
+const newAllowId = () => String(Date.now() * 100 + allowSeq++ % 100);
 function AllowanceForm({
   initial,
   projects,
@@ -2059,36 +2063,46 @@ function AllowanceForm({
   period,
   rows,
   onSave,
-  onCancel,
-  onDelete
+  onCancel
 }) {
-  const span = (a, b) => a && b && a <= b ? TsAllowance.spanDays(a, b) : 0;
-  const [f, setF] = useState(() => {
-    const base = initial ? {
-      ...initial
-    } : {
-      // không mặc định cả kỳ: mỗi dòng là một giai đoạn tại một dự án — tự chọn từ ngày / đến ngày
-      id: String(Date.now()),
-      type: 'fuel',
-      wbs: '',
-      project: '',
-      from: '',
-      to: '',
-      location: '',
-      remarks: '',
-      ownVehicle: false
-    };
-    // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
-    if (!Number.isInteger(base.days)) base.days = initial ? (TsAllowance.compute(entries, {
-      rows: [initial]
-    }, period).rows[0] || {}).days || '' : '';
-    return base;
+  const blank = type => ({
+    id: newAllowId(),
+    type,
+    wbs: '',
+    project: '',
+    from: '',
+    to: '',
+    days: '',
+    location: '',
+    remarks: '',
+    ownVehicle: type === 'province'
   });
+  const [type, setType] = useState(initial ? initial.type : 'fuel');
+  const [lines, setLines] = useState(() => {
+    // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
+    const calc = TsAllowance.compute(entries, {
+      rows
+    }, period);
+    const list = rows.map(r => ({
+      ...r,
+      days: Number.isInteger(r.days) ? r.days : (calc.rows.find(x => x.id === r.id) || {}).days || ''
+    }));
+    const t = initial ? initial.type : 'fuel';
+    if (!initial || !list.some(r => r.type === t)) list.push(blank(t)); // "Thêm phụ cấp" → thêm sẵn một dòng trống
+    return list;
+  });
+  const [focusId] = useState(() => initial ? initial.id : null);
   const [touched, setTouched] = useState(false);
-  const set = (k, v) => setF(prev => ({
-    ...prev,
+  const setLine = (id, k, v) => setLines(prev => prev.map(l => l.id === id ? {
+    ...l,
     [k]: v
-  }));
+  } : l));
+  const addLine = () => setLines(prev => [...prev, blank(type)]);
+  const removeLine = id => setLines(prev => prev.filter(l => l.id !== id));
+  const chooseType = t => {
+    setType(t);
+    setLines(prev => prev.some(l => l.type === t) ? prev : [...prev, blank(t)]);
+  };
   // gợi ý dự án: đã chấm trong kỳ trước, rồi danh sách dự án chung (không trùng WBS)
   const suggest = useMemo(() => {
     const seen = new Set(),
@@ -2107,43 +2121,54 @@ function AllowanceForm({
     (catalog || []).forEach(p => add(p.workNumber, p.projectName, ''));
     return out.slice(0, 400);
   }, [projects, catalog]);
-  const setWbs = v => setF(prev => {
+  const setWbs = (id, v) => setLines(prev => prev.map(l => {
+    if (l.id !== id) return l;
     const hit = suggest.find(p => p.wbs.toUpperCase() === v.trim().toUpperCase());
     return {
-      ...prev,
+      ...l,
       wbs: v,
-      project: hit && hit.project && !prev.project ? hit.project : prev.project
+      project: hit && hit.project && !l.project ? hit.project : l.project
     };
+  }));
+  const isBlank = l => !String(l.wbs || '').trim() && !l.from && !l.to && (l.days === '' || l.days === undefined) && !l.location && !l.remarks;
+  const filled = lines.filter(l => !isBlank(l));
+  const clean = l => ({
+    ...l,
+    days: l.days === '' || l.days === undefined ? undefined : Number(l.days)
   });
-  const days = f.days === '' || f.days === undefined ? '' : f.days;
-  const clean = {
-    ...f,
-    days: days === '' ? undefined : Number(days)
+  // lỗi nhập (chặn lưu) theo từng dòng
+  const errOf = l => {
+    if (!String(l.wbs || '').trim()) return 'Nhập mã WBS / dự án';
+    if (!l.from || !l.to) return 'Chọn từ ngày và đến ngày';
+    if (l.days === '' || l.days === undefined) return 'Nhập số ngày';
+    try {
+      TsAllowance.sanitize({
+        rows: [clean(l)]
+      }, period);
+    } catch (e) {
+      return e.message;
+    }
+    return '';
   };
-  const others = rows.filter(r => r.id !== f.id);
-  const previewAll = TsAllowance.compute(entries, {
-    rows: [...others, clean]
+  const calc = TsAllowance.compute(entries, {
+    rows: filled.map(clean)
   }, period);
-  const preview = previewAll.rows.find(r => r.id === f.id);
-  let invalid = '';
-  try {
-    TsAllowance.sanitize({
-      rows: [clean]
-    }, period);
-  } catch (e) {
-    invalid = e.message;
-  }
-  if (!f.from || !f.to) invalid = 'Chọn từ ngày và đến ngày của giai đoạn này';else if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
-  if (!invalid && days === '') invalid = 'Nhập số ngày';
+  const calcOf = id => calc.rows.find(x => x.id === id);
+  const errors = filled.map((l, i) => ({
+    l,
+    e: errOf(l)
+  })).filter(x => x.e);
+  const shown = lines.filter(l => l.type === type);
   const submit = e => {
     e.preventDefault();
     setTouched(true);
-    if (invalid) return;
+    if (errors.length) return;
     onSave(TsAllowance.sanitize({
-      rows: [clean]
-    }, period).rows[0]);
+      rows: filled.map(clean)
+    }, period).rows);
   };
-  const maxDays = span(f.from, f.to);
+  const T = TsAllowance.TYPES[type];
+  const count = t => filled.filter(l => l.type === t).length;
   return /*#__PURE__*/React.createElement("form", {
     onSubmit: submit,
     className: "px-5 py-5 space-y-5",
@@ -2153,145 +2178,179 @@ function AllowanceForm({
   }, "Lo\u1EA1i ph\u1EE5 c\u1EA5p"), /*#__PURE__*/React.createElement("div", {
     className: "grid gap-2"
   }, Object.keys(TsAllowance.TYPES).map(k => {
-    const T = TsAllowance.TYPES[k];
+    const X = TsAllowance.TYPES[k];
     return /*#__PURE__*/React.createElement("label", {
       key: k,
-      className: `flex gap-3 rounded-xl border p-3 cursor-pointer ${f.type === k ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-600/15' : 'border-slate-300 hover:bg-slate-50'}`
+      className: `flex gap-3 rounded-xl border p-3 cursor-pointer ${type === k ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-600/15' : 'border-slate-300 hover:bg-slate-50'}`
     }, /*#__PURE__*/React.createElement("input", {
       type: "radio",
       name: "tsAllowType",
       value: k,
-      checked: f.type === k,
-      onChange: () => set('type', k),
+      checked: type === k,
+      onChange: () => chooseType(k),
       className: "mt-1"
-    }), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "flex-1"
+    }, /*#__PURE__*/React.createElement("span", {
       className: "font-semibold"
-    }, T.label), /*#__PURE__*/React.createElement("span", {
+    }, X.label), count(k) > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "ml-2 text-xs font-semibold text-blue-700"
+    }, count(k), " d\xF2ng"), /*#__PURE__*/React.createElement("span", {
       className: "block text-xs text-slate-600"
-    }, T.rule)));
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "M\xE3 WBS",
-    htmlFor: "tsAllowWbs",
-    hint: "G\xF5 ho\u1EB7c ch\u1ECDn trong g\u1EE3i \xFD"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowWbs",
-    "data-autofocus": true,
-    className: inputCls,
-    value: f.wbs,
-    maxLength: 100,
-    list: "tsAllowWbsList",
-    autoComplete: "off",
-    onChange: e => setWbs(e.target.value)
-  }), /*#__PURE__*/React.createElement("datalist", {
+    }, X.rule)));
+  }))), /*#__PURE__*/React.createElement("datalist", {
     id: "tsAllowWbsList"
   }, suggest.map(p => /*#__PURE__*/React.createElement("option", {
     key: p.wbs,
     value: p.wbs
-  }, [p.project, p.note].filter(Boolean).join(' · '))))), /*#__PURE__*/React.createElement(Field, {
-    label: "T\xEAn d\u1EF1 \xE1n",
-    htmlFor: "tsAllowName"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowName",
-    className: inputCls,
-    value: f.project,
-    maxLength: 200,
-    onChange: e => set('project', e.target.value)
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "T\u1EEB ng\xE0y",
-    htmlFor: "tsAllowFrom"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowFrom",
-    type: "date",
-    className: inputCls,
-    value: f.from,
-    min: period.start,
-    max: period.end,
-    onChange: e => e.target.value && set('from', e.target.value)
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "\u0110\u1EBFn ng\xE0y",
-    htmlFor: "tsAllowTo"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowTo",
-    type: "date",
-    className: inputCls,
-    value: f.to,
-    min: period.start,
-    max: period.end,
-    onChange: e => e.target.value && set('to', e.target.value)
-  }))), /*#__PURE__*/React.createElement(Field, {
-    label: "S\u1ED1 ng\xE0y l\xE0m vi\u1EC7c t\u1EA1i d\u1EF1 \xE1n",
-    htmlFor: "tsAllowDays",
-    hint: maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cộng ngày mọi dòng, cần tổng trên 20 ngày' : ''}` : 'Tự khai'
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowDays",
-    type: "number",
-    inputMode: "numeric",
-    min: "0",
-    max: maxDays || 62,
-    step: "1",
-    className: inputCls,
-    value: days,
-    onChange: e => set('days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: f.type === 'province' ? 'Tỉnh / địa điểm dự án' : 'Địa điểm (phường / quận)',
-    htmlFor: "tsAllowLoc"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowLoc",
-    className: inputCls,
-    value: f.location,
-    maxLength: 200,
-    onChange: e => set('location', e.target.value),
-    placeholder: f.type === 'province' ? 'VD: Bình Dương' : 'VD: P. Long Trường, TP Thủ Đức'
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Ghi ch\xFA (kh\xF4ng b\u1EAFt bu\u1ED9c)",
-    htmlFor: "tsAllowNote"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowNote",
-    className: inputCls,
-    value: f.remarks,
-    maxLength: 300,
-    onChange: e => set('remarks', e.target.value)
-  })), f.type === 'province' && /*#__PURE__*/React.createElement("label", {
-    className: "flex items-start gap-2 text-sm"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsAllowOwn",
-    type: "checkbox",
-    checked: !!f.ownVehicle,
-    onChange: e => set('ownVehicle', e.target.checked),
-    className: "mt-0.5"
-  }), /*#__PURE__*/React.createElement("span", null, "T\xF4i ", /*#__PURE__*/React.createElement("b", null, "t\u1EF1 mang xe m\xE1y"), " \u0111i d\u1EF1 \xE1n t\u1EC9nh n\xE0y")), /*#__PURE__*/React.createElement("div", {
+  }, [p.project, p.note].filter(Boolean).join(' · ')))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3",
+    id: "tsAllowLines"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-slate-600"
+  }, "M\u1ED7i d\xF2ng l\xE0 ", /*#__PURE__*/React.createElement("b", null, "m\u1ED9t d\u1EF1 \xE1n / WBS"), " trong m\u1ED9t kho\u1EA3ng ng\xE0y, v\u1EDBi s\u1ED1 ng\xE0y ri\xEAng. B\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "Th\xEAm d\xF2ng"), " \u0111\u1EC3 khai th\xEAm d\u1EF1 \xE1n ho\u1EB7c giai \u0111o\u1EA1n kh\xE1c."), shown.map((l, i) => {
+    const x = calcOf(l.id),
+      err = touched && !isBlank(l) ? errOf(l) : '';
+    const span = l.from && l.to && l.from <= l.to ? TsAllowance.spanDays(l.from, l.to) : 0;
+    const n = i + 1,
+      idp = `tsAllow${n}`;
+    return /*#__PURE__*/React.createElement("div", {
+      key: l.id,
+      "data-line": n,
+      className: `rounded-xl border p-3 space-y-3 ${err || x && x.problems.length ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-sm font-semibold"
+    }, "D\xF2ng ", n, l.wbs ? ` · ${l.wbs}` : ''), x && /*#__PURE__*/React.createElement("span", {
+      className: "ml-auto text-sm font-semibold tabular-nums"
+    }, money(x.amount), " \u0111"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => removeLine(l.id),
+      "aria-label": `Xóa dòng ${n}`,
+      className: `${x ? '' : 'ml-auto '}w-8 h-8 inline-grid place-items-center rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50`
+    }, /*#__PURE__*/React.createElement(Icons.Trash, null))), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-3"
+    }, /*#__PURE__*/React.createElement(Field, {
+      label: "M\xE3 WBS",
+      htmlFor: `${idp}Wbs`
+    }, /*#__PURE__*/React.createElement("input", {
+      id: `${idp}Wbs`,
+      "data-autofocus": (focusId ? l.id === focusId : i === shown.length - 1) ? true : undefined,
+      className: inputCls,
+      value: l.wbs,
+      maxLength: 100,
+      list: "tsAllowWbsList",
+      autoComplete: "off",
+      onChange: e => setWbs(l.id, e.target.value)
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: "T\xEAn d\u1EF1 \xE1n",
+      htmlFor: `${idp}Name`
+    }, /*#__PURE__*/React.createElement("input", {
+      id: `${idp}Name`,
+      className: inputCls,
+      value: l.project,
+      maxLength: 200,
+      onChange: e => setLine(l.id, 'project', e.target.value)
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: "T\u1EEB ng\xE0y",
+      htmlFor: `${idp}From`
+    }, /*#__PURE__*/React.createElement("input", {
+      id: `${idp}From`,
+      type: "date",
+      className: inputCls,
+      value: l.from,
+      min: period.start,
+      max: period.end,
+      onChange: e => setLine(l.id, 'from', e.target.value)
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: "\u0110\u1EBFn ng\xE0y",
+      htmlFor: `${idp}To`
+    }, /*#__PURE__*/React.createElement("input", {
+      id: `${idp}To`,
+      type: "date",
+      className: inputCls,
+      value: l.to,
+      min: l.from || period.start,
+      max: period.end,
+      onChange: e => setLine(l.id, 'to', e.target.value)
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: "S\u1ED1 ng\xE0y",
+      htmlFor: `${idp}Days`,
+      hint: span ? `tối đa ${span}` : ''
+    }, /*#__PURE__*/React.createElement("input", {
+      id: `${idp}Days`,
+      type: "number",
+      inputMode: "numeric",
+      min: "0",
+      max: span || 62,
+      step: "1",
+      className: inputCls,
+      value: l.days === undefined ? '' : l.days,
+      onChange: e => setLine(l.id, 'days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: type === 'province' ? 'Tỉnh / địa điểm' : 'Địa điểm',
+      htmlFor: `${idp}Loc`
+    }, /*#__PURE__*/React.createElement("input", {
+      id: `${idp}Loc`,
+      className: inputCls,
+      value: l.location,
+      maxLength: 200,
+      onChange: e => setLine(l.id, 'location', e.target.value),
+      placeholder: type === 'province' ? 'VD: Bình Dương' : 'VD: TP Thủ Đức'
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: "Ghi ch\xFA",
+      htmlFor: `${idp}Note`,
+      className: "col-span-2"
+    }, /*#__PURE__*/React.createElement("input", {
+      id: `${idp}Note`,
+      className: inputCls,
+      value: l.remarks,
+      maxLength: 300,
+      onChange: e => setLine(l.id, 'remarks', e.target.value),
+      placeholder: "Kh\xF4ng b\u1EAFt bu\u1ED9c"
+    }))), type === 'province' && /*#__PURE__*/React.createElement("label", {
+      className: "flex items-start gap-2 text-sm"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: !!l.ownVehicle,
+      onChange: e => setLine(l.id, 'ownVehicle', e.target.checked),
+      className: "mt-0.5"
+    }), /*#__PURE__*/React.createElement("span", null, "T\xF4i ", /*#__PURE__*/React.createElement("b", null, "t\u1EF1 mang xe m\xE1y"), " \u0111i d\u1EF1 \xE1n t\u1EC9nh n\xE0y")), err && /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-rose-700 font-medium"
+    }, "\u26A0 ", err), !err && x && x.problems.map(p => /*#__PURE__*/React.createElement("p", {
+      key: p,
+      className: "text-xs text-amber-900 font-medium"
+    }, "\u26A0 ", p)));
+  }), /*#__PURE__*/React.createElement("button", {
+    id: "tsAllowAddLine",
+    type: "button",
+    onClick: addLine,
+    className: `${btnGhost} w-full h-11 border-dashed`
+  }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Th\xEAm d\xF2ng ", T.short.toLowerCase(), " (d\u1EF1 \xE1n / giai \u0111o\u1EA1n kh\xE1c)")), /*#__PURE__*/React.createElement("div", {
     id: "tsAllowPreview",
-    className: `rounded-xl px-4 py-3 text-sm ${preview && preview.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`,
+    className: `rounded-xl px-4 py-3 text-sm ${calc.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`,
     "aria-live": "polite"
-  }, preview && f.wbs && days !== '' ? /*#__PURE__*/React.createElement(React.Fragment, null, f.type === 'fuel' ? /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", {
+  }, filled.length ? /*#__PURE__*/React.createElement("p", null, count('fuel') > 0 && /*#__PURE__*/React.createElement("span", null, "X\u0103ng xe ", /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, preview.days), " ng\xE0y \xD7 60.000 \u0111 \u2192 ", /*#__PURE__*/React.createElement("b", {
+  }, calc.totals.fuelDays), " ng\xE0y = ", /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, money(preview.amount), " \u0111")) : /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", {
+  }, money(calc.totals.fuelAmount), " \u0111")), count('fuel') > 0 && count('province') > 0 && ' · ', count('province') > 0 && /*#__PURE__*/React.createElement("span", null, "Xe \u0111i t\u1EC9nh ", /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, preview.days), " ng\xE0y \xB7 t\u1ED5ng xe \u0111i t\u1EC9nh trong k\u1EF3 ", /*#__PURE__*/React.createElement("b", {
+  }, calc.totals.provinceDays), " ng\xE0y = ", /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, previewAll.totals.provinceDays), " ng\xE0y \u2192 ph\u1EA7n c\u1EE7a giai \u0111o\u1EA1n n\xE0y ", /*#__PURE__*/React.createElement("b", {
+  }, money(calc.totals.provinceAmount), " \u0111")), ' ', "\u2192 t\u1ED5ng ", /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, money(preview.amount), " \u0111"), " (1.000.000 \u0111 / th\xE1ng chia theo s\u1ED1 ng\xE0y)"), preview.problems.map(p => /*#__PURE__*/React.createElement("p", {
-    key: p,
-    className: "text-amber-900 font-medium"
-  }, "\u26A0 ", p))) : /*#__PURE__*/React.createElement("p", {
+  }, money(calc.totals.amount), " \u0111")) : /*#__PURE__*/React.createElement("p", {
     className: "text-slate-500"
-  }, "Nh\u1EADp m\xE3 WBS v\xE0 s\u1ED1 ng\xE0y \u0111\u1EC3 xem s\u1ED1 ti\u1EC1n."), /*#__PURE__*/React.createElement("p", {
+  }, "Nh\u1EADp m\xE3 WBS, kho\u1EA3ng ng\xE0y v\xE0 s\u1ED1 ng\xE0y \u0111\u1EC3 xem s\u1ED1 ti\u1EC1n."), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-xs text-slate-500"
-  }, "Ph\u1EE5 c\u1EA5p khai ri\xEAng, kh\xF4ng l\u1EA5y t\u1EEB ch\u1EA5m c\xF4ng. S\u1ED1 ng\xE0y v\xE0 kho\u1EA3ng c\xE1ch 25\u201335 km do gi\xE1m s\xE1t x\xE1c nh\u1EADn khi duy\u1EC7t.")), /*#__PURE__*/React.createElement("p", {
+  }, "Ph\u1EE5 c\u1EA5p khai ri\xEAng, kh\xF4ng l\u1EA5y t\u1EEB ch\u1EA5m c\xF4ng. Xe \u0111i t\u1EC9nh: c\u1ED9ng ng\xE0y m\u1ECDi d\xF2ng, t\u1ED5ng tr\xEAn 20 ng\xE0y \u0111\u01B0\u1EE3c 1.000.000 \u0111 chia theo s\u1ED1 ng\xE0y. Gi\xE1m s\xE1t x\xE1c nh\u1EADn khi duy\u1EC7t.")), /*#__PURE__*/React.createElement("p", {
     role: "alert",
     className: "text-sm text-rose-700 empty:hidden"
-  }, touched ? invalid : ''), /*#__PURE__*/React.createElement("div", {
+  }, touched && errors.length ? `Còn ${errors.length} dòng chưa nhập đủ — xem các dòng có ⚠${errors.some(x => x.l.type !== type) ? ' (kể cả ở loại phụ cấp còn lại)' : ''}.` : ''), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 pt-2 border-t border-slate-200"
-  }, onDelete && /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: onDelete,
-    className: "h-11 px-3 rounded-lg text-rose-700 font-semibold hover:bg-rose-50 inline-flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(Icons.Trash, null), " X\xF3a"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: onCancel,
     className: `${btnGhost} h-11 ml-auto`
@@ -2299,7 +2358,7 @@ function AllowanceForm({
     id: "tsAllowSave",
     type: "submit",
     className: `${btnPrimary} h-11`
-  }, "L\u01B0u ph\u1EE5 c\u1EA5p")));
+  }, "L\u01B0u b\u1EA3ng ph\u1EE5 c\u1EA5p")));
 }
 
 // Xác nhận nộp bảng công: tổng giờ của kỳ + phụ cấp xe nộp kèm
