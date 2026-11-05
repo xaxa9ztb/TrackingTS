@@ -24,7 +24,7 @@ test('dòng cũ (chưa có số ngày) — xăng xe: 60.000 đ × số ngày ch�
   assert.equal(c.ok, true, c.problems.join('; '));
   assert.equal(c.rows[0].days, 3); assert.equal(c.rows[0].amount, 180000);
   assert.equal(c.rows[1].days, 1, 'ngày 22 đã tính ở W1'); assert.equal(c.rows[1].overlap, 1);
-  assert.deepEqual(c.totals, { fuelDays: 4, fuelAmount: 240000, provinceAmount: 0, amount: 240000 });
+  assert.deepEqual(c.totals, { fuelDays: 4, fuelAmount: 240000, provinceDays: 0, provinceAmount: 0, amount: 240000 });
   assert.match(A.summary(c), /Xăng xe 4 ngày = 240\.000 đ — tổng 240\.000 đ/);
 });
 
@@ -41,11 +41,9 @@ test('dòng cũ — xe đi tỉnh: cần trên 20 ngày chấm công + tự mang
   const ok = A.compute(entries, { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-15', { ownVehicle: true })] }, RANGE);
   assert.equal(ok.ok, true, ok.problems.join('; ')); assert.equal(ok.rows[0].days, 21); assert.equal(ok.totals.amount, 1000000);
   const few = A.compute(entries.slice(0, 20), { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-15', { ownVehicle: true })] }, RANGE);
-  assert.match(few.problems[0], /trên 20 ngày.*đang có 20 ngày/);
+  assert.match(few.problems[0], /tổng trên 20 ngày.*đang có 20 ngày/);
   const noCar = A.compute(entries, { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-15')] }, RANGE);
   assert.match(noCar.problems[0], /tự mang xe/);
-  const two = A.compute(entries, { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-15', { ownVehicle: true }), R(2, 'province', 'P1', '2026-10-16', '2026-11-15', { ownVehicle: true })] }, RANGE);
-  assert.ok(two.problems.some(p => /chỉ có một phụ cấp xe đi tỉnh/.test(p)));
   const both = A.compute(entries, { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-15', { ownVehicle: true }), R(2, 'fuel', 'P1', '2026-10-16', '2026-10-20')] }, RANGE);
   assert.ok(both.problems.some(p => /đã có phụ cấp xăng xe/.test(p)));
 });
@@ -54,7 +52,7 @@ test('độc lập với chấm công: số ngày tự khai, không cần dòng 
   assert.equal(A.LINK_TIMESHEET, false);
   const c = A.compute([], { rows: [R(1, 'fuel', 'W1', '2026-10-16', '2026-11-15', { days: 25 }), R(2, 'fuel', 'W2', '2026-10-20', '2026-10-25', { days: 3 })] }, RANGE);
   assert.equal(c.ok, true, c.problems.join('; '));
-  assert.deepEqual(c.totals, { fuelDays: 28, fuelAmount: 28 * 60000, provinceAmount: 0, amount: 28 * 60000 });
+  assert.deepEqual(c.totals, { fuelDays: 28, fuelAmount: 28 * 60000, provinceDays: 0, provinceAmount: 0, amount: 28 * 60000 });
   // có chấm công cũng không ảnh hưởng số ngày khai
   const w = A.compute([E('2026-10-20', 'W1')], { rows: [R(1, 'fuel', 'W1', '2026-10-16', '2026-10-31', { days: 10 })] }, RANGE);
   assert.equal(w.rows[0].days, 10);
@@ -64,11 +62,38 @@ test('độc lập với chấm công: số ngày tự khai, không cần dòng 
   const prov = A.compute([], { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-15', { days: 22, ownVehicle: true })] }, RANGE);
   assert.equal(prov.ok, true, prov.problems.join('; ')); assert.equal(prov.totals.amount, 1000000);
   const few = A.compute([], { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-15', { days: 17, ownVehicle: true })] }, RANGE);
-  assert.match(few.problems[0], /trên 20 ngày.*đang khai 17 ngày/);
+  assert.match(few.problems[0], /tổng trên 20 ngày.*đang có 17 ngày/);
   assert.equal(A.sanitize({ rows: [R(1, 'fuel', 'W1', '2026-10-20', '2026-10-21', { days: 2 })] }, RANGE).rows[0].days, 2);
   assert.equal(A.sanitize({ rows: [R(1, 'fuel', 'W1', '2026-10-20', '2026-10-21')] }, RANGE).rows[0].days, undefined);
   assert.throws(() => A.sanitize({ rows: [R(1, 'fuel', 'W1', '2026-10-20', '2026-10-21', { days: 1.5 })] }, RANGE), /số nguyên/);
   assert.throws(() => A.sanitize({ rows: [R(1, 'fuel', 'W1', '2026-10-20', '2026-10-21', { days: 99 })] }, RANGE), /số nguyên/);
+});
+
+test('nhiều giai đoạn / nhiều dự án: xe đi tỉnh cộng ngày các dòng, 1.000.000 đ chia theo ngày; khai trùng ngày bị chặn', () => {
+  const rows = [
+    R(1, 'province', 'P1', '2026-10-16', '2026-10-31', { days: 14, ownVehicle: true }),
+    R(2, 'province', 'P2', '2026-11-01', '2026-11-15', { days: 9, ownVehicle: true }),
+    R(3, 'fuel', 'W1', '2026-11-01', '2026-11-15', { days: 4 }),
+  ];
+  const c = A.compute([], { rows }, RANGE);
+  assert.equal(c.ok, true, c.problems.join('; '));
+  assert.equal(c.totals.provinceDays, 23); assert.equal(c.totals.provinceAmount, 1000000);
+  assert.equal(c.rows[0].amount, 608696); assert.equal(c.rows[1].amount, 391304);
+  assert.equal(c.totals.amount, 1000000 + 240000);
+  assert.match(A.summary(c), /Xe đi tỉnh 23 ngày = 1\.000\.000 đ/);
+  // tổng chưa đủ 21 ngày → 0 đ, cả hai dòng báo
+  const few = A.compute([], { rows: [rows[0], { ...rows[1], days: 5 }] }, RANGE);
+  assert.equal(few.totals.provinceAmount, 0); assert.equal(few.problems.length, 2);
+  assert.match(few.problems[0], /đang có 19 ngày ở 2 dòng/);
+  // khai trùng: 2 dòng xăng xe cùng 20–22/10 (3 ngày) mà khai 2 + 2 ngày
+  const dup = A.compute([], { rows: [R(1, 'fuel', 'W1', '2026-10-20', '2026-10-22', { days: 2 }), R(2, 'fuel', 'W2', '2026-10-21', '2026-10-22', { days: 2 })] }, RANGE);
+  assert.ok(dup.problems.some(p => /trùng khoảng ngày khai tổng 4 ngày, nhiều hơn 3 ngày/.test(p)));
+  // cùng dự án vừa xăng xe vừa đi tỉnh chỉ lỗi khi chồng khoảng ngày
+  const both = A.compute([], { rows: [R(1, 'province', 'P1', '2026-10-16', '2026-11-10', { days: 22, ownVehicle: true }), R(2, 'fuel', 'P1', '2026-11-11', '2026-11-15', { days: 3 })] }, RANGE);
+  assert.equal(both.ok, true, both.problems.join('; '));
+  // 8 dòng xe đi tỉnh được; dòng thứ 9 báo
+  const nine = A.compute([], { rows: Array.from({ length: 9 }, (_, i) => R(i + 1, 'province', 'P' + i, '2026-10-16', '2026-10-18', { days: 3, ownVehicle: true })) }, RANGE);
+  assert.ok(nine.problems.some(p => /Tối đa 8 dòng/.test(p)));
 });
 
 test('làm sạch: cắt độ dài, bỏ trùng id, chặn loại / ngày sai và ngày ngoài kỳ', () => {

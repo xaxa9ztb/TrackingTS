@@ -2,7 +2,9 @@
 //
 // Hai loại (theo mẫu "Bảng phụ cấp xe" của phòng NI):
 //   fuel      Phụ cấp xăng xe: dự án cách trụ sở chính từ 25 km đến dưới 35 km — 60.000 đ / ngày làm việc tại dự án
-//   province  Phụ cấp xe đi tỉnh: làm dự án tỉnh TRÊN 20 ngày trong kỳ và tự mang xe máy đi — 1.000.000 đ / tháng
+//   province  Phụ cấp xe đi tỉnh: làm dự án tỉnh TỔNG TRÊN 20 ngày trong kỳ và tự mang xe máy đi — 1.000.000 đ / tháng.
+//             Được chia nhiều giai đoạn / nhiều dự án tỉnh: cộng số ngày các dòng; đủ thì 1.000.000 đ chia cho các dòng theo số ngày.
+//   Cả hai loại đều có thể nhiều dòng (nhiều giai đoạn, nhiều dự án) trong kỳ — không cố định cả tháng.
 // HIỆN TẠI phụ cấp ĐỘC LẬP với chấm công (LINK_TIMESHEET = false): fitter tự nhập dự án / WBS, khoảng ngày (trong kỳ lương)
 // và SỐ NGÀY; tiền tính từ số ngày khai. Dòng cũ chưa có số ngày (lưu trước khi tách) → lấy số ngày chấm công như trước.
 // Bật LINK_TIMESHEET = true để quay lại cách cũ: số ngày luôn đếm từ các dòng chấm công của dự án trong khoảng đã chọn
@@ -19,11 +21,11 @@
     },
     province: {
       label: 'Phụ cấp xe đi tỉnh', short: 'Xe đi tỉnh', amount: 1000000, minDays: 21,
-      rule: 'Làm dự án tỉnh trên 20 ngày trong kỳ và tự mang xe máy đi · 1.000.000 đ / tháng',
+      rule: 'Dự án tỉnh, tự mang xe máy đi · tổng trên 20 ngày trong kỳ (có thể nhiều giai đoạn / dự án) · 1.000.000 đ / tháng',
     },
   };
   const LINK_TIMESHEET = false;                     // true = số ngày lấy từ chấm công (xem chú thích đầu file)
-  const MAX_ROWS = { fuel: 11, province: 1 };      // số dòng của mẫu Excel / mỗi kỳ chỉ một phụ cấp đi tỉnh
+  const MAX_ROWS = { fuel: 11, province: 8 };      // số dòng của mẫu Excel (sheet Xăng xe 60K / Phụ cấp Xe đi tỉnh)
   const LEAVE_CODES = ['6010', '6020', '6090'];
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const norm = (s) => String(s == null ? '' : s).trim().toUpperCase();
@@ -68,7 +70,7 @@
     if (input === null || input === undefined) return null;
     if (typeof input !== 'object' || Array.isArray(input)) throw new Error('Phụ cấp xe không hợp lệ');
     const rows = Array.isArray(input.rows) ? input.rows : [];
-    if (rows.length > MAX_ROWS.fuel + MAX_ROWS.province + 4) throw new Error('Quá nhiều dòng phụ cấp xe');
+    if (rows.length > MAX_ROWS.fuel + MAX_ROWS.province + 6) throw new Error('Quá nhiều dòng phụ cấp xe');
     const out = [], seen = new Set();
     rows.forEach((r) => {
       if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Error('Có dòng phụ cấp xe không hợp lệ');
@@ -98,13 +100,12 @@
     const rows = (allow && Array.isArray(allow.rows)) ? allow.rows : [];
     const res = rows.map((r) => ({ ...r, days: 0, amount: 0, overlap: 0, problems: [] }));
     const byId = new Map(res.map((x) => [x.id, x]));
-    const fuelWbs = new Set(rows.filter((r) => r.type === 'fuel').map((r) => norm(r.wbs)));
     const used = new Set(), seenType = { fuel: 0, province: 0 };
     rows.slice().sort((a, b) => String(a.from).localeCompare(String(b.from)) || String(a.id).localeCompare(String(b.id))).forEach((r) => {
       const x = byId.get(r.id);
       if (!TYPES[r.type]) { x.problems.push('Loại phụ cấp không hợp lệ'); return; }
       seenType[r.type]++;
-      if (seenType[r.type] > MAX_ROWS[r.type]) x.problems.push(r.type === 'province' ? 'Mỗi kỳ chỉ có một phụ cấp xe đi tỉnh' : `Tối đa ${MAX_ROWS.fuel} dòng phụ cấp xăng xe`);
+      if (seenType[r.type] > MAX_ROWS[r.type]) x.problems.push(`Tối đa ${MAX_ROWS[r.type]} dòng ${TYPES[r.type].label.toLowerCase()}`);
       if (!norm(r.wbs)) x.problems.push('Chưa nhập dự án / WBS');
       if (r.from > r.to) x.problems.push('Ngày bắt đầu sau ngày kết thúc');
       if (range && (r.from < range.start || r.to > range.end)) x.problems.push('Ngoài kỳ lương');
@@ -125,23 +126,42 @@
         x.amount = x.days * TYPES.fuel.rate;
       } else {
         x.days = declared ? r.days : dates.length;
-        if (declared && x.days > span) x.problems.push(`Số ngày (${x.days}) nhiều hơn số ngày của khoảng đã chọn (${span})`);
-        else if (x.days < TYPES.province.minDays) {
-          if (declared) x.problems.push(`Cần làm dự án tỉnh trên 20 ngày trong kỳ (đang khai ${x.days} ngày)`);
-          else {
-            // nói rõ cách đếm: chỉ ngày CÓ dòng chấm công làm việc tại đúng WBS này (không phải số ngày dương lịch của khoảng đã chọn)
-            const sp = dates.length ? ` từ ${fmtDMY(dates[0])} đến ${fmtDMY(dates[dates.length - 1])}` : '';
-            x.problems.push(`Cần làm dự án tỉnh trên 20 ngày trong kỳ (đang có ${x.days} ngày chấm công tại dự án này${sp}; chỉ đếm ngày có dòng chấm công đúng WBS, không đếm ngày nghỉ / ngày chưa chấm)`);
-          }
-        }
+        if (declared && !x.days) x.problems.push('Chưa nhập số ngày');
+        else if (declared && x.days > span) x.problems.push(`Số ngày (${x.days}) nhiều hơn số ngày của khoảng đã chọn (${span})`);
         if (!r.ownVehicle) x.problems.push('Chưa xác nhận tự mang xe máy đi');
-        if (fuelWbs.has(norm(r.wbs))) x.problems.push('Dự án này đã có phụ cấp xăng xe');
-        x.amount = TYPES.province.amount;
+        // cùng dự án vừa xăng xe vừa xe đi tỉnh trong khoảng ngày chồng nhau
+        if (rows.some((o) => o.type === 'fuel' && norm(o.wbs) === norm(r.wbs) && o.from <= r.to && r.from <= o.to)) x.problems.push('Dự án này đã có phụ cấp xăng xe trong cùng khoảng ngày');
       }
+    });
+    // Xe đi tỉnh: cộng ngày mọi dòng; tổng trên 20 ngày → 1.000.000 đ chia cho các dòng theo số ngày (dòng cuối nhận phần làm tròn)
+    const provRows = res.filter((x) => x.type === 'province').sort((a, b) => String(a.from).localeCompare(String(b.from)) || String(a.id).localeCompare(String(b.id)));
+    const provDays = provRows.reduce((a, x) => a + (x.days || 0), 0);
+    if (provRows.length) {
+      if (provDays < TYPES.province.minDays) {
+        const linked = LINK_TIMESHEET || rows.some((r) => r.type === 'province' && !Number.isInteger(r.days));
+        const how = linked ? ' — chỉ đếm ngày có dòng chấm công đúng WBS, không đếm ngày nghỉ / ngày chưa chấm' : '';
+        provRows.forEach((x) => x.problems.push(`Cần làm dự án tỉnh tổng trên 20 ngày trong kỳ (đang có ${provDays} ngày${provRows.length > 1 ? ` ở ${provRows.length} dòng` : ''}${how})`));
+      } else {
+        let left = TYPES.province.amount;
+        provRows.forEach((x, i) => {
+          x.amount = i === provRows.length - 1 ? left : Math.round(TYPES.province.amount * x.days / provDays);
+          left -= x.amount;
+        });
+      }
+    }
+    // Khai trùng: các dòng có khoảng ngày chồng nhau không được khai nhiều ngày hơn số ngày thực có của các khoảng đó
+    res.forEach((x) => {
+      if (!TYPES[x.type] || !(x.from <= x.to)) return;
+      const group = res.filter((o) => TYPES[o.type] && o.from <= o.to && o.from <= x.to && x.from <= o.to);
+      if (group.length < 2) return;
+      const cover = new Set();
+      group.forEach((o) => { for (let d = Date.parse(o.from + 'T00:00:00Z'), e = Date.parse(o.to + 'T00:00:00Z'); d <= e; d += 86400000) cover.add(d); });
+      const claimed = group.reduce((a, o) => a + (o.days || 0), 0);
+      if (claimed > cover.size) x.problems.push(`Các dòng phụ cấp trùng khoảng ngày khai tổng ${claimed} ngày, nhiều hơn ${cover.size} ngày thực có`);
     });
     const fuel = res.filter((x) => x.type === 'fuel'), prov = res.filter((x) => x.type === 'province');
     const sum = (list, k) => list.reduce((a, x) => a + (x[k] || 0), 0);
-    const totals = { fuelDays: sum(fuel, 'days'), fuelAmount: sum(fuel, 'amount'), provinceAmount: sum(prov, 'amount') };
+    const totals = { fuelDays: sum(fuel, 'days'), fuelAmount: sum(fuel, 'amount'), provinceDays: sum(prov, 'days'), provinceAmount: sum(prov, 'amount') };
     totals.amount = totals.fuelAmount + totals.provinceAmount;
     const problems = res.flatMap((x) => x.problems.map((p) => `${TYPES[x.type] ? TYPES[x.type].short : '?'} · ${x.wbs || 'chưa chọn dự án'}: ${p}`));
     return { rows: res, totals, problems, ok: problems.length === 0 };
@@ -152,7 +172,7 @@
     if (!c || !c.rows.length) return '';
     const parts = [];
     if (c.totals.fuelAmount) parts.push(`Xăng xe ${c.totals.fuelDays} ngày = ${money(c.totals.fuelAmount)} đ`);
-    if (c.rows.some((x) => x.type === 'province')) parts.push(`Xe đi tỉnh ${money(c.totals.provinceAmount)} đ`);
+    if (c.rows.some((x) => x.type === 'province')) parts.push(`Xe đi tỉnh ${c.totals.provinceDays} ngày = ${money(c.totals.provinceAmount)} đ`);
     return `${parts.join(' · ')} — tổng ${money(c.totals.amount)} đ`;
   }
 
