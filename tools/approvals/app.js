@@ -222,7 +222,7 @@
       <td class="r">${x.days}${x.overlap ? `<div class="ac-note">trùng ${x.overlap}</div>` : ''}</td><td class="r"><b>${money(x.amount)}</b></td></tr>`).join('');
     $('dAllowTable').tFoot.innerHTML = `<tr><td colspan="6"><b>Tổng phụ cấp xe</b></td><td class="r"><b>${money(c.totals.amount)}</b></td></tr>`;
     flags.push(c.ok ? `<div class="ap-flag">🚗 Phụ cấp xe: ${esc(TsAllowance.summary(c))}</div>`
-      : `<div class="ap-flag err">⚠ Phụ cấp xe chưa khớp chấm công: ${esc(c.problems.join('; '))}</div>`);
+      : `<div class="ap-flag err">⚠ Phụ cấp xe chưa hợp lệ: ${esc(c.problems.join('; '))}</div>`);
   }
   const loadJs = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('không tải được thư viện Excel')); document.head.appendChild(s); });
   async function downloadAllowance() {

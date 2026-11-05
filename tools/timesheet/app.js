@@ -1688,7 +1688,6 @@ function App() {
     calc: allowCalc,
     locked: locked,
     busy: allowBusy,
-    hasEntries: allowProjects.length > 0,
     onAdd: () => openAllowance(null),
     onEdit: openAllowance,
     onDelete: handleDeleteAllowance,
@@ -1817,6 +1816,7 @@ function App() {
     key: drawer.key,
     initial: drawer.row,
     projects: allowProjects,
+    catalog: allProjects,
     entries: monthlyEntries,
     period: period,
     rows: allow ? allow.rows : [],
@@ -2002,7 +2002,6 @@ function AllowanceCard({
   calc,
   locked,
   busy,
-  hasEntries,
   onAdd,
   onEdit,
   onDelete,
@@ -2039,22 +2038,23 @@ function AllowanceCard({
     id: "tsAllowAdd",
     type: "button",
     onClick: onAdd,
-    disabled: !hasEntries,
     className: `${btnGhost} h-9 text-sm`,
-    title: hasEntries ? 'Thêm phụ cấp xe cho kỳ này' : 'Chấm công trước rồi thêm phụ cấp (số ngày tính từ chấm công)'
+    title: "Th\xEAm ph\u1EE5 c\u1EA5p xe cho k\u1EF3 n\xE0y"
   }, /*#__PURE__*/React.createElement(Icons.Plus, null), " Th\xEAm ph\u1EE5 c\u1EA5p"), rows.length > 0 && /*#__PURE__*/React.createElement("button", {
     id: "tsAllowExcel",
     type: "button",
     onClick: onDownload,
     disabled: busy,
     className: `${btnGhost} h-9 text-sm`
-  }, /*#__PURE__*/React.createElement(Icons.Download, null), " ", busy ? 'Đang tạo file…' : 'Tải form phụ cấp (Excel)')), !hasEntries && !locked && /*#__PURE__*/React.createElement("p", {
-    className: "mt-1 text-xs text-slate-500"
-  }, "Ch\u1EA5m c\xF4ng trong k\u1EF3 tr\u01B0\u1EDBc \u2014 s\u1ED1 ng\xE0y ph\u1EE5 c\u1EA5p \u0111\u01B0\u1EE3c t\xEDnh t\u1EEB c\xE1c ng\xE0y \u0111\xE3 ch\u1EA5m \u1EDF d\u1EF1 \xE1n."));
+  }, /*#__PURE__*/React.createElement(Icons.Download, null), " ", busy ? 'Đang tạo file…' : 'Tải form phụ cấp (Excel)')));
 }
+
+// Phụ cấp hiện ĐỘC LẬP với chấm công (TsAllowance.LINK_TIMESHEET = false): tự nhập dự án, khoảng ngày, số ngày.
+// Dự án đã chấm trong kỳ và danh sách dự án chung chỉ là GỢI Ý để điền nhanh.
 function AllowanceForm({
   initial,
   projects,
+  catalog,
   entries,
   period,
   rows,
@@ -2062,61 +2062,86 @@ function AllowanceForm({
   onCancel,
   onDelete
 }) {
-  const pick = wbs => projects.find(p => p.wbs.toUpperCase() === String(wbs || '').trim().toUpperCase());
-  const [f, setF] = useState(() => initial ? {
-    ...initial
-  } : {
-    id: String(Date.now()),
-    type: 'fuel',
-    wbs: '',
-    project: '',
-    from: period.start,
-    to: period.end,
-    location: '',
-    remarks: '',
-    ownVehicle: false
+  const span = (a, b) => a && b && a <= b ? TsAllowance.spanDays(a, b) : 0;
+  const [f, setF] = useState(() => {
+    const base = initial ? {
+      ...initial
+    } : {
+      id: String(Date.now()),
+      type: 'fuel',
+      wbs: '',
+      project: '',
+      from: period.start,
+      to: period.end,
+      location: '',
+      remarks: '',
+      ownVehicle: false
+    };
+    // dòng cũ (trước khi tách khỏi chấm công) chưa có số ngày → điền sẵn số ngày đang được tính
+    if (!Number.isInteger(base.days)) base.days = initial ? (TsAllowance.compute(entries, {
+      rows: [initial]
+    }, period).rows[0] || {}).days || '' : '';
+    return base;
   });
   const [touched, setTouched] = useState(false);
   const set = (k, v) => setF(prev => ({
     ...prev,
     [k]: v
   }));
-  const chooseProject = wbs => {
-    const p = pick(wbs);
-    setF(prev => p ? {
+  // gợi ý dự án: đã chấm trong kỳ trước, rồi danh sách dự án chung (không trùng WBS)
+  const suggest = useMemo(() => {
+    const seen = new Set(),
+      out = [];
+    const add = (wbs, name, note) => {
+      const k = String(wbs || '').trim().toUpperCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      out.push({
+        wbs: String(wbs).trim(),
+        project: String(name || '').trim(),
+        note
+      });
+    };
+    projects.forEach(p => add(p.wbs, p.project, `${p.days} ngày đã chấm`));
+    (catalog || []).forEach(p => add(p.workNumber, p.projectName, ''));
+    return out.slice(0, 400);
+  }, [projects, catalog]);
+  const setWbs = v => setF(prev => {
+    const hit = suggest.find(p => p.wbs.toUpperCase() === v.trim().toUpperCase());
+    return {
       ...prev,
-      wbs: p.wbs,
-      project: p.project,
-      from: p.first,
-      to: p.last
-    } : {
-      ...prev,
-      wbs: '',
-      project: ''
-    });
+      wbs: v,
+      project: hit && hit.project && !prev.project ? hit.project : prev.project
+    };
+  });
+  const days = f.days === '' || f.days === undefined ? '' : f.days;
+  const clean = {
+    ...f,
+    days: days === '' ? undefined : Number(days)
   };
   const others = rows.filter(r => r.id !== f.id);
   const preview = TsAllowance.compute(entries, {
-    rows: [...others, f]
+    rows: [...others, clean]
   }, period).rows.find(r => r.id === f.id);
-  const known = !f.wbs || pick(f.wbs);
   let invalid = '';
   try {
     TsAllowance.sanitize({
-      rows: [f]
+      rows: [clean]
     }, period);
   } catch (e) {
     invalid = e.message;
   }
-  if (!f.wbs) invalid = 'Chọn dự án';
+  if (!invalid && !String(f.wbs || '').trim()) invalid = 'Nhập mã WBS / dự án';
+  if (!invalid && days === '') invalid = 'Nhập số ngày';
   const submit = e => {
     e.preventDefault();
     setTouched(true);
     if (invalid) return;
     onSave(TsAllowance.sanitize({
-      rows: [f]
+      rows: [clean]
     }, period).rows[0]);
   };
+  const maxDays = span(f.from, f.to);
   return /*#__PURE__*/React.createElement("form", {
     onSubmit: submit,
     className: "px-5 py-5 space-y-5",
@@ -2142,43 +2167,35 @@ function AllowanceForm({
     }, T.label), /*#__PURE__*/React.createElement("span", {
       className: "block text-xs text-slate-600"
     }, T.rule)));
-  }))), /*#__PURE__*/React.createElement(Field, {
-    label: "D\u1EF1 \xE1n",
-    htmlFor: "tsAllowProject",
-    hint: "Ch\u1EC9 hi\u1EC7n c\xE1c d\u1EF1 \xE1n b\u1EA1n \u0111\xE3 ch\u1EA5m c\xF4ng trong k\u1EF3. M\xE3 WBS t\u1EF1 \u0111i\u1EC1n."
-  }, /*#__PURE__*/React.createElement("select", {
-    id: "tsAllowProject",
-    "data-autofocus": true,
-    className: inputCls,
-    value: known ? (pick(f.wbs) || {}).wbs || '' : f.wbs,
-    onChange: e => chooseProject(e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "\u2014 Ch\u1ECDn d\u1EF1 \xE1n \u2014"), !known && /*#__PURE__*/React.createElement("option", {
-    value: f.wbs
-  }, f.wbs, " (kh\xF4ng c\xF2n ch\u1EA5m c\xF4ng trong k\u1EF3)"), projects.map(p => /*#__PURE__*/React.createElement("option", {
-    key: p.wbs,
-    value: p.wbs
-  }, p.wbs, " \u2014 ", p.project || 'không tên', " (", p.days, " ng\xE0y)")))), /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "M\xE3 WBS",
-    htmlFor: "tsAllowWbs"
+    htmlFor: "tsAllowWbs",
+    hint: "G\xF5 ho\u1EB7c ch\u1ECDn trong g\u1EE3i \xFD"
   }, /*#__PURE__*/React.createElement("input", {
     id: "tsAllowWbs",
+    "data-autofocus": true,
     className: inputCls,
     value: f.wbs,
-    readOnly: true,
-    disabled: true
-  })), /*#__PURE__*/React.createElement(Field, {
+    maxLength: 100,
+    list: "tsAllowWbsList",
+    autoComplete: "off",
+    onChange: e => setWbs(e.target.value)
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "tsAllowWbsList"
+  }, suggest.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.wbs,
+    value: p.wbs
+  }, [p.project, p.note].filter(Boolean).join(' · '))))), /*#__PURE__*/React.createElement(Field, {
     label: "T\xEAn d\u1EF1 \xE1n",
     htmlFor: "tsAllowName"
   }, /*#__PURE__*/React.createElement("input", {
     id: "tsAllowName",
     className: inputCls,
     value: f.project,
-    readOnly: true,
-    disabled: true
+    maxLength: 200,
+    onChange: e => set('project', e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
     label: "T\u1EEB ng\xE0y",
     htmlFor: "tsAllowFrom"
@@ -2202,6 +2219,20 @@ function AllowanceForm({
     max: period.end,
     onChange: e => e.target.value && set('to', e.target.value)
   }))), /*#__PURE__*/React.createElement(Field, {
+    label: "S\u1ED1 ng\xE0y l\xE0m vi\u1EC7c t\u1EA1i d\u1EF1 \xE1n",
+    htmlFor: "tsAllowDays",
+    hint: maxDays ? `Tự khai · tối đa ${maxDays} ngày trong khoảng đã chọn${f.type === 'province' ? ' · xe đi tỉnh cần trên 20 ngày' : ''}` : 'Tự khai'
+  }, /*#__PURE__*/React.createElement("input", {
+    id: "tsAllowDays",
+    type: "number",
+    inputMode: "numeric",
+    min: "0",
+    max: maxDays || 62,
+    step: "1",
+    className: inputCls,
+    value: days,
+    onChange: e => set('days', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))
+  })), /*#__PURE__*/React.createElement(Field, {
     label: f.type === 'province' ? 'Tỉnh / địa điểm dự án' : 'Địa điểm (phường / quận)',
     htmlFor: "tsAllowLoc"
   }, /*#__PURE__*/React.createElement("input", {
@@ -2232,18 +2263,18 @@ function AllowanceForm({
     id: "tsAllowPreview",
     className: `rounded-xl px-4 py-3 text-sm ${preview && preview.problems.length ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`,
     "aria-live": "polite"
-  }, preview && f.wbs ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", {
+  }, preview && f.wbs && days !== '' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
-  }, preview.days), " ng\xE0y ch\u1EA5m c\xF4ng t\u1EA1i d\u1EF1 \xE1n trong kho\u1EA3ng \u0111\xE3 ch\u1ECDn", preview.overlap ? ` (${preview.overlap} ngày đã tính ở dòng xăng xe khác)` : '', " \u2192 ", /*#__PURE__*/React.createElement("b", {
+  }, preview.days), " ng\xE0y", f.type === 'fuel' ? ' × 60.000 đ' : ' (1.000.000 đ / tháng)', " \u2192 ", /*#__PURE__*/React.createElement("b", {
     className: "tabular-nums"
   }, money(preview.amount), " \u0111")), preview.problems.map(p => /*#__PURE__*/React.createElement("p", {
     key: p,
     className: "text-amber-900 font-medium"
   }, "\u26A0 ", p))) : /*#__PURE__*/React.createElement("p", {
     className: "text-slate-500"
-  }, "Ch\u1ECDn d\u1EF1 \xE1n \u0111\u1EC3 xem s\u1ED1 ng\xE0y v\xE0 s\u1ED1 ti\u1EC1n."), /*#__PURE__*/React.createElement("p", {
+  }, "Nh\u1EADp m\xE3 WBS v\xE0 s\u1ED1 ng\xE0y \u0111\u1EC3 xem s\u1ED1 ti\u1EC1n."), /*#__PURE__*/React.createElement("p", {
     className: "mt-1 text-xs text-slate-500"
-  }, "S\u1ED1 ng\xE0y t\xEDnh t\u1EEB ch\xEDnh c\xE1c d\xF2ng ch\u1EA5m c\xF4ng c\u1EE7a d\u1EF1 \xE1n (kh\xF4ng t\xEDnh ng\xE0y ngh\u1EC9 ph\xE9p). Kho\u1EA3ng c\xE1ch 25\u201335 km do gi\xE1m s\xE1t x\xE1c nh\u1EADn khi duy\u1EC7t.")), /*#__PURE__*/React.createElement("p", {
+  }, "Ph\u1EE5 c\u1EA5p khai ri\xEAng, kh\xF4ng l\u1EA5y t\u1EEB ch\u1EA5m c\xF4ng. S\u1ED1 ng\xE0y v\xE0 kho\u1EA3ng c\xE1ch 25\u201335 km do gi\xE1m s\xE1t x\xE1c nh\u1EADn khi duy\u1EC7t.")), /*#__PURE__*/React.createElement("p", {
     role: "alert",
     className: "text-sm text-rose-700 empty:hidden"
   }, touched ? invalid : ''), /*#__PURE__*/React.createElement("div", {

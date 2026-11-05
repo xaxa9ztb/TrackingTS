@@ -93,7 +93,7 @@ export function checkSubmitEntries(entries) {
   return '';
 }
 
-// Phụ cấp xe lúc nộp: số ngày / số tiền tính lại từ chấm công; còn lỗi thì không cho nộp. Trả về {computed, error}.
+// Phụ cấp xe lúc nộp: số tiền tính lại từ số ngày đã khai (hoặc từ chấm công nếu LINK_TIMESHEET); còn lỗi thì không cho nộp. Trả về {computed, error}.
 export function checkSubmitAllowance(period, data) {
   const computed = TsAllowance.compute(data.entries || [], data.allow, periodRange(period));
   return { computed, error: computed.ok ? '' : `Phụ cấp xe chưa hợp lệ — ${computed.problems[0]}` };

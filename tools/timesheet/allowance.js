@@ -3,8 +3,10 @@
 // Hai loại (theo mẫu "Bảng phụ cấp xe" của phòng NI):
 //   fuel      Phụ cấp xăng xe: dự án cách trụ sở chính từ 25 km đến dưới 35 km — 60.000 đ / ngày làm việc tại dự án
 //   province  Phụ cấp xe đi tỉnh: làm dự án tỉnh TRÊN 20 ngày trong kỳ và tự mang xe máy đi — 1.000.000 đ / tháng
-// Fitter chọn loại, dự án (WBS tự điền) và khoảng ngày; SỐ NGÀY luôn tính từ chính các dòng chấm công của dự án đó
-// trong khoảng đã chọn (không tính ngày nghỉ phép), nên không khai khống được. Một ngày chỉ được tính xăng xe một lần.
+// HIỆN TẠI phụ cấp ĐỘC LẬP với chấm công (LINK_TIMESHEET = false): fitter tự nhập dự án / WBS, khoảng ngày (trong kỳ lương)
+// và SỐ NGÀY; tiền tính từ số ngày khai. Dòng cũ chưa có số ngày (lưu trước khi tách) → lấy số ngày chấm công như trước.
+// Bật LINK_TIMESHEET = true để quay lại cách cũ: số ngày luôn đếm từ các dòng chấm công của dự án trong khoảng đã chọn
+// (không tính ngày nghỉ phép), một ngày chỉ được tính xăng xe một lần.
 // Dữ liệu nằm trong bảng công của kỳ: data.allow = { rows: [...], u: thời điểm sửa } (gộp giữa các máy: bản sửa sau thắng).
 // Hàm thuần — kiểm thử bằng Node (test/client/allowance.test.mjs).
 (function (root) {
@@ -20,11 +22,13 @@
       rule: 'Làm dự án tỉnh trên 20 ngày trong kỳ và tự mang xe máy đi · 1.000.000 đ / tháng',
     },
   };
+  const LINK_TIMESHEET = false;                     // true = số ngày lấy từ chấm công (xem chú thích đầu file)
   const MAX_ROWS = { fuel: 11, province: 1 };      // số dòng của mẫu Excel / mỗi kỳ chỉ một phụ cấp đi tỉnh
   const LEAVE_CODES = ['6010', '6020', '6090'];
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const norm = (s) => String(s == null ? '' : s).trim().toUpperCase();
   const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  const spanDays = (from, to) => Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000) + 1;
   const fmtDMY = (d) => String(d).split('-').reverse().join('/');
   const money = (n) => Math.round(n).toLocaleString('vi-VN');
 
@@ -75,9 +79,15 @@
       if (!TYPES[r.type]) throw new Error('Loại phụ cấp xe không hợp lệ');
       if (!DATE_RE.test(String(r.from)) || !DATE_RE.test(String(r.to))) throw new Error('Ngày của phụ cấp xe không hợp lệ');
       if (range && (r.from < range.start || r.to > range.end)) throw new Error(`Phụ cấp xe phải nằm trong kỳ lương ${fmtDMY(range.start)} → ${fmtDMY(range.end)}`);
+      let days;                                       // số ngày tự khai (không có ở dòng lưu trước khi tách khỏi chấm công)
+      if (r.days !== undefined && r.days !== null && r.days !== '') {
+        days = Number(r.days);
+        if (!Number.isInteger(days) || days < 0 || days > 62) throw new Error('Số ngày phụ cấp xe phải là số nguyên từ 0 đến 62');
+      }
       out.push({
         id, type: r.type, wbs: str(r.wbs, 100), project: str(r.project, 200), from: r.from, to: r.to,
         location: str(r.location, 200), remarks: str(r.remarks, 300), ownVehicle: r.type === 'province' ? !!r.ownVehicle : false,
+        ...(days === undefined ? {} : { days }),
       });
     });
     return { rows: out, u: Number(input.u) || 0 };
@@ -95,22 +105,34 @@
       if (!TYPES[r.type]) { x.problems.push('Loại phụ cấp không hợp lệ'); return; }
       seenType[r.type]++;
       if (seenType[r.type] > MAX_ROWS[r.type]) x.problems.push(r.type === 'province' ? 'Mỗi kỳ chỉ có một phụ cấp xe đi tỉnh' : `Tối đa ${MAX_ROWS.fuel} dòng phụ cấp xăng xe`);
-      if (!norm(r.wbs)) x.problems.push('Chưa chọn dự án');
+      if (!norm(r.wbs)) x.problems.push('Chưa nhập dự án / WBS');
       if (r.from > r.to) x.problems.push('Ngày bắt đầu sau ngày kết thúc');
       if (range && (r.from < range.start || r.to > range.end)) x.problems.push('Ngoài kỳ lương');
-      const dates = norm(r.wbs) && r.from <= r.to ? workDates(entries, r.wbs, r.from, r.to) : [];
+      const declared = !LINK_TIMESHEET && Number.isInteger(r.days);
+      const dates = !declared && norm(r.wbs) && r.from <= r.to ? workDates(entries, r.wbs, r.from, r.to) : [];
+      const span = r.from <= r.to ? spanDays(r.from, r.to) : 0;
       if (r.type === 'fuel') {
-        const fresh = dates.filter((d) => !used.has(d));
-        fresh.forEach((d) => used.add(d));
-        x.days = fresh.length; x.overlap = dates.length - fresh.length;
+        if (declared) {
+          x.days = r.days;
+          if (!x.days) x.problems.push('Chưa nhập số ngày');
+          else if (x.days > span) x.problems.push(`Số ngày (${x.days}) nhiều hơn số ngày của khoảng đã chọn (${span})`);
+        } else {
+          const fresh = dates.filter((d) => !used.has(d));
+          fresh.forEach((d) => used.add(d));
+          x.days = fresh.length; x.overlap = dates.length - fresh.length;
+          if (norm(r.wbs) && !dates.length) x.problems.push(LINK_TIMESHEET ? 'Không có ngày chấm công ở dự án này trong khoảng đã chọn' : 'Chưa nhập số ngày');
+        }
         x.amount = x.days * TYPES.fuel.rate;
-        if (norm(r.wbs) && !dates.length) x.problems.push('Không có ngày chấm công ở dự án này trong khoảng đã chọn');
       } else {
-        x.days = dates.length;
-        if (x.days < TYPES.province.minDays) {
-          // nói rõ cách đếm: chỉ ngày CÓ dòng chấm công làm việc tại đúng WBS này (không phải số ngày dương lịch của khoảng đã chọn)
-          const span = dates.length ? ` từ ${fmtDMY(dates[0])} đến ${fmtDMY(dates[dates.length - 1])}` : '';
-          x.problems.push(`Cần làm dự án tỉnh trên 20 ngày trong kỳ (đang có ${x.days} ngày chấm công tại dự án này${span}; chỉ đếm ngày có dòng chấm công đúng WBS, không đếm ngày nghỉ / ngày chưa chấm)`);
+        x.days = declared ? r.days : dates.length;
+        if (declared && x.days > span) x.problems.push(`Số ngày (${x.days}) nhiều hơn số ngày của khoảng đã chọn (${span})`);
+        else if (x.days < TYPES.province.minDays) {
+          if (declared) x.problems.push(`Cần làm dự án tỉnh trên 20 ngày trong kỳ (đang khai ${x.days} ngày)`);
+          else {
+            // nói rõ cách đếm: chỉ ngày CÓ dòng chấm công làm việc tại đúng WBS này (không phải số ngày dương lịch của khoảng đã chọn)
+            const sp = dates.length ? ` từ ${fmtDMY(dates[0])} đến ${fmtDMY(dates[dates.length - 1])}` : '';
+            x.problems.push(`Cần làm dự án tỉnh trên 20 ngày trong kỳ (đang có ${x.days} ngày chấm công tại dự án này${sp}; chỉ đếm ngày có dòng chấm công đúng WBS, không đếm ngày nghỉ / ngày chưa chấm)`);
+          }
         }
         if (!r.ownVehicle) x.problems.push('Chưa xác nhận tự mang xe máy đi');
         if (fuelWbs.has(norm(r.wbs))) x.problems.push('Dự án này đã có phụ cấp xăng xe');
@@ -158,7 +180,7 @@
         s1.getCell(`D${r}`).value = x.project;
         s1.getCell(`E${r}`).value = xd(x.from); s1.getCell(`E${r}`).numFmt = dateFmt;
         s1.getCell(`F${r}`).value = xd(x.to); s1.getCell(`F${r}`).numFmt = dateFmt;
-        s1.getCell(`G${r}`).value = x.days;                     // số ngày có chấm công tại dự án (đã trừ ngày trùng)
+        s1.getCell(`G${r}`).value = x.days;                     // số ngày (tự khai; hoặc từ chấm công nếu LINK_TIMESHEET)
         s1.getCell(`H${r}`).value = { formula: `G${r}*${TYPES.fuel.rate}`, result: x.amount }; s1.getCell(`H${r}`).numFmt = moneyFmt;
         s1.getCell(`I${r}`).value = x.location;
         s1.getCell(`J${r}`).value = x.remarks;
@@ -201,6 +223,6 @@
     return wb;
   }
 
-  const api = { fileNameByType, keepSheet, TYPES, MAX_ROWS, LEAVE_CODES, workDates, projectsOf, sanitize, compute, summary, fillWorkbook, fileName, money };
+  const api = { LINK_TIMESHEET, spanDays, fileNameByType, keepSheet, TYPES, MAX_ROWS, LEAVE_CODES, workDates, projectsOf, sanitize, compute, summary, fillWorkbook, fileName, money };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsAllowance = api;
 })(typeof window !== 'undefined' ? window : globalThis);
