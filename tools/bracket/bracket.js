@@ -69,12 +69,12 @@
     if (!ordered) return { text: kind === 'z' ? 'Chưa chọn loại Z Bracket' : 'Chưa chọn loại Omega Bracket', status: 'none', flag: '' };
     if (x >= ordered.min && x <= ordered.max) return { text: `Đạt (trong dung sai ${ordered.name})`, status: 'ok', flag: 1 };
     const lech = (d) => String(Math.round(d));
-    if (x > ordered.max && x - ordered.max <= TOL) return { text: `Không đạt (lệch ${lech(x - ordered.max)}mm) - Đệm bản mã 10mm - không cần đổi bracket`, status: 'pad', flag: 0 };
-    if (x < ordered.min && ordered.min - x <= TOL) return { text: `Không đạt (lệch ${lech(ordered.min - x)}mm) - Đục tỉa chân bracket - không cần đổi bracket`, status: 'trim', flag: 0 };
+    if (x > ordered.max && x - ordered.max <= TOL) return { text: `Không đạt (lệch ${lech(x - ordered.max)}mm) - Đệm bản mã 10mm - không cần đổi bracket`, status: 'pad', flag: 0, dev: Math.round(x - ordered.max) };
+    if (x < ordered.min && ordered.min - x <= TOL) return { text: `Không đạt (lệch ${lech(ordered.min - x)}mm) - Đục tỉa chân bracket - không cần đổi bracket`, status: 'trim', flag: 0, dev: Math.round(ordered.min - x) };
     const list = kind === 'z' ? Z.filter((b) => b.fam === ordered.fam) : O;
     const lo = Math.min(...list.map((b) => b.min)), hi = Math.max(...list.map((b) => b.max));
     if (x < lo || x > hi) {
-      return { text: kind === 'z' ? `KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ dòng ${ordered.fam}, cần chỉnh sửa hố thang` : 'KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ bracket, cần chỉnh sửa hố thang', status: 'pit', flag: 0 };
+      return { text: kind === 'z' ? `KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ dòng ${ordered.fam}, cần chỉnh sửa hố thang` : 'KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ bracket, cần chỉnh sửa hố thang', status: 'pit', flag: 0, fam: kind === 'z' ? ordered.fam : '' };
     }
     const s = suggest(list, x);
     return { text: `Không đạt - Đề xuất: ${s ? s.name : 'xem lại danh mục'}`, status: 'change', flag: 0, suggest: s ? s.name : '' };

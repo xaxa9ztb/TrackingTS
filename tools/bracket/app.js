@@ -35,7 +35,7 @@
   }
 
   function blank() {
-    const me = (window.Session && Session.current && Session.current()) || {};
+    const me = (typeof Session !== 'undefined' && Session.current && Session.current()) || {};
     return { id: uid(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       project: '', location: '', contract: '', surveyor: me.name || '', date: today(), liftId: '', bs: '', ts: '', load: '', stops: '',
       sf2Design: '', sgDesign: '', zBracket: '', oBracket: '', rows: [{ line: '', sf2: '', sg: '' }] };
@@ -71,8 +71,25 @@
       B.O.map((b) => `<tr data-n="${esc(b.name)}"><td>${esc(b.name.replace(/\s{2,}/g, ' '))}</td><td>${b.min}</td><td>${b.max}</td></tr>`).join('')}</tbody>`;
   }
 
+  // Kết quả ngắn gọn trên app (biểu tượng + chữ, không chỉ dựa vào màu); câu đầy đủ như Excel ở title / trình đọc màn hình
   const CHIP = { ok: 'ok', pad: 'site', trim: 'site', change: 'bad', pit: 'bad', none: 'none' };
-  const chip = (e) => (e && e.text ? `<span class="bk-chip ${CHIP[e.status] || 'none'}">${esc(e.text.replace(/\s{2,}/g, ' '))}</span>` : '');
+  const clean = (t) => String(t || '').replace(/\s{2,}/g, ' ');
+  function shortText(e) {
+    switch (e.status) {
+      case 'ok': return ['✓', 'Đạt', ''];
+      case 'pad': return ['▲', 'Đệm bản mã 10mm', `lệch +${e.dev}mm · không đổi bracket`];
+      case 'trim': return ['▼', 'Đục tỉa chân bracket', `lệch −${e.dev}mm · không đổi bracket`];
+      case 'change': return ['✕', `Đổi sang ${clean(e.suggest) || '?'}`, 'lệch quá 10mm'];
+      case 'pit': return ['✕', 'Chỉnh sửa hố thang', e.fam ? `ngoài dải cả dòng ${e.fam}` : 'ngoài dải cả danh mục Omega'];
+      default: return ['', clean(e.text), ''];
+    }
+  }
+  const chip = (e) => {
+    if (!e || !e.text) return '';
+    const [ic, main, sub] = shortText(e);
+    return `<span class="bk-chip ${CHIP[e.status] || 'none'}" title="${esc(clean(e.text))}">${ic ? `<span class="bk-ic" aria-hidden="true">${ic}</span>` : ''}<span aria-hidden="true"><b>${esc(main)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="sr-only">${esc(clean(e.text))}</span></span>`;
+  };
+  const TRASH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5M10 11v5.5M14 11v5.5"/></svg>';
 
   function rowHtml(r, i) {
     return `<tr data-i="${i}">
@@ -82,7 +99,7 @@
       <td class="bk-res bk-zr" data-res="z"></td>
       <td class="bk-num bk-o" data-l="SG (mm)"><input data-r="sg" value="${esc(r.sg)}" inputmode="decimal" aria-label="SG dòng ${i + 1}"></td>
       <td class="bk-res bk-or" data-res="o"></td>
-      <td class="bk-act"><button type="button" class="bk-del" data-del="${i}" aria-label="Xóa dòng ${i + 1}" title="Xóa dòng">×</button></td>
+      <td class="bk-act"><button type="button" class="bk-del" data-del="${i}" aria-label="Xóa dòng ${i + 1}" title="Xóa dòng">${TRASH}</button></td>
     </tr>`;
   }
   function renderRows() {
@@ -106,9 +123,20 @@
       tr.querySelector('[data-res=z]').innerHTML = chip(r.z);
       tr.querySelector('[data-res=o]').innerHTML = chip(r.o);
     });
+    // số đo không phải số → viền đỏ + gợi ý (thay vì im lặng không ra kết quả)
+    document.querySelectorAll('#rows input[data-r=sf2], #rows input[data-r=sg], #editor input[inputmode=decimal][data-k]').forEach((el) => {
+      const bad = el.value.trim() !== '' && B.num(el.value) === null;
+      el.setAttribute('aria-invalid', bad ? 'true' : 'false');
+      el.title = bad ? 'Nhập số (mm), ví dụ 147' : '';
+    });
     const used = cur.rows.filter((r) => String(r.sf2).trim() || String(r.sg).trim()).length;
     $('rowCount').textContent = `${used} / ${B.MAX_ROWS} vị trí có số đo`;
     const S = c.summary;
+    const site = S.zSite + S.oSite, swap = S.zSwap + S.oSwap, pit = S.zPit + S.oPit;
+    const tile = (v, t, cls) => `<div class="bk-tile ${v ? cls : ''}"><b>${v}</b><span>${t}</span></div>`;
+    $('tiles').innerHTML = tile(S.total, 'vị trí khảo sát', 'info') + tile(S.pass, 'đạt cả SF2 &amp; SG', 'ok')
+      + tile(site, 'xử lý tại công trường', 'site') + tile(swap, 'cần đổi bracket', 'bad') + tile(pit, 'chỉnh sửa hố thang', 'bad');
+    $('stickyInfo').textContent = S.total ? `${S.total} vị trí · ${S.pass} đạt` : 'Chưa có số đo';
     const line = (t, v, cls = '', sub = false) => `<dt class="${sub ? 'sub' : ''}">${t}</dt><dd class="${[sub ? 'sub' : '', cls].join(' ')}">${v}</dd>`;
     $('sum').innerHTML = line('Tổng số vị trí khảo sát', S.total)
       + line('Số vị trí ĐẠT (SF2 và SG đều trong dung sai)', S.pass, S.total && S.pass === S.total ? 'good' : '')
@@ -164,7 +192,7 @@
 
   // ---------- sự kiện ----------
   function bind() {
-    $('btnNew').addEventListener('click', () => { const s = blank(); surveys.push(s); persist(); open(s.id); setTimeout(() => $('f_project').focus(), 50); });
+    $('btnNew').addEventListener('click', () => { const s = blank(); surveys.push(s); persist(); open(s.id); $('f_project').focus(); });
     $('list').addEventListener('click', (e) => {
       const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
       const x = e.target.closest('[data-xls]'); if (x) { const s = surveys.find((v) => v.id === x.dataset.xls); if (s) exportXlsx(s); }
@@ -172,6 +200,7 @@
     $('btnBack').addEventListener('click', close);
     $('btnExport').addEventListener('click', () => cur && exportXlsx(cur));
     $('btnExport2').addEventListener('click', () => cur && exportXlsx(cur));
+    $('btnExport3').addEventListener('click', () => cur && exportXlsx(cur));
     $('btnDup').addEventListener('click', () => {
       if (!cur) return;
       const s = JSON.parse(JSON.stringify(cur));
@@ -216,6 +245,8 @@
     window.addEventListener('pagehide', () => { if (cur) { clearTimeout(saveTimer); persist(); } });
   }
 
+  const me = (typeof Session !== 'undefined' && Session.current && Session.current()) || null;
+  if (me && me.name) $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · phiếu lưu trên máy này`;
   bracketOptions(); refTables(); bind(); renderList();
   const h = location.hash.slice(1); if (h && surveys.some((s) => s.id === h)) open(h);
 })();

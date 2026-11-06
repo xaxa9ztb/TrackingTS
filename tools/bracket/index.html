@@ -11,14 +11,14 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
 <link rel="stylesheet" href="../../css/ni.css?v=2">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=5">
 <script src="../../js/pwa.js?v=36" defer></script>
 <script src="../../js/demo.js?v=3"></script>
 <script src="../../js/session.js?v=47"></script>
 <script>Session.guard('bracket');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
-<script src="bracket.js?v=1"></script>
-<script src="app.js?v=1" defer></script>
+<script src="bracket.js?v=2"></script>
+<script src="app.js?v=3" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="bracket" data-tool="Khảo sát Bracket hố thang" data-help="#bracket"></script>
@@ -38,6 +38,7 @@
       Phiếu lưu trên máy này (trình duyệt) — xuất Excel để gửi / lưu trữ.
       <br><span class="ni-muted">Dung sai: J_45350713 (Z Bracket, ES1 &amp; ES5.0, SC-AP) và J_44928432 (Omega, Family A &amp; B) — cần đối chiếu bản gốc trước khi quyết định đổi bracket chính thức.</span>
     </div></details>
+    <p class="ni-who" id="who"></p>
   </div>
 </header>
 
@@ -64,9 +65,9 @@
       <h2 id="s1">1. Thông tin dự án &amp; thông số thang</h2>
       <div class="bk-grid">
         <label class="ni-field bk-wide">Tên dự án<input id="f_project" data-k="project" maxlength="200" autocomplete="off"></label>
-        <label class="ni-field">Địa điểm<input data-k="location" maxlength="200"></label>
-        <label class="ni-field">Số hợp đồng<input data-k="contract" maxlength="100"></label>
-        <label class="ni-field">Người khảo sát<input data-k="surveyor" maxlength="100"></label>
+        <label class="ni-field bk-text">Địa điểm<input data-k="location" maxlength="200"></label>
+        <label class="ni-field bk-text">Số hợp đồng<input data-k="contract" maxlength="100"></label>
+        <label class="ni-field bk-text">Người khảo sát<input data-k="surveyor" maxlength="100"></label>
         <label class="ni-field">Ngày khảo sát<input type="date" data-k="date"></label>
         <label class="ni-field">Mã thang (Elevator ID)<input data-k="liftId" maxlength="60"></label>
         <label class="ni-field">Chiều rộng giếng BS (mm)<input data-k="bs" inputmode="decimal"></label>
@@ -113,6 +114,7 @@
 
     <section class="ni-card" aria-labelledby="s4">
       <h2 id="s4">4. Kết luận</h2>
+      <div class="bk-tiles" id="tiles"></div>
       <dl class="bk-sum" id="sum"></dl>
     </section>
 
@@ -124,6 +126,11 @@
       </div>
     </details>
 
+    <!-- điện thoại: thanh dưới luôn hiện để xuất Excel không phải cuộn -->
+    <div class="bk-sticky" role="region" aria-label="Thao tác nhanh">
+      <span id="stickyInfo" class="bk-sinfo"></span>
+      <button class="ni-btn primary" type="button" id="btnExport3">Xuất Excel</button>
+    </div>
     <div class="bk-bar bk-bottom">
       <button class="ni-btn danger small" type="button" id="btnDelete">Xóa phiếu</button>
       <button class="ni-btn primary" type="button" id="btnExport2">Xuất Excel</button>
