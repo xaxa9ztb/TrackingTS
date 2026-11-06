@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="vi" class="ni" data-app="bracket">
+<head>
+<!-- Link cũ (GitHub Pages) đã ngừng: chuyển sang bản chính trên Cloudflare, giữ nguyên trang đang mở -->
+<script>if(/\.github\.io$/i.test(location.hostname))location.replace('https://nihan-ts.pages.dev'+(location.pathname.replace(/^\/TrackingTS(?=\/|$)/i,'')||'/')+location.search+location.hash);</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Khảo sát Bracket hố thang — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#0f1b2d">
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+<link rel="stylesheet" href="../../css/ni.css?v=2">
+<link rel="stylesheet" href="style.css?v=5">
+<script src="../../js/pwa.js?v=36" defer></script>
+<script src="../../js/demo.js?v=3"></script>
+<script src="../../js/session.js?v=47"></script>
+<script>Session.guard('bracket');</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<script src="bracket.js?v=2"></script>
+<script src="app.js?v=3" defer></script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=39" data-app="bracket" data-tool="Khảo sát Bracket hố thang" data-help="#bracket"></script>
+
+<header class="ni-head">
+  <div class="ni-wrap">
+    <h1>Khảo sát Bracket hố thang</h1>
+    <p class="ni-lede">Nhập số đo SF2 (Z Bracket) và SG (Omega Bracket) tại từng vị trí — app tự so với dung sai bracket đã đặt hàng, đề xuất xử lý và xuất phiếu Excel.</p>
+    <details class="ni-howto"><summary>Cách dùng</summary><div>
+      <b>1.</b> Tạo phiếu, điền thông tin dự án / thang. <b>2.</b> Chọn loại Z Bracket và Omega Bracket đã đặt hàng, nhập SF2 / SG theo bản vẽ để kiểm tra.
+      <b>3.</b> Mỗi vị trí (line) nhập SF2 và SG đo thực tế — kết quả hiện ngay:
+      <span class="bk-chip ok">Đạt</span> trong dung sai ·
+      <span class="bk-chip site">Đệm bản mã / Đục tỉa</span> lệch ≤ 10 mm, xử lý tại công trường ·
+      <span class="bk-chip bad">Đổi bracket / Chỉnh sửa hố thang</span>.
+      Z Bracket chỉ đề xuất cùng dòng (AL / CL / CHL / CH) với loại đã đặt; Omega đề xuất trong cả danh mục.
+      <b>4.</b> Bấm <b>Xuất Excel</b> để có phiếu theo mẫu "Phiếu khảo sát trước khi đặt hàng" (tối đa 30 vị trí / phiếu).
+      Phiếu lưu trên máy này (trình duyệt) — xuất Excel để gửi / lưu trữ.
+      <br><span class="ni-muted">Dung sai: J_45350713 (Z Bracket, ES1 &amp; ES5.0, SC-AP) và J_44928432 (Omega, Family A &amp; B) — cần đối chiếu bản gốc trước khi quyết định đổi bracket chính thức.</span>
+    </div></details>
+    <p class="ni-who" id="who"></p>
+  </div>
+</header>
+
+<main class="ni-wrap bk-main">
+  <!-- danh sách phiếu đã lưu trên máy -->
+  <section class="ni-card bk-list" id="secList" aria-labelledby="listTitle">
+    <div class="bk-row">
+      <h2 id="listTitle">Phiếu khảo sát trên máy này</h2>
+      <button class="ni-btn primary small" type="button" id="btnNew">+ Phiếu mới</button>
+    </div>
+    <ul id="list" class="bk-items"></ul>
+    <p class="ni-muted bk-empty" id="listEmpty">Chưa có phiếu nào. Bấm <b>+ Phiếu mới</b> để bắt đầu.</p>
+  </section>
+
+  <div id="editor" hidden>
+    <div class="bk-bar">
+      <button class="ni-btn ghost small" type="button" id="btnBack">← Danh sách phiếu</button>
+      <span class="bk-saved ni-muted" id="saved" aria-live="polite"></span>
+      <button class="ni-btn small" type="button" id="btnDup">Nhân bản</button>
+      <button class="ni-btn primary small" type="button" id="btnExport">Xuất Excel</button>
+    </div>
+
+    <section class="ni-card" aria-labelledby="s1">
+      <h2 id="s1">1. Thông tin dự án &amp; thông số thang</h2>
+      <div class="bk-grid">
+        <label class="ni-field bk-wide">Tên dự án<input id="f_project" data-k="project" maxlength="200" autocomplete="off"></label>
+        <label class="ni-field bk-text">Địa điểm<input data-k="location" maxlength="200"></label>
+        <label class="ni-field bk-text">Số hợp đồng<input data-k="contract" maxlength="100"></label>
+        <label class="ni-field bk-text">Người khảo sát<input data-k="surveyor" maxlength="100"></label>
+        <label class="ni-field">Ngày khảo sát<input type="date" data-k="date"></label>
+        <label class="ni-field">Mã thang (Elevator ID)<input data-k="liftId" maxlength="60"></label>
+        <label class="ni-field">Chiều rộng giếng BS (mm)<input data-k="bs" inputmode="decimal"></label>
+        <label class="ni-field">Chiều sâu giếng TS (mm)<input data-k="ts" inputmode="decimal"></label>
+        <label class="ni-field">Tải trọng (kg)<input data-k="load" inputmode="decimal"></label>
+        <label class="ni-field">Số điểm dừng<input data-k="stops" inputmode="numeric"></label>
+      </div>
+    </section>
+
+    <section class="ni-card" aria-labelledby="s2">
+      <h2 id="s2">2. Thông số thiết kế &amp; loại bracket đặt hàng</h2>
+      <div class="bk-design">
+        <div class="bk-dcol">
+          <h3>Z Bracket <span class="ni-muted">· SF2</span></h3>
+          <label class="ni-field">Loại Z Bracket đặt hàng<select id="selZ" data-k="zBracket"></select></label>
+          <p class="bk-range" id="rangeZ"></p>
+          <label class="ni-field">SF2 theo bản vẽ (mm)<input data-k="sf2Design" inputmode="decimal"></label>
+          <p class="bk-check" id="checkZ" aria-live="polite"></p>
+        </div>
+        <div class="bk-dcol">
+          <h3>Omega Bracket <span class="ni-muted">· SG</span></h3>
+          <label class="ni-field">Loại Omega Bracket đặt hàng<select id="selO" data-k="oBracket"></select></label>
+          <p class="bk-range" id="rangeO"></p>
+          <label class="ni-field">SG theo bản vẽ (mm)<input data-k="sgDesign" inputmode="decimal"></label>
+          <p class="bk-check" id="checkO" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ni-card" aria-labelledby="s3">
+      <div class="bk-row">
+        <h2 id="s3">3. Thông số khảo sát thực tế</h2>
+        <span class="ni-muted bk-count" id="rowCount"></span>
+      </div>
+      <p class="ni-muted bk-hint">Mỗi dòng một vị trí (line / tầng). Nhập SF2 và SG đo thực tế (mm) — Enter ở ô SG để sang dòng sau.</p>
+      <div class="bk-tablewrap">
+        <table class="bk-table" id="tbl">
+          <thead><tr><th class="bk-n">STT</th><th>Vị trí (Line)</th><th class="bk-num">SF2 (mm)</th><th>Kết quả Z Bracket</th><th class="bk-num">SG (mm)</th><th>Kết quả Omega Bracket</th><th class="bk-act"><span class="sr-only">Xóa</span></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <button class="ni-btn bk-add" type="button" id="btnAddRow">+ Thêm vị trí</button>
+    </section>
+
+    <section class="ni-card" aria-labelledby="s4">
+      <h2 id="s4">4. Kết luận</h2>
+      <div class="bk-tiles" id="tiles"></div>
+      <dl class="bk-sum" id="sum"></dl>
+    </section>
+
+    <details class="ni-card bk-ref">
+      <summary><h2>Bảng dung sai bracket</h2></summary>
+      <div class="bk-refgrid">
+        <div><h3>Z Bracket — SFmin / SFmax (mm)</h3><table class="ni-table bk-reft" id="refZ"></table></div>
+        <div><h3>Omega Bracket — SGmin / SGmax (mm)</h3><table class="ni-table bk-reft" id="refO"></table></div>
+      </div>
+    </details>
+
+    <!-- điện thoại: thanh dưới luôn hiện để xuất Excel không phải cuộn -->
+    <div class="bk-sticky" role="region" aria-label="Thao tác nhanh">
+      <span id="stickyInfo" class="bk-sinfo"></span>
+      <button class="ni-btn primary" type="button" id="btnExport3">Xuất Excel</button>
+    </div>
+    <div class="bk-bar bk-bottom">
+      <button class="ni-btn danger small" type="button" id="btnDelete">Xóa phiếu</button>
+      <button class="ni-btn primary" type="button" id="btnExport2">Xuất Excel</button>
+    </div>
+  </div>
+</main>
+<div class="ni-toast" id="toast" role="status" hidden></div>
+</body>
+</html>

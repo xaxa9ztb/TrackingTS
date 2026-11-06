@@ -31,7 +31,7 @@
   if (!document.querySelector('link[href*="css/ni.css"]')) {
     var css = document.createElement('link');
     css.rel = 'stylesheet';
-    css.href = new URL('../css/ni.css?v=1', script.src).href;
+    css.href = new URL('../css/ni.css?v=2', script.src).href;
     document.head.insertBefore(css, document.head.firstChild);
   }
 

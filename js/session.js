@@ -33,7 +33,8 @@ const Session = (() => {
     handover: { name: 'Hồ sơ bàn giao NI – EI', soon: true, ...PM_TEAM },
     ffplus: { name: 'Hồ sơ FF+', soon: true, ...PM_TEAM },
     projectplan: { name: 'Quản lý dự án', path: 'tools/projectplan/', demo: true, ...PM_TEAM }, // bản demo
-    leave: { name: 'Nghỉ phép / ốm', path: 'tools/leave/', serverOnly: true },       // mọi nhân viên; chỉ có ở bản máy chủ
+    leave: { name: 'Nghỉ phép / ốm', path: 'tools/leave/', serverOnly: true },
+    bracket: { name: 'Khảo sát Bracket hố thang', path: 'tools/bracket/' },        // mọi người dùng (fitter, giám sát, quản lý)       // mọi nhân viên; chỉ có ở bản máy chủ
     approvals: { name: 'Duyệt bảng công', path: 'tools/approvals/', serverOnly: true, roles: ['pm', 'sitesup', 'projadmin'], rolesLabel: 'Quản lý dự án, Site Sup và Admin dự án' },       // chỉ có ở bản máy chủ
     materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
     tsupload: { name: 'Nhập bảng công từ Excel', path: 'tools/tsupload/', serverOnly: true, roles: ['pm', 'sitesup', 'projadmin'], rolesLabel: 'Site Sup, Quản lý dự án và Admin dự án' },
