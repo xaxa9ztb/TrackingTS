@@ -8,7 +8,7 @@
 <title>Hướng dẫn sử dụng — Bộ công cụ dự án</title>
 <meta name="description" content="Hướng dẫn sử dụng Bộ công cụ dự án cho Fitter, Giám sát (Site Sup), Quản lý dự án và Quản trị viên: chấm công, nộp và duyệt bảng công, hồ sơ chất lượng, điều phối nhân sự.">
 <meta name="theme-color" content="#0f1b2d">
-<link rel="stylesheet" href="css/ni.css?v=1">
+<link rel="stylesheet" href="css/ni.css?v=2">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -248,6 +248,7 @@
             <li><a href="#ql-tiendo">Bảng tiến độ thi công</a></li>
           </ol></li>
         <li class="grp"><a href="#quantri"><span class="sw" style="--c: var(--c-admin)"></span>5. Quản trị viên</a></li>
+        <li class="grp"><a href="#bracket"><span class="sw" style="--c: #4d7c0f"></span>Khảo sát Bracket hố thang</a></li>
         <li class="grp"><a href="#hoidap"><span class="sw" style="--c: #9ca3af"></span>6. Hỏi đáp &amp; sự cố</a></li>
       </ol>
     </details>
@@ -684,6 +685,27 @@
       <li><b>Phân công dự án</b>: chọn Site Sup và Quản lý dự án cho từng dự án — quyết định ai duyệt bảng công của dự án đó.</li>
       <li>Người nghỉ việc: <b>khoá tài khoản</b> (không xoá) để giữ lịch sử.</li>
     </ol>
+  </section>
+
+  <!-- =============================== Khảo sát Bracket =============================== -->
+  <section class="part" id="bracket" style="--c: #4d7c0f">
+    <h2><span class="ic" aria-hidden="true">📐</span>Khảo sát Bracket hố thang (mọi người)</h2>
+    <p>Trang chủ → <i>Khảo sát Bracket hố thang</i>. Dùng trước khi đặt hàng để kiểm tra Z Bracket (số đo <b>SF2</b>) và Omega Bracket (số đo <b>SG</b>) tại từng vị trí trong hố thang. Fitter, giám sát, quản lý đều dùng được; phiếu lưu trên máy của bạn.</p>
+    <ol class="steps">
+      <li><span class="btnlike">+ Phiếu mới</span> → điền <b>1. Thông tin dự án &amp; thông số thang</b> (tên dự án, mã thang, BS, TS…).</li>
+      <li><b>2. Bracket đặt hàng</b>: chọn loại Z Bracket và Omega Bracket, nhập SF2 / SG theo bản vẽ — app báo <i>Phù hợp</i> hay <i>KHÔNG phù hợp</i> với bracket đã chọn.</li>
+      <li><b>3. Khảo sát thực tế</b>: mỗi dòng một vị trí (line / tầng), nhập SF2 và SG đo được (Enter ở ô SG để sang dòng sau, tối đa 30 vị trí). Kết quả hiện ngay bên cạnh.</li>
+      <li><b>4. Kết luận</b> tự đếm: số vị trí đạt, cần đệm / đục, cần đổi bracket, cần chỉnh sửa hố thang.</li>
+      <li><span class="btnlike">Xuất Excel</span> → file theo mẫu <i>Phiếu khảo sát trước khi đặt hàng</i> (giữ công thức, màu, danh sách chọn). <span class="btnlike">Nhân bản</span> để làm phiếu thang tiếp theo cùng dự án.</li>
+    </ol>
+    <p><b>Cách đánh giá mỗi số đo</b> (theo thứ tự):</p>
+    <ul>
+      <li><span class="chip green">Đạt</span> nằm trong [min, max] của bracket đã đặt.</li>
+      <li>Vượt max ≤ 10 mm → <b>Đệm bản mã 10mm</b>; nhỏ hơn min ≤ 10 mm → <b>Đục tỉa chân bracket</b> — xử lý tại công trường, không cần đổi bracket.</li>
+      <li>Lệch &gt; 10 mm → <b>Đề xuất</b> bracket khác chứa số đo (dải hẹp nhất; không có thì gần nhất). Z Bracket chỉ đề xuất <b>cùng dòng</b> (AL / CL / CHL / CH) với loại đã đặt; Omega đề xuất trong cả danh mục.</li>
+      <li>Ngoài dải của toàn bộ bracket (Z: cả dòng đã đặt; Omega: cả danh mục) → <b>KHÔNG PHÙ HỢP — cần chỉnh sửa hố thang</b>.</li>
+    </ul>
+    <p class="note warn">Dung sai theo J_45350713 (Z Bracket, ES1 &amp; ES5.0, SC-AP) và J_44928432 (Omega, Family A &amp; B). Đối chiếu bản gốc trước khi quyết định đổi bracket chính thức.</p>
   </section>
 
   <!-- =============================== 6. HỎI ĐÁP =============================== -->
