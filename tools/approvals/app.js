@@ -47,7 +47,7 @@
       const r = await api('GET', '/api/ts/inbox');
       body.innerHTML = r.items.map(i => `<tr data-emp="${esc(i.empId)}" data-period="${esc(i.period)}">
           <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)} · ${esc(i.position)}</div></td>
-          <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}</td>
+          <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}${i.amend ? `<div><span class="pill amend" title="${esc(i.amend.note)}">Điều chỉnh lần ${esc(i.amend.rev)}</span></div>` : ''}</td>
           <td>${esc(LEVEL_LABEL[i.level])}${i.level === 'pm' && i.sitesupBy ? `<div class="ac-note">Site Sup: ${esc(i.sitesupBy)}</div>` : ''}${i.level === 'pm' && !i.sitesupBy ? '<div class="ac-note">Giám sát nộp thẳng (chỉ giờ OT)</div>' : ''}</td>
           <td class="mono">${esc(i.wbs.join(', ') || '—')}${i.level !== 'admin' && i.approvedBy && i.approvedBy.length ? `<div class="ac-note">đã duyệt: ${esc(i.approvedBy.join(', '))} · còn: ${esc((i.remaining || []).join(', '))}</div>` : ''}${i.level === 'admin' ? '<div class="ac-note">hoạt động ngoài dự án do Admin xử lý</div>' : ''}</td>
           <td class="r">${i.entries}</td>
@@ -150,6 +150,9 @@
       + (doc.sitesupBy ? ` · Site Sup <b>${esc(doc.sitesupBy)}</b> đã duyệt lúc ${esc(fmtTime(doc.sitesupAt))}` : '');
 
     let normal = 0, ot = 0; const days = new Set(), leaveDays = new Set(), projects = new Map(), mismatches = [];
+    // bản điều chỉnh: các ngày khác bản trước (đã duyệt / đã nộp) — tô xanh + liệt kê trước / sau
+    const amendDiff = doc.amend && doc.base ? TsSync.diffDocs(doc.base, doc.data) : [];
+    const changedDays = new Set(amendDiff.map(d => d.date));
     const rows = entries.map(e => {
       const bd = e.bd || {}, h = Object.values(bd).reduce((s, v) => s + (+v || 0), 0);
       const leave = isLeave(e);
@@ -167,7 +170,7 @@
       const diff = [...keys].some(k => Math.abs((+bd[k] || 0) - (+re[k] || 0)) > 0.11);
       if (diff) mismatches.push(e.date);
       const pills = Object.keys(bd).filter(k => bd[k] > 0).map(k => `<span class="pill ${k === 'NORMAL' ? '' : 'ot'}">${k === 'NORMAL' ? 'Thường' : k} ${fmtH(bd[k])}</span>`).join('');
-      return `<tr class="${diff ? 'bad' : ''}"><td>${esc(WEEKDAYS[dow(e.date)])} ${esc(fmtDM(e.date))}</td>
+      return `<tr class="${diff ? 'bad' : changedDays.has(e.date) ? 'chg' : ''}"><td>${esc(WEEKDAYS[dow(e.date)])} ${esc(fmtDM(e.date))}${changedDays.has(e.date) ? '<div class="ac-note chg-tag">đã điều chỉnh</div>' : ''}</td>
         <td>${esc(e.startTime)}–${esc(e.endTime)}${+e.breakTime ? `<div class="ac-note">nghỉ ${esc(e.breakTime)}h</div>` : ''}</td>
         <td class="r"><b>${fmtH(h)}</b></td><td>${pills}</td><td class="mono">${esc(e.activityCode)}</td>
         <td>${esc(e.projectName || '—')} <span class="mono">${esc(e.workNumber || '')}</span>${e.remarks ? `<div class="ac-note">${esc(e.remarks)}</div>` : ''}${e.report ? `<div class="rep">📝 ${esc(e.report)}</div>` : ''}</td></tr>`;
@@ -180,6 +183,15 @@
 
     // cảnh báo: ngày làm việc chưa chấm, phân loại giờ khác bản tính lại
     const flags = [];
+    if (doc.amend) {
+      const label = { added: 'thêm ngày', removed: 'bỏ ngày', changed: 'sửa' };
+      const list = amendDiff.map(d => `<li><b>${esc(WEEKDAYS[dow(d.date)])} ${esc(fmtDM(d.date))}</b> — ${label[d.kind]}${d.before.length ? `<div class="ac-note"><s>${esc(d.before.join('; '))}</s></div>` : ''}${d.after.length ? `<div>${esc(d.after.join('; '))}</div>` : ''}</li>`).join('');
+      const allowTxt = doc.base && TsSync.allowChanged(doc.base, doc.data) ? `<li><b>Phụ cấp xe</b> thay đổi: ${money(TsAllowance.compute(doc.base.entries || [], doc.base.allow, periodRange(period)).totals.amount)} đ → ${money(TsAllowance.compute(doc.data.entries || [], doc.data.allow, periodRange(period)).totals.amount)} đ</li>` : '';
+      const since = doc.amend.since && doc.amend.since > periodRange(period).start ? doc.amend.since : '';
+      flags.push(`<div class="ap-flag amend" id="dAmend">✎ <b>Bảng công ĐIỀU CHỈNH lần ${esc(doc.amend.rev)}</b> (sửa sau khi ${doc.amend.from === 'approved' ? 'đã duyệt xong' : 'đã nộp'}${since ? `; chỉ các ngày từ ${esc(fmtDM(since))} — ngày nộp — đến ${esc(fmtDM(periodRange(period).end))}` : ''}) — lý do: <b>${esc(doc.amend.note)}</b>.`
+        + (list || allowTxt ? ` Thay đổi so với bản ${doc.amend.from === 'approved' ? 'đã duyệt' : 'trước'} (dòng tô xanh):<ul class="amend-list">${list}${allowTxt}</ul>` : ' Không có ngày nào thay đổi so với bản trước.')
+        + (doc.amend.from === 'approved' ? '<div class="ac-note">Duyệt xong, bảng Theo dõi giờ công được thay bằng bản điều chỉnh này.</div>' : '') + '</div>');
+    }
     const { start, end } = periodRange(period);
     const have = new Set(entries.map(e => e.date)), missing = [];
     for (let d = start; d <= end; d = addDay(d, 1)) if (isWorkday(d, sch) && !have.has(d)) missing.push(d);

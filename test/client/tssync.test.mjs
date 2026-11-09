@@ -191,3 +191,28 @@ test('đồng bộ: phụ cấp xe đi cùng bảng công của kỳ, sang đư�
   await phone.run();
   assert.deepEqual(srv.log, ['GET /api/ts/docs'], 'không đổi thì không gửi lại');
 });
+
+test('diffDocs: chỉ liệt kê ngày thay đổi (thêm / bỏ / sửa), không phụ thuộc thứ tự dòng hay id', () => {
+  const e = (id, date, extra = {}) => ({ id, date, startTime: '07:30', endTime: '16:30', breakTime: '1', activityCode: '1110', workNumber: 'WA-1', projectName: 'A', u: 1, ...extra });
+  const base = { entries: [e(1, '2026-11-10'), e(2, '2026-11-11'), e(3, '2026-11-12'), e(4, '2026-11-12', { startTime: '17:00', endTime: '19:00', breakTime: '0' })] };
+  const cur = { entries: [
+    e(4, '2026-11-12', { startTime: '17:00', endTime: '19:00', breakTime: '0', u: 9 }), e(30, '2026-11-12'),   // cùng nội dung, khác thứ tự / id → không đổi
+    e(1, '2026-11-10', { bd: { NORMAL: 8 }, u: 5 }),                                                            // chỉ thêm phân loại giờ → không đổi
+    e(2, '2026-11-11', { workNumber: 'WB-2' }),                                                                  // đổi dự án
+    e(5, '2026-11-13'),                                                                                         // thêm ngày
+  ] };
+  const d = TsSync.diffDocs(base, cur);
+  assert.deepEqual(d.map(x => [x.date, x.kind]), [['2026-11-11', 'changed'], ['2026-11-13', 'added']]);
+  assert.deepEqual(d[0].before, ['07:30–16:30 (nghỉ 1h) · 1110 · WA-1']);
+  assert.deepEqual(d[0].after, ['07:30–16:30 (nghỉ 1h) · 1110 · WB-2']);
+  assert.deepEqual(TsSync.diffDocs(cur, base).map(x => [x.date, x.kind]), [['2026-11-11', 'changed'], ['2026-11-13', 'removed']]);
+  assert.deepEqual(TsSync.diffDocs(base, base), []);
+});
+
+test('allowChanged: bỏ qua thời điểm sửa (u)', () => {
+  const a = { allow: { rows: [{ id: 1, type: 'fuel', wbs: 'WA-1', from: '2026-11-01', to: '2026-11-10', u: 1 }], u: 1 } };
+  const b = { allow: { rows: [{ id: 1, type: 'fuel', wbs: 'WA-1', from: '2026-11-01', to: '2026-11-10', u: 7 }], u: 7 } };
+  assert.equal(TsSync.allowChanged(a, b), false);
+  assert.equal(TsSync.allowChanged(a, { allow: { rows: [{ ...b.allow.rows[0], to: '2026-11-12' }] } }), true);
+  assert.equal(TsSync.allowChanged({}, {}), false);
+});

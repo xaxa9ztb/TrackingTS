@@ -814,6 +814,7 @@ function App() {
   const [docStatuses, setDocStatuses] = useState({});
   const [docNotes, setDocNotes] = useState({});
   const [docAdmin, setDocAdmin] = useState({}); // { period: {by, at, note} } — lần sửa gần nhất của quản trị viên
+  const [docAmend, setDocAmend] = useState({}); // { period: {rev, from, note, at} | null } — đang điều chỉnh bảng công đã nộp / đã duyệt
   const [submitting, setSubmitting] = useState(false);
   const entriesRef = useRef([]);
   // Phụ cấp xe theo kỳ: { 'YYYY-MM': { rows, u } } — trên máy + đồng bộ cùng bảng công của kỳ (tssync.js)
@@ -977,6 +978,10 @@ function App() {
     if (r.admin) setDocAdmin(prev => ({
       ...prev,
       ...r.admin
+    }));
+    if (r.amend) setDocAmend(prev => ({
+      ...prev,
+      ...r.amend
     }));
     setSyncInfo(r.ok ? {
       state: 'ok',
@@ -1167,14 +1172,25 @@ function App() {
     setDayFilter(null);
   };
   const closeDrawer = () => setDrawer(null);
-  const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên không sửa được. Cần sửa thì nhờ giám sát trả lại bảng công.');
+
+  // đang điều chỉnh: chỉ sửa được các ngày từ ngày nộp (lần đầu) đến hết kỳ — các ngày đã chấm trước
+  const amendNow = SERVER && (periodStatus === 'draft' || periodStatus === 'rejected') ? docAmend[currentMonth] : null;
+  const amendSince = amendNow && amendNow.since && amendNow.since > period.start ? amendNow.since : '';
+  const beforeSince = d => !!amendSince && !!d && d < amendSince && TsSync.periodOf(d) === currentMonth;
+  const sinceMsg = () => showToast(`Đang điều chỉnh: chỉ sửa được các ngày từ ${fmtDM(amendSince)} (ngày nộp bảng công) đến ${fmtDM(period.end)}. Ngày trước đó đã chấm theo thực tế lúc nộp — cần sửa thì liên hệ giám sát / Admin.`);
+  const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên đang khoá. Thực tế khác so với đã chấm thì bấm "Điều chỉnh bảng công" (ở thanh trạng thái kỳ) để sửa lại rồi nộp duyệt lại.', SERVER && TsSync.AMENDABLE.includes(periodStatus) ? {
+    label: 'Điều chỉnh',
+    run: () => openAmend()
+  } : undefined);
   const openNewEntry = date => {
     if (locked) return lockedMsg();
+    if (beforeSince(date)) return sinceMsg();
     let d = date;
     if (!d) {
       // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
       d = getTodayLocal();
       if (entries.length > 0) d = addDaysLocal(entries.reduce((a, b) => b.date > a.date ? b : a).date, 1);
+      if (beforeSince(d)) d = amendSince;
     }
     setDrawer({
       type: 'form',
@@ -1185,6 +1201,7 @@ function App() {
   };
   const openEdit = entry => {
     if (locked) return lockedMsg();
+    if (beforeSince(entry.date)) return sinceMsg();
     setDrawer({
       type: 'form',
       entry,
@@ -1205,6 +1222,7 @@ function App() {
       ...data
     } = formData; // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
     // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+    if (beforeSince(data.date)) return sinceMsg();
     const dates = !editing && rangeTo && rangeTo > data.date ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
     if (dates) {
       if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
@@ -1255,6 +1273,7 @@ function App() {
   };
   const handleDelete = entry => {
     if (locked) return lockedMsg();
+    if (beforeSince(entry.date)) return sinceMsg();
     setEntries(prev => prev.filter(e => e.id !== entry.id));
     if (SERVER) {
       TsSync.markDeleted(entry);
@@ -1322,13 +1341,13 @@ function App() {
       if (r.status === 200) {
         setDocStatuses(prev => ({
           ...prev,
-          [currentMonth]: 'submitted'
+          [currentMonth]: r.data.status || 'submitted'
         }));
         setDocNotes(prev => ({
           ...prev,
           [currentMonth]: ''
         }));
-        showToast('Đã nộp bảng công cho giám sát.');
+        showToast(docAmend[currentMonth] ? 'Đã nộp bản điều chỉnh — sau khi Site Sup, QLDA và Admin duyệt, dữ liệu chấm công sẽ được cập nhật.' : 'Đã nộp bảng công cho giám sát.');
       } else if (r.status === 409) showToast(r.data.error || 'Bảng công vừa thay đổi — thử nộp lại.');else alert('Không nộp được: ' + (r.data.error || 'lỗi máy chủ ' + r.status));
     } catch (err) {
       showToast(err && err.offline ? 'Mất mạng — chưa nộp được. Thử lại khi có mạng.' : 'Không nộp được: ' + (err.message || err));
@@ -1346,9 +1365,87 @@ function App() {
           [currentMonth]: 'draft'
         }));
         showToast('Đã thu hồi bảng công — sửa xong nhớ nộp lại.');
-      } else showToast(r.data.error || 'Không thu hồi được.');
+      } else if (r.status === 409) showToast((r.data.error || 'Không thu hồi được.') + ' Có thể bấm "Điều chỉnh bảng công" để sửa lại rồi nộp duyệt lại.', {
+        label: 'Điều chỉnh',
+        run: () => openAmend()
+      });else showToast(r.data.error || 'Không thu hồi được.');
     } catch (err) {
       showToast('Không thu hồi được: ' + (err.message || err));
+    }
+  };
+  // ----- điều chỉnh bảng công đã nộp / đã duyệt: chấm trước các ngày cuối kỳ nhưng thực tế khác → sửa lại đúng thực tế,
+  // nộp lại qua Site Sup → QLDA → Admin; duyệt xong máy chủ thay dữ liệu Theo dõi giờ công bằng bản điều chỉnh -----
+  const openAmend = () => {
+    if (SERVER) setDrawer({
+      type: 'amend',
+      key: Date.now()
+    });
+  };
+  const doAmend = async reason => {
+    try {
+      const r = await TsSync.amend(currentMonth, reason);
+      if (r.status === 200) {
+        setDocStatuses(prev => ({
+          ...prev,
+          [currentMonth]: 'draft'
+        }));
+        setDocNotes(prev => ({
+          ...prev,
+          [currentMonth]: ''
+        }));
+        setDocAmend(prev => ({
+          ...prev,
+          [currentMonth]: {
+            rev: r.data.amendRev,
+            from: r.data.amendFrom,
+            note: r.data.amendNote,
+            at: r.data.amendAt,
+            since: r.data.amendSince || ''
+          }
+        }));
+        setDrawer(null);
+        const sc = r.data.amendSince && r.data.amendSince > period.start ? r.data.amendSince : '';
+        showToast(`Đã mở lại bảng công để điều chỉnh — sửa ${sc ? `các ngày từ ${fmtDM(sc)} đến ${fmtDM(period.end)}` : 'các ngày'} cho đúng thực tế rồi bấm "Nộp bảng công".`);
+        return '';
+      }
+      return r.data.error || 'Lỗi máy chủ ' + r.status;
+    } catch (err) {
+      return err && err.offline ? 'Mất mạng — cần có mạng để điều chỉnh.' : err.message || String(err);
+    }
+  };
+  const handleCancelAmend = async () => {
+    const a = docAmend[currentMonth];
+    if (!a || !confirm(`Huỷ điều chỉnh và khôi phục bảng công như lúc ${a.from === 'approved' ? 'đã duyệt xong' : 'đã nộp'}? Mọi thay đổi trong lần điều chỉnh này sẽ bị bỏ.`)) return;
+    try {
+      const r = await TsSync.cancelAmend(currentMonth);
+      if (r.status !== 200) return showToast(r.data.error || 'Không huỷ được điều chỉnh.');
+      const doc = r.data.doc || {
+        entries: []
+      };
+      setEntries(prev => {
+        const next = [...prev.filter(e => TsSync.periodOf(e.date) !== currentMonth), ...(doc.entries || [])];
+        entriesRef.current = next;
+        return next;
+      });
+      setAllowAll(prev => {
+        const n = {
+          ...prev
+        };
+        if (doc.allow) n[currentMonth] = doc.allow;else delete n[currentMonth];
+        allowRef.current = n;
+        return n;
+      });
+      setDocStatuses(prev => ({
+        ...prev,
+        [currentMonth]: r.data.status
+      }));
+      setDocAmend(prev => ({
+        ...prev,
+        [currentMonth]: null
+      }));
+      showToast(r.data.status === 'approved' ? 'Đã huỷ điều chỉnh — bảng công trở lại bản đã duyệt xong.' : 'Đã huỷ điều chỉnh — bảng công trở lại bản trước khi điều chỉnh.');
+    } catch (err) {
+      showToast(err && err.offline ? 'Mất mạng — thử lại khi có mạng.' : 'Không huỷ được: ' + (err.message || err));
     }
   };
 
@@ -1701,6 +1798,9 @@ function App() {
     month: currentMonth,
     period: period,
     lead: IS_LEAD,
+    amend: docAmend[currentMonth] || null,
+    onAmend: openAmend,
+    onCancelAmend: handleCancelAmend,
     onRetry: runSync,
     onSubmit: handleSubmit,
     onWithdraw: handleWithdraw
@@ -1896,10 +1996,25 @@ function App() {
     ot: otView,
     lead: IS_LEAD,
     leadNormal: leadNormal,
+    amend: docAmend[currentMonth] || null,
+    entries: monthlyEntries,
+    allow: allow,
     onSubmit: doSubmit,
     onCancel: closeDrawer,
     onAddAllowance: () => openAllowance(null),
     onEditAllowance: openAllowance
+  })), drawer && drawer.type === 'amend' && /*#__PURE__*/React.createElement(Drawer, {
+    title: "\u0110i\u1EC1u ch\u1EC9nh b\u1EA3ng c\xF4ng",
+    onClose: closeDrawer
+  }, /*#__PURE__*/React.createElement(AmendPanel, {
+    key: drawer.key,
+    month: currentMonth,
+    period: period,
+    status: periodStatus,
+    amend: docAmend[currentMonth] || null,
+    lead: IS_LEAD,
+    onConfirm: doAmend,
+    onCancel: closeDrawer
   })), drawer && drawer.type === 'dailyMail' && /*#__PURE__*/React.createElement(Drawer, {
     title: "G\u1EEDi b\xE1o c\xE1o thi c\xF4ng trong ng\xE0y",
     onClose: closeDrawer
@@ -1952,6 +2067,9 @@ function SyncBar({
   month,
   period,
   lead,
+  amend,
+  onAmend,
+  onCancelAmend,
   onRetry,
   onSubmit,
   onWithdraw
@@ -1964,7 +2082,7 @@ function SyncBar({
     deadline = `${month}-12`;
   const daysLeft = Math.round((parseLocal(deadline) - parseLocal(today)) / 864e5);
   const open = status === 'draft' || status === 'rejected';
-  const remind = open && today >= period.start && daysLeft <= 3 ? daysLeft < 0 ? {
+  const remind = open && !amend && today >= period.start && daysLeft <= 3 ? daysLeft < 0 ? {
     tone: 'rose',
     text: `⚠ Đã quá hạn nộp bảng công (hạn ${fmtDM(deadline)}). Nộp ngay để giám sát kịp duyệt.`
   } : {
@@ -1982,12 +2100,29 @@ function SyncBar({
   }, /*#__PURE__*/React.createElement("span", {
     id: "tsPeriodStatus",
     className: `inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`
-  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", STATUS_LABEL[status] || status), (status === 'submitted' || lead && status === 'sitesup_ok') && /*#__PURE__*/React.createElement("button", {
+  }, "K\u1EF3 ", parseInt(m, 10), "/", y, ": ", amend && status === 'draft' ? 'Đang điều chỉnh' : STATUS_LABEL[status] || status), amend && /*#__PURE__*/React.createElement("span", {
+    id: "tsAmendTag",
+    className: "inline-flex items-center h-7 px-3 rounded-full border border-blue-200 bg-blue-50 text-blue-800 text-sm font-medium",
+    title: `Lý do: ${amend.note}`
+  }, "\u0110i\u1EC1u ch\u1EC9nh l\u1EA7n ", amend.rev), (status === 'submitted' || lead && status === 'sitesup_ok') && /*#__PURE__*/React.createElement("button", {
     id: "tsWithdrawBtn",
     type: "button",
     onClick: onWithdraw,
     className: btnGhost
-  }, "Thu h\u1ED3i \u0111\u1EC3 s\u1EEDa"), (status === 'draft' || status === 'rejected') && /*#__PURE__*/React.createElement("button", {
+  }, "Thu h\u1ED3i \u0111\u1EC3 s\u1EEDa"), TsSync.AMENDABLE.includes(status) && !(status === 'submitted' || lead && status === 'sitesup_ok') && /*#__PURE__*/React.createElement("button", {
+    id: "tsAmendBtn",
+    type: "button",
+    onClick: onAmend,
+    disabled: info.state === 'offline',
+    className: btnGhost,
+    title: "Ch\u1EA5m tr\u01B0\u1EDBc nh\u01B0ng th\u1EF1c t\u1EBF kh\xE1c? M\u1EDF l\u1EA1i b\u1EA3ng c\xF4ng \u0111\u1EC3 s\u1EEDa \u0111\xFAng th\u1EF1c t\u1EBF r\u1ED3i n\u1ED9p duy\u1EC7t l\u1EA1i"
+  }, "\u270E \u0110i\u1EC1u ch\u1EC9nh b\u1EA3ng c\xF4ng"), amend && (status === 'draft' || status === 'rejected') && /*#__PURE__*/React.createElement("button", {
+    id: "tsAmendCancel",
+    type: "button",
+    onClick: onCancelAmend,
+    disabled: info.state === 'offline',
+    className: "text-sm font-semibold text-slate-600 hover:text-slate-900 underline-offset-2 hover:underline"
+  }, "Hu\u1EF7 \u0111i\u1EC1u ch\u1EC9nh"), (status === 'draft' || status === 'rejected') && /*#__PURE__*/React.createElement("button", {
     id: "tsSubmitBtn",
     type: "button",
     onClick: onSubmit,
@@ -1996,7 +2131,10 @@ function SyncBar({
     title: info.state === 'offline' ? 'Cần có mạng để nộp' : 'Nộp bảng công của kỳ này cho giám sát duyệt'
   }, submitting ? 'Đang nộp…' : 'Nộp bảng công'), TsSync.LOCKED.includes(status) && /*#__PURE__*/React.createElement("span", {
     className: "text-sm text-slate-600"
-  }, status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : 'Không sửa được trong lúc chờ duyệt.'), status === 'rejected' && note && /*#__PURE__*/React.createElement("span", {
+  }, status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : amend ? 'Bản điều chỉnh đang chờ duyệt — Theo dõi giờ công vẫn giữ bản đã duyệt trước đó.' : 'Không sửa được trong lúc chờ duyệt.'), amend && (status === 'draft' || status === 'rejected') && /*#__PURE__*/React.createElement("span", {
+    id: "tsAmendNote",
+    className: "text-sm text-blue-800"
+  }, "\u0110ang \u0111i\u1EC1u ch\u1EC9nh \u2014 ", amend.note, ".", amend.since && amend.since > period.start ? /*#__PURE__*/React.createElement(React.Fragment, null, " Ch\u1EC9 s\u1EEDa \u0111\u01B0\u1EE3c c\xE1c ng\xE0y ", /*#__PURE__*/React.createElement("b", null, "t\u1EEB ", fmtDM(amend.since), " \u0111\u1EBFn ", fmtDM(period.end)), " (t\u1EEB ng\xE0y n\u1ED9p).") : null, " S\u1EEDa xong b\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "N\u1ED9p b\u1EA3ng c\xF4ng"), amend.from === 'approved' ? '; Theo dõi giờ công giữ bản đã duyệt cho tới khi bản điều chỉnh được duyệt xong' : '', "."), status === 'rejected' && note && /*#__PURE__*/React.createElement("span", {
     id: "tsRejectNote",
     className: "text-sm text-rose-700 font-medium"
   }, "L\xFD do tr\u1EA3 l\u1EA1i \u2014 ", note), remind && /*#__PURE__*/React.createElement("span", {
@@ -2433,6 +2571,124 @@ function AllowanceForm({
 }
 
 // Xác nhận nộp bảng công: tổng giờ của kỳ + phụ cấp xe nộp kèm
+// Các ngày thay đổi so với bản trước khi điều chỉnh (tải bản đó từ máy chủ khi mở bảng Nộp)
+function useAmendDiff(month, amend, entries, allow) {
+  const [base, setBase] = useState(null);
+  useEffect(() => {
+    if (!amend) return;
+    let off = false;
+    TsSync.request('GET', '/api/ts/docs/' + month + '?base=1').then(r => {
+      if (!off && r.status === 200 && r.data.base) setBase(r.data.base);
+    }).catch(() => {});
+    return () => {
+      off = true;
+    };
+  }, [month, amend && amend.rev]);
+  return useMemo(() => base ? {
+    days: TsSync.diffDocs(base, {
+      entries
+    }),
+    allow: TsSync.allowChanged(base, {
+      allow
+    })
+  } : null, [base, entries, allow]);
+}
+function AmendDiff({
+  diff
+}) {
+  if (!diff) return /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-sm text-slate-500"
+  }, "\u0110ang so v\u1EDBi b\u1EA3n tr\u01B0\u1EDBc\u2026");
+  if (!diff.days.length && !diff.allow) return /*#__PURE__*/React.createElement("p", {
+    className: "mt-1 text-sm text-amber-800"
+  }, "Ch\u01B0a c\xF3 ng\xE0y n\xE0o thay \u0111\u1ED5i so v\u1EDBi b\u1EA3n tr\u01B0\u1EDBc.");
+  const label = {
+    added: 'thêm',
+    removed: 'bỏ',
+    changed: 'sửa'
+  };
+  return /*#__PURE__*/React.createElement("ul", {
+    id: "tsAmendDiff",
+    className: "mt-1 text-sm space-y-1"
+  }, diff.days.slice(0, 20).map(d => /*#__PURE__*/React.createElement("li", {
+    key: d.date
+  }, /*#__PURE__*/React.createElement("b", null, WEEKDAYS[weekdayOf(d.date)], " ", fmtDM(d.date)), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-semibold uppercase text-blue-700"
+  }, label[d.kind]), d.before.length > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "block text-slate-500 line-through"
+  }, d.before.join('; ')), d.after.length > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "block text-slate-800"
+  }, d.after.join('; ')))), diff.days.length > 20 && /*#__PURE__*/React.createElement("li", {
+    className: "text-slate-500"
+  }, "\u2026 v\xE0 ", diff.days.length - 20, " ng\xE0y kh\xE1c"), diff.allow && /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("b", null, "Ph\u1EE5 c\u1EA5p xe"), " c\xF3 thay \u0111\u1ED5i"));
+}
+function AmendPanel({
+  month,
+  period,
+  status,
+  amend,
+  lead,
+  onConfirm,
+  onCancel
+}) {
+  const [y, m] = month.split('-');
+  const [reason, setReason] = useState(amend ? amend.note : '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const go = async ev => {
+    ev.preventDefault();
+    if (reason.trim().length < 3) {
+      setErr('Ghi rõ lý do điều chỉnh (vd. "Ngày 12–15 thực tế làm dự án khác").');
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    const e = await onConfirm(reason.trim());
+    setBusy(false);
+    if (e) setErr(e);
+  };
+  return /*#__PURE__*/React.createElement("form", {
+    onSubmit: go,
+    className: "px-5 py-5 space-y-4"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm"
+  }, "B\u1EA3ng c\xF4ng k\u1EF3 ", /*#__PURE__*/React.createElement("b", null, parseInt(m, 10), "/", y), " (", fmtDMY(period.start), " \u2013 ", fmtDMY(period.end), ") \u0111ang \u1EDF tr\u1EA1ng th\xE1i ", /*#__PURE__*/React.createElement("b", null, STATUS_LABEL[status] || status), "."), /*#__PURE__*/React.createElement("ol", {
+    className: "text-sm text-slate-700 list-decimal pl-5 space-y-1"
+  }, /*#__PURE__*/React.createElement("li", null, "B\u1EA3ng c\xF4ng ", /*#__PURE__*/React.createElement("b", null, "m\u1EDF l\u1EA1i \u0111\u1EC3 s\u1EEDa"), " \u2014 s\u1EEDa / th\xEAm / xo\xE1 c\xE1c ng\xE0y ", /*#__PURE__*/React.createElement("b", null, "\u0111\xE3 ch\u1EA5m tr\u01B0\u1EDBc"), " cho ", /*#__PURE__*/React.createElement("b", null, "\u0111\xFAng th\u1EF1c t\u1EBF"), ": ch\u1EC9 c\xE1c ng\xE0y ", /*#__PURE__*/React.createElement("b", null, "t\u1EEB ng\xE0y b\u1EA1n b\u1EA5m n\u1ED9p \u0111\u1EBFn h\u1EBFt k\u1EF3 (", fmtDM(period.end), ")"), ". Ng\xE0y tr\u01B0\u1EDBc ng\xE0y n\u1ED9p kh\xF4ng s\u1EEDa \u0111\u01B0\u1EE3c (c\u1EA7n s\u1EEDa th\xEC li\xEAn h\u1EC7 gi\xE1m s\xE1t / Admin)."), /*#__PURE__*/React.createElement("li", null, "B\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "N\u1ED9p b\u1EA3ng c\xF4ng"), ": b\u1EA3n \u0111i\u1EC1u ch\u1EC9nh \u0111i l\u1EA1i ", lead ? 'Quản lý dự án → Admin' : 'Site Sup → Quản lý dự án → Admin', " (ng\u01B0\u1EDDi duy\u1EC7t th\u1EA5y r\xF5 ng\xE0y n\xE0o thay \u0111\u1ED5i)."), /*#__PURE__*/React.createElement("li", null, "Duy\u1EC7t xong, d\u1EEF li\u1EC7u ch\u1EA5m c\xF4ng trong \u1EE9ng d\u1EE5ng (Theo d\xF5i gi\u1EDD c\xF4ng) \u0111\u01B0\u1EE3c ", /*#__PURE__*/React.createElement("b", null, "c\u1EADp nh\u1EADt theo b\u1EA3n \u0111i\u1EC1u ch\u1EC9nh"), ".")), status === 'approved' && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm rounded-lg bg-slate-50 border border-slate-200 px-3 py-2"
+  }, "Trong l\xFAc \u0111i\u1EC1u ch\u1EC9nh, Theo d\xF5i gi\u1EDD c\xF4ng v\u1EABn gi\u1EEF b\u1EA3n \u0111\xE3 duy\u1EC7t. \u0110\u1ED5i \xFD th\xEC b\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "Hu\u1EF7 \u0111i\u1EC1u ch\u1EC9nh"), " \u0111\u1EC3 kh\xF4i ph\u1EE5c."), status !== 'approved' && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900"
+  }, "B\u1EA3ng c\xF4ng \u0111ang ch\u1EDD duy\u1EC7t s\u1EBD \u0111\u01B0\u1EE3c ", /*#__PURE__*/React.createElement("b", null, "r\xFAt kh\u1ECFi h\u1ED9p duy\u1EC7t"), "; ph\u1EA7n \u0111\xE3 duy\u1EC7t (n\u1EBFu c\xF3) ph\u1EA3i duy\u1EC7t l\u1EA1i khi n\u1ED9p l\u1EA1i."), amend && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-blue-800"
+  }, "\u0110ang \u0111i\u1EC1u ch\u1EC9nh l\u1EA7n ", amend.rev, " \u2014 c\u1EADp nh\u1EADt l\xFD do n\u1EBFu c\u1EA7n."), /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-medium"
+  }, "L\xFD do \u0111i\u1EC1u ch\u1EC9nh ", /*#__PURE__*/React.createElement("span", {
+    className: "text-rose-600"
+  }, "*"), /*#__PURE__*/React.createElement("textarea", {
+    id: "tsAmendReason",
+    value: reason,
+    onChange: e => setReason(e.target.value),
+    maxLength: 500,
+    rows: 3,
+    required: true,
+    className: "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
+    placeholder: "vd. Ng\xE0y 12\u201315 ch\u1EA5m tr\u01B0\u1EDBc d\u1EF1 \xE1n A, th\u1EF1c t\u1EBF l\xE0m d\u1EF1 \xE1n B; ng\xE0y 14 ngh\u1EC9 \u1ED1m"
+  })), err && /*#__PURE__*/React.createElement("p", {
+    role: "alert",
+    className: "text-sm text-rose-700 font-medium"
+  }, err), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 pt-2 border-t border-slate-200"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onCancel,
+    className: `${btnGhost} h-11 ml-auto`
+  }, "H\u1EE7y"), /*#__PURE__*/React.createElement("button", {
+    id: "tsAmendConfirm",
+    type: "submit",
+    disabled: busy,
+    className: `${btnPrimary} h-11`
+  }, busy ? 'Đang mở…' : 'Mở lại để điều chỉnh')));
+}
 function SubmitPanel({
   month,
   period,
@@ -2442,6 +2698,9 @@ function SubmitPanel({
   ot,
   lead,
   leadNormal,
+  amend,
+  entries,
+  allow,
   onSubmit,
   onCancel,
   onAddAllowance,
@@ -2449,9 +2708,21 @@ function SubmitPanel({
 }) {
   const [y, m] = month.split('-');
   const miss = stats.missing;
+  const diff = useAmendDiff(month, amend, entries, allow);
   return /*#__PURE__*/React.createElement("div", {
     className: "px-5 py-5 space-y-5"
-  }, /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("h3", {
+  }, amend && /*#__PURE__*/React.createElement("section", {
+    id: "tsSubmitAmend",
+    className: "rounded-xl border border-blue-200 bg-blue-50 px-4 py-3"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-blue-900"
+  }, "B\u1EA3n \u0111i\u1EC1u ch\u1EC9nh l\u1EA7n ", amend.rev), /*#__PURE__*/React.createElement("p", {
+    className: "mt-0.5 text-sm text-blue-900"
+  }, "L\xFD do: ", amend.note), /*#__PURE__*/React.createElement("p", {
+    className: "mt-2 text-sm font-medium"
+  }, "Thay \u0111\u1ED5i so v\u1EDBi b\u1EA3n ", amend.from === 'approved' ? 'đã duyệt' : 'đã nộp', ":"), /*#__PURE__*/React.createElement(AmendDiff, {
+    diff: diff
+  })), /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("h3", {
     className: "font-semibold"
   }, "B\u1EA3ng c\xF4ng k\u1EF3 ", parseInt(m, 10), "/", y, " ", /*#__PURE__*/React.createElement("span", {
     className: "font-normal text-slate-500"
@@ -2520,7 +2791,7 @@ function SubmitPanel({
     className: "text-sm text-rose-700 font-medium"
   }, "Ph\u1EE5 c\u1EA5p xe c\xF2n l\u1ED7i \u2014 s\u1EEDa ho\u1EB7c x\xF3a d\xF2ng c\xF3 \u26A0 r\u1ED3i n\u1ED9p."), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-slate-600"
-  }, "N\u1ED9p xong b\u1EA1n kh\xF4ng s\u1EEDa \u0111\u01B0\u1EE3c n\u1EEFa, tr\u1EEB khi gi\xE1m s\xE1t tr\u1EA3 l\u1EA1i ho\u1EB7c b\u1EA1n thu h\u1ED3i tr\u01B0\u1EDBc khi gi\xE1m s\xE1t duy\u1EC7t."), /*#__PURE__*/React.createElement("div", {
+  }, "N\u1ED9p xong b\u1EA3ng c\xF4ng \u0111\u01B0\u1EE3c kho\xE1. Th\u1EF1c t\u1EBF thay \u0111\u1ED5i sau \u0111\xF3 (vd. c\xE1c ng\xE0y \u0111\xE3 ch\u1EA5m tr\u01B0\u1EDBc) th\xEC b\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "\u0110i\u1EC1u ch\u1EC9nh b\u1EA3ng c\xF4ng"), " \u0111\u1EC3 s\u1EEDa v\xE0 n\u1ED9p duy\u1EC7t l\u1EA1i."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 pt-2 border-t border-slate-200"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",

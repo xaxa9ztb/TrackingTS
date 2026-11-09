@@ -124,11 +124,12 @@
   function sync({ getEntries, onMerged, getSch, getAllow, onAllow }) {
     if (running) return running;
     running = (async () => {
-      const result = { ok: false, statuses: {}, notes: {}, admin: {}, pushed: 0, pulled: 0 };
+      const result = { ok: false, statuses: {}, notes: {}, admin: {}, amend: {}, pushed: 0, pulled: 0 };
       try {
         const listing = await call('GET', '/api/ts/docs');
         if (listing.status !== 200) throw new Error(listing.data.error || ('Máy chủ báo lỗi (HTTP ' + listing.status + ')'));
-        const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; if (d.adminNote) result.admin[d.period] = { by: d.adminBy, at: d.adminAt, note: d.adminNote }; });
+        const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; if (d.adminNote) result.admin[d.period] = { by: d.adminBy, at: d.adminAt, note: d.adminNote };
+          result.amend[d.period] = d.amendFrom ? { rev: d.amendRev, from: d.amendFrom, note: d.amendNote, at: d.amendAt, since: d.amendSince || '' } : null; });
         let st = load();
         // lần đầu trên máy này: các kỳ đã có dòng mà máy chủ chưa có → gửi lên
         const localPeriods = new Set(getEntries().map(e => periodOf(e.date)));
@@ -204,7 +205,54 @@
     return r;
   }
 
+  // Điều chỉnh bảng công đã nộp / đã duyệt (ghi lý do): máy chủ mở lại bảng công ('draft') để sửa rồi nộp lại
+  async function amend(period, reason) {
+    const r = await call('POST', '/api/ts/docs/' + period + '/amend', { reason });
+    if (r.status === 200) { const st = load(); st.status[period] = 'draft'; save(st); }
+    return r;
+  }
+  // Huỷ điều chỉnh: máy chủ khôi phục bản lúc bắt đầu điều chỉnh → tải về THAY HẲN các dòng của kỳ trên máy
+  // (bỏ dấu "chưa gửi" và các dòng đã xoá trong lúc điều chỉnh, để lần đồng bộ sau không gộp lại phần đã huỷ). Trả {status, data}.
+  async function cancelAmend(period) {
+    const r = await call('POST', '/api/ts/docs/' + period + '/amend-cancel', {});
+    if (r.status !== 200) return r;
+    const g = await call('GET', '/api/ts/docs/' + period);
+    if (g.status !== 200) return { status: g.status, data: g.data };
+    const st = load();
+    st.versions[period] = g.data.version; st.status[period] = g.data.status; delete st.dirty[period];
+    ((g.data.data && g.data.data.entries) || []).forEach(e => { delete st.tomb[String(e.id)]; });
+    save(st);
+    return { status: 200, data: { status: g.data.status, doc: g.data.data } };
+  }
+
+  // Các ngày thay đổi giữa hai bản bảng công (bản lúc bắt đầu điều chỉnh → bản điều chỉnh): so theo ngày, mỗi dòng gồm
+  // giờ vào – ra – nghỉ, mã hoạt động, dự án / WBS. → [{date, kind: 'added'|'removed'|'changed', before: [..], after: [..]}] theo ngày tăng dần
+  function lineOf(e) {
+    const brk = parseFloat(e.breakTime) || 0;
+    return `${e.startTime || ''}–${e.endTime || ''}${brk ? ' (nghỉ ' + brk + 'h)' : ''} · ${e.activityCode || ''} · ${String(e.workNumber || '').trim() || e.projectName || '—'}`;
+  }
+  function diffDocs(base, cur) {
+    const group = (list) => {
+      const m = new Map();
+      (list || []).forEach(e => { if (e && e.date) { if (!m.has(e.date)) m.set(e.date, []); m.get(e.date).push(lineOf(e)); } });
+      m.forEach(v => v.sort());
+      return m;
+    };
+    const a = group(base && base.entries), b = group(cur && cur.entries);
+    const out = [];
+    [...new Set([...a.keys(), ...b.keys()])].sort().forEach(date => {
+      const before = a.get(date) || [], after = b.get(date) || [];
+      if (before.join('\n') === after.join('\n')) return;
+      out.push({ date, kind: !before.length ? 'added' : !after.length ? 'removed' : 'changed', before, after });
+    });
+    return out;
+  }
+  // Phụ cấp xe có đổi không (bỏ qua thời điểm sửa u)
+  const allowKey = (a) => JSON.stringify(((a && a.rows) || []).map(r => { const { u, ...x } = r || {}; return x; }));
+  const allowChanged = (base, cur) => allowKey(base && base.allow) !== allowKey(cur && cur.allow);
+
   const LOCKED = ['submitted', 'sitesup_ok', 'pm_ok', 'approved'];
-  const api = { periodOf, mergeDoc, mergeAllow, applyChanges, markDirty, markPeriodDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, load, LOCKED, request: call };
+  const AMENDABLE = LOCKED;
+  const api = { periodOf, mergeDoc, mergeAllow, applyChanges, markDirty, markPeriodDirty, markDeleted, unmarkDeleted, sync, submit, withdraw, amend, cancelAmend, diffDocs, allowChanged, load, LOCKED, AMENDABLE, request: call };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsSync = api;
 })(typeof window !== 'undefined' ? window : globalThis);

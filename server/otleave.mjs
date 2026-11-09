@@ -307,7 +307,7 @@ async function writeLeave(env, row, by) {
     let msg = '';
     for (let attempt = 0; attempt < 4 && !msg; attempt++) {
       const doc = await env.DB.prepare('SELECT version, status, data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(row.emp_id, period).first();
-      if (doc && ['submitted', 'sitesup_ok', 'approved'].includes(doc.status)) { msg = `kỳ ${period}: bảng công đã nộp, chưa ghi — fitter thu hồi rồi thêm tay`; break; }
+      if (doc && ['submitted', 'sitesup_ok', 'pm_ok', 'approved'].includes(doc.status)) { msg = `kỳ ${period}: bảng công đã nộp, chưa ghi — fitter bấm Điều chỉnh bảng công rồi thêm tay`; break; }
       const data = doc ? parse(doc.data, { entries: [], deleted: {} }) : { entries: [], deleted: {} };
       const entries = Array.isArray(data.entries) ? data.entries : [];
       const have = new Set(entries.filter(e => String(e.lv || '') === String(row.id)).map(e => e.date));
@@ -318,7 +318,7 @@ async function writeLeave(env, row, by) {
       try { checked = checkDoc(period, { ...data, entries: entries.concat(add) }); }
       catch (e) { msg = `kỳ ${period}: không ghi được (${e.message})`; break; }
       const r = doc
-        ? await env.DB.prepare(`UPDATE ts_docs SET version = version + 1, data = ?, entry_count = ?, saved_at = ?, saved_by = ? WHERE emp_id = ? AND period = ? AND version = ? AND status NOT IN ('submitted', 'sitesup_ok', 'approved')`)
+        ? await env.DB.prepare(`UPDATE ts_docs SET version = version + 1, data = ?, entry_count = ?, saved_at = ?, saved_by = ? WHERE emp_id = ? AND period = ? AND version = ? AND status NOT IN ('submitted', 'sitesup_ok', 'pm_ok', 'approved')`)
           .bind(checked.data, checked.count, new Date().toISOString(), 'Đơn nghỉ · ' + by, row.emp_id, period, doc.version).run()
         : await env.DB.prepare("INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by) VALUES (?, ?, 1, 'draft', ?, ?, ?, ?) ON CONFLICT(emp_id, period) DO NOTHING")
           .bind(row.emp_id, period, checked.data, checked.count, new Date().toISOString(), 'Đơn nghỉ · ' + by).run();

@@ -279,6 +279,7 @@
             const [docStatuses, setDocStatuses] = useState({});
             const [docNotes, setDocNotes] = useState({});
             const [docAdmin, setDocAdmin] = useState({});       // { period: {by, at, note} } — lần sửa gần nhất của quản trị viên
+            const [docAmend, setDocAmend] = useState({});       // { period: {rev, from, note, at} | null } — đang điều chỉnh bảng công đã nộp / đã duyệt
             const [submitting, setSubmitting] = useState(false);
             const entriesRef = useRef([]);
             // Phụ cấp xe theo kỳ: { 'YYYY-MM': { rows, u } } — trên máy + đồng bộ cùng bảng công của kỳ (tssync.js)
@@ -380,6 +381,7 @@
                 if (r.statuses) setDocStatuses(prev => ({ ...prev, ...r.statuses }));
                 if (r.notes) setDocNotes(prev => ({ ...prev, ...r.notes }));
                 if (r.admin) setDocAdmin(prev => ({ ...prev, ...r.admin }));
+                if (r.amend) setDocAmend(prev => ({ ...prev, ...r.amend }));
                 setSyncInfo(r.ok ? { state: 'ok', at: new Date().toISOString(), error: '' }
                     : r.offline ? { state: 'offline', at: '', error: '' } : { state: 'error', at: '', error: r.error || 'Không đồng bộ được' });
                 if (r.ok) setTimeout(syncOtLeave, 50);     // sau khi bảng công đã gộp xong (giờ OT tính trên bản mới nhất)
@@ -497,17 +499,25 @@
             const changeMonth = (m) => { setCurrentMonth(m); setDayFilter(null); };
             const closeDrawer = () => setDrawer(null);
 
-            const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên không sửa được. Cần sửa thì nhờ giám sát trả lại bảng công.');
+            // đang điều chỉnh: chỉ sửa được các ngày từ ngày nộp (lần đầu) đến hết kỳ — các ngày đã chấm trước
+            const amendNow = SERVER && (periodStatus === 'draft' || periodStatus === 'rejected') ? docAmend[currentMonth] : null;
+            const amendSince = amendNow && amendNow.since && amendNow.since > period.start ? amendNow.since : '';
+            const beforeSince = (d) => !!amendSince && !!d && d < amendSince && TsSync.periodOf(d) === currentMonth;
+            const sinceMsg = () => showToast(`Đang điều chỉnh: chỉ sửa được các ngày từ ${fmtDM(amendSince)} (ngày nộp bảng công) đến ${fmtDM(period.end)}. Ngày trước đó đã chấm theo thực tế lúc nộp — cần sửa thì liên hệ giám sát / Admin.`);
+            const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên đang khoá. Thực tế khác so với đã chấm thì bấm "Điều chỉnh bảng công" (ở thanh trạng thái kỳ) để sửa lại rồi nộp duyệt lại.',
+                SERVER && TsSync.AMENDABLE.includes(periodStatus) ? { label: 'Điều chỉnh', run: () => openAmend() } : undefined);
             const openNewEntry = (date) => {
                 if (locked) return lockedMsg();
+                if (beforeSince(date)) return sinceMsg();
                 let d = date;
                 if (!d) { // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
                     d = getTodayLocal();
                     if (entries.length > 0) d = addDaysLocal(entries.reduce((a, b) => (b.date > a.date ? b : a)).date, 1);
+                    if (beforeSince(d)) d = amendSince;
                 }
                 setDrawer({ type: 'form', entry: null, date: d, key: Date.now() });
             };
-            const openEdit = (entry) => { if (locked) return lockedMsg(); setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() }); };
+            const openEdit = (entry) => { if (locked) return lockedMsg(); if (beforeSince(entry.date)) return sinceMsg(); setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() }); };
 
             const handleSaveEntry = (formData) => {
                 rememberProject(formData);
@@ -515,6 +525,7 @@
                 const u = Date.now();      // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
                 const { bd: _bd, cat: _cat, ae: _ae, rangeTo, skipOff, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
                 // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+                if (beforeSince(data.date)) return sinceMsg();
                 const dates = (!editing && rangeTo && rangeTo > data.date) ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
                 if (dates) {
                     if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
@@ -543,6 +554,7 @@
 
             const handleDelete = (entry) => {
                 if (locked) return lockedMsg();
+                if (beforeSince(entry.date)) return sinceMsg();
                 setEntries(prev => prev.filter(e => e.id !== entry.id));
                 if (SERVER) { TsSync.markDeleted(entry); TsSync.markDirty(entry.date); scheduleSync(); }
                 if (drawer && drawer.entry && drawer.entry.id === entry.id) setDrawer(null);
@@ -578,7 +590,7 @@
                     TsSync.markDirty(monthlyEntries.map(e => e.date));
                     if (!(await settleSync())) { showToast('Chưa gửi được bảng công lên máy chủ (mất mạng?). Thử nộp lại khi có mạng.'); return; }
                     const r = await TsSync.submit(currentMonth);
-                    if (r.status === 200) { setDocStatuses(prev => ({ ...prev, [currentMonth]: 'submitted' })); setDocNotes(prev => ({ ...prev, [currentMonth]: '' })); showToast('Đã nộp bảng công cho giám sát.'); }
+                    if (r.status === 200) { setDocStatuses(prev => ({ ...prev, [currentMonth]: r.data.status || 'submitted' })); setDocNotes(prev => ({ ...prev, [currentMonth]: '' })); showToast(docAmend[currentMonth] ? 'Đã nộp bản điều chỉnh — sau khi Site Sup, QLDA và Admin duyệt, dữ liệu chấm công sẽ được cập nhật.' : 'Đã nộp bảng công cho giám sát.'); }
                     else if (r.status === 409) showToast(r.data.error || 'Bảng công vừa thay đổi — thử nộp lại.');
                     else alert('Không nộp được: ' + (r.data.error || ('lỗi máy chủ ' + r.status)));
                 } catch (err) {
@@ -590,8 +602,41 @@
                 try {
                     const r = await TsSync.withdraw(currentMonth);
                     if (r.status === 200) { setDocStatuses(prev => ({ ...prev, [currentMonth]: 'draft' })); showToast('Đã thu hồi bảng công — sửa xong nhớ nộp lại.'); }
+                    else if (r.status === 409) showToast((r.data.error || 'Không thu hồi được.') + ' Có thể bấm "Điều chỉnh bảng công" để sửa lại rồi nộp duyệt lại.', { label: 'Điều chỉnh', run: () => openAmend() });
                     else showToast(r.data.error || 'Không thu hồi được.');
                 } catch (err) { showToast('Không thu hồi được: ' + (err.message || err)); }
+            };
+            // ----- điều chỉnh bảng công đã nộp / đã duyệt: chấm trước các ngày cuối kỳ nhưng thực tế khác → sửa lại đúng thực tế,
+            // nộp lại qua Site Sup → QLDA → Admin; duyệt xong máy chủ thay dữ liệu Theo dõi giờ công bằng bản điều chỉnh -----
+            const openAmend = () => { if (SERVER) setDrawer({ type: 'amend', key: Date.now() }); };
+            const doAmend = async (reason) => {
+                try {
+                    const r = await TsSync.amend(currentMonth, reason);
+                    if (r.status === 200) {
+                        setDocStatuses(prev => ({ ...prev, [currentMonth]: 'draft' }));
+                        setDocNotes(prev => ({ ...prev, [currentMonth]: '' }));
+                        setDocAmend(prev => ({ ...prev, [currentMonth]: { rev: r.data.amendRev, from: r.data.amendFrom, note: r.data.amendNote, at: r.data.amendAt, since: r.data.amendSince || '' } }));
+                        setDrawer(null);
+                        const sc = r.data.amendSince && r.data.amendSince > period.start ? r.data.amendSince : '';
+                        showToast(`Đã mở lại bảng công để điều chỉnh — sửa ${sc ? `các ngày từ ${fmtDM(sc)} đến ${fmtDM(period.end)}` : 'các ngày'} cho đúng thực tế rồi bấm "Nộp bảng công".`);
+                        return '';
+                    }
+                    return r.data.error || ('Lỗi máy chủ ' + r.status);
+                } catch (err) { return err && err.offline ? 'Mất mạng — cần có mạng để điều chỉnh.' : (err.message || String(err)); }
+            };
+            const handleCancelAmend = async () => {
+                const a = docAmend[currentMonth];
+                if (!a || !confirm(`Huỷ điều chỉnh và khôi phục bảng công như lúc ${a.from === 'approved' ? 'đã duyệt xong' : 'đã nộp'}? Mọi thay đổi trong lần điều chỉnh này sẽ bị bỏ.`)) return;
+                try {
+                    const r = await TsSync.cancelAmend(currentMonth);
+                    if (r.status !== 200) return showToast(r.data.error || 'Không huỷ được điều chỉnh.');
+                    const doc = r.data.doc || { entries: [] };
+                    setEntries(prev => { const next = [...prev.filter(e => TsSync.periodOf(e.date) !== currentMonth), ...(doc.entries || [])]; entriesRef.current = next; return next; });
+                    setAllowAll(prev => { const n = { ...prev }; if (doc.allow) n[currentMonth] = doc.allow; else delete n[currentMonth]; allowRef.current = n; return n; });
+                    setDocStatuses(prev => ({ ...prev, [currentMonth]: r.data.status }));
+                    setDocAmend(prev => ({ ...prev, [currentMonth]: null }));
+                    showToast(r.data.status === 'approved' ? 'Đã huỷ điều chỉnh — bảng công trở lại bản đã duyệt xong.' : 'Đã huỷ điều chỉnh — bảng công trở lại bản trước khi điều chỉnh.');
+                } catch (err) { showToast(err && err.offline ? 'Mất mạng — thử lại khi có mạng.' : ('Không huỷ được: ' + (err.message || err))); }
             };
 
             // ----- đơn nghỉ: làm ở chức năng riêng "Nghỉ phép / ốm" (tools/leave/); duyệt xong tự ghi vào bảng công này -----
@@ -790,6 +835,7 @@
                                 </div>
                             )}
                             <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth} period={period} lead={IS_LEAD}
+                                amend={docAmend[currentMonth] || null} onAmend={openAmend} onCancelAmend={handleCancelAmend}
                                 onRetry={runSync} onSubmit={handleSubmit} onWithdraw={handleWithdraw}/>
                         </div>
                     )}
@@ -885,7 +931,14 @@
                     {drawer && drawer.type === 'submit' && (
                         <Drawer title="Nộp bảng công" onClose={closeDrawer}>
                             <SubmitPanel month={currentMonth} period={period} stats={stats} lines={monthlyEntries.length} calc={allowCalc} ot={otView} lead={IS_LEAD} leadNormal={leadNormal}
+                                amend={docAmend[currentMonth] || null} entries={monthlyEntries} allow={allow}
                                 onSubmit={doSubmit} onCancel={closeDrawer} onAddAllowance={() => openAllowance(null)} onEditAllowance={openAllowance}/>
+                        </Drawer>
+                    )}
+                    {drawer && drawer.type === 'amend' && (
+                        <Drawer title="Điều chỉnh bảng công" onClose={closeDrawer}>
+                            <AmendPanel key={drawer.key} month={currentMonth} period={period} status={periodStatus} amend={docAmend[currentMonth] || null} lead={IS_LEAD}
+                                onConfirm={doAmend} onCancel={closeDrawer}/>
                         </Drawer>
                     )}
                     {drawer && drawer.type === 'dailyMail' && (
@@ -910,7 +963,7 @@
         }
 
         // ---------- Bản máy chủ: trạng thái kỳ + đồng bộ ----------
-        function SyncBar({ info, status, note, submitting, month, period, lead, onRetry, onSubmit, onWithdraw }) {
+        function SyncBar({ info, status, note, submitting, month, period, lead, amend, onAmend, onCancelAmend, onRetry, onSubmit, onWithdraw }) {
             const [y, m] = month.split('-');
             const pending = Object.keys(TsSync.load().dirty || {}).length;
             const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -920,21 +973,31 @@
             const today = getTodayLocal(), deadline = `${month}-12`;
             const daysLeft = Math.round((parseLocal(deadline) - parseLocal(today)) / 864e5);
             const open = status === 'draft' || status === 'rejected';
-            const remind = open && today >= period.start && daysLeft <= 3
+            const remind = open && !amend && today >= period.start && daysLeft <= 3
                 ? (daysLeft < 0 ? { tone: 'rose', text: `⚠ Đã quá hạn nộp bảng công (hạn ${fmtDM(deadline)}). Nộp ngay để giám sát kịp duyệt.` }
                     : { tone: daysLeft <= 1 ? 'rose' : 'amber', text: `⏰ Hạn nộp bảng công kỳ này là ${fmtDM(deadline)} (${daysLeft === 0 ? 'hôm nay' : `còn ${daysLeft} ngày`}). Chấm trước cả các ngày còn lại của kỳ rồi bấm Nộp.` }) : null;
             const at = info.at ? new Date(info.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
             return (
                 <div id="tsSyncBar" className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" role="status">
                     <span id="tsPeriodStatus" className={`inline-flex items-center h-7 px-3 rounded-full border text-sm font-medium ${tone}`}>
-                        Kỳ {parseInt(m, 10)}/{y}: {STATUS_LABEL[status] || status}
+                        Kỳ {parseInt(m, 10)}/{y}: {amend && status === 'draft' ? 'Đang điều chỉnh' : (STATUS_LABEL[status] || status)}
                     </span>
+                    {amend && <span id="tsAmendTag" className="inline-flex items-center h-7 px-3 rounded-full border border-blue-200 bg-blue-50 text-blue-800 text-sm font-medium"
+                        title={`Lý do: ${amend.note}`}>Điều chỉnh lần {amend.rev}</span>}
                     {(status === 'submitted' || (lead && status === 'sitesup_ok')) && <button id="tsWithdrawBtn" type="button" onClick={onWithdraw} className={btnGhost}>Thu hồi để sửa</button>}
+                    {TsSync.AMENDABLE.includes(status) && !(status === 'submitted' || (lead && status === 'sitesup_ok')) && (
+                        <button id="tsAmendBtn" type="button" onClick={onAmend} disabled={info.state === 'offline'} className={btnGhost}
+                            title="Chấm trước nhưng thực tế khác? Mở lại bảng công để sửa đúng thực tế rồi nộp duyệt lại">✎ Điều chỉnh bảng công</button>
+                    )}
+                    {amend && (status === 'draft' || status === 'rejected') && (
+                        <button id="tsAmendCancel" type="button" onClick={onCancelAmend} disabled={info.state === 'offline'} className="text-sm font-semibold text-slate-600 hover:text-slate-900 underline-offset-2 hover:underline">Huỷ điều chỉnh</button>
+                    )}
                     {(status === 'draft' || status === 'rejected') && (
                         <button id="tsSubmitBtn" type="button" onClick={onSubmit} disabled={submitting || info.state === 'offline'} className={btnPrimary}
                             title={info.state === 'offline' ? 'Cần có mạng để nộp' : 'Nộp bảng công của kỳ này cho giám sát duyệt'}>{submitting ? 'Đang nộp…' : 'Nộp bảng công'}</button>
                     )}
-                    {TsSync.LOCKED.includes(status) && <span className="text-sm text-slate-600">{status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : 'Không sửa được trong lúc chờ duyệt.'}</span>}
+                    {TsSync.LOCKED.includes(status) && <span className="text-sm text-slate-600">{status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : amend ? 'Bản điều chỉnh đang chờ duyệt — Theo dõi giờ công vẫn giữ bản đã duyệt trước đó.' : 'Không sửa được trong lúc chờ duyệt.'}</span>}
+                    {amend && (status === 'draft' || status === 'rejected') && <span id="tsAmendNote" className="text-sm text-blue-800">Đang điều chỉnh — {amend.note}.{amend.since && amend.since > period.start ? <React.Fragment> Chỉ sửa được các ngày <b>từ {fmtDM(amend.since)} đến {fmtDM(period.end)}</b> (từ ngày nộp).</React.Fragment> : null} Sửa xong bấm <b>Nộp bảng công</b>{amend.from === 'approved' ? '; Theo dõi giờ công giữ bản đã duyệt cho tới khi bản điều chỉnh được duyệt xong' : ''}.</span>}
                     {status === 'rejected' && note && <span id="tsRejectNote" className="text-sm text-rose-700 font-medium">Lý do trả lại — {note}</span>}
                     {remind && <span id="tsDeadline" className={`text-sm font-medium ${remind.tone === 'rose' ? 'text-rose-700' : 'text-amber-800'}`}>{remind.text}</span>}
                     <span id="tsSyncText" className="ml-auto text-sm text-slate-600 inline-flex items-center gap-2">
@@ -1145,11 +1208,86 @@
         }
 
         // Xác nhận nộp bảng công: tổng giờ của kỳ + phụ cấp xe nộp kèm
-        function SubmitPanel({ month, period, stats, lines, calc, ot, lead, leadNormal, onSubmit, onCancel, onAddAllowance, onEditAllowance }) {
+        // Các ngày thay đổi so với bản trước khi điều chỉnh (tải bản đó từ máy chủ khi mở bảng Nộp)
+        function useAmendDiff(month, amend, entries, allow) {
+            const [base, setBase] = useState(null);
+            useEffect(() => {
+                if (!amend) return;
+                let off = false;
+                TsSync.request('GET', '/api/ts/docs/' + month + '?base=1').then(r => { if (!off && r.status === 200 && r.data.base) setBase(r.data.base); }).catch(() => {});
+                return () => { off = true; };
+            }, [month, amend && amend.rev]);
+            return useMemo(() => base ? { days: TsSync.diffDocs(base, { entries }), allow: TsSync.allowChanged(base, { allow }) } : null, [base, entries, allow]);
+        }
+        function AmendDiff({ diff }) {
+            if (!diff) return <p className="mt-1 text-sm text-slate-500">Đang so với bản trước…</p>;
+            if (!diff.days.length && !diff.allow) return <p className="mt-1 text-sm text-amber-800">Chưa có ngày nào thay đổi so với bản trước.</p>;
+            const label = { added: 'thêm', removed: 'bỏ', changed: 'sửa' };
+            return (
+                <ul id="tsAmendDiff" className="mt-1 text-sm space-y-1">
+                    {diff.days.slice(0, 20).map(d => (
+                        <li key={d.date}><b>{WEEKDAYS[weekdayOf(d.date)]} {fmtDM(d.date)}</b> <span className="text-xs font-semibold uppercase text-blue-700">{label[d.kind]}</span>
+                            {d.before.length > 0 && <span className="block text-slate-500 line-through">{d.before.join('; ')}</span>}
+                            {d.after.length > 0 && <span className="block text-slate-800">{d.after.join('; ')}</span>}
+                        </li>
+                    ))}
+                    {diff.days.length > 20 && <li className="text-slate-500">… và {diff.days.length - 20} ngày khác</li>}
+                    {diff.allow && <li><b>Phụ cấp xe</b> có thay đổi</li>}
+                </ul>
+            );
+        }
+        function AmendPanel({ month, period, status, amend, lead, onConfirm, onCancel }) {
+            const [y, m] = month.split('-');
+            const [reason, setReason] = useState(amend ? amend.note : '');
+            const [busy, setBusy] = useState(false);
+            const [err, setErr] = useState('');
+            const go = async (ev) => {
+                ev.preventDefault();
+                if (reason.trim().length < 3) { setErr('Ghi rõ lý do điều chỉnh (vd. "Ngày 12–15 thực tế làm dự án khác").'); return; }
+                setBusy(true); setErr('');
+                const e = await onConfirm(reason.trim());
+                setBusy(false);
+                if (e) setErr(e);
+            };
+            return (
+                <form onSubmit={go} className="px-5 py-5 space-y-4">
+                    <p className="text-sm">Bảng công kỳ <b>{parseInt(m, 10)}/{y}</b> ({fmtDMY(period.start)} – {fmtDMY(period.end)}) đang ở trạng thái <b>{STATUS_LABEL[status] || status}</b>.</p>
+                    <ol className="text-sm text-slate-700 list-decimal pl-5 space-y-1">
+                        <li>Bảng công <b>mở lại để sửa</b> — sửa / thêm / xoá các ngày <b>đã chấm trước</b> cho <b>đúng thực tế</b>: chỉ các ngày <b>từ ngày bạn bấm nộp đến hết kỳ ({fmtDM(period.end)})</b>. Ngày trước ngày nộp không sửa được (cần sửa thì liên hệ giám sát / Admin).</li>
+                        <li>Bấm <b>Nộp bảng công</b>: bản điều chỉnh đi lại {lead ? 'Quản lý dự án → Admin' : 'Site Sup → Quản lý dự án → Admin'} (người duyệt thấy rõ ngày nào thay đổi).</li>
+                        <li>Duyệt xong, dữ liệu chấm công trong ứng dụng (Theo dõi giờ công) được <b>cập nhật theo bản điều chỉnh</b>.</li>
+                    </ol>
+                    {status === 'approved' && <p className="text-sm rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">Trong lúc điều chỉnh, Theo dõi giờ công vẫn giữ bản đã duyệt. Đổi ý thì bấm <b>Huỷ điều chỉnh</b> để khôi phục.</p>}
+                    {status !== 'approved' && <p className="text-sm rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900">Bảng công đang chờ duyệt sẽ được <b>rút khỏi hộp duyệt</b>; phần đã duyệt (nếu có) phải duyệt lại khi nộp lại.</p>}
+                    {amend && <p className="text-sm text-blue-800">Đang điều chỉnh lần {amend.rev} — cập nhật lý do nếu cần.</p>}
+                    <label className="block text-sm font-medium">Lý do điều chỉnh <span className="text-rose-600">*</span>
+                        <textarea id="tsAmendReason" value={reason} onChange={e => setReason(e.target.value)} maxLength={500} rows={3} required
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="vd. Ngày 12–15 chấm trước dự án A, thực tế làm dự án B; ngày 14 nghỉ ốm"></textarea>
+                    </label>
+                    {err && <p role="alert" className="text-sm text-rose-700 font-medium">{err}</p>}
+                    <div className="flex gap-2 pt-2 border-t border-slate-200">
+                        <button type="button" onClick={onCancel} className={`${btnGhost} h-11 ml-auto`}>Hủy</button>
+                        <button id="tsAmendConfirm" type="submit" disabled={busy} className={`${btnPrimary} h-11`}>{busy ? 'Đang mở…' : 'Mở lại để điều chỉnh'}</button>
+                    </div>
+                </form>
+            );
+        }
+
+        function SubmitPanel({ month, period, stats, lines, calc, ot, lead, leadNormal, amend, entries, allow, onSubmit, onCancel, onAddAllowance, onEditAllowance }) {
             const [y, m] = month.split('-');
             const miss = stats.missing;
+            const diff = useAmendDiff(month, amend, entries, allow);
             return (
                 <div className="px-5 py-5 space-y-5">
+                    {amend && (
+                        <section id="tsSubmitAmend" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                            <h3 className="font-semibold text-blue-900">Bản điều chỉnh lần {amend.rev}</h3>
+                            <p className="mt-0.5 text-sm text-blue-900">Lý do: {amend.note}</p>
+                            <p className="mt-2 text-sm font-medium">Thay đổi so với bản {amend.from === 'approved' ? 'đã duyệt' : 'đã nộp'}:</p>
+                            <AmendDiff diff={diff}/>
+                        </section>
+                    )}
                     <section>
                         <h3 className="font-semibold">Bảng công kỳ {parseInt(m, 10)}/{y} <span className="font-normal text-slate-500">({fmtDMY(period.start)} – {fmtDMY(period.end)})</span></h3>
                         <p className="mt-1 text-sm">{lines} dòng · {stats.days} ngày · <b>{fmtH(stats.total)} giờ</b> (tăng ca {fmtH(stats.ot)})</p>
@@ -1194,7 +1332,7 @@
                     {leadNormal.length > 0 && <p role="alert" className="text-sm text-rose-700 font-medium">Giám sát chỉ nộp giờ tăng ca — xoá hoặc sửa các dòng có giờ thường (ngày {leadNormal.slice(0, 6).map(fmtDM).join(', ')}{leadNormal.length > 6 ? '…' : ''}).</p>}
                     {!ot.ok && <p role="alert" className="text-sm text-amber-800 font-medium rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">⚠ Còn ngày tăng ca chưa được {lead ? 'Quản lý dự án' : 'Site Sup'} duyệt. Bạn <b>vẫn nộp được</b> — hệ thống sẽ gửi email nhắc người duyệt, nhưng giờ chưa duyệt có thể không được tính. Nên nhờ {lead ? 'Quản lý dự án' : 'Site Sup'} duyệt sớm.</p>}
                     {!calc.ok && <p role="alert" className="text-sm text-rose-700 font-medium">Phụ cấp xe còn lỗi — sửa hoặc xóa dòng có ⚠ rồi nộp.</p>}
-                    <p className="text-sm text-slate-600">Nộp xong bạn không sửa được nữa, trừ khi giám sát trả lại hoặc bạn thu hồi trước khi giám sát duyệt.</p>
+                    <p className="text-sm text-slate-600">Nộp xong bảng công được khoá. Thực tế thay đổi sau đó (vd. các ngày đã chấm trước) thì bấm <b>Điều chỉnh bảng công</b> để sửa và nộp duyệt lại.</p>
                     <div className="flex gap-2 pt-2 border-t border-slate-200">
                         <button type="button" onClick={onCancel} className={`${btnGhost} h-11 ml-auto`}>Hủy</button>
                         <button id="tsSubmitConfirm" type="button" onClick={onSubmit} disabled={!calc.ok || (leadNormal || []).length > 0} className={`${btnPrimary} h-11`}>{lead ? 'Nộp cho Quản lý dự án' : 'Nộp cho giám sát'}</button>
