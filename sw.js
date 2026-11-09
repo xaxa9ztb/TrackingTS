@@ -7,7 +7,7 @@
 //  - Google Drive / đăng nhập Google: KHÔNG lưu đệm (dữ liệu đã có IndexedDB lo).
 //
 // Khi đổi danh sách file bên dưới hoặc cách lưu đệm: tăng VERSION.
-const VERSION = 'v97';
+const VERSION = 'v98';
 const SHELL = `toolset-shell-${VERSION}`;
 const CDN = 'toolset-cdn-v1';
 const HTML_TIMEOUT = 4000;
@@ -23,7 +23,7 @@ const SHELL_FILES = [
   './tools/timesheet/', './tools/timesheet/index.html', './tools/timesheet/labor.js', './tools/timesheet/tssync.js', './tools/timesheet/allowance.js', './tools/timesheet/otleave.js', './tools/timesheet/tsexcel.js', './tools/timesheet/income.js', './tools/timesheet/app.js',
   './tools/timesheet/tailwind.css', './tools/timesheet/ts-template.xlsx', './tools/timesheet/phucap-xe-template.xlsx',
   './tools/tiendotm/', './tools/tiendotm/index.html',
-  './tools/bracket/', './tools/bracket/index.html', './tools/bracket/bracket.js', './tools/bracket/app.js', './tools/bracket/style.css', './tools/bracket/bracket-template.xlsx',
+  './tools/bracket/', './tools/bracket/index.html', './tools/bracket/bracket.js', './tools/bracket/app.js', './tools/bracket/style.css', './tools/bracket/report.js', './tools/bracket/report.css', './tools/bracket/bracket-template.xlsx',
   './tools/projectplan/', './tools/projectplan/index.html', './tools/projectplan/app.js', './tools/projectplan/pmio.js', './tools/projectplan/actual.js', './tools/projectplan/style.css',
   './tools/tiendotm/hoso_chatluong_template.docx', './tools/tiendotm/thu_hangve_template.docx', './tools/tiendotm/chungtu.js',
   './tools/tiendotm/nhatky_template.docx', './tools/tiendotm/bbxn_hangve_template.docx', './tools/tiendotm/bangiao_template.docx',

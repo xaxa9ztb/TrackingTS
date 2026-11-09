@@ -1,0 +1,133 @@
+/* Báo cáo khảo sát bracket — khổ A4 dọc (xem trước trên màn hình + in / lưu PDF). Màu theo token NI (css/ni.css). */
+.rp {
+  --rp-ink: var(--ni-ink, #0f1b2d); --rp-ink2: var(--ni-ink-2, #344054); --rp-mute: var(--ni-muted, #667085);
+  --rp-line: var(--ni-line, #e3e7ee); --rp-sunk: var(--ni-sunk, #eef1f5); --rp-app: #4d7c0f;
+  --rp-ok: var(--ni-ok, #047857); --rp-ok-soft: var(--ni-ok-soft, #ecfdf3); --rp-ok-line: var(--ni-ok-line, #a6e9c5);
+  --rp-site: var(--ni-warn, #b45309); --rp-site-soft: var(--ni-warn-soft, #fff7e6); --rp-site-line: var(--ni-warn-line, #f8d48a);
+  --rp-bad: var(--ni-danger, #b42318); --rp-bad-soft: var(--ni-danger-soft, #fef3f2); --rp-bad-line: var(--ni-danger-line, #fecdca);
+  font-family: var(--ni-font, 'Be Vietnam Pro', Arial, sans-serif); color: var(--rp-ink); font-size: 10.5pt; line-height: 1.4;
+  width: 210mm; min-height: 297mm; box-sizing: border-box; padding: 12mm 12mm 10mm; background: #fff;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.rp *, .rp *::before, .rp *::after { box-sizing: border-box; }
+.rp h1, .rp h2, .rp h3, .rp h4, .rp p { margin: 0; }
+.rp b { font-weight: 600; }
+
+/* đầu trang */
+.rp-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; padding-bottom: 3mm; border-bottom: 2.5px solid var(--rp-app); }
+.rp-kicker { font-size: 8pt; letter-spacing: .04em; text-transform: uppercase; color: var(--rp-mute); font-weight: 600; }
+.rp-head h1 { font-size: 19pt; line-height: 1.15; font-weight: 700; margin-top: 1mm; }
+.rp-sub { font-size: 10pt; color: var(--rp-ink2); margin-top: .8mm; }
+.rp-meta { display: grid; grid-template-columns: auto auto; gap: .6mm 3mm; font-size: 8.5pt; text-align: right; white-space: nowrap; }
+.rp-meta span { color: var(--rp-mute); }
+
+/* kết luận chung */
+.rp-verdict { display: flex; gap: 3.5mm; align-items: center; margin-top: 4mm; padding: 3mm 4mm; border-radius: 3mm; border: 1px solid; }
+.rp-verdict i { font-style: normal; font-weight: 700; font-size: 15pt; width: 9mm; height: 9mm; border-radius: 50%; display: grid; place-items: center; color: #fff; flex: none; }
+.rp-verdict h2 { font-size: 12.5pt; font-weight: 700; }
+.rp-verdict p { font-size: 9.5pt; color: var(--rp-ink2); }
+.rp-verdict.ok { background: var(--rp-ok-soft); border-color: var(--rp-ok-line); } .rp-verdict.ok i { background: var(--rp-ok); } .rp-verdict.ok h2 { color: var(--rp-ok); }
+.rp-verdict.site { background: var(--rp-site-soft); border-color: var(--rp-site-line); } .rp-verdict.site i { background: var(--rp-site); } .rp-verdict.site h2 { color: var(--rp-site); }
+.rp-verdict.bad { background: var(--rp-bad-soft); border-color: var(--rp-bad-line); } .rp-verdict.bad i { background: var(--rp-bad); } .rp-verdict.bad h2 { color: var(--rp-bad); }
+.rp-verdict.none { background: var(--rp-sunk); border-color: var(--rp-line); } .rp-verdict.none i { background: var(--rp-mute); }
+
+/* ô số */
+.rp-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.5mm; margin-top: 3mm; }
+.rp-tile { border: 1px solid var(--rp-line); background: var(--rp-sunk); border-radius: 2.5mm; padding: 2mm 3mm; }
+.rp-tile b { display: block; font-size: 17pt; line-height: 1.1; font-weight: 700; color: var(--rp-ink2); font-variant-numeric: tabular-nums; }
+.rp-tile span { font-size: 8pt; color: var(--rp-mute); }
+.rp-tile.info b { color: var(--rp-ink); }
+.rp-tile.ok { background: var(--rp-ok-soft); border-color: var(--rp-ok-line); } .rp-tile.ok b { color: var(--rp-ok); }
+.rp-tile.site { background: var(--rp-site-soft); border-color: var(--rp-site-line); } .rp-tile.site b { color: var(--rp-site); }
+.rp-tile.bad { background: var(--rp-bad-soft); border-color: var(--rp-bad-line); } .rp-tile.bad b { color: var(--rp-bad); }
+
+/* khối nội dung */
+.rp-card { margin-top: 3.5mm; border: 1px solid var(--rp-line); border-radius: 2.5mm; padding: 3mm 3.5mm; }
+.rp-card h3 { font-size: 9pt; text-transform: uppercase; letter-spacing: .04em; color: var(--rp-mute); font-weight: 700; margin-bottom: 2mm; }
+.rp-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
+.rp-grid2 > .rp-card { margin-top: 3.5mm; }
+.rp-info { display: grid; grid-template-columns: auto 1fr; gap: 1mm 3mm; margin: 0; font-size: 9.5pt; }
+.rp-info dt { color: var(--rp-mute); } .rp-info dd { margin: 0; font-weight: 600; }
+.rp-brs { display: grid; gap: 2mm; }
+.rp-br { background: var(--rp-sunk); border-radius: 2mm; padding: 2mm 3mm; font-size: 9pt; }
+.rp-br h4 { font-size: 8pt; color: var(--rp-mute); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.rp-brn { font-size: 12pt; font-weight: 700; margin: .3mm 0 .6mm; }
+
+/* biểu đồ */
+.rp-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.rp-chart { margin: 0; }
+.rp-chart figcaption { font-size: 9pt; font-weight: 700; margin-bottom: .5mm; }
+.rp-chart figcaption span { font-weight: 400; color: var(--rp-mute); }
+.rp-chart svg { display: block; font-family: inherit; }
+.rp-chart .band { fill: var(--rp-ok-soft); stroke: var(--rp-ok-line); stroke-width: 1; }
+.rp-chart .tol { fill: var(--rp-site-soft); }
+.rp-chart .grid { stroke: var(--rp-line); stroke-width: .6; }
+.rp-chart .zebra { fill: rgba(15, 27, 45, .025); }
+.rp-chart .ax, .rp-chart .row { font-size: 7.5px; fill: var(--rp-mute); font-variant-numeric: tabular-nums; }
+.rp-chart .lim { font-size: 7.5px; font-weight: 700; fill: var(--rp-ok); }
+.rp-chart .off { font-size: 7.5px; font-weight: 700; fill: var(--rp-bad); }
+.rp-chart .m.ok { fill: var(--rp-ok); stroke: #fff; stroke-width: 1.2; }
+.rp-chart .m.site { fill: var(--rp-site); stroke: #fff; stroke-width: 1; }
+.rp-chart .m.bad { stroke: var(--rp-bad); stroke-width: 2.2; stroke-linecap: round; fill: none; }
+.rp-empty { font-size: 9pt; color: var(--rp-mute); padding: 6mm 0; text-align: center; background: var(--rp-sunk); border-radius: 2mm; }
+.rp-legend { font-size: 8pt; color: var(--rp-ink2); margin-top: 1.5mm; display: flex; flex-wrap: wrap; align-items: center; gap: 1mm 2.5mm; }
+.rp-legend .lg { display: inline-block; width: 6mm; height: 3mm; border-radius: .8mm; vertical-align: middle; margin-right: -1mm; }
+.rp-legend .lg.band { background: var(--rp-ok-soft); border: 1px solid var(--rp-ok-line); }
+.rp-legend .lg.tol { background: var(--rp-site-soft); border: 1px solid var(--rp-site-line); }
+.rp-legend .lg-m { font-weight: 700; margin-right: -1.5mm; } .lg-m.ok { color: var(--rp-ok); } .lg-m.site { color: var(--rp-site); } .lg-m.bad { color: var(--rp-bad); }
+.rp-legend .muted { color: var(--rp-mute); }
+
+/* bảng kết quả */
+.rp-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.rp-table th { text-align: left; font-size: 7.5pt; font-weight: 700; color: var(--rp-mute); text-transform: uppercase; letter-spacing: .03em; padding: 1.2mm 1.5mm; border-bottom: 1.5px solid var(--rp-ink2); }
+.rp-table td { padding: 1mm 1.5mm; border-bottom: 1px solid var(--rp-line); vertical-align: middle; }
+.rp-table tr { break-inside: avoid; }
+.rp-table .n { width: 8mm; text-align: center; color: var(--rp-mute); font-variant-numeric: tabular-nums; }
+.rp-table .r { text-align: right; font-variant-numeric: tabular-nums; width: 16mm; font-weight: 600; }
+.rp-res { display: inline-flex; gap: 1.5mm; align-items: flex-start; line-height: 1.25; }
+.rp-res i { font-style: normal; font-weight: 700; width: 4mm; text-align: center; }
+.rp-res b { font-weight: 600; } .rp-res small { display: block; font-size: 7.5pt; color: var(--rp-mute); }
+.rp-res.ok { color: var(--rp-ok); } .rp-res.site { color: var(--rp-site); } .rp-res.bad { color: var(--rp-bad); } .rp-res.mute { color: var(--rp-mute); }
+.rp-res.inline { margin-left: 1.5mm; }
+.rp-dash { color: var(--rp-mute); }
+
+/* việc cần làm + kết luận */
+.rp-todo { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.8mm; font-size: 9pt; }
+.rp-todo li { border-left: 3px solid; padding: .5mm 0 .5mm 2.5mm; }
+.rp-todo li.bad { border-color: var(--rp-bad); } .rp-todo li.bad > p:first-child b { color: var(--rp-bad); }
+.rp-todo li.site { border-color: var(--rp-site); } .rp-todo li.site > p:first-child b { color: var(--rp-site); }
+.rp-todo span { color: var(--rp-mute); font-size: 8pt; }
+.rp-none { color: var(--rp-ok); font-weight: 600; font-size: 9.5pt; }
+.rp-sum { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.rp-sum td { padding: .8mm 0; border-bottom: 1px solid var(--rp-line); }
+.rp-sum td:last-child { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; width: 10mm; }
+.rp-sum tr.sub td { color: var(--rp-ink2); font-size: 8.5pt; padding-left: 2mm; } .rp-sum tr.sub td:last-child { font-weight: 600; }
+
+/* ký tên + chân trang */
+.rp-sign { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; margin-top: 5mm; text-align: center; font-size: 9pt; }
+.rp-sign p { font-weight: 600; } .rp-line { height: 16mm; border-bottom: 1px dashed var(--rp-mute); }
+.rp-sign .rp-name { font-weight: 400; color: var(--rp-ink2); margin-top: 1mm; min-height: 1.3em; }
+.rp-foot { margin-top: 4mm; padding-top: 2mm; border-top: 1px solid var(--rp-line); font-size: 7.5pt; color: var(--rp-mute); }
+.rp-keep { break-inside: avoid; }
+
+/* ---------- xem trước trên màn hình ---------- */
+.rp-overlay { position: fixed; inset: 0; z-index: 2000; background: #3b4554; display: flex; flex-direction: column; }
+.rp-overlay[hidden] { display: none; }
+.rp-bar { display: flex; align-items: center; gap: 8px; padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--ni-bar, #0f1b2d); color: #fff; flex-wrap: wrap; }
+.rp-bar b { margin-right: auto; font-size: 15px; }
+.rp-bar .ni-btn:not(.primary) { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .35); }
+.rp-scroll { flex: 1; overflow: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+.rp-page { width: 210mm; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); transform-origin: top center; }
+.rp-hint { color: #d6dde8; font-size: 12.5px; text-align: center; margin: 10px 0 0; }
+
+/* ---------- in / lưu PDF: chỉ in báo cáo ---------- */
+@page { size: A4 portrait; margin: 11mm 11mm 10mm; }
+@media print {
+  body.rp-printing > *:not(.rp-overlay) { display: none !important; }
+  body.rp-printing { background: #fff !important; }
+  body.rp-printing .rp-overlay { position: static; background: #fff; display: block; }
+  body.rp-printing .rp-bar, body.rp-printing .rp-hint { display: none !important; }
+  body.rp-printing .rp-scroll { overflow: visible; padding: 0; }
+  body.rp-printing .rp-page { width: auto; box-shadow: none; transform: none !important; margin: 0 !important; height: auto !important; }
+  body.rp-printing .rp { width: auto; min-height: 0; padding: 0; }
+}

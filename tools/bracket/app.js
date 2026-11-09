@@ -50,7 +50,7 @@
       const title = [s.project || 'Phiếu chưa đặt tên', s.liftId].filter(Boolean).join(' · ');
       const meta = [fmtDate(s.date), c.summary.total ? `${c.summary.total} vị trí · ${c.summary.pass} đạt` : 'chưa có số đo', s.zBracket, s.oBracket].filter(Boolean).join(' · ');
       return `<li><button type="button" class="bk-open" data-open="${esc(s.id)}"><b>${esc(title)}</b><span>${esc(meta)}</span></button>
-        <button type="button" class="ni-btn small" data-xls="${esc(s.id)}">Excel</button></li>`;
+        <button type="button" class="ni-btn small" data-xls="${esc(s.id)}" aria-haspopup="menu">Xuất ▾</button></li>`;
     }).join('');
   }
 
@@ -195,17 +195,72 @@
     } catch (e) { toast('Không xuất được Excel: ' + e.message); }
   }
 
+  // ---------- báo cáo PDF (xem trước khổ A4, in / lưu PDF bằng trình duyệt) ----------
+  const R = window.BracketReport;
+  let rpSurvey = null;
+  function fitPage() {
+    const page = $('rpPage'), box = $('rpScroll');
+    if (!page || $('rpOverlay').hidden) return;
+    const full = page.offsetWidth, avail = box.clientWidth - 32, k = Math.min(1, avail / full);
+    page.style.transform = k < 1 ? `scale(${k})` : '';
+    page.style.marginBottom = k < 1 ? `${-(1 - k) * page.offsetHeight}px` : '';
+    page.style.marginLeft = page.style.marginRight = k < 1 ? `${-(1 - k) * full / 2}px` : '';
+  }
+  function openReport(s) {
+    rpSurvey = s;
+    $('rpPage').innerHTML = R.html(s);
+    $('rpOverlay').hidden = false; document.body.style.overflow = 'hidden';
+    $('rpScroll').scrollTop = 0; fitPage(); $('rpPrint').focus();
+  }
+  function closeReport() { $('rpOverlay').hidden = true; document.body.style.overflow = ''; rpSurvey = null; }
+  function printReport() {
+    if (!rpSurvey) return;
+    const title = document.title;
+    document.title = R.fileName(rpSurvey);               // tên file PDF gợi ý khi "Lưu dưới dạng PDF"
+    document.body.classList.add('rp-printing');
+    const done = () => { document.body.classList.remove('rp-printing'); document.title = title; window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    window.print();
+    setTimeout(done, 1500);                               // trình duyệt không báo afterprint
+  }
+
+  // ---------- menu Xuất báo cáo: PDF / Excel ----------
+  let menuFor = null;
+  function openMenu(btn, s) {
+    menuFor = s;
+    const m = $('exportMenu'), r = btn.getBoundingClientRect();
+    m.hidden = false;
+    const mh = m.offsetHeight, mw = m.offsetWidth;
+    const top = r.bottom + 6 + mh > window.innerHeight ? r.top - mh - 6 : r.bottom + 6;
+    m.style.top = `${Math.max(8, top)}px`;
+    m.style.left = `${Math.max(8, Math.min(window.innerWidth - mw - 8, r.right - mw))}px`;
+    m.querySelector('button').focus();
+  }
+  function closeMenu() { $('exportMenu').hidden = true; menuFor = null; }
+
   // ---------- sự kiện ----------
   function bind() {
     $('btnNew').addEventListener('click', () => { const s = blank(); surveys.push(s); persist(); open(s.id); $('f_project').focus(); });
     $('list').addEventListener('click', (e) => {
       const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
-      const x = e.target.closest('[data-xls]'); if (x) { const s = surveys.find((v) => v.id === x.dataset.xls); if (s) exportXlsx(s); }
+      const x = e.target.closest('[data-xls]'); if (x) { const s = surveys.find((v) => v.id === x.dataset.xls); if (s) openMenu(x, s); }
     });
     $('btnBack').addEventListener('click', close);
-    $('btnExport').addEventListener('click', () => cur && exportXlsx(cur));
-    $('btnExport2').addEventListener('click', () => cur && exportXlsx(cur));
-    $('btnExport3').addEventListener('click', () => cur && exportXlsx(cur));
+    ['btnExport', 'btnExport2', 'btnExport3'].forEach((id) => $(id).addEventListener('click', (e) => { e.stopPropagation(); if (cur) openMenu(e.currentTarget, cur); }));
+    $('exportMenu').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-out]'); if (!b || !menuFor) return;
+      const s = menuFor; closeMenu();
+      if (b.dataset.out === 'pdf') openReport(s); else exportXlsx(s);
+    });
+    document.addEventListener('click', (e) => { if (!$('exportMenu').hidden && !e.target.closest('#exportMenu, [data-xls]')) closeMenu(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!$('exportMenu').hidden) closeMenu(); else if (!$('rpOverlay').hidden) closeReport();
+    });
+    $('rpClose').addEventListener('click', closeReport);
+    $('rpPrint').addEventListener('click', printReport);
+    $('rpXlsx').addEventListener('click', () => rpSurvey && exportXlsx(rpSurvey));
+    window.addEventListener('resize', fitPage);
     $('btnDup').addEventListener('click', () => {
       if (!cur) return;
       const s = JSON.parse(JSON.stringify(cur));

@@ -186,6 +186,12 @@
       x = setCell(x, `G${n}`, r.z.flag === '' ? '' : r.z.flag);
       x = setCell(x, `H${n}`, r.o.flag === '' ? '' : r.o.flag);
     }
+    // chỉ hiện các dòng đã nhập + 2 dòng trống (tối thiểu 5) cho phiếu gọn khi in; muốn thêm dòng: bỏ ẩn trong Excel
+    const last = c.rows.reduce((m, r, i) => (String(r.line || '').trim() || num(r.sf2) !== null || num(r.sg) !== null ? i : m), -1);
+    const show = Math.min(MAX_ROWS, Math.max(5, last + 3));
+    for (let i = 0; i < MAX_ROWS; i++) {
+      x = x.replace(new RegExp(`<row r="${ROW0 + i}"([^>]*?)(/?)>`), (m0, attrs, sl) => `<row r="${ROW0 + i}"${attrs.replace(/ hidden="[^"]*"/g, '')} hidden="${i >= show ? 'true' : 'false'}"${sl}>`);
+    }
     const S = c.summary;
     [['D58', S.total], ['D59', S.pass], ['D60', S.zChange], ['D61', S.zSite], ['D62', S.zSwap], ['D63', S.oChange],
       ['D64', S.oSite], ['D65', S.oSwap], ['D66', S.zPit], ['D67', S.oPit]].forEach(([ref, v]) => { x = setCell(x, ref, v); });
