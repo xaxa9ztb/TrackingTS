@@ -68,7 +68,9 @@
       .map((b) => `<tr data-n="${esc(b.name)}"><td>${esc(b.name)}</td><td>${b.min}</td><td>${b.max}</td></tr>`).join('')).join('');
     $('refZ').innerHTML = `<thead><tr><th>Bracket</th><th>SFmin</th><th>SFmax</th></tr></thead><tbody>${z}</tbody>`;
     $('refO').innerHTML = `<thead><tr><th>Bracket</th><th>SGmin</th><th>SGmax</th></tr></thead><tbody>${
-      B.O.map((b) => `<tr data-n="${esc(b.name)}"><td>${esc(b.name.replace(/\s{2,}/g, ' '))}</td><td>${b.min}</td><td>${b.max}</td></tr>`).join('')}</tbody>`;
+      B.O.map((b) => `<tr data-n="${esc(b.name)}"><td>${esc(b.name.replace(/\s{2,}/g, ' '))}${B.NOTE_O[b.name] ? ' *' : ''}</td><td>${b.min}</td><td>${b.max}</td></tr>`).join('')}</tbody>`
+      + `<caption class="bk-cap">${Object.entries(B.NOTE_O).map(([n, t]) => `* ${esc(n.replace(/\s{2,}/g, ' '))}: ${esc(t)}`).join('<br>')}</caption>`;
+    $('refSrc').textContent = 'Nguồn: ' + B.SOURCE;
   }
 
   // Kết quả ngắn gọn trên app (biểu tượng + chữ, không chỉ dựa vào màu); câu đầy đủ như Excel ở title / trình đọc màn hình
@@ -114,7 +116,10 @@
     const c = B.compute(cur);
     const zb = c.zb, ob = c.ob;
     $('rangeZ').innerHTML = zb ? `SFmin / SFmax: <b>${zb.min} – ${zb.max} mm</b> · dòng <b>${zb.fam}</b>` : '';
-    $('rangeO').innerHTML = ob ? `SGmin / SGmax: <b>${ob.min} – ${ob.max} mm</b>` : '';
+    $('rangeO').innerHTML = ob ? `SGmin / SGmax: <b>${ob.min} – ${ob.max} mm</b>${B.NOTE_O[ob.name] ? `<br><span class="bk-warn">⚠ ${esc(B.NOTE_O[ob.name])}</span>` : ''}` : '';
+    // phiếu cũ chọn bracket đã bị bỏ khỏi danh mục mới (vd. Z-AL2, Z-AL3 không còn SC-AP từ bản Ae25)
+    if (cur.zBracket && !zb) $('rangeZ').innerHTML = `<span class="bk-warn">⚠ ${esc(cur.zBracket)} không còn trong danh mục SC-AP (J 45350713 Ae25) — chọn lại loại Z Bracket.</span>`;
+    if (cur.oBracket && !ob) $('rangeO').innerHTML = `<span class="bk-warn">⚠ ${esc(cur.oBracket.replace(/\s{2,}/g, ' '))} không có trong danh mục — chọn lại loại Omega Bracket.</span>`;
     const dz = c.design.z, dO = c.design.o;
     $('checkZ').textContent = dz.text ? (dz.ok ? '✓ ' : '⚠ ') + dz.text : ''; $('checkZ').className = 'bk-check ' + (dz.ok ? 'ok' : dz.text ? 'bad' : '');
     $('checkO').textContent = dO.text ? (dO.ok ? '✓ ' : '⚠ ') + dO.text.replace(/\s{2,}/g, ' ') : ''; $('checkO').className = 'bk-check ' + (dO.ok ? 'ok' : dO.text ? 'bad' : '');

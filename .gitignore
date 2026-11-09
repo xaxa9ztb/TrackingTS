@@ -14,6 +14,8 @@ timesheet-data.json
 # Mẫu bảng chấm công TRẮNG của Timesheet (không chứa dữ liệu) — tải khi bấm Xuất Excel.
 !tools/timesheet/ts-template.xlsx
 !tools/timesheet/phucap-xe-template.xlsx
+# Mẫu Phiếu khảo sát bracket TRẮNG (đã bỏ dữ liệu dự án / tên người) — tải khi bấm Xuất Excel.
+!tools/bracket/bracket-template.xlsx
 
 # Công cụ build của Timesheet (cài bằng npm install, không commit)
 node_modules/
