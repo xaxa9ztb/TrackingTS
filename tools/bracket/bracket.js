@@ -7,7 +7,7 @@
 //   3. Nhỏ hơn min ≤ 10 mm → Đục tỉa chân bracket (không cần đổi bracket)
 //   4. Ngoài toàn bộ dải (Z: cả dòng AL/CL/CHL/CH đã đặt; Omega: cả danh mục) → KHÔNG PHÙ HỢP, chỉnh sửa hố thang
 //   5. Còn lại → đề xuất bracket khác: bracket chứa số đo có dải hẹp nhất; không có thì bracket gần nhất
-// Dung sai: J 45350713 Ae25 (Z Bracket Selection Rule, ES1 & ES5.0, SC-AP) và J 44928432 Ae29 (Omega, Family A & B).
+// Dung sai (chỉ áp dụng SC-AP): J 45350713 Ae25 (Z Bracket, ES1 & ES5.0) và J 44928432 Ae29 (Omega Family A & B, mục 6).
 // fillXlsx: điền phiếu vào mẫu Excel (bracket-template.xlsx) bằng cách sửa thẳng XML của sheet — giữ nguyên
 // công thức, định dạng có điều kiện, danh sách chọn; Excel tự tính lại khi mở (fullCalcOnLoad).
 (function (root) {
@@ -26,19 +26,16 @@
     ['Z-CH3', 70, 155, 'CH'], ['Z-CH4', 105, 200, 'CH'], ['Z-CH5', 150, 250, 'CH'], ['Z-CH6', 200, 325, 'CH'], ['Z-CH7', 275, 360, 'CH'],
     ['Z-CH8', 310, 450, 'CH'], ['Z-CH9', 400, 550, 'CH'],
   ].map(([name, min, max, fam]) => ({ name, min, max, fam }));
-  // [tên, SGmin, SGmax] — J 44928432 Ae29 mục 4.3, Family A & B, gộp mọi BG (SG giống nhau ở mọi BG, trừ ghi chú NOTE_O).
+  // [tên, SGmin, SGmax] — J 44928432 Ae29: chỉ loại có SC-AP ở mục 6 (MM GRS 113 Sourcing, Family A & B);
+  // SGmin / SGmax lấy ở mục 4.3, giống nhau ở mọi BG. Loại 160 / 190 và LH không có SC-AP.
   // Tên giữ nguyên 2 dấu cách như trong file mẫu để khớp danh sách chọn của Excel.
   const O = [
     ['O-A1 / O-A2  106-1', 63, 123], ['O-A1 / O-A2  106-2', 83, 143], ['O-A1 / O-A2  106-3', 93, 173], ['O-A2  106-4', 123, 223],
-    ['O-A2  106-5', 173, 305], ['O-A1 / O-A2  160-1', 95, 179], ['O-A2  160-2', 129, 209], ['O-A2  160-3', 159, 308],
-    ['O-A2  160-4', 258, 500], ['O-A2  106-1 LH', 63, 123], ['O-B  106-1', 63, 125], ['O-B  106-2', 95, 162], ['O-B  106-3', 112, 205],
-    ['O-B  106-4', 155, 305], ['O-B  160-1', 95, 177], ['O-B  160-2', 127, 242], ['O-B  160-3', 192, 310], ['O-B  160-4', 260, 440],
-    ['O-B  160-5', 390, 500], ['O-B  190-1', 120, 200], ['O-B  190-2', 150, 265], ['O-B  190-3', 215, 305], ['O-B  190-4', 255, 440],
-    ['O-B  190-5', 390, 500], ['O-B  106-1 LH', 63, 125],
+    ['O-A2  106-5', 173, 305], ['O-B  106-1', 63, 125], ['O-B  106-2', 95, 162], ['O-B  106-3', 112, 205], ['O-B  106-4', 155, 305],
   ].map(([name, min, max]) => ({ name, min, max }));
   // khác biệt theo BG cần lưu ý khi khảo sát (hiện ở app, không đổi dải dùng để đánh giá)
-  const NOTE_O = { 'O-A1 / O-A2  160-1': 'BG = 850 mm: SGmin = 100 mm (các BG khác 95 mm)' };
-  const SOURCE = 'J 45350713 Ae25 (Z Bracket, ES1 & ES5.0, SC-AP) · J 44928432 Ae29 (Omega, Family A & B)';
+  const NOTE_O = {};
+  const SOURCE = 'J 45350713 Ae25 (Z Bracket, ES1 & ES5.0, SC-AP) · J 44928432 Ae29 (Omega Family A & B, SC-AP mục 6)';
   const FAMILIES = ['AL', 'CL', 'CHL', 'CH'];
   const MAX_ROWS = 30;          // số dòng khảo sát của mẫu Excel (dòng 26–55)
   const TOL = 10;               // lệch ≤ 10 mm: xử lý tại công trường

@@ -11,15 +11,16 @@ try { JSZip = require('jszip'); } catch (e) { /* CI không cài */ }
 
 const OA = 'O-A1 / O-A2  106-1';
 
-test('danh mục: 29 Z Bracket SC-AP (J 45350713 Ae25, 4 dòng) + 25 Omega (J 44928432 Ae29)', () => {
-  assert.equal(B.Z.length, 29); assert.equal(B.O.length, 25);
+test('danh mục chỉ SC-AP: 29 Z Bracket (J 45350713 Ae25) + 9 Omega loại 106 (J 44928432 Ae29 mục 6)', () => {
+  assert.equal(B.Z.length, 29); assert.equal(B.O.length, 9);
+  assert.ok(B.O.every(o => / 106-\d$/.test(o.name)), 'Omega SC-AP chỉ có loại 106, không LH / 160 / 190');
   // Ae25: không còn SC-AP ở ES1 / ES5.0
   ['Z-AL2', 'Z-AL3', 'Z-AL7', 'Z-AL9', 'Z-CHL3', 'Z-CHL4', 'Z-CHL7'].forEach(n => assert.equal(B.findZ(n), null, n));
   assert.deepEqual(B.findZ('Z-CL1'), { name: 'Z-CL1', min: 38, max: 82, fam: 'CL' });
-  assert.match(B.NOTE_O['O-A1 / O-A2  160-1'], /BG = 850.*100/);
   assert.deepEqual([...new Set(B.Z.map(b => b.fam))], ['AL', 'CL', 'CHL', 'CH']);
   assert.deepEqual(B.findZ('Z-AL4'), { name: 'Z-AL4', min: 105, max: 200, fam: 'AL' });
-  assert.deepEqual(B.findO('O-B  190-5'), { name: 'O-B  190-5', min: 390, max: 500 });
+  assert.deepEqual(B.findO('O-B  106-4'), { name: 'O-B  106-4', min: 155, max: 305 });
+  assert.equal(B.findO('O-B  190-5'), null);
   B.Z.concat(B.O).forEach(b => assert.ok(b.min < b.max, b.name));
 });
 
@@ -51,8 +52,9 @@ test('Omega: đề xuất trong toàn danh mục; 2 bracket cùng độ rộng c
   assert.equal(B.evaluate('o', 140, OA).text, 'Không đạt - Đề xuất: O-A1 / O-A2  106-2', 'SG=140 → 106-2 (83–143), không nhầm 106-1');
   assert.equal(B.evaluate('o', 55, OA).text, 'Không đạt (lệch 8mm) - Đục tỉa chân bracket - không cần đổi bracket');
   assert.equal(B.evaluate('o', 40, OA).text, 'KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ bracket, cần chỉnh sửa hố thang');
-  assert.equal(B.evaluate('o', 520, 'O-B  190-5').status, 'pit');
-  assert.equal(B.evaluate('o', 480, OA).text, 'Không đạt - Đề xuất: O-B  160-5');
+  // danh mục SC-AP chỉ tới 305 mm (O-A2 106-5, O-B 106-4)
+  assert.equal(B.evaluate('o', 400, OA).text, 'KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ bracket, cần chỉnh sửa hố thang');
+  assert.equal(B.evaluate('o', 290, OA).text, 'Không đạt - Đề xuất: O-A2  106-5');
 });
 
 test('kiểm tra bản vẽ + kết luận (giống D58–D67)', () => {
