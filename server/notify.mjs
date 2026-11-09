@@ -128,6 +128,9 @@ async function ownerOf(env, empId) {
   return env.DB.prepare('SELECT emp_id, full_name, email, supervisor FROM employees WHERE emp_id = ?').bind(empId).first();
 }
 
+// Bảng công đang điều chỉnh (sửa sau khi đã nộp / đã duyệt): thêm nhãn vào tiêu đề và hộp lý do trong thư
+const amendTag = (row) => (row && row.amend_from ? ` (điều chỉnh lần ${row.amend_rev})` : '');
+const amendBox = (row) => (row && row.amend_from ? `<p style="background:#eff6ff;border:1px solid #bfdbfe;padding:10px;border-radius:6px"><b>Bảng công điều chỉnh lần ${row.amend_rev}</b>${row.amend_from === 'approved' ? ' (đã duyệt xong trước đó)' : ''} — lý do: ${esc(row.amend_note)}. Trang duyệt đánh dấu các ngày thay đổi so với bản trước.</p>` : '');
 // kind: 'submitted' | 'sitesup_ok' | 'approved' | 'rejected'
 export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '', note = '', pushed = 0, files = [], resendBy = null, resend = false, otPending = [], lead = false }) {
   try {
@@ -140,11 +143,11 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
     if (kind === 'pm_ok') {
       // đã qua mọi Site Sup và Quản lý dự án của các dự án → chờ Admin / Admin dự án xử lý cuối
       to = await adminsFor(env);
-      const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
+      const row = await env.DB.prepare('SELECT data, amend_rev, amend_from, amend_note FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
       let t = null;
       try { t = row ? docTotals(JSON.parse(row.data)) : null; } catch (e) { t = null; }
-      return await sendMail(env, { to, subject: `[Bảng công] ${owner.full_name} — ${kp}: chờ Admin xử lý cuối`,
-        html: layout('Bảng công chờ Admin xử lý', `<p>Bảng công ${esc(kp)} của <b>${esc(who)}</b> đã được Site Sup và Quản lý dự án của các dự án duyệt xong.</p>
+      return await sendMail(env, { to, subject: `[Bảng công] ${owner.full_name} — ${kp}${amendTag(row)}: chờ Admin xử lý cuối`,
+        html: layout('Bảng công chờ Admin xử lý', `<p>Bảng công ${esc(kp)} của <b>${esc(who)}</b> đã được Site Sup và Quản lý dự án của các dự án duyệt xong.</p>${amendBox(row)}
           ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc</p>` : ''}
           ${t && t.allow ? `<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px"><b>Phụ cấp xe:</b> ${esc(t.allow)}</p>` : ''}
           ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}
@@ -177,11 +180,11 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
     if (kind === 'submitted' || kind === 'sitesup_ok' || kind === 'submitted_direct') {
       const level = kind === 'submitted' ? 'sitesup' : 'pm';
       to = await approversFor(env, level, wbs, owner.supervisor);
-      const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
+      const row = await env.DB.prepare('SELECT data, amend_rev, amend_from, amend_note FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
       let t = null;
       try { t = row ? docTotals(JSON.parse(row.data)) : null; } catch (e) { t = null; }
-      subject = `[Bảng công] ${owner.full_name} đã nộp ${kp}${kind === 'submitted_direct' ? ' (giờ tăng ca)' : ''} — chờ ${level === 'pm' ? 'Quản lý dự án' : 'Site Sup'} duyệt`;
-      html = layout(`Có bảng công chờ bạn duyệt`, `<p>${esc(who)} ${kind === 'sitesup_ok' ? 'đã được Site Sup ' + esc(by) + ' duyệt' : 'đã nộp'} bảng công ${esc(kp)}${kind === 'submitted_direct' ? ' — bảng công của giám sát, <b>chỉ gồm giờ tăng ca</b>, nộp thẳng Quản lý dự án' : ''}.</p>
+      subject = `[Bảng công] ${owner.full_name} đã nộp ${kp}${amendTag(row)}${kind === 'submitted_direct' ? ' (giờ tăng ca)' : ''} — chờ ${level === 'pm' ? 'Quản lý dự án' : 'Site Sup'} duyệt`;
+      html = layout(`Có bảng công chờ bạn duyệt`, `<p>${esc(who)} ${kind === 'sitesup_ok' ? 'đã được Site Sup ' + esc(by) + ' duyệt' : 'đã nộp'} bảng công ${esc(kp)}${kind === 'submitted_direct' ? ' — bảng công của giám sát, <b>chỉ gồm giờ tăng ca</b>, nộp thẳng Quản lý dự án' : ''}.</p>${amendBox(row)}
         ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc · ${t.lines} dòng chấm công</p>` : ''}
         ${t && t.allow ? `<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px;border-radius:6px"><b>Phụ cấp xe:</b> ${esc(t.allow)}</p>` : ''}
         ${wbs.length ? `<p>Dự án: ${esc(wbs.join(', '))}</p>` : ''}<p>Bấm nút dưới để mở thẳng bảng công này trong <b>Duyệt bảng công</b>: xem chi tiết, duyệt hoặc trả lại kèm lý do.</p>`, { url: review, label: 'Mở bảng công để duyệt' });
@@ -193,10 +196,10 @@ export async function notifyEvent(env, kind, { empId, period, wbs = [], by = '',
       cc = (await approversFor(env, 'sitesup', wbs, owner.supervisor, ctx, { fallback: false })).concat(await approversFor(env, 'pm', wbs, owner.supervisor, ctx, { fallback: false }));
       // thư luôn CC Quản lý dự án đã duyệt bảng công này (hoặc người bấm gửi lại)
       if (resendBy && resendBy.email) cc = cc.concat([{ email: String(resendBy.email).toLowerCase(), name: resendBy.name || '' }]);
-      const row = await env.DB.prepare('SELECT data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
+      const row = await env.DB.prepare('SELECT data, amend_rev, amend_from, amend_note FROM ts_docs WHERE emp_id = ? AND period = ?').bind(empId, period).first();
       let t = null;
       try { t = row ? docTotals(JSON.parse(row.data)) : null; } catch (e) { t = null; }
-      subject = `[Bảng công] ${owner.full_name} — ${kp} đã được duyệt xong${files.length ? ' (kèm Excel)' : ''}`;
+      subject = `[Bảng công] ${owner.full_name} — ${kp}${amendTag(row)} đã được duyệt xong${files.length ? ' (kèm Excel)' : ''}`;
       if (resend) subject = '[Gửi lại] ' + subject.replace(/^\[Bảng công\] /, '');
       html = layout('Bảng công đã được duyệt', `<p>Bảng công ${esc(kp)} của <b>${esc(who)}</b> đã được ${esc(by)} duyệt xong.${pushed ? ` ${pushed} dòng đã chuyển sang bảng Theo dõi giờ công.` : ''}</p>
         ${t ? `<p style="background:#f8fafc;border:1px solid #e5e7eb;padding:10px;border-radius:6px"><b>${fmtH(t.total)} giờ</b> (thường ${fmtH(t.normal)}, tăng ca ${fmtH(t.ot)}) · ${t.days} ngày làm việc</p>` : ''}

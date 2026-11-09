@@ -26,3 +26,10 @@
 .ac-table td.ot-items div { white-space: nowrap; }
 .ac-table td.ot-items .rep { white-space: normal; }
 .ap-exp { color: var(--muted); font-size: 12px; }
+/* bảng công điều chỉnh (sửa sau khi đã nộp / đã duyệt): hộp lý do + các ngày thay đổi, dòng tô xanh */
+.ap-flag.amend { background: var(--ni-action-soft, #eef4ff); border-color: #bfd3fe; color: #1e3a8a; }
+.ap-flag .amend-list { margin: 6px 0 2px; padding-left: 18px; }
+.ap-flag .amend-list li { margin: 2px 0; }
+.ac-table tr.chg td { background: var(--ni-action-soft, #eef4ff); }
+.ac-note.chg-tag { color: var(--ni-action, #1d4ed8); font-weight: 600; }
+.pill.amend { background: var(--ni-action-soft, #eef4ff); color: var(--ni-action, #1d4ed8); border: 1px solid #bfd3fe; }

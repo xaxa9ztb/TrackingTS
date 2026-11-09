@@ -46,7 +46,7 @@ async function approvalsOf(env, pairs) {
 const remainingOf = (wbs, approved) => wbs.filter(w => !(approved && approved.has(w)));
 
 async function pendingDocs(env) {
-  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.version, d.status, d.entry_count, d.submitted_at, d.sitesup_by, d.sitesup_at, d.pm_by, d.note,
+  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.version, d.status, d.entry_count, d.submitted_at, d.sitesup_by, d.sitesup_at, d.pm_by, d.note, d.amend_rev, d.amend_from, d.amend_note,
       e.full_name, e.position, e.supervisor
     FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id WHERE d.status IN ('submitted', 'sitesup_ok', 'pm_ok') ORDER BY d.submitted_at LIMIT 400`).all();
   if (!results.length) return { docs: [], wbs: new Map(), appr: new Map() };
@@ -70,7 +70,8 @@ export async function tsInbox(h, env, me) {
     if (level === 'admin' ? !cov.length : !remainingOf(cov, approved).length) continue;
     out.push({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, version: d.version, status: d.status, level, entries: d.entry_count,
       submittedAt: d.submitted_at, sitesupBy: d.sitesup_by, sitesupAt: d.sitesup_at, pmBy: d.pm_by, wbs: list,
-      remaining: level === 'admin' ? [] : remainingOf(list, approved), approvedBy: approved ? [...new Set(approved.values())] : [] });
+      remaining: level === 'admin' ? [] : remainingOf(list, approved), approvedBy: approved ? [...new Set(approved.values())] : [],
+      amend: d.amend_from ? { rev: d.amend_rev, from: d.amend_from, note: d.amend_note } : null });
   }
   return h.json({ items: out, ...(await otLeaveCounts(h, env, me, staff)) });
 }
@@ -107,7 +108,9 @@ export async function reviewDoc(h, env, me, emp, period) {
     `,"name":${JSON.stringify(row.full_name)},"position":${JSON.stringify(row.position)},"level":${JSON.stringify(level || '')},"canAct":${!!mine},"canResend":${!!resend},"pmBy":${JSON.stringify(row.pm_by)},"finalBy":${JSON.stringify(row.final_by)},` +
     `"wbs":${JSON.stringify(wbs)},"unlisted":${JSON.stringify(unlisted)},"remaining":${JSON.stringify(level && level !== 'admin' ? remainingOf(wbs, appr) : [])},"approvals":${JSON.stringify(all)},` +
     `"direct":${row.status === 'sitesup_ok' && !row.sitesup_by},"otPending":${JSON.stringify(otPending)},` +
-    `"submittedAt":${JSON.stringify(row.submitted_at)},"sitesupBy":${JSON.stringify(row.sitesup_by)},"sitesupAt":${JSON.stringify(row.sitesup_at)},"note":${JSON.stringify(row.note)},"data":${row.data}}`;
+    `"submittedAt":${JSON.stringify(row.submitted_at)},"sitesupBy":${JSON.stringify(row.sitesup_by)},"sitesupAt":${JSON.stringify(row.sitesup_at)},"note":${JSON.stringify(row.note)},` +
+    // đang điều chỉnh: lần thứ mấy, lý do, và bản lúc bắt đầu điều chỉnh (để so ngày nào thay đổi)
+    `"amend":${row.amend_from ? JSON.stringify({ rev: row.amend_rev, from: row.amend_from, note: row.amend_note, at: row.amend_at }) : 'null'},"base":${row.amend_from && row.base_data ? row.base_data : 'null'},"data":${row.data}}`;
   return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
@@ -215,15 +218,17 @@ export async function decideDoc(h, env, me, emp, period, action, request) {
     await env.DB.prepare("UPDATE ts_docs SET status = 'pm_ok', final_by = '', final_at = '' WHERE emp_id = ? AND period = ? AND status = 'approved'").bind(emp, period).run();
     throw e;
   }
-  await h.audit(env, me, 'ts_approved', 'ts_doc', `${emp}:${period}`, undefined, { rows: pushed });
+  await h.audit(env, me, 'ts_approved', 'ts_doc', `${emp}:${period}`, undefined, { rows: pushed, amend: row.amend_from ? row.amend_rev : 0 });
   await notifyEvent(env, 'approved', { empId: emp, period, wbs, by: me.name, pushed, files: cleanFiles(h, body.files), resendBy: me });
+  // bản điều chỉnh đã duyệt xong và đã thay dữ liệu Theo dõi giờ công → hết "đang điều chỉnh" (giữ số lần amend_rev)
+  if (row.amend_from) await env.DB.prepare("UPDATE ts_docs SET amend_from = '', base_data = '' WHERE emp_id = ? AND period = ? AND status = 'approved'").bind(emp, period).run();
   return h.json({ ok: true, status: 'approved', pushed });
 }
 
 // Thu hồi: chỉ khi chưa ai duyệt (chưa có dòng ts_approvals)
 export async function withdrawDoc(h, env, emp, period) {
   const n = (await env.DB.prepare('SELECT COUNT(*) c FROM ts_approvals WHERE emp_id = ? AND period = ?').bind(emp, period).first()).c;
-  if (n) throw new h.HttpError(409, 'Đã có người duyệt một phần bảng công này nên không thu hồi được — nhờ người duyệt trả lại');
+  if (n) throw new h.HttpError(409, 'Đã có người duyệt một phần bảng công này nên không thu hồi được');
   const r = await env.DB.prepare("UPDATE ts_docs SET status = 'draft', submitted_at = '' WHERE emp_id = ? AND period = ? AND (status = 'submitted' OR (status = 'sitesup_ok' AND sitesup_by = ''))").bind(emp, period).run();
   if (!(r.meta && r.meta.changes === 1)) throw new h.HttpError(409, 'Chỉ thu hồi được khi chưa ai duyệt');
 }

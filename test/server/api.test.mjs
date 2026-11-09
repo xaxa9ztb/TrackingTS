@@ -1883,3 +1883,91 @@ test('demo: cookie còn sót nhưng trình duyệt không ở chế độ demo (
   assert.equal(d.data.demo, true);
   assert.equal(d.setCookie, '');
 });
+
+test('điều chỉnh bảng công: đã duyệt xong → điều chỉnh (có lý do) → duyệt lại đủ 3 cấp → Theo dõi giờ công cập nhật; huỷ điều chỉnh khôi phục', async () => {
+  const P = '2028-05';          // kỳ 16/04 → 15/05/2028
+  const amend = (reason, email = 'ts1@example.com') => call('POST', `/api/ts/docs/${P}/amend`, { email, body: { reason } });
+  const cancel = (email = 'ts1@example.com') => call('POST', `/api/ts/docs/${P}/amend-cancel`, { email, body: {} });
+  const approveAll = async () => {
+    assert.equal((await call('POST', `/api/ts/review/TS1/${P}/approve`, { email: 'ap1@example.com', body: {} })).data.status, 'sitesup_ok');
+    assert.equal((await call('POST', `/api/ts/review/TS1/${P}/approve`, { email: 'ap3@example.com', body: {} })).data.status, 'pm_ok');
+    const f = await finalApprove('TS1', P);
+    assert.equal(f.status, 200, JSON.stringify(f.data));
+    return f.data;
+  };
+  const rowsOf = async () => (await tsRowsOf()).filter(x => x.empId === 'TS1' && x.date >= '2028-04-16' && x.date <= '2028-05-15').sort((a, b) => a.date.localeCompare(b.date));
+
+  // chưa nộp: không cần điều chỉnh
+  await putDoc('ts1@example.com', P, [okEntry(501, '2028-04-17'), okEntry(502, '2028-04-18')], 0);
+  assert.equal((await amend('Đổi dự án')).status, 409, 'đang chấm thì sửa thẳng, không cần điều chỉnh');
+  assert.equal((await submit('ts1@example.com', P)).status, 200);
+  assert.equal((await approveAll()).pushed, 2);
+  assert.deepEqual((await rowsOf()).map(r => r.wbs), ['WA-1', 'WA-1']);
+
+  // điều chỉnh: cần lý do; chỉ chủ bảng công
+  assert.equal((await amend('')).status, 400, 'thiếu lý do');
+  let r = await amend('Ngày 18/04 thực tế làm dự án khác');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual([r.data.status, r.data.amendRev, r.data.amendFrom], ['draft', 1, 'approved']);
+  let mine = (await call('GET', '/api/ts/docs', { email: 'ts1@example.com' })).data.docs.find(d => d.period === P);
+  assert.deepEqual([mine.status, mine.amendRev, mine.amendFrom, mine.amendNote], ['draft', 1, 'approved', 'Ngày 18/04 thực tế làm dự án khác']);
+  assert.equal((await rowsOf()).length, 2, 'đang điều chỉnh: Theo dõi giờ công vẫn giữ bản đã duyệt');
+
+  // sửa lại cho đúng thực tế rồi nộp lại
+  let d = await docOf('ts1@example.com', P);
+  const changed = [okEntry(501, '2028-04-17'), okEntry(502, '2028-04-18', { workNumber: 'WA-1', projectName: 'Dự án duyệt', startTime: '07:30', endTime: '12:30', breakTime: '0', bd: { NORMAL: 5 } }), okEntry(503, '2028-04-19')];
+  assert.equal((await putDoc('ts1@example.com', P, changed, d.version)).status, 200, 'đang điều chỉnh thì sửa được');
+  assert.equal((await submit('ts1@example.com', P)).status, 200);
+  assert.equal((await putDoc('ts1@example.com', P, [], (await docOf('ts1@example.com', P)).version)).status, 423, 'nộp lại thì khoá');
+
+  // người duyệt thấy đây là bản điều chỉnh + bản trước để so
+  const inb = (await call('GET', '/api/ts/inbox', { email: 'ap1@example.com' })).data.items.find(i => i.empId === 'TS1' && i.period === P);
+  assert.deepEqual(inb.amend, { rev: 1, from: 'approved', note: 'Ngày 18/04 thực tế làm dự án khác' });
+  const rv = (await call('GET', `/api/ts/review/TS1/${P}`, { email: 'ap1@example.com' })).data;
+  assert.equal(rv.amend.rev, 1); assert.equal(rv.base.entries.length, 2); assert.equal(rv.data.entries.length, 3);
+
+  // điều chỉnh tiếp khi đang chờ duyệt (Site Sup đã duyệt một phần): vẫn giữ bản gốc đã duyệt, không tăng số lần
+  assert.equal((await call('POST', `/api/ts/review/TS1/${P}/approve`, { email: 'ap1@example.com', body: {} })).data.status, 'sitesup_ok');
+  r = await amend('Bổ sung thêm ngày 20/04');
+  assert.deepEqual([r.status, r.data.amendRev, r.data.amendFrom], [200, 1, 'approved']);
+  assert.equal((await call('GET', `/api/ts/inbox`, { email: 'ap3@example.com' })).data.items.filter(i => i.empId === 'TS1' && i.period === P).length, 0, 'rút khỏi hộp duyệt');
+  assert.equal((await call('GET', `/api/ts/review/TS1/${P}`, { email: 'boss@example.com' })).data.base.entries.length, 2);
+
+  // nộp lại → duyệt đủ 3 cấp → bảng Theo dõi giờ công thay bằng bản mới
+  assert.equal((await submit('ts1@example.com', P)).status, 200);
+  assert.equal((await approveAll()).pushed, 3);
+  const rows = await rowsOf();
+  assert.deepEqual(rows.map(x => [x.date, x.total]), [['2028-04-17', 8], ['2028-04-18', 5], ['2028-04-19', 8]], 'thay dòng cũ, không nhân đôi');
+  mine = (await call('GET', '/api/ts/docs', { email: 'ts1@example.com' })).data.docs.find(d => d.period === P);
+  assert.deepEqual([mine.status, mine.amendRev, mine.amendFrom], ['approved', 1, ''], 'duyệt xong: hết đang điều chỉnh, giữ số lần');
+  assert.equal((await call('GET', `/api/ts/review/TS1/${P}`, { email: 'boss@example.com' })).data.base, null);
+
+  // điều chỉnh lần 2 rồi huỷ: khôi phục đúng bản đã duyệt, trở lại "Đã duyệt xong"
+  assert.equal((await cancel()).status, 409, 'không đang điều chỉnh');
+  r = await amend('Thử điều chỉnh lần hai');
+  assert.equal(r.data.amendRev, 2);
+  d = await docOf('ts1@example.com', P);
+  assert.equal((await putDoc('ts1@example.com', P, [okEntry(501, '2028-04-17')], d.version)).status, 200);
+  assert.equal((await submit('ts1@example.com', P)).status, 200);
+  assert.equal((await cancel()).status, 409, 'đang chờ duyệt thì không huỷ được');
+  assert.equal((await call('POST', `/api/ts/review/TS1/${P}/reject`, { email: 'ap1@example.com', body: { note: 'Không đúng thực tế' } })).status, 200);
+  r = await cancel();
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.status, 'approved');
+  d = await docOf('ts1@example.com', P);
+  assert.deepEqual([d.status, d.data.entries.length], ['approved', 3], 'khôi phục bản đã duyệt');
+  mine = (await call('GET', '/api/ts/docs', { email: 'ts1@example.com' })).data.docs.find(x => x.period === P);
+  assert.deepEqual([mine.amendRev, mine.amendFrom], [1, '']);
+  assert.equal((await rowsOf()).length, 3, 'Theo dõi giờ công không đổi');
+  const log = (await call('GET', '/api/admin/audit?limit=60', { email: 'boss@example.com' })).data.entries.map(e => e.action);
+  assert.ok(log.includes('ts_amend') && log.includes('ts_amend_cancel'));
+});
+
+test('bảng công chờ Admin xử lý (pm_ok) cũng bị khoá, không ghi đè được', async () => {
+  const P = '2028-07';
+  await putDoc('ts1@example.com', P, [okEntry(601, '2028-06-17')], 0);
+  assert.equal((await submit('ts1@example.com', P)).status, 200);
+  await call('POST', `/api/ts/review/TS1/${P}/approve`, { email: 'ap1@example.com', body: {} });
+  assert.equal((await call('POST', `/api/ts/review/TS1/${P}/approve`, { email: 'ap3@example.com', body: {} })).data.status, 'pm_ok');
+  const d = await docOf('ts1@example.com', P);
+  assert.equal((await putDoc('ts1@example.com', P, [], d.version)).status, 423);
+});
