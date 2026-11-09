@@ -65,7 +65,7 @@
 [data-app=admin], [data-app=accounts] { --ni-app: #334155; }
 [data-app=swat] { --ni-app: #b45309; }
 [data-app=bracket] { --ni-app: #4d7c0f; }
-[data-app=incentive] { --ni-app: #a16207; }
+[data-app=incentive], [data-app=mybonus] { --ni-app: #a16207; }
 [data-app=help] { --ni-app: #4338ca; }
 
 /* ---- nền ---- */

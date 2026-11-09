@@ -39,6 +39,7 @@ const Session = (() => {
     materials: { name: 'Điều phối công cụ dụng cụ, vật tư', soon: true, ...PM_TEAM },
     tsupload: { name: 'Nhập bảng công từ Excel', path: 'tools/tsupload/', serverOnly: true, roles: ['pm', 'sitesup', 'projadmin'], rolesLabel: 'Site Sup, Quản lý dự án và Admin dự án' },
     tsadmin: { name: 'Quản lý bảng công', path: 'tools/tsadmin/', serverOnly: true, roles: ['projadmin'], rolesLabel: 'Admin và Admin dự án' },
+    mybonus: { name: 'Thưởng của tôi', path: 'tools/mybonus/', serverOnly: true },   // mọi nhân viên: chỉ thấy thưởng của mình (đợt đã phát hành)
     incentive: { name: 'Incentive — Thưởng lắp đặt', path: 'tools/incentive/', serverOnly: true, roles: ['admin'], rolesLabel: 'Quản trị viên' },   // SWAT (SITE sau)
     admin: { name: 'Quản trị', path: 'admin.html', roles: ['admin'], rolesLabel: 'Quản trị viên' },  // nhân viên, dự án, bảng công (Excel), tài khoản & phân quyền
   };

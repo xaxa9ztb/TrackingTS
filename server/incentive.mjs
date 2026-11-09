@@ -7,8 +7,12 @@
 //   GET    /api/incentive/history?scheme=swat        các khoản đã chia của các đợt ĐÃ CHỐT (để biết dự án đã trả đợt nào)
 //   GET    /api/incentive/hours?wbs=a,b              giờ công theo người của từng dự án (bảng Theo dõi giờ công)
 //   POST   /api/incentive/import                     ghi đè các đợt từ file Excel kế toán đã sửa {scheme, sheets:[{month, title, projects}]}
+//   POST   /api/incentive/batches/:id/publish        phát hành đợt đã chốt {sendMail} → email chi tiết cho từng người được chia
+//   GET    /api/incentive/mine                       (mọi nhân viên) thưởng CỦA MÌNH ở các đợt đã phát hành
+//   GET    /api/incentive/mine/:batchId/:wbs         (mọi nhân viên) chi tiết một dự án: báo cáo SWAT + dòng của mình
 import Inc from '../tools/incentive/incentive.js';
 import { rolesFromPosition } from './roles.mjs';
+import { sendMailBatch, mailConfigured, layout, esc } from './mail.mjs';
 
 const SCHEMES = ['swat', 'site'];
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -57,12 +61,13 @@ function lineStmts(env, id, projects) {
   return stmts;
 }
 const head = (r) => ({ id: r.id, scheme: r.scheme, month: r.month, title: r.title, status: r.status, source: r.source, total: r.total, projects: r.n_projects,
-  version: r.version, createdAt: r.created_at, createdBy: r.created_by, updatedAt: r.updated_at, updatedBy: r.updated_by });
+  version: r.version, createdAt: r.created_at, createdBy: r.created_by, updatedAt: r.updated_at, updatedBy: r.updated_by,
+  publishedAt: r.published_at || '', publishedBy: r.published_by || '' });
 
 async function listBatches(h, env, me, url) {
   needAdmin(h, me);
   const scheme = schemeOf(h, url.searchParams.get('scheme'));
-  const { results } = await env.DB.prepare('SELECT id, scheme, month, title, status, source, total, n_projects, version, created_at, created_by, updated_at, updated_by FROM inc_batches WHERE scheme = ? ORDER BY month DESC LIMIT 200').bind(scheme).all();
+  const { results } = await env.DB.prepare('SELECT id, scheme, month, title, status, source, total, n_projects, version, created_at, created_by, updated_at, updated_by, published_at, published_by FROM inc_batches WHERE scheme = ? ORDER BY month DESC LIMIT 200').bind(scheme).all();
   return h.json({ batches: results.map(head) });
 }
 
@@ -197,8 +202,100 @@ async function importSheets(h, env, me, request) {
   return h.json({ ok: true, batches: out });
 }
 
+// ---------- phát hành + "Thưởng của tôi" ----------
+const ml = (m) => `${m.slice(5, 7)}/${m.slice(0, 4)}`;
+const vnd = (n) => Math.round(Number(n) || 0).toLocaleString('vi-VN');
+const appLink = (env, path) => (env.APP_URL ? String(env.APP_URL).replace(/\/+$/, '') + path : '');
+// phần CÔNG KHAI của một dự án trong đợt (không có dòng của người khác)
+function publicProject(p) {
+  const sw = p.swat || {};
+  return { wbs: p.wbs, name: p.name || '', projectNumber: p.projectNumber || '', product: p.product || '', units: p.units || 1, stops: p.stops || null,
+    kind: p.kind, kindLabel: (Inc.KINDS[p.kind] || {}).label || '', rate: (Inc.KINDS[p.kind] || {}).rate || null, fundF: p.fundF == null ? null : Number(p.fundF), fundS: p.fundS == null ? null : Number(p.fundS),
+    std: sw.std || null, sc: sw.sc ? { act: sw.sc.act, std: sw.sc.std, reserve: sw.sc.reserve, save: sw.sc.save, block: sw.sc.block, fs: sw.sc.fs, ss: sw.sc.ss, bf: sw.sc.bf, bs: sw.sc.bs, pf: sw.sc.pf, ps: sw.sc.ps, crit: sw.sc.crit } : null,
+    hasSwat: !!sw.state, imported: !!p.imported,
+    fitterHours: (p.lines || []).filter(l => l.role === 'fitter').reduce((a, l) => a + (Number(l.hours) || 0), 0) || null };
+}
+const myLine = (l) => ({ role: l.role, name: l.name, amount: l.amount, hours: l.hours == null ? null : l.hours, pct: l.pct == null ? null : l.pct, total: l.total == null ? null : l.total, before: l.before == null ? null : l.before });
+
+async function publish(h, env, me, id, request) {
+  needAdmin(h, me);
+  const body = await h.readJson(request);
+  const row = await env.DB.prepare('SELECT * FROM inc_batches WHERE id = ?').bind(id).first();
+  if (!row) throw new h.HttpError(404, 'Không có đợt thưởng này');
+  if (row.status !== 'done') throw new h.HttpError(409, 'Chốt đợt trước rồi mới phát hành');
+  const t = row.published_at || h.now();
+  if (!row.published_at) await env.DB.prepare('UPDATE inc_batches SET published_at = ?, published_by = ? WHERE id = ?').bind(t, me.name || me.email, id).run();
+  const data = parse(row.data, { projects: [] });
+  // dòng của từng người (theo Mã NV); dòng không có Mã NV thì không gửi được
+  const byEmp = new Map(), noId = new Set();
+  data.projects.forEach(p => (p.lines || []).forEach(l => {
+    if (!(Number(l.amount) || 0)) return;
+    if (!l.empId) { noId.add(l.name); return; }
+    if (!byEmp.has(l.empId)) byEmp.set(l.empId, []);
+    byEmp.get(l.empId).push({ p, l });
+  }));
+  const out = { ok: true, publishedAt: t, people: byEmp.size, sent: 0, failed: 0, noEmail: [], noId: [...noId], mail: !!body.sendMail };
+  if (body.sendMail && byEmp.size) {
+    if (!h.mailConfigured(env)) throw new h.HttpError(503, 'Chưa cấu hình gửi email (BREVO_API_KEY, MAIL_FROM) — bỏ chọn "Gửi email" để chỉ phát hành');
+    const ids = [...byEmp.keys()];
+    const emps = [];
+    for (let i = 0; i < ids.length; i += 80) emps.push(...(await env.DB.prepare(`SELECT emp_id, full_name, email, active FROM employees WHERE emp_id IN (${ids.slice(i, i + 80).map(() => '?').join(', ')})`).bind(...ids.slice(i, i + 80)).all()).results);
+    const empBy = new Map(emps.map(e => [e.emp_id, e]));
+    const link = appLink(env, `/tools/mybonus/#dot=${id}`);
+    const items = [];
+    for (const [empId, list] of byEmp) {
+      const e = empBy.get(empId);
+      if (!e || !e.email || e.active === 0) { out.noEmail.push(list[0].l.name); continue; }
+      const total = list.reduce((a, x) => a + (Number(x.l.amount) || 0), 0);
+      const rows = list.map(({ p, l }) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${esc(p.name)}<br><span style="color:#6b7280;font-size:12px">WBS ${esc(p.wbs)} · ${esc((Inc.KINDS[p.kind] || {}).label || '')}</span></td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${l.role === 'sup' ? 'Site-sup' : 'Fitter'}${l.role === 'fitter' && l.pct != null ? `<br><span style="color:#6b7280;font-size:12px">${(Math.round(l.pct * 1000) / 10).toLocaleString('vi-VN')}% giờ công${l.hours != null ? ` (${l.hours} giờ)` : ''}</span>` : ''}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap"><b>${vnd(l.amount)} đ</b>${l.before ? `<br><span style="color:#6b7280;font-size:12px">tổng ${vnd(l.total)} − đã nhận ${vnd(l.before)}</span>` : ''}</td></tr>`).join('');
+      items.push({ to: { email: e.email, name: e.full_name },
+        subject: `[Thưởng lắp đặt] Thưởng SWAT đợt ${ml(row.month)} của bạn: ${vnd(total)} đ`,
+        html: layout(`Thưởng lắp đặt SWAT — đợt ${ml(row.month)}`, `<p>Chào ${esc(e.full_name)}, bạn được chia thưởng lắp đặt (Installation Incentive Scheme — SWAT) ở <b>${list.length} dự án</b>, tổng <b>${vnd(total)} đ</b>:</p>
+          <table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left">Dự án</th><th style="padding:6px 8px;text-align:left">Vai trò</th><th style="padding:6px 8px;text-align:right">Tiền thưởng</th></tr></thead>
+          <tbody>${rows}</tbody><tfoot><tr><td colspan="2" style="padding:6px 8px"><b>Tổng</b></td><td style="padding:6px 8px;text-align:right"><b>${vnd(total)} đ</b></td></tr></tfoot></table>
+          <p style="color:#6b7280;font-size:12px">Fitter chia theo % giờ công trên dự án; số tiền thực nhận theo kỳ lương do kế toán chi trả. Thắc mắc liên hệ quản trị viên.</p>
+          <p>Mở app → <b>Thưởng của tôi</b> để xem chi tiết từng dự án và báo cáo SWAT (Standard Hour, Scorecard) của dự án.</p>`, link ? { url: link, label: 'Xem thưởng của tôi' } : null) });
+    }
+    if (items.length) { const r = await sendMailBatch(env, items); out.sent = r.sent; out.failed = r.failed; if (r.errors.length) out.error = r.errors[0]; }
+  }
+  await h.audit(env, me, 'inc_publish', 'inc_batch', String(id), undefined, { month: row.month, mail: out.mail, sent: out.sent, noEmail: out.noEmail.length });
+  return h.json(out);
+}
+
+// Thưởng của tôi: chỉ các đợt ĐÃ CHỐT + ĐÃ PHÁT HÀNH, chỉ các dòng mang Mã NV của người đăng nhập
+async function mine(h, env, me) {
+  if (!me.empId) return h.json({ batches: [], note: 'Tài khoản chưa gắn với nhân viên nào' });
+  const { results } = await env.DB.prepare(`SELECT l.batch_id, l.wbs, b.month, b.title, b.scheme, b.published_at FROM inc_lines l JOIN inc_batches b ON b.id = l.batch_id
+      WHERE l.emp_id = ? AND b.status = 'done' AND b.published_at <> '' GROUP BY l.batch_id, l.wbs ORDER BY b.month DESC`).bind(me.empId).all();
+  const ids = [...new Set(results.map(r => r.batch_id))].slice(0, 60);
+  const out = [];
+  for (const id of ids) {
+    const b = await env.DB.prepare('SELECT id, scheme, month, title, published_at, data FROM inc_batches WHERE id = ?').bind(id).first();
+    const data = parse(b.data, { projects: [] });
+    const projects = data.projects.map(p => {
+      const mineL = (p.lines || []).filter(l => l.empId === me.empId);
+      return mineL.length ? { ...publicProject(p), lines: mineL.map(myLine), amount: Math.round(mineL.reduce((a, l) => a + (Number(l.amount) || 0), 0) * 100) / 100 } : null;
+    }).filter(Boolean);
+    if (projects.length) out.push({ id: b.id, scheme: b.scheme, month: b.month, title: b.title, publishedAt: b.published_at, projects, total: Math.round(projects.reduce((a, p) => a + p.amount, 0) * 100) / 100 });
+  }
+  return h.json({ empId: me.empId, name: me.name, batches: out });
+}
+async function mineDetail(h, env, me, id, wbs) {
+  if (!me.empId) throw new h.HttpError(403, 'Tài khoản chưa gắn với nhân viên nào');
+  const b = await env.DB.prepare("SELECT id, month, title, data FROM inc_batches WHERE id = ? AND status = 'done' AND published_at <> ''").bind(id).first();
+  const p = b && parse(b.data, { projects: [] }).projects.find(x => x.wbs === wbs);
+  const mineL = p ? (p.lines || []).filter(l => l.empId === me.empId) : [];
+  if (!mineL.length) throw new h.HttpError(404, 'Không có thưởng của bạn ở dự án này');
+  return h.json({ batch: { id: b.id, month: b.month, title: b.title }, project: { ...publicProject(p), lines: mineL.map(myLine) }, swatState: (p.swat && p.swat.state) || null });
+}
+
 export async function routeIncentive(h, env, me, path, method, url, request) {
   let m;
+  if (path === '/api/incentive/mine' && method === 'GET') return mine(h, env, me);
+  if ((m = path.match(/^\/api\/incentive\/mine\/(\d+)\/([^/]+)$/)) && method === 'GET') return mineDetail(h, env, me, Number(m[1]), decodeURIComponent(m[2]));
+  if ((m = path.match(/^\/api\/incentive\/batches\/(\d+)\/publish$/)) && method === 'POST') return publish(h, env, me, Number(m[1]), request);
   if (path === '/api/incentive/batches' && method === 'GET') return listBatches(h, env, me, url);
   if (path === '/api/incentive/batches' && method === 'POST') return createBatch(h, env, me, request);
   if ((m = path.match(/^\/api\/incentive\/batches\/(\d+)$/))) {

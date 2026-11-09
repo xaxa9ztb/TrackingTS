@@ -8,7 +8,7 @@
 <title>Hướng dẫn sử dụng — Bộ công cụ dự án</title>
 <meta name="description" content="Hướng dẫn sử dụng Bộ công cụ dự án cho Fitter, Giám sát (Site Sup), Quản lý dự án và Quản trị viên: chấm công, nộp và duyệt bảng công, hồ sơ chất lượng, điều phối nhân sự.">
 <meta name="theme-color" content="#0f1b2d">
-<link rel="stylesheet" href="css/ni.css?v=3">
+<link rel="stylesheet" href="css/ni.css?v=4">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -718,12 +718,35 @@
           <li>Bấm <span class="btnlike pri">✓ Chốt đợt</span>: dự án được ghi nhận đã trả đợt này, lần sau sẽ hiện lựa chọn đợt cuối.</li>
         </ul></li>
     </ol>
+    <p><b>Phát hành</b>: đợt đã chốt → bước 5 bấm <span class="btnlike pri">📣 Phát hành</span> (tick <i>Gửi email</i>).</p>
+    <ul>
+      <li>Mỗi người được chia thưởng nhận email chi tiết — <b>chỉ tiền của chính họ</b>, theo từng dự án.</li>
+      <li>Người được chia xem lại trong trang <a href="#thuong">Thưởng của tôi</a>. Họ chỉ nhận email và xem được khi dòng của họ có <b>Mã NV</b>.</li>
+      <li><b>Mở lại</b> một đợt đã phát hành thì người dùng tạm không thấy, cho tới khi chốt lại.</li>
+    </ul>
+    <p><b>Báo cáo &amp; tra cứu</b> (dưới danh sách đợt): xem các đợt đã chốt.</p>
+    <ul>
+      <li>Lọc theo <b>năm</b> và theo <b>đợt</b>.</li>
+      <li>Xem theo <b>Đợt</b> (tổng Fitter / Site-sup), theo <b>Dự án</b> (mọi lần trả, từng người), hoặc theo <b>Nhân viên</b> (tổng nhận, từng dự án).</li>
+      <li>Tìm theo tên nhân viên, Mã NV, tên dự án hoặc WBS.</li>
+    </ul>
     <p><b>Kế toán sửa file</b> → <span class="btnlike">⬆ Tải Excel lên (ghi đè)</span>:</p>
     <ul>
       <li>Mỗi sheet (ví dụ "09 2026") là một đợt.</li>
       <li>App đối chiếu tổng đọc được với ô tổng trong file và chỉ chọn sẵn các sheet khớp.</li>
       <li>Đợt đã có sẽ được <b>ghi đè</b> số tiền đã chia cho từng người. Đợt chưa có sẽ được tạo mới.</li>
       <li>Dùng chức năng này cả để <b>ghi nhận các đợt đã chia trước đây</b> (nhập một lần file tổng hợp các đợt).</li>
+    </ul>
+  </section>
+
+  <!-- =============================== Thưởng của tôi =============================== -->
+  <section class="part" id="thuong" style="--c: #a16207">
+    <h2><span class="ic" aria-hidden="true">💰</span>Thưởng của tôi (mọi nhân viên)</h2>
+    <p>Trang chủ → <i>Thưởng của tôi</i>. Khi Admin phát hành một đợt thưởng lắp đặt, bạn nhận email kèm chi tiết.</p>
+    <ul>
+      <li>Trang liệt kê từng đợt và từng dự án bạn được chia: vai trò, giờ công, % giờ công, số tiền. Đợt cuối còn ghi tổng được hưởng và số đã nhận đợt trước.</li>
+      <li>Bấm <span class="btnlike">Báo cáo SWAT</span> để xem Standard Hour, Scorecard và quỹ thưởng của dự án. Có thể mở <i>bảng SWAT đầy đủ</i>, chỉ để xem.</li>
+      <li>Bạn <b>chỉ xem được tiền của mình</b>, không thấy số tiền của người khác.</li>
     </ul>
   </section>
 

@@ -8,17 +8,17 @@
 <title>Incentive — Thưởng lắp đặt — Bộ công cụ dự án</title>
 <meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
-<link rel="stylesheet" href="../../css/ni.css?v=3">
+<link rel="stylesheet" href="../../css/ni.css?v=4">
 <link rel="stylesheet" href="../accounts/style.css?v=7">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 <script src="../../js/demo.js?v=3"></script>
-<script src="../../js/session.js?v=48"></script>
+<script src="../../js/session.js?v=49"></script>
 <script>Session.guard('incentive');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
 <script src="../../js/swatitem.js?v=1"></script>
 <script src="incentive.js?v=1"></script>
 <script src="incexcel.js?v=1"></script>
-<script src="app.js?v=1" defer></script>
+<script src="app.js?v=2" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="incentive" data-tool="Incentive — Thưởng lắp đặt" data-help="huong-dan.html#incentive"></script>
@@ -63,6 +63,19 @@
       <tbody></tbody>
     </table></div>
     <p class="ac-note" id="listNote"></p>
+  </section>
+
+  <!-- ===== báo cáo & tra cứu ===== -->
+  <section class="ac-card" id="secReport" hidden aria-labelledby="hReport">
+    <div class="in-head"><h2 id="hReport">Báo cáo &amp; tra cứu thưởng đã chia</h2><span class="ac-note">Các đợt <b>đã chốt</b></span></div>
+    <div class="in-filters">
+      <label>Năm <select id="rYear"></select></label>
+      <label>Đợt <select id="rBatch"></select></label>
+      <label>Xem theo <select id="rView"><option value="batch">Đợt</option><option value="project">Dự án</option><option value="person">Nhân viên</option></select></label>
+      <label class="in-grow">Tìm tên nhân viên / Mã NV / dự án / WBS <input type="search" id="rSearch" placeholder="vd. Nguyễn Văn A, 561842, Gia Định, 11902172"></label>
+    </div>
+    <div class="in-kpis" id="rKpis"></div>
+    <div id="rBody"></div>
   </section>
 
   <!-- ===== tải file Excel lên ===== -->
@@ -161,6 +174,13 @@
         <button class="btn" type="button" id="xStd">⬇ Standard Hour SWAT (mỗi dự án 1 sheet)</button>
         <button class="btn" type="button" id="xSc">⬇ Scorecard (mỗi dự án 1 sheet)</button>
         <span class="ac-note" id="xMsg" aria-live="polite"></span>
+      </div>
+      <div class="in-publish" id="pubBox" hidden>
+        <div><b>📣 Phát hành cho người được chia thưởng</b>
+          <p class="ac-note" id="pubNote">Sau khi phát hành, mỗi người chỉ xem được tiền thưởng <b>của mình</b> (theo từng dự án và báo cáo SWAT của dự án) trong trang <b>Thưởng của tôi</b>.</p></div>
+        <label class="ac-check"><input type="checkbox" id="pubMail" checked> Gửi email thông báo chi tiết cho từng người</label>
+        <button class="btn primary" type="button" id="pubGo">📣 Phát hành</button>
+        <span class="ac-note" id="pubMsg" aria-live="polite"></span>
       </div>
       <div class="in-acts in-end">
         <span class="ac-note" id="doneNote"></span>
