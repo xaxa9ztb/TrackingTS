@@ -8,7 +8,7 @@
 <title>Hướng dẫn sử dụng — Bộ công cụ dự án</title>
 <meta name="description" content="Hướng dẫn sử dụng Bộ công cụ dự án cho Fitter, Giám sát (Site Sup), Quản lý dự án và Quản trị viên: chấm công, nộp và duyệt bảng công, hồ sơ chất lượng, điều phối nhân sự.">
 <meta name="theme-color" content="#0f1b2d">
-<link rel="stylesheet" href="css/ni.css?v=2">
+<link rel="stylesheet" href="css/ni.css?v=3">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -685,6 +685,46 @@
       <li><b>Phân công dự án</b>: chọn Site Sup và Quản lý dự án cho từng dự án — quyết định ai duyệt bảng công của dự án đó.</li>
       <li>Người nghỉ việc: <b>khoá tài khoản</b> (không xoá) để giữ lịch sử.</li>
     </ol>
+  </section>
+
+  <!-- =============================== Incentive =============================== -->
+  <section class="part" id="incentive" style="--c: #a16207">
+    <h2><span class="ic" aria-hidden="true">🏅</span>Incentive — Thưởng lắp đặt (chỉ Quản trị viên)</h2>
+    <p>Trang chủ → nhóm <i>Quản trị</i> → <i>Incentive — Thưởng lắp đặt</i>. Hiện có scheme <b>SWAT</b> (Installation Incentive Scheme); scheme <b>SITE</b> sẽ bổ sung sau. Mỗi <b>tháng</b> (thường là các tháng lẻ) là một <b>đợt chia thưởng</b>.</p>
+    <ol class="steps">
+      <li><span class="btnlike">+ Đợt mới</span> → chọn tháng. Bấm <span class="btnlike">Mở</span> để làm tiếp một đợt đang làm.</li>
+      <li><b>1. Chọn dự án</b> (chỉ dự án dòng sản phẩm áp dụng SWAT) và cách trả:
+        <ul>
+          <li>Dự án <b>chưa trả lần nào</b>: <b>70%</b> (phần còn lại trả khi final bàn giao) hoặc <b>100%</b> (trả đủ một lần).</li>
+          <li>Dự án <b>đã trả 70%</b>: đợt cuối <b>30%</b> khi đã final bàn giao, hoặc <b>20%</b> khi quá 6 tháng mà chưa final bàn giao. App nhắc số tháng kể từ đợt trả đầu.</li>
+        </ul></li>
+      <li><b>2. Standard Hour</b> và <b>3. Scorecard</b>: bảng SWAT của từng dự án mở ngay trong trang (thông số lấy từ <i>Thống kê giờ công dự án</i>, giờ đã dùng lấy từ <i>Theo dõi giờ công</i>).
+        <ul>
+          <li>Xem, sửa, rồi bấm <span class="btnlike pri">Duyệt</span>. Thông số được lưu vào dự án để lần sau dùng lại.</li>
+          <li>Duyệt Scorecard thì quỹ thưởng Fitter / Site-sup của dự án lấy theo Scorecard (thưởng / unit × số unit).</li>
+        </ul></li>
+      <li><b>4. Chia thưởng</b>:
+        <ul>
+          <li>Site-sup nhận quỹ Site-sup × tỉ lệ trả.</li>
+          <li>Fitter chia quỹ Fitter theo <b>% giờ công</b> trên dự án.</li>
+          <li>Đợt cuối: số tiền = quỹ × (100% hoặc 90%) × % giờ công − số người đó đã nhận đợt trước.</li>
+          <li>Sửa được tên, giờ công, quỹ thưởng và số tiền. Số sửa tay tô cam; xoá trống để tính lại.</li>
+        </ul></li>
+      <li><b>5. Tổng hợp &amp; xuất</b>:
+        <ul>
+          <li>Xem tổng theo dự án và theo người.</li>
+          <li>Xuất <b>List Fitter and Supervisor for Incentive</b> (Excel giữ công thức, cùng bố cục file kế toán, có danh sách theo Mã NV và ô ký tên).</li>
+          <li>Xuất <b>Standard Hour SWAT</b> và <b>Scorecard</b>: mỗi loại 1 file, mỗi dự án 1 sheet.</li>
+          <li>Bấm <span class="btnlike pri">✓ Chốt đợt</span>: dự án được ghi nhận đã trả đợt này, lần sau sẽ hiện lựa chọn đợt cuối.</li>
+        </ul></li>
+    </ol>
+    <p><b>Kế toán sửa file</b> → <span class="btnlike">⬆ Tải Excel lên (ghi đè)</span>:</p>
+    <ul>
+      <li>Mỗi sheet (ví dụ "09 2026") là một đợt.</li>
+      <li>App đối chiếu tổng đọc được với ô tổng trong file và chỉ chọn sẵn các sheet khớp.</li>
+      <li>Đợt đã có sẽ được <b>ghi đè</b> số tiền đã chia cho từng người. Đợt chưa có sẽ được tạo mới.</li>
+      <li>Dùng chức năng này cả để <b>ghi nhận các đợt đã chia trước đây</b> (nhập một lần file tổng hợp các đợt).</li>
+    </ul>
   </section>
 
   <!-- =============================== Khảo sát Bracket =============================== -->

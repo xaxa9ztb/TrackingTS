@@ -104,3 +104,11 @@ test('đọc sheet: tổng không khớp ô tổng trong file → cảnh báo', 
   assert.equal(s.projects[0].kind, 'first100');
   assert.equal(s.matches, false); assert.match(s.warnings[0], /khác ô tổng/);
 });
+
+test('đã nhận đợt trước: khớp theo Mã NV, thiếu Mã NV thì theo tên', () => {
+  const paid = Inc.paidMap([{ lines: [{ empId: '', name: 'Nguyễn Văn A', amount: 700 }, { empId: 'F2', name: 'B', amount: 100 }] }, { lines: [{ empId: 'F2', name: 'B', amount: 50 }] }]);
+  assert.equal(Inc.paidOf(paid, { empId: 'F9', name: 'nguyen van a' }), 700);
+  assert.equal(Inc.paidOf(paid, { empId: 'F2', name: 'Tên khác' }), 150);
+  const r = Inc.compute({ kind: 'final30', fundF: 1000, fundS: 0, paid, fitters: [{ empId: 'F9', name: 'Nguyễn Văn A', hours: 1 }] });
+  assert.equal(r.lines[0].amount, 300);
+});

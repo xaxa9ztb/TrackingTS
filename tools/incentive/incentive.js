@@ -51,6 +51,22 @@
   //      paid: {key → số đã nhận ở các đợt trước (dự án này)} với key = empId hoặc 'n:' + tên không dấu }
   // → { lines: [{role, empId, name, hours, pct, total, before, amount, manual}], fitterTotal, supTotal, total, rate }
   function keyOf(x) { return x && x.empId ? String(x.empId) : 'n:' + plain(x && x.name); }
+  // số đã nhận đợt trước: theo Mã NV, không có thì theo tên (lịch sử nhập từ file cũ có thể thiếu Mã NV)
+  function paidOf(paid, x) {
+    if (x && x.empId && paid[String(x.empId)] != null) return Number(paid[String(x.empId)]) || 0;
+    return Number(paid['n:' + plain(x && x.name)]) || 0;
+  }
+  // bảng "đã nhận" của một dự án từ lịch sử: mỗi khoản cộng vào cả khoá Mã NV (nếu có) lẫn khoá tên
+  function paidMap(items) {
+    const m = {};
+    (items || []).forEach(h => (h.lines || []).forEach(l => {
+      const a = Number(l.amount) || 0;
+      if (l.empId) m[String(l.empId)] = r2((m[String(l.empId)] || 0) + a);
+      const nk = 'n:' + plain(l.name);
+      m[nk] = r2((m[nk] || 0) + a);
+    }));
+    return m;
+  }
   function compute(p) {
     const k = KINDS[p.kind] || KINDS.first70;
     const rate = k.rate, final = k.stage === 'final';
@@ -60,7 +76,7 @@
     const hoursSum = fitters.reduce((s, f) => s + Math.max(0, Number(f.hours) || 0), 0);
     const lines = [];
     if (p.sup && (p.sup.name || p.sup.empId)) {
-      const total = r2(fundS * rate), before = final ? r2(paid[keyOf(p.sup)] || 0) : 0;
+      const total = r2(fundS * rate), before = final ? r2(paidOf(paid, p.sup)) : 0;
       const auto = r2(total - before);
       const manual = p.sup.amount != null && p.sup.amount !== '' && isFinite(+p.sup.amount);
       lines.push({ role: 'sup', empId: p.sup.empId || '', name: p.sup.name || '', hours: null, pct: null, total, before, auto, amount: manual ? r2(+p.sup.amount) : auto, manual });
@@ -68,7 +84,7 @@
     fitters.forEach(f => {
       const h = Math.max(0, Number(f.hours) || 0);
       const pct = hoursSum > 0 ? h / hoursSum : (fitters.length ? 1 / fitters.length : 0);
-      const total = r2(fundF * rate * pct), before = final ? r2(paid[keyOf(f)] || 0) : 0;
+      const total = r2(fundF * rate * pct), before = final ? r2(paidOf(paid, f)) : 0;
       const auto = r2(total - before);
       const manual = f.amount != null && f.amount !== '' && isFinite(+f.amount);
       lines.push({ role: 'fitter', empId: f.empId || '', name: f.name || '', hours: h, pct, total, before, auto, amount: manual ? r2(+f.amount) : auto, manual });
@@ -226,6 +242,6 @@
     return { sheets };
   }
 
-  const api = { bookFromExcelJS, KINDS, plain, r2, keyOf, optionsFor, statusOf, monthsBetween, compute, byPerson, monthOfSheet, parseSheet, parseWorkbook };
+  const api = { bookFromExcelJS, KINDS, plain, r2, keyOf, paidOf, paidMap, optionsFor, statusOf, monthsBetween, compute, byPerson, monthOfSheet, parseSheet, parseWorkbook };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Incentive = api;
 })(typeof window !== 'undefined' ? window : globalThis);
