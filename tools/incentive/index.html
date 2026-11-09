@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi" class="ni" data-app="incentive">
+<head>
+<!-- Link cũ (GitHub Pages) đã ngừng: chuyển sang bản chính trên Cloudflare, giữ nguyên trang đang mở -->
+<script>if(/\.github\.io$/i.test(location.hostname))location.replace('https://nihan-ts.pages.dev'+(location.pathname.replace(/^\/TrackingTS(?=\/|$)/i,'')||'/')+location.search+location.hash);</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Incentive — Thưởng lắp đặt — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#0f1b2d">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="stylesheet" href="../../css/ni.css?v=3">
+<link rel="stylesheet" href="../accounts/style.css?v=7">
+<link rel="stylesheet" href="style.css?v=1">
+<script src="../../js/demo.js?v=3"></script>
+<script src="../../js/session.js?v=48"></script>
+<script>Session.guard('incentive');</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
+<script src="../../js/swatitem.js?v=1"></script>
+<script src="incentive.js?v=1"></script>
+<script src="incexcel.js?v=1"></script>
+<script src="app.js?v=1" defer></script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=39" data-app="incentive" data-tool="Incentive — Thưởng lắp đặt" data-help="huong-dan.html#incentive"></script>
+
+<header class="ac-top">
+  <div class="ac-wrap">
+    <h1>Incentive — Thưởng lắp đặt <span class="ac-badge">Admin</span></h1>
+    <p class="ac-sub">Tính và chia thưởng lắp đặt theo từng đợt (thường vào các tháng lẻ): duyệt Standard Hour và Scorecard từng dự án, chia cho Fitter theo % giờ công, xuất file cho kế toán.</p>
+    <nav class="in-schemes" aria-label="Scheme thưởng">
+      <button type="button" class="in-scheme on" aria-current="page">SWAT <small>Installation Incentive Scheme</small></button>
+      <button type="button" class="in-scheme" disabled title="Đang phát triển">SITE <small>sắp có</small></button>
+    </nav>
+    <details class="ni-howto"><summary>Cách dùng</summary><div>
+      <b>1.</b> <b>+ Đợt mới</b> chọn tháng (mỗi tháng một đợt). <b>2.</b> Chọn dự án và cách trả: chưa trả lần nào → <b>70%</b> hoặc <b>100%</b>; đã trả 70% → đợt cuối <b>30%</b> (đã final bàn giao) hoặc <b>20%</b> (quá 6 tháng chưa final).
+      <b>3.</b> Duyệt <b>Standard Hour</b> rồi <b>Scorecard</b> từng dự án (sửa được, lưu vào dự án cho lần sau). <b>4.</b> Kiểm tra bảng chia: Fitter theo % giờ công (từ Theo dõi giờ công), sửa giờ / số tiền nếu cần.
+      <b>5.</b> Xuất <b>List Fitter and Supervisor</b> (Excel giữ công thức), Standard Hour và Scorecard (mỗi dự án 1 sheet), rồi <b>Chốt đợt</b>.
+      Kế toán sửa file → <b>Tải Excel lên</b> để ghi đè số tiền đã chia (mỗi sheet là một đợt theo tháng).
+    </div></details>
+    <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
+  </div>
+</header>
+
+<main class="ac-wrap">
+  <div class="ac-msg" id="gate" hidden></div>
+
+  <!-- ===== danh sách đợt ===== -->
+  <section class="ac-card" id="secList" hidden aria-labelledby="hList">
+    <div class="in-head"><h2 id="hList">Các đợt chia thưởng SWAT</h2>
+      <span class="in-acts">
+        <button class="btn small" type="button" id="btnImport">⬆ Tải Excel lên (ghi đè)</button>
+        <button class="btn primary small" type="button" id="btnNew">+ Đợt mới</button>
+      </span></div>
+    <form class="in-new" id="newForm" hidden>
+      <label>Tháng chia thưởng <input type="month" id="newMonth" required></label>
+      <label class="in-grow">Tên đợt (tuỳ chọn) <input type="text" id="newTitle" maxlength="200" placeholder="vd. Đợt thưởng tháng 11/2026"></label>
+      <button class="btn primary small" type="submit">Tạo đợt</button>
+      <button class="btn small" type="button" id="newCancel">Huỷ</button>
+      <span class="ac-note err" id="newMsg"></span>
+    </form>
+    <div class="ac-scroll"><table class="ac-table ni-cards" id="tBatches">
+      <thead><tr><th>Tháng</th><th>Đợt</th><th>Trạng thái</th><th class="r">Dự án</th><th class="r">Tổng tiền (đ)</th><th>Cập nhật</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="ac-note" id="listNote"></p>
+  </section>
+
+  <!-- ===== tải file Excel lên ===== -->
+  <section class="ac-card" id="secImport" hidden aria-labelledby="hImport">
+    <div class="in-head"><h2 id="hImport">Tải file Excel kế toán lên — ghi đè số tiền đã chia</h2><button class="btn small" type="button" id="impClose">Đóng</button></div>
+    <p class="ac-help">Chọn file <b>List Fitter and Supervisor for Incentive</b> (.xlsx). Mỗi sheet là một đợt theo tháng (sheet "09 2026" → tháng 09/2026).
+      Đợt đã có trong hệ thống sẽ được <b>ghi đè</b> phần chia tiền theo file (giữ Standard Hour / Scorecard đã duyệt); đợt chưa có sẽ được tạo mới. Các đợt nhập vào coi như <b>đã chốt</b>.</p>
+    <label class="btn small in-file">Chọn file Excel… <input type="file" id="impFile" accept=".xlsx"></label>
+    <span class="ac-note" id="impMsg"></span>
+    <div id="impPreview" hidden>
+      <div class="ac-scroll"><table class="ac-table ni-cards" id="tImport">
+        <thead><tr><th><input type="checkbox" id="impAll" aria-label="Chọn tất cả"></th><th>Sheet</th><th>Tháng</th><th class="r">Dự án</th><th class="r">Tổng đọc được (đ)</th><th>Đối chiếu</th><th>Trong hệ thống</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="in-acts in-end"><span class="ac-note" id="impNote"></span><button class="btn primary" type="button" id="impGo">Nhập các đợt đã chọn</button></div>
+    </div>
+  </section>
+
+  <!-- ===== một đợt ===== -->
+  <section id="editor" hidden>
+    <div class="in-bar ac-card">
+      <button class="btn small" type="button" id="edBack">← Danh sách đợt</button>
+      <div class="in-bartitle"><b id="edTitle"></b> <span id="edStatus"></span><span class="ac-note" id="edSaved" aria-live="polite"></span></div>
+      <span class="in-total">Tổng đợt: <b id="edTotal">0</b> đ</span>
+      <button class="btn small" type="button" id="edSave">Lưu</button>
+    </div>
+    <ol class="in-steps" id="steps">
+      <li><button type="button" data-step="1"><span>1</span> Chọn dự án</button></li>
+      <li><button type="button" data-step="2"><span>2</span> Standard Hour</button></li>
+      <li><button type="button" data-step="3"><span>3</span> Scorecard</button></li>
+      <li><button type="button" data-step="4"><span>4</span> Chia thưởng</button></li>
+      <li><button type="button" data-step="5"><span>5</span> Tổng hợp &amp; xuất</button></li>
+    </ol>
+    <div class="ac-msg" id="roNote" hidden>Đợt này <b>đã chốt</b> — chỉ xem. Cần sửa thì bấm <b>Mở lại để sửa</b> ở bước 5.</div>
+
+    <!-- bước 1 -->
+    <div class="ac-card" id="st1" hidden>
+      <h2>1. Chọn dự án tính thưởng</h2>
+      <p class="ac-help">Chỉ hiện dự án thuộc dòng sản phẩm áp dụng SWAT (S3300 / ES1, ES5.0, Villa). Dự án chưa trả lần nào: chọn <b>70%</b> hoặc <b>100%</b>; đã trả 70%: chọn đợt cuối <b>30%</b> (đã final bàn giao) hoặc <b>20%</b> (quá 6 tháng chưa final bàn giao).</p>
+      <div class="ac-row"><input type="search" id="pFilter" placeholder="Tìm theo tên dự án, WBS, giám sát…" aria-label="Tìm dự án">
+        <label class="ac-check"><input type="checkbox" id="pShowDone"> Hiện cả dự án đã trả đủ</label><span class="ac-note" id="pNote"></span></div>
+      <div class="ac-scroll ac-tall in-tall"><table class="ac-table ni-cards" id="tProjects">
+        <thead><tr><th></th><th>Dự án</th><th>WBS</th><th>Giám sát</th><th>Sản phẩm</th><th>Đã trả</th><th>Đợt này trả</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+
+    <!-- bước 2 + 3: duyệt Standard Hour / Scorecard bằng công cụ SWAT Hour -->
+    <div class="ac-card" id="st23" hidden>
+      <h2 id="h23">2. Duyệt Standard Hour</h2>
+      <p class="ac-help" id="help23"></p>
+      <div class="in-review">
+        <ul class="in-plist" id="revList" aria-label="Dự án trong đợt"></ul>
+        <div class="in-revmain">
+          <div class="in-sum" id="revSum"></div>
+          <div class="in-acts">
+            <button class="btn primary small" type="button" id="revApprove">✓ Duyệt</button>
+            <button class="btn small" type="button" id="revNext">Dự án tiếp →</button>
+            <span class="ac-note" id="revMsg" aria-live="polite"></span>
+          </div>
+          <iframe id="tool" title="Công cụ SWAT Hour" src="about:blank"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- bước 4 -->
+    <div class="ac-card" id="st4" hidden>
+      <div class="in-head"><h2>4. Chia thưởng theo % giờ công</h2><button class="btn small" type="button" id="hoursReload">↻ Lấy lại giờ công từ Theo dõi giờ công</button></div>
+      <p class="ac-help">Quỹ thưởng lấy từ Scorecard (thưởng / unit × số unit) — sửa được. Fitter chia theo % giờ công trên dự án; Site-sup nhận quỹ Site-sup.
+        Đợt cuối: số tiền = quỹ × (100% hoặc 90%) × % giờ công − số người đó đã nhận đợt trước. Ô <b>Kỳ này</b> sửa tay được (tô cam); xoá trống để tính lại.</p>
+      <datalist id="dlEmp"></datalist>
+      <div id="splits"></div>
+    </div>
+
+    <!-- bước 5 -->
+    <div class="ac-card" id="st5" hidden>
+      <h2>5. Tổng hợp &amp; xuất</h2>
+      <div class="in-kpis" id="kpis"></div>
+      <h3>Theo dự án</h3>
+      <div class="ac-scroll"><table class="ac-table ni-cards" id="tSumProj"><thead><tr><th>Dự án</th><th>Đợt này</th><th class="r">Quỹ Fitter</th><th class="r">Quỹ Site-sup</th><th class="r">Fitter nhận</th><th class="r">Site-sup nhận</th><th class="r">Tổng</th><th>Duyệt</th></tr></thead><tbody></tbody></table></div>
+      <h3>Theo người</h3>
+      <div class="in-two">
+        <div class="ac-scroll"><table class="ac-table ni-cards" id="tSumSup"><thead><tr><th>Site-sup</th><th>Mã NV</th><th class="r">Dự án</th><th class="r">Tiền thưởng (đ)</th></tr></thead><tbody></tbody></table></div>
+        <div class="ac-scroll"><table class="ac-table ni-cards" id="tSumFit"><thead><tr><th>Fitter</th><th>Mã NV</th><th class="r">Dự án</th><th class="r">Tiền thưởng (đ)</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <details class="in-signers"><summary>Người lập / duyệt (in ở cuối file List)</summary>
+        <div class="in-grid">
+          <label>Prepared - NID <input data-sg="prepared" maxlength="80"></label>
+          <label>Agreed - HAN Director <input data-sg="director" maxlength="80"></label>
+          <label>Agreed - NID <input data-sg="nid1" maxlength="80"></label>
+          <label>Agreed - NID (2) <input data-sg="nid2" maxlength="80"></label>
+          <label>Verified - FIN <input data-sg="fin" maxlength="80"></label>
+        </div></details>
+      <div class="in-exports">
+        <button class="btn primary" type="button" id="xList">📊 Xuất List Fitter &amp; Supervisor</button>
+        <button class="btn" type="button" id="xStd">⬇ Standard Hour SWAT (mỗi dự án 1 sheet)</button>
+        <button class="btn" type="button" id="xSc">⬇ Scorecard (mỗi dự án 1 sheet)</button>
+        <span class="ac-note" id="xMsg" aria-live="polite"></span>
+      </div>
+      <div class="in-acts in-end">
+        <span class="ac-note" id="doneNote"></span>
+        <button class="btn danger" type="button" id="edDelete">Xoá đợt</button>
+        <button class="btn primary" type="button" id="edDone">✓ Chốt đợt</button>
+        <button class="btn" type="button" id="edReopen" hidden>Mở lại để sửa</button>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="ni-toast" id="toast" role="status" hidden></div>
+</body>
+</html>

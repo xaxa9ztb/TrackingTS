@@ -11,6 +11,7 @@ import { demoRequested, staleDemoCookie, demoCookie, demoEnv, seedDemo, switchPe
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow, vnDate, amendLockedChanges, amendLockedMsg } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
 import { routeTsImport } from './tsimport.mjs';
+import { routeIncentive } from './incentive.mjs';
 import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs, projectWbsKnown } from './tsflow.mjs';
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
@@ -1005,7 +1006,7 @@ async function listAudit(env, me, url) {
 }
 
 // các hàm dùng chung truyền cho server/otleave.mjs (duyệt tăng ca, đơn nghỉ)
-const H = { startApproval, HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES, periodParam, pushApprovedRows, mailConfigured };
+const H = { startApproval, HttpError, json, need, needOwnEmp, audit, projectStaff, canAct, readJson, str, now, LOCKED_STATUSES, periodParam, pushApprovedRows, mailConfigured, tsMetaRow };
 
 // ---------- điểm vào ----------
 
@@ -1100,6 +1101,10 @@ async function handleApi(request, env, opts = {}) {
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     if (path.startsWith('/api/admin/ts/') || path === '/api/ts/import') {
       const r = (await routeTsImport(H, env, me, path, method, url, request)) || (await routeTsAdmin(H, env, me, path, method, url, request));
+      if (r) return r;
+    }
+    if (path.startsWith('/api/incentive/')) {
+      const r = await routeIncentive(H, env, me, path, method, url, request);
       if (r) return r;
     }
     if (path.startsWith('/api/ts/ot/') || path.startsWith('/api/ts/leave')) {

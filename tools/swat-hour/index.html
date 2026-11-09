@@ -10,7 +10,7 @@
 <meta name="author" content="Schindler Vietnam NI">
 <meta name="theme-color" content="#0f1b2d">
 <meta name="color-scheme" content="light">
-<link rel="stylesheet" href="../../css/ni.css?v=2">
+<link rel="stylesheet" href="../../css/ni.css?v=3">
 <meta property="og:title" content="SWAT Hour Calculator — Schindler Vietnam">
 <meta property="og:description" content="Ước tính giờ công lắp đặt & giờ công còn lại theo bảng công.">
 <meta property="og:type" content="website">
@@ -223,7 +223,7 @@
 </style>
 </head>
 <body>
-<script src="../../js/session.js?v=47"></script>
+<script src="../../js/session.js?v=48"></script>
 <script src="../toolset-nav.js?v=39" data-app="swat" data-tool="SWAT Hour" data-help="#gs-thongke"></script>
 <header>
   <div>
@@ -922,7 +922,8 @@ function withXLSX(cb){
  const sc=document.createElement('script');sc.src='../../js/xlsx.full.min.js?v=19';
  sc.onload=()=>cb(window.XLSX||null);sc.onerror=()=>cb(null);document.head.appendChild(sc);
 }
-function exportExcel(){
+/* Bảng "Installation Hours" (dạng HTML theo bố cục form Excel) — dùng cho Xuất Excel và cho chức năng Incentive (gộp nhiều dự án) */
+function hoursTableHtml(){
  if(!ST.product)calc();
  const s=ST,F=FL[LANG];
  const year=s.year,product=s.product,stops=s.stops,befshape=+gv('befshape'),scheme=BEF_SCHEME[year],above=stops>10;
@@ -978,7 +979,12 @@ function exportExcel(){
  rows+=`<tr><td colspan=8 style="height:50px;border:1px solid #000"> </td></tr><tr></tr>`;
  rows+=`<tr><td colspan=2 style="font-weight:bold">${esc(F.prepBy)}</td><td colspan=3></td><td colspan=3 style="font-weight:bold">${esc(F.team)}</td></tr>`;
 
- const hoursTable='<table border="0" cellspacing="0">'+rows+'</table>';
+ return '<table border="0" cellspacing="0">'+rows+'</table>';
+}
+function exportExcel(){
+ if(!ST.product)calc();
+ const year=ST.year,product=ST.product;
+ const hoursTable=hoursTableHtml();
  const scTable=ST.scdata?buildScorecardTable():'';
 
  // Xuất Excel: 2 SHEET TÁCH HẲN (Installation Hours + SWAT SCORE CARD) bằng
@@ -1072,7 +1078,7 @@ function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
 /* API cho nhúng iframe trong TrackingTS */
 function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
 window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}else if(d&&d.type==='SWAT_OVERVIEW_DATA'){try{renderOverview(d.data);}catch(e){}}else if(d&&d.type==='SWAT_BATCH'){try{runBatch(d.mode,d.projects);}catch(e){}}});
-window.SWAT={version:APP_VERSION,getResult,getState,setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b),setCanWrite:b=>setCanWrite(b)};
+window.SWAT={version:APP_VERSION,getResult,getState,scoreData:()=>{if(!ST.product)calc();return ST.scdata?{...ST.scdata,units:ST.units,stops:ST.stops,product:ST.product,year:ST.year,stdPerUnit:ST.total}:null;},exportTables:()=>{if(!ST.product)calc();return {hours:hoursTableHtml(),scorecard:ST.scdata?buildScorecardTable():'',name:gv('pname'),wbs:gv('pref'),product:ST.product,year:ST.year};},setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b),setCanWrite:b=>setCanWrite(b)};
 
 /* ============ DANH SÁCH DỰ ÁN + COMBO "TÊN CÔNG TRÌNH" (kiểu Dashboard) ============ */
 /* TrackingTS gọi SWAT.loadProjects([...]) đổ danh sách công trình (tab Dự án)

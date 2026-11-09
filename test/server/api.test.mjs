@@ -2009,3 +2009,49 @@ test('điều chỉnh bảng công: chỉ sửa được các ngày từ ngày n
   r = await call('POST', `/api/ts/docs/${Q}/amend`, { email: 'ts1@example.com', body: { reason: 'Muốn sửa' } });
   assert.equal(r.status, 409); assert.match(r.data.error, /nộp sau khi hết kỳ/);
 });
+
+test('Incentive SWAT: chỉ Admin; tạo đợt, lưu, chốt → lịch sử; giờ công theo dự án; nhập Excel ghi đè', async () => {
+  const A = 'boss@example.com';
+  assert.equal((await call('GET', '/api/incentive/batches?scheme=swat', { email: 'ap1@example.com' })).status, 403, 'Site Sup không vào được');
+  assert.equal((await call('GET', '/api/incentive/batches?scheme=swat', { email: 'ts1@example.com' })).status, 403);
+  let r = await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2026-11', title: 'Đợt tháng 11' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const id = r.data.id;
+  assert.equal((await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2026-11' } })).status, 409, 'mỗi tháng một đợt');
+  assert.equal((await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2026-13' } })).status, 400);
+  const data = { projects: [{ wbs: 'WA-1', name: 'Dự án duyệt', kind: 'first70', fundF: 1000, fundS: 100, lines: [
+    { role: 'sup', empId: 'AP1', name: 'Giám Sát Duyệt', amount: 70 }, { role: 'fitter', empId: 'TS1', name: 'Thợ Một', hours: 30, pct: 0.75, amount: 525 },
+    { role: 'fitter', empId: 'TS2', name: 'Thợ Hai', hours: 10, pct: 0.25, amount: 175 }] }] };
+  r = await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: 1, data } });
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.total, 770);
+  assert.equal((await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: 1, data } })).status, 409, 'chống ghi đè');
+  assert.equal((await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: 2, data: { projects: [{ ...data.projects[0], kind: 'x' }] } } })).status, 400);
+  // đang làm (draft) thì chưa tính vào lịch sử
+  assert.deepEqual((await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items, []);
+  r = await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: 2, data, status: 'done' } });
+  assert.equal(r.data.status, 'done');
+  let h = (await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items;
+  assert.deepEqual(h.map(x => [x.month, x.wbs, x.kind, x.lines.length]), [['2026-11', 'WA-1', 'first70', 3]]);
+  const list = (await call('GET', '/api/incentive/batches?scheme=swat', { email: A })).data.batches;
+  assert.deepEqual(list.map(b => [b.month, b.status, b.projects, b.total]), [['2026-11', 'done', 1, 770]]);
+  // giờ công theo người từ bảng Theo dõi giờ công (dòng đã duyệt của các test trước)
+  r = await call('GET', '/api/incentive/hours?wbs=WA-1,KHONG-CO', { email: A });
+  assert.equal(r.status, 200);
+  const wa = r.data.projects.find(p => p.wbs === 'WA-1');
+  assert.ok(wa.total > 0 && wa.people.some(p => p.empId === 'TS1' && p.role === 'fitter'), JSON.stringify(wa));
+  assert.deepEqual(r.data.projects.find(p => p.wbs === 'KHONG-CO').people, []);
+  // nhập file Excel: tháng 11 đã có → thay phần chia tiền (giữ trường khác của dự án), tháng 09 chưa có → tạo mới, đã chốt
+  r = await call('POST', '/api/incentive/import', { email: A, body: { scheme: 'swat', sheets: [
+    { sheet: '11 2026', month: '2026-11', title: 'HN Nov 2026', projects: [{ wbs: 'WA-1', name: 'Dự án duyệt', kind: 'first70', rate: 0.7, lines: [{ role: 'fitter', empId: 'TS1', name: 'Thợ Một', amount: 600 }] }] },
+    { sheet: '09 2026', month: '2026-09', projects: [{ wbs: 'WB-2', name: 'Dự án B', kind: 'first100', lines: [{ role: 'sup', name: 'GS', amount: 50 }] }] }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.batches.map(b => [b.month, b.replaced, b.total, b.before]), [['2026-11', true, 600, 770], ['2026-09', false, 50, null]]);
+  const b11 = (await call('GET', `/api/incentive/batches/${id}`, { email: A })).data;
+  assert.deepEqual([b11.status, b11.source, b11.data.projects[0].fundF, b11.data.projects[0].lines.length], ['done', 'import', 1000, 1]);
+  h = (await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items;
+  assert.deepEqual(h.map(x => [x.month, x.wbs, x.kind]), [['2026-09', 'WB-2', 'first100'], ['2026-11', 'WA-1', 'first70']]);
+  assert.equal((await call('POST', '/api/incentive/import', { email: A, body: { scheme: 'swat', sheets: [{ month: '2026-11', projects: [] }, { month: '2026-11', projects: [] }] } })).status, 400);
+  // xoá đợt
+  assert.equal((await call('DELETE', `/api/incentive/batches/${id}`, { email: A, body: {} })).status, 200);
+  assert.deepEqual((await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items.map(x => x.month), ['2026-09']);
+});

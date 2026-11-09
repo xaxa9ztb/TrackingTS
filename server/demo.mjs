@@ -107,7 +107,7 @@ function tsEntry(n, date, wbs, name, start, end, brk) {
 export async function seedDemo(db, me, role, today = new Date()) {
   if (!DEMO_ROLES.includes(role)) role = 'staff';
   const stamp = today.toISOString();
-  const wipe = ['project_staff', 'employees', 'projects', 'timesheets', 'ts_doc_wbs', 'ts_approvals', 'ts_docs', 'ts_ot', 'ts_leave', 'kv_store', 'audit_log'];
+  const wipe = ['project_staff', 'employees', 'projects', 'timesheets', 'ts_doc_wbs', 'ts_approvals', 'ts_docs', 'ts_ot', 'ts_leave', 'inc_lines', 'inc_batches', 'kv_store', 'audit_log'];
   // mail_log: giữ bộ đếm thư demo trong ngày (demoq:…) để làm mới dữ liệu không mở lại giới hạn
   await db.batch([...wipe.map((t) => db.prepare(`DELETE FROM ${t}`)), db.prepare("DELETE FROM mail_log WHERE key NOT LIKE 'demoq:%'")]);
 
