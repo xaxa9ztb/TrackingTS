@@ -1922,7 +1922,7 @@ test('điều chỉnh bảng công: đã duyệt xong → điều chỉnh (có l
 
   // người duyệt thấy đây là bản điều chỉnh + bản trước để so
   const inb = (await call('GET', '/api/ts/inbox', { email: 'ap1@example.com' })).data.items.find(i => i.empId === 'TS1' && i.period === P);
-  assert.deepEqual(inb.amend, { rev: 1, from: 'approved', note: 'Ngày 18/04 thực tế làm dự án khác' });
+  assert.deepEqual(inb.amend, { rev: 1, from: 'approved', note: 'Ngày 18/04 thực tế làm dự án khác', since: '2028-04-16' }, 'nộp trước khi kỳ bắt đầu → sửa được cả kỳ');
   const rv = (await call('GET', `/api/ts/review/TS1/${P}`, { email: 'ap1@example.com' })).data;
   assert.equal(rv.amend.rev, 1); assert.equal(rv.base.entries.length, 2); assert.equal(rv.data.entries.length, 3);
 
@@ -1970,4 +1970,42 @@ test('bảng công chờ Admin xử lý (pm_ok) cũng bị khoá, không ghi đ�
   assert.equal((await call('POST', `/api/ts/review/TS1/${P}/approve`, { email: 'ap3@example.com', body: {} })).data.status, 'pm_ok');
   const d = await docOf('ts1@example.com', P);
   assert.equal((await putDoc('ts1@example.com', P, [], d.version)).status, 423);
+});
+
+test('điều chỉnh bảng công: chỉ sửa được các ngày từ ngày nộp đến hết kỳ (ngày 15)', async () => {
+  const P = '2028-09';          // kỳ 16/08 → 15/09/2028
+  const amend = (reason) => call('POST', `/api/ts/docs/${P}/amend`, { email: 'ts1@example.com', body: { reason } });
+  await putDoc('ts1@example.com', P, [okEntry(701, '2028-09-08'), okEntry(702, '2028-09-12'), okEntry(703, '2028-09-14')], 0);
+  assert.equal((await submit('ts1@example.com', P)).status, 200);
+  // nộp ngày 10/09 (giờ VN) → 12/09 và 14/09 là ngày chấm trước
+  await env.DB.prepare("UPDATE ts_docs SET submitted_at = '2028-09-09T18:30:00Z' WHERE emp_id = 'TS1' AND period = ?").bind(P).run();
+  let r = await amend('Ngày 12 và 14 thực tế khác');
+  assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.amendSince, '2028-09-10', 'ngày nộp theo giờ Việt Nam');
+  const mine = (await call('GET', '/api/ts/docs', { email: 'ts1@example.com' })).data.docs.find(d => d.period === P);
+  assert.equal(mine.amendSince, '2028-09-10');
+  let d = await docOf('ts1@example.com', P);
+  // sửa ngày 08/09 (trước ngày nộp) → bị chặn
+  r = await putDoc('ts1@example.com', P, [okEntry(701, '2028-09-08', { endTime: '19:00', bd: { NORMAL: 8, OT1: 2 } }), okEntry(702, '2028-09-12'), okEntry(703, '2028-09-14')], d.version);
+  assert.equal(r.status, 400); assert.match(r.data.error, /từ 10\/09.*08\/09/);
+  r = await putDoc('ts1@example.com', P, [okEntry(702, '2028-09-12'), okEntry(703, '2028-09-14')], d.version);
+  assert.equal(r.status, 400, 'xoá ngày trước ngày nộp cũng bị chặn');
+  r = await putDoc('ts1@example.com', P, [okEntry(709, '2028-09-05'), okEntry(701, '2028-09-08'), okEntry(702, '2028-09-12'), okEntry(703, '2028-09-14')], d.version);
+  assert.equal(r.status, 400, 'thêm ngày trước ngày nộp cũng bị chặn');
+  // sửa 12/09, bỏ 14/09, thêm 15/09 → được
+  r = await putDoc('ts1@example.com', P, [okEntry(701, '2028-09-08'), okEntry(702, '2028-09-12', { workNumber: 'WA-1', projectName: 'Dự án khác' }), okEntry(704, '2028-09-15')], d.version);
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal((await submit('ts1@example.com', P)).status, 200);
+  const rv = (await call('GET', `/api/ts/review/TS1/${P}`, { email: 'ap1@example.com' })).data;
+  assert.equal(rv.amend.since, '2028-09-10');
+  // điều chỉnh lần nữa: mốc vẫn là ngày nộp lần đầu (không lùi theo lần nộp lại)
+  r = await amend('Sửa tiếp ngày 15');
+  assert.equal(r.data.amendSince, '2028-09-10');
+
+  // nộp sau khi hết kỳ → không có ngày chấm trước để điều chỉnh
+  const Q = '2028-11';
+  await putDoc('ts1@example.com', Q, [okEntry(801, '2028-10-20')], 0);
+  assert.equal((await submit('ts1@example.com', Q)).status, 200);
+  await env.DB.prepare("UPDATE ts_docs SET submitted_at = '2028-11-16T02:00:00Z' WHERE emp_id = 'TS1' AND period = ?").bind(Q).run();
+  r = await call('POST', `/api/ts/docs/${Q}/amend`, { email: 'ts1@example.com', body: { reason: 'Muốn sửa' } });
+  assert.equal(r.status, 409); assert.match(r.data.error, /nộp sau khi hết kỳ/);
 });

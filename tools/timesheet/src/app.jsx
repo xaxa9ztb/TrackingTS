@@ -499,18 +499,25 @@
             const changeMonth = (m) => { setCurrentMonth(m); setDayFilter(null); };
             const closeDrawer = () => setDrawer(null);
 
+            // đang điều chỉnh: chỉ sửa được các ngày từ ngày nộp (lần đầu) đến hết kỳ — các ngày đã chấm trước
+            const amendNow = SERVER && (periodStatus === 'draft' || periodStatus === 'rejected') ? docAmend[currentMonth] : null;
+            const amendSince = amendNow && amendNow.since && amendNow.since > period.start ? amendNow.since : '';
+            const beforeSince = (d) => !!amendSince && !!d && d < amendSince && TsSync.periodOf(d) === currentMonth;
+            const sinceMsg = () => showToast(`Đang điều chỉnh: chỉ sửa được các ngày từ ${fmtDM(amendSince)} (ngày nộp bảng công) đến ${fmtDM(period.end)}. Ngày trước đó đã chấm theo thực tế lúc nộp — cần sửa thì liên hệ giám sát / Admin.`);
             const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên đang khoá. Thực tế khác so với đã chấm thì bấm "Điều chỉnh bảng công" (ở thanh trạng thái kỳ) để sửa lại rồi nộp duyệt lại.',
                 SERVER && TsSync.AMENDABLE.includes(periodStatus) ? { label: 'Điều chỉnh', run: () => openAmend() } : undefined);
             const openNewEntry = (date) => {
                 if (locked) return lockedMsg();
+                if (beforeSince(date)) return sinceMsg();
                 let d = date;
                 if (!d) { // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
                     d = getTodayLocal();
                     if (entries.length > 0) d = addDaysLocal(entries.reduce((a, b) => (b.date > a.date ? b : a)).date, 1);
+                    if (beforeSince(d)) d = amendSince;
                 }
                 setDrawer({ type: 'form', entry: null, date: d, key: Date.now() });
             };
-            const openEdit = (entry) => { if (locked) return lockedMsg(); setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() }); };
+            const openEdit = (entry) => { if (locked) return lockedMsg(); if (beforeSince(entry.date)) return sinceMsg(); setDrawer({ type: 'form', entry, date: entry.date, key: Date.now() }); };
 
             const handleSaveEntry = (formData) => {
                 rememberProject(formData);
@@ -518,6 +525,7 @@
                 const u = Date.now();      // thời điểm sửa — dùng để gộp khi sửa trên nhiều máy
                 const { bd: _bd, cat: _cat, ae: _ae, rangeTo, skipOff, ...data } = formData;   // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
                 // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+                if (beforeSince(data.date)) return sinceMsg();
                 const dates = (!editing && rangeTo && rangeTo > data.date) ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
                 if (dates) {
                     if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
@@ -546,6 +554,7 @@
 
             const handleDelete = (entry) => {
                 if (locked) return lockedMsg();
+                if (beforeSince(entry.date)) return sinceMsg();
                 setEntries(prev => prev.filter(e => e.id !== entry.id));
                 if (SERVER) { TsSync.markDeleted(entry); TsSync.markDirty(entry.date); scheduleSync(); }
                 if (drawer && drawer.entry && drawer.entry.id === entry.id) setDrawer(null);
@@ -606,9 +615,10 @@
                     if (r.status === 200) {
                         setDocStatuses(prev => ({ ...prev, [currentMonth]: 'draft' }));
                         setDocNotes(prev => ({ ...prev, [currentMonth]: '' }));
-                        setDocAmend(prev => ({ ...prev, [currentMonth]: { rev: r.data.amendRev, from: r.data.amendFrom, note: r.data.amendNote, at: r.data.amendAt } }));
+                        setDocAmend(prev => ({ ...prev, [currentMonth]: { rev: r.data.amendRev, from: r.data.amendFrom, note: r.data.amendNote, at: r.data.amendAt, since: r.data.amendSince || '' } }));
                         setDrawer(null);
-                        showToast('Đã mở lại bảng công để điều chỉnh — sửa các ngày cho đúng thực tế rồi bấm "Nộp bảng công".');
+                        const sc = r.data.amendSince && r.data.amendSince > period.start ? r.data.amendSince : '';
+                        showToast(`Đã mở lại bảng công để điều chỉnh — sửa ${sc ? `các ngày từ ${fmtDM(sc)} đến ${fmtDM(period.end)}` : 'các ngày'} cho đúng thực tế rồi bấm "Nộp bảng công".`);
                         return '';
                     }
                     return r.data.error || ('Lỗi máy chủ ' + r.status);
@@ -987,7 +997,7 @@
                             title={info.state === 'offline' ? 'Cần có mạng để nộp' : 'Nộp bảng công của kỳ này cho giám sát duyệt'}>{submitting ? 'Đang nộp…' : 'Nộp bảng công'}</button>
                     )}
                     {TsSync.LOCKED.includes(status) && <span className="text-sm text-slate-600">{status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : amend ? 'Bản điều chỉnh đang chờ duyệt — Theo dõi giờ công vẫn giữ bản đã duyệt trước đó.' : 'Không sửa được trong lúc chờ duyệt.'}</span>}
-                    {amend && (status === 'draft' || status === 'rejected') && <span id="tsAmendNote" className="text-sm text-blue-800">Đang điều chỉnh — {amend.note}. Sửa xong bấm <b>Nộp bảng công</b>{amend.from === 'approved' ? '; Theo dõi giờ công giữ bản đã duyệt cho tới khi bản điều chỉnh được duyệt xong' : ''}.</span>}
+                    {amend && (status === 'draft' || status === 'rejected') && <span id="tsAmendNote" className="text-sm text-blue-800">Đang điều chỉnh — {amend.note}.{amend.since && amend.since > period.start ? <React.Fragment> Chỉ sửa được các ngày <b>từ {fmtDM(amend.since)} đến {fmtDM(period.end)}</b> (từ ngày nộp).</React.Fragment> : null} Sửa xong bấm <b>Nộp bảng công</b>{amend.from === 'approved' ? '; Theo dõi giờ công giữ bản đã duyệt cho tới khi bản điều chỉnh được duyệt xong' : ''}.</span>}
                     {status === 'rejected' && note && <span id="tsRejectNote" className="text-sm text-rose-700 font-medium">Lý do trả lại — {note}</span>}
                     {remind && <span id="tsDeadline" className={`text-sm font-medium ${remind.tone === 'rose' ? 'text-rose-700' : 'text-amber-800'}`}>{remind.text}</span>}
                     <span id="tsSyncText" className="ml-auto text-sm text-slate-600 inline-flex items-center gap-2">
@@ -1243,7 +1253,7 @@
                 <form onSubmit={go} className="px-5 py-5 space-y-4">
                     <p className="text-sm">Bảng công kỳ <b>{parseInt(m, 10)}/{y}</b> ({fmtDMY(period.start)} – {fmtDMY(period.end)}) đang ở trạng thái <b>{STATUS_LABEL[status] || status}</b>.</p>
                     <ol className="text-sm text-slate-700 list-decimal pl-5 space-y-1">
-                        <li>Bảng công <b>mở lại để sửa</b> — sửa / thêm / xoá các ngày đã chấm trước cho <b>đúng thực tế</b>.</li>
+                        <li>Bảng công <b>mở lại để sửa</b> — sửa / thêm / xoá các ngày <b>đã chấm trước</b> cho <b>đúng thực tế</b>: chỉ các ngày <b>từ ngày bạn bấm nộp đến hết kỳ ({fmtDM(period.end)})</b>. Ngày trước ngày nộp không sửa được (cần sửa thì liên hệ giám sát / Admin).</li>
                         <li>Bấm <b>Nộp bảng công</b>: bản điều chỉnh đi lại {lead ? 'Quản lý dự án → Admin' : 'Site Sup → Quản lý dự án → Admin'} (người duyệt thấy rõ ngày nào thay đổi).</li>
                         <li>Duyệt xong, dữ liệu chấm công trong ứng dụng (Theo dõi giờ công) được <b>cập nhật theo bản điều chỉnh</b>.</li>
                     </ol>

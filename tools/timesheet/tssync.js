@@ -129,7 +129,7 @@
         const listing = await call('GET', '/api/ts/docs');
         if (listing.status !== 200) throw new Error(listing.data.error || ('Máy chủ báo lỗi (HTTP ' + listing.status + ')'));
         const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; if (d.adminNote) result.admin[d.period] = { by: d.adminBy, at: d.adminAt, note: d.adminNote };
-          result.amend[d.period] = d.amendFrom ? { rev: d.amendRev, from: d.amendFrom, note: d.amendNote, at: d.amendAt } : null; });
+          result.amend[d.period] = d.amendFrom ? { rev: d.amendRev, from: d.amendFrom, note: d.amendNote, at: d.amendAt, since: d.amendSince || '' } : null; });
         let st = load();
         // lần đầu trên máy này: các kỳ đã có dòng mà máy chủ chưa có → gửi lên
         const localPeriods = new Set(getEntries().map(e => periodOf(e.date)));

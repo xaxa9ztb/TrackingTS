@@ -1,6 +1,7 @@
 // Quy tắc cho bảng công cá nhân (Timesheet): kỳ lương và kiểm tra dữ liệu gửi lên.
 // Kỳ lương 'YYYY-MM' = từ 16 của tháng trước đến 15 của tháng đó (khớp getSalaryPeriod trong tools/timesheet).
 import TsAllowance from '../tools/timesheet/allowance.js';   // phụ cấp xe: dùng chung với trình duyệt
+import TsSync from '../tools/timesheet/tssync.js';           // so ngày thay đổi khi điều chỉnh: dùng chung với trình duyệt
 
 export const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -50,6 +51,18 @@ export function checkDoc(period, input) {
   if (data.length > MAX_DOC_CHARS) throw new Error('Bảng công quá lớn');
   return { data, count: out.length };
 }
+
+// ---------- điều chỉnh bảng công: chỉ các ngày từ ngày nộp đến hết kỳ (ngày 15) — các ngày đã chấm TRƯỚC khi làm thực tế ----------
+// Ngày (giờ Việt Nam) của một thời điểm ISO; '' nếu không có
+export const vnDate = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? new Date(t + 7 * 3600e3).toISOString().slice(0, 10) : ''; };
+// Các ngày TRƯỚC ngày `since` bị thay đổi so với bản gốc (không được phép khi điều chỉnh) → danh sách ngày tăng dần
+export function amendLockedChanges(base, data, since) {
+  if (!since) return [];
+  return TsSync.diffDocs(base, data).filter(d => d.date < since).map(d => d.date);
+}
+const dm = (d) => d.slice(8, 10) + '/' + d.slice(5, 7);
+export const amendLockedMsg = (days, since) =>
+  `Chỉ điều chỉnh được các ngày từ ${dm(since)} (ngày nộp bảng công) đến hết kỳ — ngày ${days.slice(0, 6).map(dm).join(', ')}${days.length > 6 ? '…' : ''} đã chấm theo thực tế lúc nộp nên không sửa được; cần sửa thì liên hệ giám sát / Admin`;
 
 // Dòng thuộc DỰ ÁN (cần Site Sup / Quản lý dự án của dự án duyệt) hay hoạt động ngoài dự án (họp, huấn luyện, nghỉ phép… — Admin xử lý)
 const NON_PROJECT_WBS = /^(PAID LEAVE|UNPAID LEAVE|TRAINING.*|MEETINGS?)$/i;

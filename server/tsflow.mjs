@@ -46,7 +46,7 @@ async function approvalsOf(env, pairs) {
 const remainingOf = (wbs, approved) => wbs.filter(w => !(approved && approved.has(w)));
 
 async function pendingDocs(env) {
-  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.version, d.status, d.entry_count, d.submitted_at, d.sitesup_by, d.sitesup_at, d.pm_by, d.note, d.amend_rev, d.amend_from, d.amend_note,
+  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.version, d.status, d.entry_count, d.submitted_at, d.sitesup_by, d.sitesup_at, d.pm_by, d.note, d.amend_rev, d.amend_from, d.amend_note, d.amend_since,
       e.full_name, e.position, e.supervisor
     FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id WHERE d.status IN ('submitted', 'sitesup_ok', 'pm_ok') ORDER BY d.submitted_at LIMIT 400`).all();
   if (!results.length) return { docs: [], wbs: new Map(), appr: new Map() };
@@ -71,7 +71,7 @@ export async function tsInbox(h, env, me) {
     out.push({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, version: d.version, status: d.status, level, entries: d.entry_count,
       submittedAt: d.submitted_at, sitesupBy: d.sitesup_by, sitesupAt: d.sitesup_at, pmBy: d.pm_by, wbs: list,
       remaining: level === 'admin' ? [] : remainingOf(list, approved), approvedBy: approved ? [...new Set(approved.values())] : [],
-      amend: d.amend_from ? { rev: d.amend_rev, from: d.amend_from, note: d.amend_note } : null });
+      amend: d.amend_from ? { rev: d.amend_rev, from: d.amend_from, note: d.amend_note, since: d.amend_since } : null });
   }
   return h.json({ items: out, ...(await otLeaveCounts(h, env, me, staff)) });
 }
@@ -110,7 +110,7 @@ export async function reviewDoc(h, env, me, emp, period) {
     `"direct":${row.status === 'sitesup_ok' && !row.sitesup_by},"otPending":${JSON.stringify(otPending)},` +
     `"submittedAt":${JSON.stringify(row.submitted_at)},"sitesupBy":${JSON.stringify(row.sitesup_by)},"sitesupAt":${JSON.stringify(row.sitesup_at)},"note":${JSON.stringify(row.note)},` +
     // đang điều chỉnh: lần thứ mấy, lý do, và bản lúc bắt đầu điều chỉnh (để so ngày nào thay đổi)
-    `"amend":${row.amend_from ? JSON.stringify({ rev: row.amend_rev, from: row.amend_from, note: row.amend_note, at: row.amend_at }) : 'null'},"base":${row.amend_from && row.base_data ? row.base_data : 'null'},"data":${row.data}}`;
+    `"amend":${row.amend_from ? JSON.stringify({ rev: row.amend_rev, from: row.amend_from, note: row.amend_note, at: row.amend_at, since: row.amend_since }) : 'null'},"base":${row.amend_from && row.base_data ? row.base_data : 'null'},"data":${row.data}}`;
   return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
 

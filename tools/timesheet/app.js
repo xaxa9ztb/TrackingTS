@@ -1172,17 +1172,25 @@ function App() {
     setDayFilter(null);
   };
   const closeDrawer = () => setDrawer(null);
+
+  // đang điều chỉnh: chỉ sửa được các ngày từ ngày nộp (lần đầu) đến hết kỳ — các ngày đã chấm trước
+  const amendNow = SERVER && (periodStatus === 'draft' || periodStatus === 'rejected') ? docAmend[currentMonth] : null;
+  const amendSince = amendNow && amendNow.since && amendNow.since > period.start ? amendNow.since : '';
+  const beforeSince = d => !!amendSince && !!d && d < amendSince && TsSync.periodOf(d) === currentMonth;
+  const sinceMsg = () => showToast(`Đang điều chỉnh: chỉ sửa được các ngày từ ${fmtDM(amendSince)} (ngày nộp bảng công) đến ${fmtDM(period.end)}. Ngày trước đó đã chấm theo thực tế lúc nộp — cần sửa thì liên hệ giám sát / Admin.`);
   const lockedMsg = () => showToast('Kỳ lương này đã nộp / đã duyệt nên đang khoá. Thực tế khác so với đã chấm thì bấm "Điều chỉnh bảng công" (ở thanh trạng thái kỳ) để sửa lại rồi nộp duyệt lại.', SERVER && TsSync.AMENDABLE.includes(periodStatus) ? {
     label: 'Điều chỉnh',
     run: () => openAmend()
   } : undefined);
   const openNewEntry = date => {
     if (locked) return lockedMsg();
+    if (beforeSince(date)) return sinceMsg();
     let d = date;
     if (!d) {
       // như trước: ngày kế tiếp ngày chấm công gần nhất (chưa có thì hôm nay)
       d = getTodayLocal();
       if (entries.length > 0) d = addDaysLocal(entries.reduce((a, b) => b.date > a.date ? b : a).date, 1);
+      if (beforeSince(d)) d = amendSince;
     }
     setDrawer({
       type: 'form',
@@ -1193,6 +1201,7 @@ function App() {
   };
   const openEdit = entry => {
     if (locked) return lockedMsg();
+    if (beforeSince(entry.date)) return sinceMsg();
     setDrawer({
       type: 'form',
       entry,
@@ -1213,6 +1222,7 @@ function App() {
       ...data
     } = formData; // phân loại giờ cũ không còn đúng sau khi sửa (gắn lại khi nộp)
     // chấm nhiều ngày liên tiếp: cùng một hoạt động / dự án / giờ cho từng ngày từ data.date đến rangeTo
+    if (beforeSince(data.date)) return sinceMsg();
     const dates = !editing && rangeTo && rangeTo > data.date ? daysBetween(data.date, rangeTo).filter(d => !skipOff || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))).slice(0, 62) : null;
     if (dates) {
       if (!dates.length) return showToast('Khoảng ngày này toàn ngày nghỉ hằng tuần / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn chấm.');
@@ -1263,6 +1273,7 @@ function App() {
   };
   const handleDelete = entry => {
     if (locked) return lockedMsg();
+    if (beforeSince(entry.date)) return sinceMsg();
     setEntries(prev => prev.filter(e => e.id !== entry.id));
     if (SERVER) {
       TsSync.markDeleted(entry);
@@ -1388,11 +1399,13 @@ function App() {
             rev: r.data.amendRev,
             from: r.data.amendFrom,
             note: r.data.amendNote,
-            at: r.data.amendAt
+            at: r.data.amendAt,
+            since: r.data.amendSince || ''
           }
         }));
         setDrawer(null);
-        showToast('Đã mở lại bảng công để điều chỉnh — sửa các ngày cho đúng thực tế rồi bấm "Nộp bảng công".');
+        const sc = r.data.amendSince && r.data.amendSince > period.start ? r.data.amendSince : '';
+        showToast(`Đã mở lại bảng công để điều chỉnh — sửa ${sc ? `các ngày từ ${fmtDM(sc)} đến ${fmtDM(period.end)}` : 'các ngày'} cho đúng thực tế rồi bấm "Nộp bảng công".`);
         return '';
       }
       return r.data.error || 'Lỗi máy chủ ' + r.status;
@@ -2121,7 +2134,7 @@ function SyncBar({
   }, status === 'approved' ? 'Đã chuyển sang bảng Theo dõi giờ công.' : amend ? 'Bản điều chỉnh đang chờ duyệt — Theo dõi giờ công vẫn giữ bản đã duyệt trước đó.' : 'Không sửa được trong lúc chờ duyệt.'), amend && (status === 'draft' || status === 'rejected') && /*#__PURE__*/React.createElement("span", {
     id: "tsAmendNote",
     className: "text-sm text-blue-800"
-  }, "\u0110ang \u0111i\u1EC1u ch\u1EC9nh \u2014 ", amend.note, ". S\u1EEDa xong b\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "N\u1ED9p b\u1EA3ng c\xF4ng"), amend.from === 'approved' ? '; Theo dõi giờ công giữ bản đã duyệt cho tới khi bản điều chỉnh được duyệt xong' : '', "."), status === 'rejected' && note && /*#__PURE__*/React.createElement("span", {
+  }, "\u0110ang \u0111i\u1EC1u ch\u1EC9nh \u2014 ", amend.note, ".", amend.since && amend.since > period.start ? /*#__PURE__*/React.createElement(React.Fragment, null, " Ch\u1EC9 s\u1EEDa \u0111\u01B0\u1EE3c c\xE1c ng\xE0y ", /*#__PURE__*/React.createElement("b", null, "t\u1EEB ", fmtDM(amend.since), " \u0111\u1EBFn ", fmtDM(period.end)), " (t\u1EEB ng\xE0y n\u1ED9p).") : null, " S\u1EEDa xong b\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "N\u1ED9p b\u1EA3ng c\xF4ng"), amend.from === 'approved' ? '; Theo dõi giờ công giữ bản đã duyệt cho tới khi bản điều chỉnh được duyệt xong' : '', "."), status === 'rejected' && note && /*#__PURE__*/React.createElement("span", {
     id: "tsRejectNote",
     className: "text-sm text-rose-700 font-medium"
   }, "L\xFD do tr\u1EA3 l\u1EA1i \u2014 ", note), remind && /*#__PURE__*/React.createElement("span", {
@@ -2641,7 +2654,7 @@ function AmendPanel({
     className: "text-sm"
   }, "B\u1EA3ng c\xF4ng k\u1EF3 ", /*#__PURE__*/React.createElement("b", null, parseInt(m, 10), "/", y), " (", fmtDMY(period.start), " \u2013 ", fmtDMY(period.end), ") \u0111ang \u1EDF tr\u1EA1ng th\xE1i ", /*#__PURE__*/React.createElement("b", null, STATUS_LABEL[status] || status), "."), /*#__PURE__*/React.createElement("ol", {
     className: "text-sm text-slate-700 list-decimal pl-5 space-y-1"
-  }, /*#__PURE__*/React.createElement("li", null, "B\u1EA3ng c\xF4ng ", /*#__PURE__*/React.createElement("b", null, "m\u1EDF l\u1EA1i \u0111\u1EC3 s\u1EEDa"), " \u2014 s\u1EEDa / th\xEAm / xo\xE1 c\xE1c ng\xE0y \u0111\xE3 ch\u1EA5m tr\u01B0\u1EDBc cho ", /*#__PURE__*/React.createElement("b", null, "\u0111\xFAng th\u1EF1c t\u1EBF"), "."), /*#__PURE__*/React.createElement("li", null, "B\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "N\u1ED9p b\u1EA3ng c\xF4ng"), ": b\u1EA3n \u0111i\u1EC1u ch\u1EC9nh \u0111i l\u1EA1i ", lead ? 'Quản lý dự án → Admin' : 'Site Sup → Quản lý dự án → Admin', " (ng\u01B0\u1EDDi duy\u1EC7t th\u1EA5y r\xF5 ng\xE0y n\xE0o thay \u0111\u1ED5i)."), /*#__PURE__*/React.createElement("li", null, "Duy\u1EC7t xong, d\u1EEF li\u1EC7u ch\u1EA5m c\xF4ng trong \u1EE9ng d\u1EE5ng (Theo d\xF5i gi\u1EDD c\xF4ng) \u0111\u01B0\u1EE3c ", /*#__PURE__*/React.createElement("b", null, "c\u1EADp nh\u1EADt theo b\u1EA3n \u0111i\u1EC1u ch\u1EC9nh"), ".")), status === 'approved' && /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("li", null, "B\u1EA3ng c\xF4ng ", /*#__PURE__*/React.createElement("b", null, "m\u1EDF l\u1EA1i \u0111\u1EC3 s\u1EEDa"), " \u2014 s\u1EEDa / th\xEAm / xo\xE1 c\xE1c ng\xE0y ", /*#__PURE__*/React.createElement("b", null, "\u0111\xE3 ch\u1EA5m tr\u01B0\u1EDBc"), " cho ", /*#__PURE__*/React.createElement("b", null, "\u0111\xFAng th\u1EF1c t\u1EBF"), ": ch\u1EC9 c\xE1c ng\xE0y ", /*#__PURE__*/React.createElement("b", null, "t\u1EEB ng\xE0y b\u1EA1n b\u1EA5m n\u1ED9p \u0111\u1EBFn h\u1EBFt k\u1EF3 (", fmtDM(period.end), ")"), ". Ng\xE0y tr\u01B0\u1EDBc ng\xE0y n\u1ED9p kh\xF4ng s\u1EEDa \u0111\u01B0\u1EE3c (c\u1EA7n s\u1EEDa th\xEC li\xEAn h\u1EC7 gi\xE1m s\xE1t / Admin)."), /*#__PURE__*/React.createElement("li", null, "B\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "N\u1ED9p b\u1EA3ng c\xF4ng"), ": b\u1EA3n \u0111i\u1EC1u ch\u1EC9nh \u0111i l\u1EA1i ", lead ? 'Quản lý dự án → Admin' : 'Site Sup → Quản lý dự án → Admin', " (ng\u01B0\u1EDDi duy\u1EC7t th\u1EA5y r\xF5 ng\xE0y n\xE0o thay \u0111\u1ED5i)."), /*#__PURE__*/React.createElement("li", null, "Duy\u1EC7t xong, d\u1EEF li\u1EC7u ch\u1EA5m c\xF4ng trong \u1EE9ng d\u1EE5ng (Theo d\xF5i gi\u1EDD c\xF4ng) \u0111\u01B0\u1EE3c ", /*#__PURE__*/React.createElement("b", null, "c\u1EADp nh\u1EADt theo b\u1EA3n \u0111i\u1EC1u ch\u1EC9nh"), ".")), status === 'approved' && /*#__PURE__*/React.createElement("p", {
     className: "text-sm rounded-lg bg-slate-50 border border-slate-200 px-3 py-2"
   }, "Trong l\xFAc \u0111i\u1EC1u ch\u1EC9nh, Theo d\xF5i gi\u1EDD c\xF4ng v\u1EABn gi\u1EEF b\u1EA3n \u0111\xE3 duy\u1EC7t. \u0110\u1ED5i \xFD th\xEC b\u1EA5m ", /*#__PURE__*/React.createElement("b", null, "Hu\u1EF7 \u0111i\u1EC1u ch\u1EC9nh"), " \u0111\u1EC3 kh\xF4i ph\u1EE5c."), status !== 'approved' && /*#__PURE__*/React.createElement("p", {
     className: "text-sm rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-900"

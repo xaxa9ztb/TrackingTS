@@ -187,7 +187,8 @@
       const label = { added: 'thêm ngày', removed: 'bỏ ngày', changed: 'sửa' };
       const list = amendDiff.map(d => `<li><b>${esc(WEEKDAYS[dow(d.date)])} ${esc(fmtDM(d.date))}</b> — ${label[d.kind]}${d.before.length ? `<div class="ac-note"><s>${esc(d.before.join('; '))}</s></div>` : ''}${d.after.length ? `<div>${esc(d.after.join('; '))}</div>` : ''}</li>`).join('');
       const allowTxt = doc.base && TsSync.allowChanged(doc.base, doc.data) ? `<li><b>Phụ cấp xe</b> thay đổi: ${money(TsAllowance.compute(doc.base.entries || [], doc.base.allow, periodRange(period)).totals.amount)} đ → ${money(TsAllowance.compute(doc.data.entries || [], doc.data.allow, periodRange(period)).totals.amount)} đ</li>` : '';
-      flags.push(`<div class="ap-flag amend" id="dAmend">✎ <b>Bảng công ĐIỀU CHỈNH lần ${esc(doc.amend.rev)}</b> (sửa sau khi ${doc.amend.from === 'approved' ? 'đã duyệt xong' : 'đã nộp'}) — lý do: <b>${esc(doc.amend.note)}</b>.`
+      const since = doc.amend.since && doc.amend.since > periodRange(period).start ? doc.amend.since : '';
+      flags.push(`<div class="ap-flag amend" id="dAmend">✎ <b>Bảng công ĐIỀU CHỈNH lần ${esc(doc.amend.rev)}</b> (sửa sau khi ${doc.amend.from === 'approved' ? 'đã duyệt xong' : 'đã nộp'}${since ? `; chỉ các ngày từ ${esc(fmtDM(since))} — ngày nộp — đến ${esc(fmtDM(periodRange(period).end))}` : ''}) — lý do: <b>${esc(doc.amend.note)}</b>.`
         + (list || allowTxt ? ` Thay đổi so với bản ${doc.amend.from === 'approved' ? 'đã duyệt' : 'trước'} (dòng tô xanh):<ul class="amend-list">${list}${allowTxt}</ul>` : ' Không có ngày nào thay đổi so với bản trước.')
         + (doc.amend.from === 'approved' ? '<div class="ac-note">Duyệt xong, bảng Theo dõi giờ công được thay bằng bản điều chỉnh này.</div>' : '') + '</div>');
     }

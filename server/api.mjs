@@ -8,7 +8,7 @@ import { matchSupervisor, keyOf } from './supervisors.mjs';
 import { notifyEvent } from './notify.mjs';
 import { mailConfigured, sendMail, layout, senderName, esc } from './mail.mjs';
 import { demoRequested, staleDemoCookie, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
-import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow } from './tsdoc.mjs';
+import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow, vnDate, amendLockedChanges, amendLockedMsg } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
 import { routeTsImport } from './tsimport.mjs';
 import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs, projectWbsKnown } from './tsflow.mjs';
@@ -713,11 +713,11 @@ function periodParam(p) {
 
 async function listMyDocs(env, me) {
   const emp = needOwnEmp(me);
-  const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at, submitted_at, sitesup_by, sitesup_at, pm_by, pm_at, note, admin_by, admin_at, admin_note, amend_rev, amend_from, amend_note, amend_at FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
+  const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at, submitted_at, sitesup_by, sitesup_at, pm_by, pm_at, note, admin_by, admin_at, admin_note, amend_rev, amend_from, amend_note, amend_at, amend_since FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
   return json({ docs: results.map(r => ({ period: r.period, version: r.version, status: r.status, entries: r.entry_count, savedAt: r.saved_at,
     submittedAt: r.submitted_at, sitesupBy: r.sitesup_by, sitesupAt: r.sitesup_at, pmBy: r.pm_by, pmAt: r.pm_at, note: r.note,
     adminBy: r.admin_by, adminAt: r.admin_at, adminNote: r.admin_note,
-    amendRev: r.amend_rev || 0, amendFrom: r.amend_from || '', amendNote: r.amend_note || '', amendAt: r.amend_at || '' })) });
+    amendRev: r.amend_rev || 0, amendFrom: r.amend_from || '', amendNote: r.amend_note || '', amendAt: r.amend_at || '', amendSince: r.amend_since || '' })) });
 }
 
 async function getMyDoc(env, me, period, url) {
@@ -746,6 +746,12 @@ async function putMyDoc(env, me, period, request) {
       .bind(emp, period, checked.data, checked.count, t, me.email).run();
     changed = r.meta && r.meta.changes === 1;
   } else {
+    // đang điều chỉnh: không được sửa các ngày trước ngày nộp
+    const am = await env.DB.prepare('SELECT amend_from, amend_since, base_data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+    if (am && am.amend_from && am.amend_since && am.base_data) {
+      const bad = amendLockedChanges(JSON.parse(am.base_data), JSON.parse(checked.data), am.amend_since);
+      if (bad.length) throw new HttpError(400, amendLockedMsg(bad, am.amend_since));
+    }
     const r = await env.DB.prepare(`UPDATE ts_docs SET version = version + 1, data = ?, entry_count = ?, saved_at = ?, saved_by = ? WHERE emp_id = ? AND period = ? AND version = ? AND status NOT IN ('submitted', 'sitesup_ok', 'pm_ok', 'approved')`)
       .bind(checked.data, checked.count, t, me.email, emp, period, base).run();
     changed = r.meta && r.meta.changes === 1;
@@ -786,9 +792,13 @@ async function submitMyDoc(env, me, period, request) {
   const emp = needOwnEmp(me);
   periodParam(period);
   const body = await readJson(request);
-  const row = await env.DB.prepare('SELECT version, status, data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  const row = await env.DB.prepare('SELECT version, status, data, amend_from, amend_since, base_data FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
   if (!row) throw new HttpError(404, 'Chưa có bảng công kỳ này');
   if (!['draft', 'rejected'].includes(row.status)) throw new HttpError(409, 'Bảng công kỳ này đã nộp rồi');
+  if (row.amend_from && row.amend_since && row.base_data) {
+    const bad = amendLockedChanges(JSON.parse(row.base_data), JSON.parse(row.data), row.amend_since);
+    if (bad.length) throw new HttpError(400, amendLockedMsg(bad, row.amend_since));
+  }
   if (Number(body.baseVersion) !== row.version) return json({ ok: false, conflict: true, version: row.version, error: 'Bản trên máy chủ khác bản bạn đang xem — chờ đồng bộ xong rồi nộp lại' }, 409);
   const data = JSON.parse(row.data);
   const entries = Array.isArray(data.entries) ? data.entries : [];
@@ -843,19 +853,24 @@ async function amendMyDoc(env, me, period, request) {
   const body = await readJson(request);
   const reason = str(body.reason, 500);
   if (reason.length < 3) throw new HttpError(400, 'Cần ghi lý do điều chỉnh (vd. "Ngày 12–15 thực tế làm dự án khác")');
-  const row = await env.DB.prepare('SELECT status, amend_from FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  const row = await env.DB.prepare('SELECT status, amend_from, amend_since, submitted_at FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
   if (!row) throw new HttpError(404, 'Chưa có bảng công kỳ này');
   if (!AMENDABLE.includes(row.status)) throw new HttpError(409, 'Bảng công kỳ này chưa nộp (đang sửa được) — không cần điều chỉnh');
   const t = now(), first = !row.amend_from;
+  // chỉ điều chỉnh các ngày đã chấm TRƯỚC: từ ngày nộp (lần nộp đầu, giờ VN) đến hết kỳ (ngày 15)
+  const { start, end } = periodRange(period);
+  let since = row.amend_since || vnDate(row.submitted_at) || start;
+  if (since < start) since = start;   // amend_since giữ ngày nộp LẦN ĐẦU qua mọi lần điều chỉnh
+  if (since > end) throw new HttpError(409, `Bảng công này nộp sau khi hết kỳ (ngày ${end.slice(8, 10)}/${end.slice(5, 7)}) nên không có ngày chấm trước để điều chỉnh — cần sửa thì liên hệ giám sát / Admin`);
   const r = await env.DB.prepare(`UPDATE ts_docs SET status = 'draft', submitted_at = '', note = '',
       amend_rev = amend_rev + ?, amend_from = CASE WHEN amend_from = '' THEN ? ELSE amend_from END,
-      base_data = CASE WHEN amend_from = '' THEN data ELSE base_data END, amend_note = ?, amend_at = ?, amend_by = ?
-    WHERE emp_id = ? AND period = ? AND status = ?`).bind(first ? 1 : 0, row.status, reason, t, me.email, emp, period, row.status).run();
+      base_data = CASE WHEN amend_from = '' THEN data ELSE base_data END, amend_since = ?, amend_note = ?, amend_at = ?, amend_by = ?
+    WHERE emp_id = ? AND period = ? AND status = ?`).bind(first ? 1 : 0, row.status, since, reason, t, me.email, emp, period, row.status).run();
   if (!(r.meta && r.meta.changes === 1)) throw new HttpError(409, 'Bảng công vừa thay đổi — tải lại trang rồi thử lại');
   await env.DB.prepare('DELETE FROM ts_approvals WHERE emp_id = ? AND period = ?').bind(emp, period).run();
-  const after = await env.DB.prepare('SELECT amend_rev, amend_from FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
-  await audit(env, me, 'ts_amend', 'ts_doc', `${emp}:${period}`, { status: row.status }, { reason, rev: after.amend_rev, from: after.amend_from });
-  return json({ ok: true, status: 'draft', amendRev: after.amend_rev, amendFrom: after.amend_from, amendNote: reason, amendAt: t });
+  const after = await env.DB.prepare('SELECT amend_rev, amend_from, amend_since FROM ts_docs WHERE emp_id = ? AND period = ?').bind(emp, period).first();
+  await audit(env, me, 'ts_amend', 'ts_doc', `${emp}:${period}`, { status: row.status }, { reason, rev: after.amend_rev, from: after.amend_from, since: after.amend_since });
+  return json({ ok: true, status: 'draft', amendRev: after.amend_rev, amendFrom: after.amend_from, amendNote: reason, amendAt: t, amendSince: after.amend_since });
 }
 
 // Huỷ điều chỉnh (chưa nộp lại, hoặc bản điều chỉnh bị trả lại): khôi phục bản lúc bắt đầu điều chỉnh;
