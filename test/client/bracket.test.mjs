@@ -102,3 +102,22 @@ test('điền mẫu Excel: ô nhập, kết quả lưu sẵn, Excel tự tính l
   assert.match(sh, /<dataValidations count="2">/, 'giữ danh sách chọn bracket');
   assert.match(await z.file('xl/workbook.xml').async('string'), /<calcPr[^>]*fullCalcOnLoad="1"/);
 });
+
+test('báo cáo PDF: kết luận chung, ô số, biểu đồ, việc cần làm, ký tên', () => {
+  const R = require('../../tools/bracket/report.js');
+  const base = { project: 'Dự án <thử>', liftId: 'L1', date: '2026-11-09', surveyor: 'Người A', zBracket: 'Z-AL4', oBracket: OA, sf2Design: 147, sgDesign: 74 };
+  assert.equal(R.verdict(B.compute({ ...base, rows: [] })).level, 'none');
+  assert.equal(R.verdict(B.compute({ ...base, rows: [{ sf2: 150, sg: 75 }] })).level, 'ok');
+  assert.equal(R.verdict(B.compute({ ...base, rows: [{ sf2: 208, sg: 75 }] })).level, 'site');
+  assert.equal(R.verdict(B.compute({ ...base, rows: [{ sf2: 260, sg: 75 }] })).title, 'Cần đổi loại bracket');
+  assert.equal(R.verdict(B.compute({ ...base, rows: [{ sf2: 40, sg: 75 }] })).title, 'Cần chỉnh sửa hố thang');
+  const h = R.html({ ...base, rows: [{ line: 'Sàn T1', sf2: 150, sg: 75 }, { line: 'Sàn T2', sf2: 208, sg: 140 }, { line: 'Sàn T9', sf2: 470, sg: 330 }] }, { now: '2026-11-09T10:00:00' });
+  assert.match(h, /Dự án &lt;thử&gt;/, 'chữ người dùng được thoát ký tự');
+  assert.match(h, /rp-verdict bad/);
+  assert.equal((h.match(/<svg /g) || []).length, 2, 'hai biểu đồ SF2 / SG');
+  assert.match(h, /→ 470/, 'số đo ngoài trục vẽ ở mép kèm giá trị');
+  assert.match(h, /Đệm bản mã 10 mm[\s\S]*Sàn T2/);
+  assert.match(h, /Đổi loại bracket[\s\S]*O-A1 \/ O-A2 106-2/);
+  assert.match(h, /Người khảo sát[\s\S]*Giám sát[\s\S]*Quản lý dự án/);
+  assert.equal(R.fileName(base), 'Khao_sat_bracket_Du_an_thu_L1');
+});

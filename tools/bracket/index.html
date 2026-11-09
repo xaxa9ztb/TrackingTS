@@ -11,14 +11,16 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
 <link rel="stylesheet" href="../../css/ni.css?v=2">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="report.css?v=2">
 <script src="../../js/pwa.js?v=36" defer></script>
 <script src="../../js/demo.js?v=3"></script>
 <script src="../../js/session.js?v=47"></script>
 <script>Session.guard('bracket');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <script src="bracket.js?v=4"></script>
-<script src="app.js?v=5" defer></script>
+<script src="report.js?v=1"></script>
+<script src="app.js?v=7" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="bracket" data-tool="Khảo sát Bracket hố thang" data-help="#bracket"></script>
@@ -34,7 +36,7 @@
       <span class="bk-chip site">Đệm bản mã / Đục tỉa</span> lệch ≤ 10 mm, xử lý tại công trường ·
       <span class="bk-chip bad">Đổi bracket / Chỉnh sửa hố thang</span>.
       Z Bracket chỉ đề xuất cùng dòng (AL / CL / CHL / CH) với loại đã đặt; Omega đề xuất trong cả danh mục.
-      <b>4.</b> Bấm <b>Xuất Excel</b> để có phiếu theo mẫu "Phiếu khảo sát trước khi đặt hàng" (tối đa 30 vị trí / phiếu).
+      <b>4.</b> Bấm <b>Xuất báo cáo</b>: <b>PDF</b> — bản trình bày A4 (kết luận, biểu đồ, việc cần làm, ký tên) để gửi / in; hoặc <b>Excel</b> — mẫu "Phiếu khảo sát trước khi đặt hàng" (tối đa 30 vị trí / phiếu).
       Phiếu lưu trên máy này (trình duyệt) — xuất Excel để gửi / lưu trữ.
       <br><span class="ni-muted">Chỉ áp dụng thị trường <b>SC-AP</b>. Dung sai: J 45350713 <b>Ae25</b> (24/10/2026 — Z Bracket, ES1 &amp; ES5.0) và J 44928432 <b>Ae29</b> (Omega Family A &amp; B có SC-AP ở mục 6: chỉ loại 106).</span>
     </div></details>
@@ -58,7 +60,7 @@
       <button class="ni-btn ghost small" type="button" id="btnBack">← Danh sách phiếu</button>
       <span class="bk-saved ni-muted" id="saved" aria-live="polite"></span>
       <button class="ni-btn small" type="button" id="btnDup">Nhân bản</button>
-      <button class="ni-btn primary small" type="button" id="btnExport">Xuất Excel</button>
+      <button class="ni-btn primary small" type="button" id="btnExport" aria-haspopup="menu">Xuất báo cáo ▾</button>
     </div>
 
     <section class="ni-card" aria-labelledby="s1">
@@ -130,14 +132,28 @@
     <!-- điện thoại: thanh dưới luôn hiện để xuất Excel không phải cuộn -->
     <div class="bk-sticky" role="region" aria-label="Thao tác nhanh">
       <span id="stickyInfo" class="bk-sinfo"></span>
-      <button class="ni-btn primary" type="button" id="btnExport3">Xuất Excel</button>
+      <button class="ni-btn primary" type="button" id="btnExport3" aria-haspopup="menu">Xuất báo cáo ▾</button>
     </div>
     <div class="bk-bar bk-bottom">
       <button class="ni-btn danger small" type="button" id="btnDelete">Xóa phiếu</button>
-      <button class="ni-btn primary" type="button" id="btnExport2">Xuất Excel</button>
+      <button class="ni-btn primary" type="button" id="btnExport2" aria-haspopup="menu">Xuất báo cáo ▾</button>
     </div>
   </div>
 </main>
+<!-- menu Xuất báo cáo -->
+<div class="bk-menu" id="exportMenu" role="menu" hidden>
+  <button type="button" role="menuitem" data-out="pdf"><b>📄 Báo cáo PDF</b><span>Bản trình bày khổ A4: kết luận, biểu đồ, việc cần làm — xem trước rồi In / Lưu PDF</span></button>
+  <button type="button" role="menuitem" data-out="xlsx"><b>📊 File Excel</b><span>Mẫu Phiếu khảo sát trước khi đặt hàng, giữ công thức để sửa tiếp</span></button>
+</div>
+<!-- xem trước báo cáo PDF -->
+<div class="rp-overlay" id="rpOverlay" role="dialog" aria-modal="true" aria-label="Xem trước báo cáo" hidden>
+  <div class="rp-bar"><b>Báo cáo khảo sát bracket</b>
+    <button class="ni-btn small" type="button" id="rpXlsx">Tải Excel</button>
+    <button class="ni-btn primary small" type="button" id="rpPrint">In / Lưu PDF</button>
+    <button class="ni-btn small" type="button" id="rpClose" aria-label="Đóng xem trước">Đóng</button></div>
+  <div class="rp-scroll" id="rpScroll"><div class="rp-page" id="rpPage"></div>
+    <p class="rp-hint">Bấm <b>In / Lưu PDF</b> → chọn máy in <b>“Lưu dưới dạng PDF”</b> (điện thoại: In → Lưu PDF / Chia sẻ). Khổ A4 dọc.</p></div>
+</div>
 <div class="ni-toast" id="toast" role="status" hidden></div>
 </body>
 </html>
