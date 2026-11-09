@@ -11,8 +11,12 @@ try { JSZip = require('jszip'); } catch (e) { /* CI không cài */ }
 
 const OA = 'O-A1 / O-A2  106-1';
 
-test('danh mục: 36 Z Bracket (4 dòng) + 25 Omega, khớp sheet Danh_muc_Bracket', () => {
-  assert.equal(B.Z.length, 36); assert.equal(B.O.length, 25);
+test('danh mục: 29 Z Bracket SC-AP (J 45350713 Ae25, 4 dòng) + 25 Omega (J 44928432 Ae29)', () => {
+  assert.equal(B.Z.length, 29); assert.equal(B.O.length, 25);
+  // Ae25: không còn SC-AP ở ES1 / ES5.0
+  ['Z-AL2', 'Z-AL3', 'Z-AL7', 'Z-AL9', 'Z-CHL3', 'Z-CHL4', 'Z-CHL7'].forEach(n => assert.equal(B.findZ(n), null, n));
+  assert.deepEqual(B.findZ('Z-CL1'), { name: 'Z-CL1', min: 38, max: 82, fam: 'CL' });
+  assert.match(B.NOTE_O['O-A1 / O-A2  160-1'], /BG = 850.*100/);
   assert.deepEqual([...new Set(B.Z.map(b => b.fam))], ['AL', 'CL', 'CHL', 'CH']);
   assert.deepEqual(B.findZ('Z-AL4'), { name: 'Z-AL4', min: 105, max: 200, fam: 'AL' });
   assert.deepEqual(B.findO('O-B  190-5'), { name: 'O-B  190-5', min: 390, max: 500 });
@@ -35,9 +39,10 @@ test('Z Bracket: đạt / đệm bản mã / đục tỉa / đổi cùng dòng /
   // ngoài toàn bộ dòng đã đặt
   assert.equal(B.evaluate('z', 40, 'Z-AL4').text, 'KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ dòng AL, cần chỉnh sửa hố thang');
   assert.equal(B.evaluate('z', 600, 'Z-CH4').status, 'pit');
-  // dòng CHL có khoảng trống 155–275 (CHL4 105–200, CHL7 275–360): chọn bracket gần nhất
-  assert.equal(B.evaluate('z', 230, 'Z-CHL3').text, 'Không đạt - Đề xuất: Z-CHL4');
-  assert.equal(B.evaluate('z', 250, 'Z-CHL3').text, 'Không đạt - Đề xuất: Z-CHL7');
+  // dòng CHL chỉ còn Z-CHL2 (52–105): ngoài dải là phải chỉnh sửa hố thang
+  assert.equal(B.evaluate('z', 160, 'Z-CHL2').text, 'KHÔNG PHÙ HỢP - Vượt dung sai toàn bộ dòng CHL, cần chỉnh sửa hố thang');
+  // phiếu cũ chọn loại đã bỏ khỏi danh mục → coi như chưa chọn
+  assert.equal(B.evaluate('z', 150, 'Z-AL3').text, 'Chưa chọn loại Z Bracket');
 });
 
 test('Omega: đề xuất trong toàn danh mục; 2 bracket cùng độ rộng chọn đúng bracket chứa số đo (lỗi cũ dòng 27/31)', () => {

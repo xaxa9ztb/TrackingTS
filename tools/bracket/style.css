@@ -143,3 +143,7 @@ body { margin: 0; background: var(--ni-bg); }
   #btnExport, #btnExport2 { display: none; }
   .bk-bottom { justify-content: flex-start; }
 }
+
+.bk-warn { color: var(--ni-warn); font-weight: 600; }
+.bk-cap { caption-side: bottom; text-align: left; font-size: 12px; color: var(--ni-muted); padding-top: 6px; }
+.bk-src { margin: 10px 0 0; font-size: var(--ni-fs-sm); }
