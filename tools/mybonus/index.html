@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi" class="ni" data-app="mybonus">
+<head>
+<!-- Link cũ (GitHub Pages) đã ngừng: chuyển sang bản chính trên Cloudflare, giữ nguyên trang đang mở -->
+<script>if(/\.github\.io$/i.test(location.hostname))location.replace('https://nihan-ts.pages.dev'+(location.pathname.replace(/^\/TrackingTS(?=\/|$)/i,'')||'/')+location.search+location.hash);</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Thưởng của tôi — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#0f1b2d">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="stylesheet" href="../../css/ni.css?v=4">
+<link rel="stylesheet" href="../accounts/style.css?v=7">
+<link rel="stylesheet" href="../incentive/style.css?v=2">
+<link rel="stylesheet" href="style.css?v=1">
+<script src="../../js/demo.js?v=3"></script>
+<script src="../../js/session.js?v=49"></script>
+<script>Session.guard('mybonus');</script>
+<script src="app.js?v=1" defer></script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=39" data-app="mybonus" data-tool="Thưởng của tôi" data-help="huong-dan.html#thuong"></script>
+<header class="ac-top">
+  <div class="ac-wrap">
+    <h1>Thưởng của tôi</h1>
+    <p class="ac-sub">Tiền thưởng lắp đặt (Installation Incentive — SWAT) bạn được chia ở các đợt đã phát hành, theo từng dự án, kèm báo cáo SWAT của dự án. Chỉ bạn xem được số tiền của mình.</p>
+    <p class="ac-who" id="who">Đang kiểm tra đăng nhập…</p>
+  </div>
+</header>
+<main class="ac-wrap">
+  <div class="ac-msg" id="gate" hidden></div>
+  <section class="ac-card" id="secMine" hidden aria-labelledby="hMine">
+    <div class="in-head"><h2 id="hMine">Các đợt thưởng</h2><label class="mb-year">Năm <select id="fYear"></select></label></div>
+    <div class="in-kpis" id="kpis"></div>
+    <div id="batches"></div>
+  </section>
+  <section class="ac-card" id="secDetail" hidden aria-labelledby="hDetail">
+    <div class="in-head"><h2 id="hDetail">Báo cáo SWAT của dự án</h2><button class="btn small" type="button" id="dClose">Đóng</button></div>
+    <div id="detail"></div>
+    <details class="mb-tool" id="toolBox"><summary>Xem bảng SWAT đầy đủ (Standard Hour + Scorecard)</summary>
+      <p class="ac-note">Bảng tính như lúc Admin duyệt. Chỉ để xem — thay đổi trên bảng không được lưu.</p>
+      <iframe id="tool" title="Bảng SWAT của dự án" src="about:blank"></iframe>
+    </details>
+  </section>
+</main>
+<div class="ni-toast" id="toast" role="status" hidden></div>
+</body>
+</html>

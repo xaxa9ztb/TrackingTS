@@ -1,0 +1,18 @@
+/* Thưởng của tôi (dùng chung giao diện với tools/incentive) */
+.mb-year { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.mb-year select { min-height: 36px; padding: 5px 8px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 6px; font-size: 15px; background: var(--card); }
+.mb-batch { border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; overflow: hidden; }
+.mb-batch > header { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 14px; background: var(--ni-sunk, #eef1f5); }
+.mb-batch > header b.amt { margin-left: auto; font-size: 17px; font-variant-numeric: tabular-nums; color: var(--ni-app); }
+.mb-batch.hl { box-shadow: 0 0 0 3px var(--ni-app); }
+.mb-batch .ac-table { margin: 0; }
+.mb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 8px 0 12px; }
+.mb-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.mb-box h3 { margin: 0 0 6px; font-size: 14px; }
+.mb-box dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 13.5px; }
+.mb-box dt { color: var(--ink-2); } .mb-box dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mb-box.me { border-color: var(--ni-app); background: #fffbeb; }
+.mb-box.me dd.big { font-size: 18px; color: var(--ni-app); }
+.mb-tool summary { cursor: pointer; font-weight: 600; color: var(--ni-action, #1d4ed8); margin: 6px 0; }
+.mb-tool iframe { width: 100%; height: 900px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+@media (max-width: 700px) { .mb-tool iframe { height: 720px; } }

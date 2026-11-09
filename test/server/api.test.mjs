@@ -2055,3 +2055,44 @@ test('Incentive SWAT: chỉ Admin; tạo đợt, lưu, chốt → lịch sử; g
   assert.equal((await call('DELETE', `/api/incentive/batches/${id}`, { email: A, body: {} })).status, 200);
   assert.deepEqual((await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items.map(x => x.month), ['2026-09']);
 });
+
+test('Incentive: phát hành → email chi tiết cho từng người; "Thưởng của tôi" chỉ thấy tiền của mình, chỉ đợt đã phát hành', async () => {
+  const A = 'boss@example.com';
+  const id = (await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2027-01' } })).data.id;
+  const proj = (wbs, lines) => ({ wbs, name: 'Dự án ' + wbs, kind: 'first70', fundF: 1000, fundS: 100, units: 1, swat: { state: { v: { stops: '7' } }, std: { perUnit: 200 }, sc: { pf: 1000, ps: 100, fs: 3, ss: 6 } }, lines });
+  const data = { projects: [
+    proj('WA-1', [{ role: 'sup', empId: 'AP1', name: 'Giám Sát Duyệt', amount: 70 }, { role: 'fitter', empId: 'TS1', name: 'Thợ Một', hours: 30, pct: 0.75, amount: 525 }, { role: 'fitter', empId: 'TS2', name: 'Thợ Hai', hours: 10, pct: 0.25, amount: 175 }]),
+    proj('WA-2', [{ role: 'fitter', empId: 'TS1', name: 'Thợ Một', hours: 5, pct: 1, amount: 300 }, { role: 'fitter', empId: '', name: 'Không Mã', hours: 1, pct: 0, amount: 10 }]) ] };
+  assert.equal((await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: 1, data } })).status, 200);
+  assert.equal((await call('POST', `/api/incentive/batches/${id}/publish`, { email: A, body: { sendMail: true } })).status, 409, 'chưa chốt thì chưa phát hành');
+  assert.equal((await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: 2, data, status: 'done' } })).status, 200);
+  // chốt rồi nhưng chưa phát hành: người dùng chưa thấy
+  assert.deepEqual((await call('GET', '/api/incentive/mine', { email: 'ts1@example.com' })).data.batches, []);
+  assert.equal((await call('POST', `/api/incentive/batches/${id}/publish`, { email: 'ts1@example.com', body: {} })).status, 403);
+  const before = sentMail.length;
+  const r = await call('POST', `/api/incentive/batches/${id}/publish`, { email: A, body: { sendMail: true } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual([r.data.people, r.data.sent, r.data.noId], [3, 3, ['Không Mã']]);
+  const m1 = sentMail.slice(before).find(m => m.to.some(t => t.email === 'ts1@example.com'));
+  assert.match(m1.subject, /01\/2027.*825/);
+  assert.match(m1.htmlContent, /WA-1/); assert.match(m1.htmlContent, /WA-2/);
+  assert.doesNotMatch(m1.htmlContent, /Thợ Hai|175|Giám Sát Duyệt/, 'thư của Thợ Một không có tiền của người khác');
+  assert.match(m1.htmlContent, /tools\/mybonus\/#dot=/);
+  // Thưởng của tôi
+  const mine = (await call('GET', '/api/incentive/mine', { email: 'ts1@example.com' })).data;
+  assert.equal(mine.batches.length, 1);
+  assert.deepEqual([mine.batches[0].month, mine.batches[0].total, mine.batches[0].projects.map(p => [p.wbs, p.amount])], ['2027-01', 825, [['WA-1', 525], ['WA-2', 300]]]);
+  assert.equal(JSON.stringify(mine).includes('Thợ Hai'), false, 'không lộ dòng của người khác');
+  assert.equal(mine.batches[0].projects[0].fundF, 1000); assert.equal(mine.batches[0].projects[0].sc.fs, 3);
+  const sup = (await call('GET', '/api/incentive/mine', { email: 'ap1@example.com' })).data.batches[0];
+  assert.deepEqual(sup.projects.map(p => [p.wbs, p.lines[0].role, p.amount]), [['WA-1', 'sup', 70]]);
+  const d = await call('GET', `/api/incentive/mine/${id}/WA-1`, { email: 'ts2@example.com' });
+  assert.equal(d.status, 200); assert.deepEqual(d.data.project.lines.map(l => l.amount), [175]); assert.equal(d.data.swatState.v.stops, '7');
+  assert.equal((await call('GET', `/api/incentive/mine/${id}/WA-2`, { email: 'ts2@example.com' })).status, 404, 'không có thưởng ở dự án này');
+  assert.equal((await call('GET', `/api/incentive/mine/${id}/WA-1`, { email: 'ts3@example.com' })).status, 404);
+  // mở lại đợt (đang sửa) → người dùng tạm không thấy
+  const cur = (await call('GET', `/api/incentive/batches/${id}`, { email: A })).data;
+  assert.ok(cur.publishedAt);
+  await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: cur.version, data, status: 'draft' } });
+  assert.deepEqual((await call('GET', '/api/incentive/mine', { email: 'ts1@example.com' })).data.batches, []);
+});

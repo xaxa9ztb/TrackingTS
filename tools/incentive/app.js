@@ -48,7 +48,8 @@
   const empOf = (name) => empByName.get(plain(name)) || null;
 
   // ---------- danh sách đợt ----------
-  const STATUS_PILL = (b) => b.status === 'done' ? `<span class="pill ok">Đã chốt</span>${b.source === 'import' ? ' <span class="pill info">từ Excel</span>' : ''}` : '<span class="pill wait">Đang làm</span>';
+  const STATUS_PILL = (b) => (b.status === 'done' ? `<span class="pill ok">Đã chốt</span>${b.source === 'import' ? ' <span class="pill info">từ Excel</span>' : ''}` : '<span class="pill wait">Đang làm</span>')
+    + (b.publishedAt ? ` <span class="pill info" title="Phát hành lúc ${esc(fmtTime(b.publishedAt))}">📣 Đã phát hành</span>` : '');
   async function loadList() {
     const r = await api('GET', '/api/incentive/batches?scheme=' + SCHEME);
     batches = r.batches || [];
@@ -58,8 +59,68 @@
         <td data-label="Cập nhật"><span class="ac-note">${esc(fmtTime(b.updatedAt))} · ${esc(b.updatedBy)}</span></td>
         <td><button class="btn small" type="button" data-open>Mở</button></td></tr>`).join('')
       || '<tr><td colspan="7" class="ac-note">Chưa có đợt nào. Bấm <b>+ Đợt mới</b>, hoặc <b>Tải Excel lên</b> để ghi nhận các đợt đã chia trước đây.</td></tr>';
-    $('listNote').textContent = batches.length ? `${batches.length} đợt · đã chốt ${batches.filter(b => b.status === 'done').length}` : '';
+    $('listNote').textContent = batches.length ? `${batches.length} đợt · đã chốt ${batches.filter(b => b.status === 'done').length} · đã phát hành ${batches.filter(b => b.publishedAt).length}` : '';
+    renderReport();
   }
+
+  // ---------- báo cáo & tra cứu (các đợt đã chốt) ----------
+  function renderReport() {
+    const yearSel = $('rYear'), batchSel = $('rBatch');
+    const years = [...new Set(history.map(h => h.month.slice(0, 4)))].sort().reverse();
+    const keepY = yearSel.value, keepB = batchSel.value;
+    yearSel.innerHTML = '<option value="">Tất cả</option>' + years.map(y => `<option${y === keepY ? ' selected' : ''}>${y}</option>`).join('');
+    const y = yearSel.value;
+    const bIds = [...new Map(history.filter(h => !y || h.month.startsWith(y)).map(h => [h.batchId, h.month])).entries()].sort((a, b) => b[1].localeCompare(a[1]));
+    batchSel.innerHTML = '<option value="">Tất cả các đợt</option>' + bIds.map(([id, m]) => `<option value="${id}"${String(id) === keepB ? ' selected' : ''}>Đợt ${ml(m)}</option>`).join('');
+    const bId = batchSel.value, view = $('rView').value, q = plain($('rSearch').value);
+    // các dòng (mỗi dòng = một người ở một dự án trong một đợt) sau khi lọc
+    const rows = [];
+    history.forEach(h => {
+      if (y && !h.month.startsWith(y)) return;
+      if (bId && String(h.batchId) !== bId) return;
+      const projHit = !q || plain(`${h.name} ${h.wbs}`).includes(q);
+      h.lines.forEach(l => { if (projHit || plain(`${l.name} ${l.empId}`).includes(q)) rows.push({ ...l, batchId: h.batchId, month: h.month, wbs: h.wbs, project: h.name, kind: h.kind }); });
+    });
+    const sum = (list, f = () => true) => list.filter(f).reduce((a, r) => a + (Number(r.amount) || 0), 0);
+    const pkey = (r) => r.empId || 'n:' + plain(r.name);
+    const box = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
+    $('rKpis').innerHTML = rows.length ? box('Tổng đã chia', money(sum(rows)) + ' đ') + box('Fitter', money(sum(rows, r => r.role === 'fitter')) + ' đ') + box('Site-sup', money(sum(rows, r => r.role === 'sup')) + ' đ')
+      + box('Đợt', new Set(rows.map(r => r.batchId)).size) + box('Dự án', new Set(rows.map(r => r.wbs)).size) + box('Người nhận', new Set(rows.map(pkey)).size) : '';
+    if (!history.length) { $('rBody').innerHTML = '<p class="ac-note">Chưa có đợt nào đã chốt. Chốt một đợt hoặc tải file Excel các đợt trước lên để xem báo cáo.</p>'; return; }
+    if (!rows.length) { $('rBody').innerHTML = '<p class="ac-note">Không có kết quả phù hợp.</p>'; return; }
+    const group = (keyFn) => { const m = new Map(); rows.forEach(r => { const k = keyFn(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.values()]; };
+    const role = (r) => (r.role === 'sup' ? 'Site-sup' : 'Fitter');
+    const kindS = (k) => (KINDS[k] ? KINDS[k].short : k);
+    const table = (head, body) => `<div class="ac-scroll"><table class="ac-table ni-cards"><thead><tr>${head.map(x => `<th${x.startsWith('>') ? ' class="r"' : ''}>${x.replace(/^>/, '')}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+    let html = '';
+    if (view === 'batch') {
+      html = table(['Đợt', 'Tên đợt', '>Dự án', '>Người nhận', '>Fitter', '>Site-sup', '>Tổng', ''], group(r => r.batchId).sort((a, b) => b[0].month.localeCompare(a[0].month)).map(g => {
+        const b = batches.find(x => x.id === g[0].batchId) || {};
+        return `<tr><td data-label="Đợt"><b>${ml(g[0].month)}</b> ${b.publishedAt ? '<span class="pill info" title="Đã phát hành">📣</span>' : ''}</td><td data-label="Tên đợt">${esc(b.title || '')}</td>
+          <td class="r" data-label="Dự án">${new Set(g.map(r => r.wbs)).size}</td><td class="r" data-label="Người nhận">${new Set(g.map(pkey)).size}</td>
+          <td class="r" data-label="Fitter">${money(sum(g, r => r.role === 'fitter'))}</td><td class="r" data-label="Site-sup">${money(sum(g, r => r.role === 'sup'))}</td><td class="r" data-label="Tổng"><b>${money(sum(g))}</b></td>
+          <td><button class="btn small" type="button" data-openb="${g[0].batchId}">Mở đợt</button></td></tr>`;
+      }).join(''));
+    } else if (view === 'project') {
+      const gs = group(r => r.wbs).sort((a, b) => sum(b) - sum(a));
+      html = gs.slice(0, 300).map(g => `<details class="in-rep"${gs.length === 1 ? ' open' : ''}><summary><b>${esc(g[0].project || g[0].wbs)}</b> <span class="mono ac-note">${esc(g[0].wbs)}</span>
+          <span class="ac-note">${[...new Set(g.map(r => `${ml(r.month)} ${kindS(r.kind)}`))].join(' · ')}</span><span class="in-amt">${money(sum(g))} đ</span></summary>
+        <div>${table(['Đợt', 'Loại', 'Vai trò', 'Họ tên', 'Mã NV', '>% giờ công', '>Số tiền (đ)'], g.slice().sort((a, b) => a.month.localeCompare(b.month) || (a.role === b.role ? b.amount - a.amount : a.role === 'sup' ? -1 : 1)).map(r => `<tr>
+          <td data-label="Đợt">${ml(r.month)}</td><td data-label="Loại">${esc(kindS(r.kind))}</td><td data-label="Vai trò">${role(r)}</td><td data-label="Họ tên">${esc(r.name)}</td><td class="mono" data-label="Mã NV">${esc(r.empId || '—')}</td>
+          <td class="r" data-label="% giờ công">${r.pct == null ? '' : pct(r.pct)}</td><td class="r" data-label="Số tiền"><b>${money(r.amount)}</b></td></tr>`).join(''))}</div></details>`).join('')
+        + (gs.length > 300 ? `<p class="ac-note">… còn ${gs.length - 300} dự án — lọc thêm để xem.</p>` : '');
+    } else {
+      const gs = group(pkey).sort((a, b) => sum(b) - sum(a));
+      html = gs.slice(0, 300).map(g => `<details class="in-rep"${gs.length === 1 ? ' open' : ''}><summary><b>${esc(g[0].name)}</b> <span class="mono ac-note">${esc((g.find(r => r.empId) || {}).empId || '')}</span>
+          <span class="ac-note">${[...new Set(g.map(role))].join(' / ')} · ${new Set(g.map(r => r.wbs)).size} dự án · ${new Set(g.map(r => r.batchId)).size} đợt</span><span class="in-amt">${money(sum(g))} đ</span></summary>
+        <div>${table(['Đợt', 'Dự án', 'WBS', 'Loại', 'Vai trò', '>% giờ công', '>Số tiền (đ)'], g.slice().sort((a, b) => b.month.localeCompare(a.month)).map(r => `<tr>
+          <td data-label="Đợt">${ml(r.month)}</td><td data-label="Dự án">${esc(r.project)}</td><td class="mono" data-label="WBS">${esc(r.wbs)}</td><td data-label="Loại">${esc(kindS(r.kind))}</td><td data-label="Vai trò">${role(r)}</td>
+          <td class="r" data-label="% giờ công">${r.pct == null ? '' : pct(r.pct)}</td><td class="r" data-label="Số tiền"><b>${money(r.amount)}</b></td></tr>`).join(''))}</div></details>`).join('')
+        + (gs.length > 300 ? `<p class="ac-note">… còn ${gs.length - 300} người — lọc thêm để xem.</p>` : '');
+    }
+    $('rBody').innerHTML = html;
+  }
+
   function nextOddMonth() {
     const d = new Date(Date.now() + 7 * 36e5); let y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
     if (m % 2 === 0) m++; if (m > 12) { m = 1; y++; }
@@ -72,7 +133,7 @@
     cur = b; cur.data = cur.data || { projects: [] }; cur.data.projects = cur.data.projects || [];
     items().forEach(normalize);
     hoursBy = new Map(); revIdx = 0; dirty = false;
-    $('secList').hidden = true; $('secImport').hidden = true; $('editor').hidden = false;
+    $('secList').hidden = true; $('secImport').hidden = true; $('secReport').hidden = true; $('editor').hidden = false;
     renderBar();
     go(items().length ? (items().every(p => p.lines && p.lines.length) ? 5 : 1) : 1);
     window.scrollTo(0, 0);
@@ -408,6 +469,11 @@
     document.querySelectorAll('[data-sg]').forEach(i => { i.value = sg[i.dataset.sg] || ''; i.disabled = readOnly(); });
     const ro = readOnly();
     $('edDone').hidden = ro; $('edReopen').hidden = !ro; $('edDelete').hidden = ro;
+    $('pubBox').hidden = !ro;
+    $('pubGo').textContent = cur.publishedAt ? '✉ Gửi lại email' : '📣 Phát hành';
+    if (cur.publishedAt) $('pubNote').innerHTML = `Đã phát hành lúc <b>${esc(fmtTime(cur.publishedAt))}</b>${cur.publishedBy ? ' · ' + esc(cur.publishedBy) : ''} — người được chia thưởng xem được trong trang <b>Thưởng của tôi</b>. Sửa đợt (Mở lại) thì người dùng tạm không thấy cho tới khi chốt lại.`;
+    const noId = people.filter(x => !x.empId && x.amount).map(x => x.name);
+    if (noId.length && !cur.publishedAt) $('pubNote').innerHTML += ` <span style="color:var(--red)">Thiếu Mã NV (không nhận được email / không xem được): ${noId.map(esc).join(', ')} — sửa ở bước 4.</span>`;
     const notOk = list.filter(p => !p.imported && !(p.swat.stdOk && p.swat.scOk));
     $('doneNote').textContent = ro ? 'Đợt đã chốt — được tính vào lịch sử "đã trả" của các dự án.' : (notOk.length ? `Còn ${notOk.length} dự án chưa duyệt đủ Standard Hour + Scorecard.` : 'Kiểm tra xong → Chốt đợt: dự án được ghi nhận đã trả đợt này.');
   }
@@ -494,7 +560,7 @@
       const r = await api('POST', '/api/incentive/import', { scheme: SCHEME, sheets });
       toast(`✓ Đã nhập ${r.batches.length} đợt (${r.batches.filter(b => b.replaced).length} đợt ghi đè).`);
       $('secImport').hidden = true;
-      await Promise.all([loadList(), loadRefs()]);
+      await loadRefs(); await loadList();
     } catch (e) { $('impNote').textContent = '✗ ' + e.message; }
     finally { $('impGo').disabled = false; }
   }
@@ -520,7 +586,7 @@
 
     $('edBack').onclick = async () => {
       if (dirty) { try { await save(); } catch (e) { if (!confirm('Chưa lưu được thay đổi. Vẫn rời đợt này?')) return; } }
-      cur = null; $('editor').hidden = true; $('secList').hidden = false; await loadList();
+      cur = null; $('editor').hidden = true; $('secList').hidden = false; $('secReport').hidden = false; await loadRefs(); await loadList();
     };
     $('edSave').onclick = () => save().catch(() => {});
     $('steps').addEventListener('click', (ev) => { const b = ev.target.closest('[data-step]'); if (b) go(+b.dataset.step); });
@@ -564,6 +630,24 @@
     $('splits').addEventListener('change', onSplitChange);
     $('splits').addEventListener('click', onSplitClick);
     document.querySelectorAll('[data-sg]').forEach(i => i.addEventListener('change', () => { cur.data.signers = cur.data.signers || {}; cur.data.signers[i.dataset.sg] = i.value.trim(); changed(); }));
+    ['rYear', 'rBatch', 'rView'].forEach(id => $(id).addEventListener('change', renderReport));
+    $('rSearch').addEventListener('input', () => { clearTimeout(renderReport.t); renderReport.t = setTimeout(renderReport, 200); });
+    $('rBody').addEventListener('click', (ev) => { const b = ev.target.closest('[data-openb]'); if (b) openBatch(+b.dataset.openb).catch(e => toast(e.message)); });
+    $('pubGo').onclick = async () => {
+      if (!cur || cur.status !== 'done') return;
+      const mail = $('pubMail').checked, again = !!cur.publishedAt;
+      const people = Incentive.byPerson(items()).filter(x => x.amount);
+      if (!confirm(`${again ? 'Gửi lại email' : 'Phát hành'} đợt thưởng tháng ${ml(cur.month)}?\n${people.length} người được chia thưởng${mail ? ' sẽ nhận email chi tiết (chỉ tiền của chính họ)' : ' — KHÔNG gửi email'} và xem được trong trang "Thưởng của tôi".`)) return;
+      $('pubGo').disabled = true; $('pubMsg').className = 'ac-note'; $('pubMsg').textContent = 'Đang phát hành…';
+      try {
+        const r = await api('POST', `/api/incentive/batches/${cur.id}/publish`, { sendMail: mail });
+        cur.publishedAt = r.publishedAt;
+        const miss = [...r.noEmail.map(n => n + ' (không có email)'), ...r.noId.map(n => n + ' (thiếu Mã NV — không xem được trong app)')];
+        $('pubMsg').textContent = `✓ Đã phát hành${r.mail ? ` — gửi ${r.sent}/${r.people} email${r.failed ? `, lỗi ${r.failed}: ${r.error || ''}` : ''}` : ''}.${miss.length ? ' Lưu ý: ' + miss.join('; ') + '.' : ''}`;
+        renderBar(); renderSummary();
+      } catch (e) { $('pubMsg').className = 'ac-note err'; $('pubMsg').textContent = '✗ ' + e.message; }
+      finally { $('pubGo').disabled = false; }
+    };
     $('xList').onclick = exportList;
     $('xStd').onclick = () => exportSwat('std');
     $('xSc').onclick = () => exportSwat('sc');
@@ -582,7 +666,7 @@
     };
     $('edDelete').onclick = async () => {
       if (!confirm(`Xoá hẳn đợt thưởng tháng ${ml(cur.month)}? Không khôi phục được.`)) return;
-      try { await api('DELETE', '/api/incentive/batches/' + cur.id, {}); cur = null; $('editor').hidden = true; $('secList').hidden = false; await Promise.all([loadList(), loadRefs()]); toast('Đã xoá đợt.'); }
+      try { await api('DELETE', '/api/incentive/batches/' + cur.id, {}); cur = null; $('editor').hidden = true; $('secList').hidden = false; $('secReport').hidden = false; await Promise.all([loadList(), loadRefs()]); toast('Đã xoá đợt.'); }
       catch (e) { toast(e.message); }
     };
     window.addEventListener('beforeunload', (ev) => { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
@@ -593,8 +677,8 @@
       me = await api('GET', '/api/me');
       $('who').textContent = `Đăng nhập: ${me.name || me.email}`;
       if (!me.isAdmin) { gate('Chức năng <b>Incentive</b> chỉ dành cho <b>Quản trị viên (Admin)</b>.', true); return; }
-      await Promise.all([loadRefs(), loadList()]);
-      $('secList').hidden = false;
+      await loadRefs(); await loadList();
+      $('secList').hidden = false; $('secReport').hidden = false;
       wire();
     } catch (e) { gate('✗ ' + esc(e.message), true); }
   }
