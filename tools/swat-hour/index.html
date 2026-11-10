@@ -1004,7 +1004,23 @@ function exportExcel(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname+'.xls';
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);document.body.removeChild(a);},100);
  };
- withXLSX(X=>{
+ // Ưu tiên ExcelJS: giữ ĐÚNG định dạng form (màu, viền, ô gộp, độ rộng cột) — cùng bộ chuyển với Incentive (js/htmlxlsx.js)
+ withExcelJS(EJ=>{
+  if(EJ&&window.HtmlXlsx){
+   try{
+    const wb=new EJ.Workbook();
+    HtmlXlsx.addSheetHtml(wb,hoursTable,'Installation Hours',{widths:HtmlXlsx.HOURS_WIDTHS,landscape:true,size:9});
+    if(scTable)HtmlXlsx.addSheetHtml(wb,scTable,'SWAT SCORE CARD',{size:11});
+    wb.xlsx.writeBuffer().then(buf=>{
+     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download=fname+'.xlsx';
+     document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+    }).catch(()=>sheetJsExport());
+    return;
+   }catch(e){/* rơi xuống SheetJS */}
+  }
+  sheetJsExport();
+ });
+ function sheetJsExport(){ withXLSX(X=>{
   if(!(X&&X.utils&&X.utils.table_to_sheet)){msoFallback();return;}
   const tmp=document.createElement('div');
   tmp.style.cssText='position:fixed;left:-99999px;top:0;visibility:hidden';
@@ -1017,7 +1033,16 @@ function exportExcel(){
    X.writeFile(wb,fname+'.xlsx');
   }catch(e){msoFallback();}
   finally{document.body.removeChild(tmp);}
- });
+ }); }
+}
+/* ExcelJS: lấy của trang cha (Incentive đã nạp) hoặc tải từ CDN; không được thì trả null (dùng SheetJS) */
+function withExcelJS(cb){
+ let E=window.ExcelJS;
+ if(!E){try{if(window.parent&&window.parent!==window&&window.parent.ExcelJS)E=window.parent.ExcelJS;}catch(e){}}
+ const go=()=>cb(window.ExcelJS||E||null);
+ const load=(src,next)=>{const sc=document.createElement('script');sc.src=src;sc.onload=next;sc.onerror=next;document.head.appendChild(sc);};
+ const afterLib=()=>{ if(E||window.ExcelJS)return go(); load('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js',go); };
+ if(!window.HtmlXlsx)load('../../js/htmlxlsx.js?v=1',afterLib); else afterLib();
 }
 
 /* ================= LƯU TRỮ · CHIA SẺ · TÍCH HỢP TrackingTS ================= */

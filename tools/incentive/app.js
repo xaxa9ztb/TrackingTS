@@ -498,27 +498,26 @@
   }
   let sheetJs = null;
   const loadSheetJs = () => sheetJs || (sheetJs = new Promise((res, rej) => { if (window.XLSX) return res(window.XLSX); const s = document.createElement('script'); s.src = '../../js/xlsx.full.min.js?v=36'; s.onload = () => res(window.XLSX); s.onerror = () => rej(new Error('Không tải được thư viện Excel')); document.head.appendChild(s); }));
+  // Standard Hour / Scorecard: mỗi dự án 1 sheet, ĐÚNG FORM của công cụ SWAT (màu, viền, ô gộp, độ rộng cột — cùng bộ chuyển js/htmlxlsx.js)
   async function exportSwat(kind) {
     const list = items(); if (!list.length) return;
     $('xMsg').textContent = `Đang dựng ${kind === 'std' ? 'Standard Hour' : 'Scorecard'} cho ${list.length} dự án…`;
     try {
-      const X = await loadSheetJs();
-      const wb = X.utils.book_new(), used = new Set();
+      await waitFor(() => window.ExcelJS);
+      const wb = new ExcelJS.Workbook(), used = new Set();
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
         const S = await loadIntoTool(p);
         const t = S.exportTables();
         const html = kind === 'std' ? t.hours : t.scorecard;
         if (!html) continue;
-        const div = document.createElement('div'); div.innerHTML = html;
-        let nm = `${i + 1}. ${p.name || p.wbs}`.replace(/[\[\]:*?/\\]/g, ' ').slice(0, 31).trim();
-        while (used.has(nm)) nm = nm.slice(0, 28) + '~' + i;
-        used.add(nm);
-        X.utils.book_append_sheet(wb, X.utils.table_to_sheet(div.querySelector('table'), { raw: true }), nm);
+        HtmlXlsx.addSheetHtml(wb, html, HtmlXlsx.sheetName(`${i + 1}. ${p.name || p.wbs}`, used),
+          kind === 'std' ? { widths: HtmlXlsx.HOURS_WIDTHS, landscape: true, size: 9 } : { size: 11 });
       }
-      if (!wb.SheetNames.length) throw new Error('Chưa có dữ liệu SWAT để xuất');
-      X.writeFile(wb, `${kind === 'std' ? 'Standard Hour SWAT' : 'Scorecard SWAT'} - ${ml(cur.month).replace('/', '-')}.xlsx`);
-      $('xMsg').textContent = `✓ Đã xuất ${wb.SheetNames.length} sheet.`;
+      if (!wb.worksheets.length) throw new Error('Chưa có dữ liệu SWAT để xuất');
+      const buf = await wb.xlsx.writeBuffer();
+      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${kind === 'std' ? 'Standard Hour SWAT' : 'Scorecard SWAT'} - ${ml(cur.month).replace('/', '-')}.xlsx`);
+      $('xMsg').textContent = `✓ Đã xuất ${wb.worksheets.length} sheet.`;
       if (step === 2 || step === 3) openReview(revIdx);
     } catch (e) { $('xMsg').textContent = '✗ ' + e.message; }
   }
