@@ -124,14 +124,20 @@ export function cleanFiles(h, list) {
 }
 
 // Các bảng công đã duyệt xong gần đây (30 bảng mới nhất) — để gửi lại thư kèm Excel
-export async function approvedList(h, env, me) {
-  if (!isAdminish(me)) throw new h.HttpError(403, 'Chỉ Admin / Admin dự án gửi lại thư duyệt xong');
-  const { results } = await env.DB.prepare(`SELECT d.emp_id, d.period, d.pm_by, d.final_by, d.final_at, e.full_name, e.position FROM ts_docs d JOIN employees e ON e.emp_id = d.emp_id
-    WHERE d.status = 'approved' ORDER BY d.final_at DESC, d.pm_at DESC LIMIT 30`).all();
-  const w = results.length ? (await env.DB.prepare(`SELECT w.emp_id, w.period, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status = 'approved'`).all()).results : [];
+// Danh sách bảng công đã duyệt xong theo kỳ lương (?period=YYYY-MM; không có → kỳ mới nhất có bảng công đã duyệt) + các kỳ có dữ liệu
+export async function approvedList(h, env, me, url) {
+  if (!isAdminish(me)) throw new h.HttpError(403, 'Chỉ Admin / Admin dự án xem danh sách bảng công đã duyệt xong');
+  const periods = (await env.DB.prepare("SELECT period, COUNT(*) n FROM ts_docs WHERE status = 'approved' GROUP BY period ORDER BY period DESC LIMIT 36").all()).results;
+  let period = String((url && url.searchParams.get('period')) || '');
+  if (!/^\d{4}-\d{2}$/.test(period)) period = periods.length ? periods[0].period : '';
+  const { results } = period ? await env.DB.prepare(`SELECT d.emp_id, d.period, d.pm_by, d.pm_at, d.final_by, d.final_at, d.entry_count, e.full_name, e.position FROM ts_docs d LEFT JOIN employees e ON e.emp_id = d.emp_id
+    WHERE d.status = 'approved' AND d.period = ? ORDER BY e.full_name LIMIT 1000`).bind(period).all() : { results: [] };
+  const w = results.length ? (await env.DB.prepare("SELECT w.emp_id, w.wbs FROM ts_doc_wbs w JOIN ts_docs d ON d.emp_id = w.emp_id AND d.period = w.period WHERE d.status = 'approved' AND d.period = ?").bind(period).all()).results : [];
   const wbs = new Map();
-  for (const x of w) { const k = x.emp_id + '|' + x.period; if (!wbs.has(k)) wbs.set(k, []); wbs.get(k).push(x.wbs); }
-  return h.json({ items: results.map(d => ({ empId: d.emp_id, name: d.full_name, position: d.position, period: d.period, pmBy: d.pm_by, finalBy: d.final_by, finalAt: d.final_at, wbs: wbs.get(d.emp_id + '|' + d.period) || [] })) });
+  for (const x of w) { if (!wbs.has(x.emp_id)) wbs.set(x.emp_id, []); wbs.get(x.emp_id).push(x.wbs); }
+  return h.json({ period, periods: periods.map(p => ({ period: p.period, count: p.n })),
+    items: results.map(d => ({ empId: d.emp_id, name: d.full_name || d.emp_id, position: d.position || '', period: d.period, entries: d.entry_count || 0,
+      pmBy: d.pm_by || '', pmAt: d.pm_at || '', finalBy: d.final_by || '', finalAt: d.final_at || '', wbs: wbs.get(d.emp_id) || [] })) });
 }
 
 export async function resendApproved(h, env, me, emp, period, request) {

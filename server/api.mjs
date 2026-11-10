@@ -1095,7 +1095,7 @@ async function handleApi(request, env, opts = {}) {
     if (path === '/api/ts/approvers' && method === 'GET') return await tsApprovers(env, me, url);
     if (path === '/api/ts/inbox' && method === 'GET') return await tsInbox(H, env, me);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)$/)) && method === 'GET') return await reviewDoc(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
-    if (path === '/api/ts/approved' && method === 'GET') return await approvedList(H, env, me);
+    if (path === '/api/ts/approved' && method === 'GET') return await approvedList(H, env, me, url);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/resend$/)) && method === 'POST') return await resendApproved(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), request);
     if ((m = path.match(/^\/api\/ts\/review\/([^/]+)\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return await decideDoc(H, env, me, decodeURIComponent(m[1]), decodeURIComponent(m[2]), m[3], request);
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);

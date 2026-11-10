@@ -120,7 +120,7 @@
         };
         // Mẫu bảng chấm công chính thức (Schindler, .xlsx trắng) nằm cạnh trang: ts-template.xlsx
         const getTemplateBuffer = async () => {
-            const res = await fetch('ts-template.xlsx');
+            const res = await fetch(TsExcel.TEMPLATE);
             if (!res.ok) throw new Error('không tải được mẫu bảng chấm công (HTTP ' + res.status + ')');
             return res.arrayBuffer();
         };

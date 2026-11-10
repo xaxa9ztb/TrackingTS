@@ -99,19 +99,57 @@
   }
 
   // ---------- đã duyệt xong: gửi lại thư kèm Excel ----------
+  let apItems = [];
+  const when = (iso) => (iso ? fmtTime(iso) : '');
   async function loadApproved() {
     const body = $('apTable').tBodies[0];
     try {
-      const r = await api('GET', '/api/ts/approved');
+      const want = $('apPeriod').value;
+      const r = await api('GET', '/api/ts/approved' + (want ? '?period=' + encodeURIComponent(want) : ''));
       $('secApproved').hidden = false;
-      body.innerHTML = r.items.map(i => `<tr data-emp="${esc(i.empId)}" data-period="${esc(i.period)}">
+      $('apPeriod').innerHTML = (r.periods || []).map(p => `<option value="${esc(p.period)}">${esc(p.period.slice(5))}/${esc(p.period.slice(0, 4))} · ${p.count} bảng công</option>`).join('') || '<option value="">—</option>';
+      $('apPeriod').value = r.period || '';
+      apItems = r.items || [];
+      body.innerHTML = apItems.map(i => `<tr data-emp="${esc(i.empId)}" data-period="${esc(i.period)}">
+          <td class="ap-chk"><input type="checkbox" data-pick checked aria-label="Chọn ${esc(i.name)}"></td>
           <td><b>${esc(i.name)}</b><div class="ac-note">${esc(i.empId)} · ${esc(i.position)}</div></td>
           <td>${esc(i.period.slice(5))}/${esc(i.period.slice(0, 4))}</td>
-          <td>${esc(i.pmBy || '—')}<div class="ac-note">${esc(fmtTime(i.pmAt))}</div></td>
+          <td>${esc(i.finalBy || i.pmBy || '—')}<div class="ac-note">${esc(when(i.finalAt || i.pmAt))}</div></td>
           <td class="mono">${esc(i.wbs.join(', ') || '—')}</td>
           <td><button class="btn small" data-resend>Gửi lại thư kèm Excel</button></td></tr>`).join('')
-        || '<tr><td colspan="5" class="ac-note">Chưa có bảng công nào bạn đã duyệt xong.</td></tr>';
-    } catch (e) { $('secApproved').hidden = e.status === 403; if (e.status !== 403) body.innerHTML = `<tr><td colspan="5" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+        || '<tr><td colspan="6" class="ac-note">Chưa có bảng công nào được duyệt xong trong kỳ này.</td></tr>';
+      $('apAll').checked = apItems.length > 0;
+      apCount();
+    } catch (e) { $('secApproved').hidden = e.status === 403; if (e.status !== 403) body.innerHTML = `<tr><td colspan="6" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
+  }
+  const apPicked = () => [...$('apTable').tBodies[0].querySelectorAll('input[data-pick]:checked')].map(x => x.closest('tr').dataset.emp);
+  function apCount() {
+    const n = apPicked().length;
+    $('apPicked').textContent = apItems.length ? `Đã chọn ${n}/${apItems.length} bảng công` : '';
+    $('apZip').disabled = !n;
+    $('apAll').checked = !!apItems.length && n === apItems.length;
+    $('apAll').indeterminate = n > 0 && n < apItems.length;
+  }
+  // Tải 1 file zip: "Bảng công/<TEN>.xlsx" (mẫu Schindler 2026) + "Phụ cấp/Pc Xe | Pc Xang - thang M YYYY.xlsx" (mỗi người một tab)
+  async function downloadZip() {
+    const period = $('apPeriod').value, pick = new Set(apPicked()), msg = $('apMsg'), btn = $('apZip');
+    if (!period || !pick.size) return;
+    btn.disabled = true; msg.className = 'ac-note'; msg.textContent = 'Đang tải dữ liệu bảng công…';
+    try {
+      if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+      if (!window.JSZip) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      const r = await api('GET', '/api/admin/ts/approved?period=' + encodeURIComponent(period));
+      const docs = (r.docs || []).filter(d => pick.has(d.empId));
+      if (!docs.length) throw new Error('Không còn bảng công nào đã duyệt trong các dòng đã chọn — bấm Tải lại');
+      const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const out = await TsHrExport.build({ ExcelJS, JSZip, TsExcel, TsAllowance }, { docs, period, today,
+        tpl: { timesheet: await tpl(TsExcel.TEMPLATE), allowance: await tpl('phucap-xe-template.xlsx') },
+        onProgress: (n, total) => { msg.textContent = `Đang tạo file Excel ${n}/${total}…`; } });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(out.blob); a.download = out.name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+      msg.textContent = `✓ Đã tải ${out.name}: ${out.files.tsCount} bảng công, phụ cấp xe ${out.files.province} người, phụ cấp xăng ${out.files.fuel} người.`;
+    } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+    finally { apCount(); }
   }
   async function resend(emp, period, btn) {
     const msg = $('apMsg');
@@ -272,7 +310,7 @@
     if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
     const entries = doc.data.entries || [];
     const out = [];
-    const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl('ts-template.xlsx'), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
+    const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl(TsExcel.TEMPLATE), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
     out.push({ name: ts.name, content: b64(ts.buffer) });
     const allow = TsAllowance.compute(entries, doc.data.allow, periodRange(period));
     // mỗi loại phụ cấp một file: "Pc Xang - TEN - thang M YYYY.xlsx", "Pc Xe - TEN - thang M YYYY.xlsx"
@@ -325,6 +363,10 @@
     $('btnReload').addEventListener('click', loadInbox);
     $('btnReloadOt').addEventListener('click', loadOt);
     $('btnReloadAp').addEventListener('click', loadApproved);
+    $('apPeriod').addEventListener('change', loadApproved);
+    $('apZip').addEventListener('click', downloadZip);
+    $('apAll').addEventListener('change', () => { $('apTable').tBodies[0].querySelectorAll('input[data-pick]').forEach(x => { x.checked = $('apAll').checked; }); apCount(); });
+    $('apTable').tBodies[0].addEventListener('change', apCount);
     $('apTable').tBodies[0].addEventListener('click', (ev) => { const b = ev.target.closest('[data-resend]'); if (b) { const tr = b.closest('tr'); resend(tr.dataset.emp, tr.dataset.period, b); } });
     $('otAll').addEventListener('change', (ev) => { $('otTable').tBodies[0].querySelectorAll('input[data-pick]').forEach(c => { c.checked = ev.target.checked; }); otPicked(); });
     $('otTable').tBodies[0].addEventListener('change', otPicked);
