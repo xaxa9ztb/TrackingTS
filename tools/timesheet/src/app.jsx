@@ -40,51 +40,39 @@
 
         const HR_WORK_NUMBERS = ['PAID LEAVE', 'UNPAID LEAVE', 'TRAINING-NI', 'TRAINING-EI', 'MEETINGS'];
 
-        // Activities aligned 1:1 with the official Schindler timesheet template columns U..AX (21..50).
-        // `col` = Excel column index where the "x" mark goes when this activity is selected.
+        // Danh mục công việc theo mẫu bảng công Schindler. Vị trí cột "x" khi xuất / đọc Excel do tsexcel.js quyết định (TsExcel.ACT_COL).
         const ACTIVITY_META = [
-            { id: '100', code: '100', cat: 'NI', col: 21, desc: '100 - Travel (thời gian đi đường đến công trình tỉnh)' },
-            { id: '1193', code: '1193', cat: 'NI', col: 22, desc: '1193 - NI Quality hour ( pre-work)' },
-            { id: '1110', code: '1110', cat: 'NI', col: 23, desc: '1110 - NI Prod. Hours Fitter (thời gian lắp đặt)' },
-            { id: '1731', code: '1731', cat: 'NI', col: 24, desc: '1731 - T&C (Thời gian thử nghiệm và vận hành)' },
-            { id: '1194', code: '1194', cat: 'NI', col: 25, desc: '1194 - NI Quality Hour ( open item) (Thời gian sửa lỗi và các hạng mục dỡ dang)' },
-            { id: '1720', code: '1720', cat: 'NI', col: 26, desc: '1720 - NI Inspection (NI/EI handover) - Kiểm tra công trường' },
-            { id: '1900', code: '1900', cat: 'Other', col: 27, desc: '1900 - Customer Legal Audit' },
-            { id: '1191', code: '1191', cat: 'NI', col: 28, desc: '1191 - Temporary Maintenance (trực Bảo trì tạm thời trước khi bàn giao EI)' },
-            { id: '1192-0', code: '1192-0', cat: 'NI', col: 29, desc: '1192-0 - NI Quality hours-logistics' },
-            { id: '1192-1', code: '1192-1', cat: 'NI', col: 30, desc: '1192-1 - NI Quality hours-Material / FI / LPCA / Site Cause' },
-            { id: '1393', code: '1393', cat: 'MOD', col: 31, desc: '1393 - MOD Quality hour ( Pre-work)' },
-            { id: '1394', code: '1394', cat: 'MOD', col: 32, desc: '1394 - MOD Quality Hour ( open item)' },
-            { id: '1310', code: '1310', cat: 'MOD', col: 33, desc: '1310 - MOD Prod. Hours Fitter' },
-            { id: '1392-0', code: '1392-0', cat: 'MOD', col: 34, desc: '1392-0 - MOD Quality hours - Logistics' },
-            { id: '1400', code: '1400', cat: 'EI', col: 35, desc: '1400 - Maintenance (Bảo trì)' },
-            { id: '1500', code: '1500', cat: 'EI', col: 36, desc: '1500 - Call back' },
-            { id: '1600', code: '1600', cat: 'EI', col: 37, desc: '1600 - Repair' },
-            { id: '1710', code: '1710', cat: 'TF', col: 38, desc: '1710 - SAIS Acceptance Test' },
-            { id: '1715', code: '1715', cat: 'TF', col: 39, desc: '1715 - SAIS Re-Inspection' },
-            { id: '1725', code: '1725', cat: 'TF', col: 40, desc: '1725 - CPSI' },
-            { id: '1700', code: '1700', cat: 'SAF', col: 41, desc: '1700 - Safety' },
-            { id: '5010', code: '5010', cat: 'HR', col: 42, desc: '5010 - Meetings (Họp)' },
-            { id: '5021', code: '5021', cat: 'HR', col: 43, desc: '5021 - Training-Classroom (Huấn luyện - trong lớp)' },
-            { id: '5022', code: '5022', cat: 'HR', col: 44, desc: '5022 - Training-On the job (Huấn luyện tại công trường)' },
-            { id: '5040', code: '5040', cat: 'HR', col: 45, desc: '5040 - Other Administrative Task (nhiệm vụ khác không thuộc công trình)' },
-            { id: '5060', code: '5060', cat: 'HR', col: 46, desc: '5060 - Safety / Tools Box Meeting (Họp giao ban an toàn)' },
-            { id: '5090', code: '5090', cat: 'NI', col: 47, desc: '5090/ ES1 (NI) Supervisor, Safety, Travelling time' },
-            { id: '6010', code: '6010', cat: 'HR', col: 48, desc: '6010/1 - Holiday / Public Holiday / Annual Leave day/hr (Nghỉ hưởng lương)' },
-            { id: '6020', code: '6020', cat: 'HR', col: 49, desc: '6020 - Illness (day) / Medical / Accident (nghỉ ốm, nghỉ tai nạn)' },
-            { id: '6090', code: '6090', cat: 'HR', col: 50, desc: '6090 - Unpaid leave (Nghỉ không hưởng lương)' }
+            { id: '100', code: '100', cat: 'NI', desc: '100 - Travel (thời gian đi đường đến công trình tỉnh)' },
+            { id: '1193', code: '1193', cat: 'NI', desc: '1193 - NI Quality hour ( pre-work)' },
+            { id: '1110', code: '1110', cat: 'NI', desc: '1110 - NI Prod. Hours Fitter (thời gian lắp đặt)' },
+            { id: '1731', code: '1731', cat: 'NI', desc: '1731 - T&C (Thời gian thử nghiệm và vận hành)' },
+            { id: '1194', code: '1194', cat: 'NI', desc: '1194 - NI Quality Hour ( open item) (Thời gian sửa lỗi và các hạng mục dỡ dang)' },
+            { id: '1720', code: '1720', cat: 'NI', desc: '1720 - NI Inspection (NI/EI handover) - Kiểm tra công trường' },
+            { id: '1900', code: '1900', cat: 'Other', desc: '1900 - Customer Legal Audit' },
+            { id: '1191', code: '1191', cat: 'NI', desc: '1191 - Temporary Maintenance (trực Bảo trì tạm thời trước khi bàn giao EI)' },
+            { id: '1192-0', code: '1192-0', cat: 'NI', desc: '1192-0 - NI Quality hours-logistics' },
+            { id: '1192-1', code: '1192-1', cat: 'NI', desc: '1192-1 - NI Quality hours-Material / FI / LPCA / Site Cause' },
+            { id: '1393', code: '1393', cat: 'MOD', desc: '1393 - MOD Quality hour ( Pre-work)' },
+            { id: '1394', code: '1394', cat: 'MOD', desc: '1394 - MOD Quality Hour ( open item)' },
+            { id: '1310', code: '1310', cat: 'MOD', desc: '1310 - MOD Prod. Hours Fitter' },
+            { id: '1392-0', code: '1392-0', cat: 'MOD', desc: '1392-0 - MOD Quality hours - Logistics' },
+            { id: '1400', code: '1400', cat: 'EI', desc: '1400 - Maintenance (Bảo trì)' },
+            { id: '1500', code: '1500', cat: 'EI', desc: '1500 - Call back' },
+            { id: '1600', code: '1600', cat: 'EI', desc: '1600 - Repair' },
+            { id: '1710', code: '1710', cat: 'TF', desc: '1710 - SAIS Acceptance Test' },
+            { id: '1715', code: '1715', cat: 'TF', desc: '1715 - SAIS Re-Inspection' },
+            { id: '1725', code: '1725', cat: 'TF', desc: '1725 - CPSI' },
+            { id: '1700', code: '1700', cat: 'SAF', desc: '1700 - Safety' },
+            { id: '5010', code: '5010', cat: 'HR', desc: '5010 - Meetings (Họp)' },
+            { id: '5021', code: '5021', cat: 'HR', desc: '5021 - Training-Classroom (Huấn luyện - trong lớp)' },
+            { id: '5022', code: '5022', cat: 'HR', desc: '5022 - Training-On the job (Huấn luyện tại công trường)' },
+            { id: '5040', code: '5040', cat: 'HR', desc: '5040 - Other Administrative Task (nhiệm vụ khác không thuộc công trình)' },
+            { id: '5060', code: '5060', cat: 'HR', desc: '5060 - Safety / Tools Box Meeting (Họp giao ban an toàn)' },
+            { id: '5090', code: '5090', cat: 'NI', desc: '5090/ ES1 (NI) Supervisor, Safety, Travelling time' },
+            { id: '6010', code: '6010', cat: 'HR', desc: '6010/1 - Holiday / Public Holiday / Annual Leave day/hr (Nghỉ hưởng lương)' },
+            { id: '6020', code: '6020', cat: 'HR', desc: '6020 - Illness (day) / Medical / Accident (nghỉ ốm, nghỉ tai nạn)' },
+            { id: '6090', code: '6090', cat: 'HR', desc: '6090 - Unpaid leave (Nghỉ không hưởng lương)' }
         ];
-
-        // OT type -> Excel column index (I..O = 9..15) in the template
-        const OT_COL = { OT1: 9, OT2: 10, OT3: 11, OT4: 12, OT5: 13, OT6: 14, OT7: 15 };
-        // Resolve an entry's activity code to a template column (handles legacy ids like plain '1192'/'1392')
-        const activityToCol = (code) => {
-            const hit = ACTIVITY_META.find(a => a.id === code || a.code === code);
-            if (hit) return hit.col;
-            if (code === '1192') return 29;
-            if (code === '1392') return 34;
-            return null;
-        };
 
         // --- FIXED FUNCTION: MANUAL DATE STRING CONSTRUCTION ---
         const toLocalISOString = (date) => {
