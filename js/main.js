@@ -95,6 +95,7 @@ function switchTab(name) {
   const fr = document.getElementById('accountsFrame');
   if (name === 'accounts' && fr && !fr.getAttribute('src')) fr.setAttribute('src', fr.dataset.src);
   if (window.PAGE_TOOL === 'admin') { try { history.replaceState(null, '', '#' + name); } catch (e) { /* ignore */ } }
+  if (name === 'projmonth' && window.ProjMonth) ProjMonth.load();   // luôn tính lại theo dữ liệu mới nhất trên máy
 }
 // trang Quản trị: chỉ bản máy chủ có tab Tài khoản & phân quyền; mở thẳng tab theo #địa-chỉ
 function wireAdminTabs() {
@@ -458,6 +459,7 @@ async function refreshAllPages() {
   await Dashboard.reloadAndRefresh();
   if (hasEl('projectsTable')) await ProjectsPage.load();
   if (hasEl('timesheetTable')) await TimesheetPage.load();
+  if (hasEl('pmList')) await ProjMonth.load();
   if (hasEl('employeesTable')) await EmployeesPage.load();
   await SwatPage.load();
   await updateDataStatus();
@@ -548,6 +550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Dashboard.init();
   if (hasEl('projectsTable')) { await ProjectsPage.load(); ProjectsPage.wire(); }
   if (hasEl('timesheetTable')) { await TimesheetPage.load(); TimesheetPage.wire(); }
+  if (hasEl('pmList')) await ProjMonth.load();
   if (hasEl('employeesTable')) { await EmployeesPage.load(); EmployeesPage.wire(); }
   await SwatPage.load();
   SwatPage.wire();

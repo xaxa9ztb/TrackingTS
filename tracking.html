@@ -16,7 +16,7 @@
 <script src="js/session.js?v=49"></script>
 <script>Session.guard('tracking');</script>
 <link rel="stylesheet" href="css/ni.css?v=4">
-<link rel="stylesheet" href="css/style.css?v=38">
+<link rel="stylesheet" href="css/style.css?v=40">
 <script src="js/xlsx.full.min.js?v=36"></script>
 </head>
 <body>
@@ -28,6 +28,7 @@
     <h1 class="brand">Thống kê giờ công dự án</h1>
     <nav class="tabs">
       <button class="tab-btn active" data-tab="dashboard">Tổng quan</button>
+      <button class="tab-btn" data-tab="projmonth">Dự án theo tháng</button>
       <button class="tab-btn" data-tab="timesheet">Bảng công</button>
       <button class="tab-btn" data-tab="swat">SWAT</button>
     </nav>
@@ -164,6 +165,26 @@
     </section>
 
 
+    <!-- ================= DỰ ÁN THEO THÁNG ================= -->
+    <section id="tab-projmonth" class="tab-panel">
+      <div class="panel-toolbar pm-toolbar">
+        <select id="pmMonth" title="Kỳ chấm công: từ ngày 16 tháng trước đến ngày 15 tháng được chọn"></select>
+        <input type="text" id="pmSearch" placeholder="Tìm dự án, WBS, tên hoặc mã nhân viên…">
+        <select id="pmSort" title="Sắp xếp dự án">
+          <option value="hours">Nhiều giờ nhất</option>
+          <option value="people">Nhiều người nhất</option>
+          <option value="name">Tên dự án A → Z</option>
+        </select>
+        <button class="btn btn-secondary" id="pmExpand" type="button">Mở tất cả</button>
+        <span id="pmCycle" class="cycle-label"></span>
+      </div>
+      <div id="pmKpis" class="pm-kpis"></div>
+      <div class="pm-head"><h3>Giờ công đã charge vào từng dự án</h3><span id="pmCount" class="cycle-label"></span></div>
+      <p class="pm-hint">Bấm vào một dự án để xem nhân sự đã charge vào dự án; bấm <b>+</b> ở một người để xem chính xác các ngày.</p>
+      <div id="pmList"></div>
+    </section>
+
+
     <!-- ================= TIMESHEET ================= -->
     <section id="tab-timesheet" class="tab-panel">
       <div class="panel-toolbar">
@@ -217,10 +238,11 @@
 <script src="js/charts.js?v=37"></script>
 <script src="js/combo.js?v=36"></script>
 <script src="js/tablefilter.js?v=36"></script>
-<script src="js/dashboard.js?v=36"></script>
+<script src="js/dashboard.js?v=37"></script>
 <script src="js/timesheet.js?v=37"></script>
+<script src="js/projmonth.js?v=2"></script>
 <script src="js/swatitem.js?v=1"></script>
 <script src="js/swat.js?v=38"></script>
-<script src="js/main.js?v=42"></script>
+<script src="js/main.js?v=43"></script>
 </body>
 </html>
