@@ -39,6 +39,47 @@ async function activeBatch(h, env) {
   return row && row.data ? (parse(row.data, {}).active || 0) : 0;
 }
 
+// Dựng bảng công "đã duyệt xong" của một nhân viên cho một kỳ từ các dòng Theo dõi giờ công → thêm câu lệnh vào stmts; trả về số dòng
+function historyStmts(env, stmts, emp, period, list, t, finalBy) {
+  const { start, end } = periodRange(period);
+  const entries = list.filter(r => r && r.date).map((r, i) => entryFromTracking(r, i)).filter(e => e.date >= start && e.date <= end).slice(0, 400);
+  if (!entries.length) return 0;
+  const checked = checkDoc(period, { entries, deleted: {} });
+  stmts.push(env.DB.prepare(`INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by, submitted_at, final_by, final_at)
+    VALUES (?, ?, 1, 'approved', ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(emp_id, period) DO NOTHING`)
+    .bind(emp, period, checked.data, checked.count, t, 'Nhập từ Theo dõi giờ công', t, finalBy, t));
+  const wbs = projectWbs(entries);
+  if (wbs.length) stmts.push(env.DB.prepare(`INSERT OR IGNORE INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbs.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbs.flatMap(w => [emp, period, w])));
+  return entries.length;
+}
+
+// kỳ lương chứa ngày `iso` (ngày 16 trở đi thuộc kỳ tháng sau)
+export function periodOfDate(iso) {
+  let y = +iso.slice(0, 4), m = +iso.slice(5, 7);
+  if (+iso.slice(8, 10) >= 16) { m += 1; if (m > 12) { m = 1; y += 1; } }
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+// Timesheet cá nhân: tự dựng bảng công các kỳ ĐÃ QUA của chính người đăng nhập từ bảng Theo dõi giờ công (dữ liệu Thống kê giờ công),
+// để xem lại các tháng trước. Chỉ kỳ chưa có bảng công và trước kỳ hiện tại (không chặn việc chấm công kỳ đang làm); không ghi đè gì.
+export async function backfillMine(h, env, emp, today) {
+  const batch = await activeBatch(h, env);
+  if (!batch || !emp) return 0;
+  const cur = periodOfDate(today);
+  const rows = (await env.DB.prepare("SELECT date, data FROM timesheets WHERE batch = ? AND emp_id = ? AND date < ? AND (src IS NULL OR src NOT LIKE 'ts:%') ORDER BY date, id")
+    .bind(batch, emp, periodRange(cur).start).all()).results;
+  if (!rows.length) return 0;
+  const by = new Map();
+  for (const r of rows) { const p = periodOfDate(r.date); if (!by.has(p)) by.set(p, []); by.get(p).push(parse(r.data, {})); }
+  const have = new Set((await env.DB.prepare('SELECT period FROM ts_docs WHERE emp_id = ?').bind(emp).all()).results.map(r => r.period));
+  const todo = [...by.keys()].filter(p => !have.has(p)).sort().reverse().slice(0, 36);
+  if (!todo.length) return 0;
+  const t = h.now(), stmts = [];
+  for (const p of todo) historyStmts(env, stmts, emp, p, by.get(p), t, 'Theo dõi giờ công');
+  for (let i = 0; i < stmts.length; i += 40) await env.DB.batch(stmts.slice(i, i + 40));
+  return todo.length;
+}
+
 // GET ?period= → số nhân viên có dữ liệu trong kỳ ở bảng Theo dõi giờ công và số đã có bảng công
 async function historyInfo(h, env, me, url) {
   if (!isAdminish(me)) throw new h.HttpError(403, 'Chỉ Admin hoặc Admin dự án nhập dữ liệu lịch sử');
@@ -67,19 +108,9 @@ async function importHistory(h, env, me, request) {
     .bind(batch, start, end, ...take).all()).results;
   const by = new Map();
   for (const r of rows) { if (!by.has(r.emp_id)) by.set(r.emp_id, []); by.get(r.emp_id).push(parse(r.data, {})); }
-  const t = h.now(), by_ = me.name, stmts = [];
+  const t = h.now(), stmts = [];
   let total = 0;
-  for (const [emp, list] of by) {
-    const entries = list.filter(r => r && r.date).map((r, i) => entryFromTracking(r, i)).filter(e => e.date >= start && e.date <= end).slice(0, 400);
-    if (!entries.length) continue;
-    const checked = checkDoc(period, { entries, deleted: {} });
-    stmts.push(env.DB.prepare(`INSERT INTO ts_docs (emp_id, period, version, status, data, entry_count, saved_at, saved_by, submitted_at, final_by, final_at)
-      VALUES (?, ?, 1, 'approved', ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(emp_id, period) DO NOTHING`)
-      .bind(emp, period, checked.data, checked.count, t, 'Nhập từ Theo dõi giờ công', t, 'Nhập lịch sử · ' + by_, t));
-    const wbs = projectWbs(entries);
-    if (wbs.length) stmts.push(env.DB.prepare(`INSERT OR IGNORE INTO ts_doc_wbs (emp_id, period, wbs) VALUES ${wbs.map(() => '(?, ?, ?)').join(', ')}`).bind(...wbs.flatMap(w => [emp, period, w])));
-    total += entries.length;
-  }
+  for (const [emp, list] of by) total += historyStmts(env, stmts, emp, period, list, t, 'Nhập lịch sử · ' + me.name);
   for (let i = 0; i < stmts.length; i += 40) await env.DB.batch(stmts.slice(i, i + 40));
   await h.audit(env, me, 'ts_history_import', 'ts_doc', period, undefined, { employees: take.length, rows: total });
   return h.json({ ok: true, period, imported: by.size, rows: total, remaining: todo.length - take.length });

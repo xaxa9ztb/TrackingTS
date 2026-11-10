@@ -10,7 +10,7 @@ import { mailConfigured, sendMail, layout, senderName, esc } from './mail.mjs';
 import { demoRequested, staleDemoCookie, demoCookie, demoEnv, seedDemo, switchPersona, DEMO_ROLES } from './demo.mjs';
 import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowance, trackingRow, vnDate, amendLockedChanges, amendLockedMsg } from './tsdoc.mjs';
 import { routeTsAdmin } from './tsadmin.mjs';
-import { routeTsImport } from './tsimport.mjs';
+import { routeTsImport, backfillMine } from './tsimport.mjs';
 import { routeIncentive } from './incentive.mjs';
 import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs, projectWbsKnown } from './tsflow.mjs';
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
@@ -714,6 +714,9 @@ function periodParam(p) {
 
 async function listMyDocs(env, me) {
   const emp = needOwnEmp(me);
+  // các kỳ trước: dựng bảng công (chỉ xem, "đã duyệt") từ dữ liệu Theo dõi giờ công nếu người này chưa có — lỗi ở đây không chặn việc mở Timesheet
+  try { await backfillMine(H, env, emp, new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)); }   // ngày theo giờ Việt Nam
+  catch (e) { console.error('backfillMine', e); }
   const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at, submitted_at, sitesup_by, sitesup_at, pm_by, pm_at, note, admin_by, admin_at, admin_note, amend_rev, amend_from, amend_note, amend_at, amend_since FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
   return json({ docs: results.map(r => ({ period: r.period, version: r.version, status: r.status, entries: r.entry_count, savedAt: r.saved_at,
     submittedAt: r.submitted_at, sitesupBy: r.sitesup_by, sitesupAt: r.sitesup_at, pmBy: r.pm_by, pmAt: r.pm_at, note: r.note,

@@ -183,8 +183,9 @@ const Dashboard = (() => {
     // group by employee id
     const byEmp = {};
     mainRows.forEach(r => {
-      if (!byEmp[r.empId]) byEmp[r.empId] = { empId: r.empId, name: displayName(r.empId, r.empName), normal: 0, ot1: 0, ot2: 0, ot3: 0, total: 0 };
+      if (!byEmp[r.empId]) byEmp[r.empId] = { empId: r.empId, name: displayName(r.empId, r.empName), normal: 0, ot1: 0, ot2: 0, ot3: 0, total: 0, rows: [] };
       const g = byEmp[r.empId];
+      g.rows.push(r);
       g.normal += r.normal; g.ot1 += r.ot1; g.ot2 += r.ot2; g.ot3 += r.ot3;
       g.total += r.total;
     });
@@ -254,16 +255,44 @@ const Dashboard = (() => {
     Charts.renderPie(document.getElementById('pieChart'), slices);
   }
 
+  // Bảng nhân viên: nút + ở mỗi người xổ ra các ngày (theo bộ lọc dự án / vai trò / khoảng ngày đang chọn)
+  const openEmp = new Set();
+  const escH = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const WD = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  const dayLabel = (iso) => { const [y, m, d] = String(iso || '').split('-'); return y && m && d ? `${WD[new Date(iso + 'T00:00:00Z').getUTCDay()]} ${d}/${m}/${y}` : escH(iso); };
+  function daysTable(rows) {
+    const list = rows.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.timeFrom || '').localeCompare(String(b.timeFrom || '')));
+    const n = (v) => (+v ? fmtVN(+v) : '');
+    return `<table class="emp-days"><thead><tr><th>Ngày</th><th>Giờ làm</th><th>Hoạt động</th><th class="num">Thường</th><th class="num">OT1</th><th class="num">OT2</th><th class="num">OT3</th><th class="num">Tổng</th></tr></thead><tbody>`
+      + list.map(r => { const code = normalizeActCode(r.activities || ''), nm = activityName(code);
+        return `<tr><td>${dayLabel(r.date)}</td><td>${r.timeFrom || r.timeTo ? escH(r.timeFrom || '') + '–' + escH(r.timeTo || '') : ''}</td><td>${escH(code)}${nm ? ' · ' + escH(nm) : ''}</td>`
+          + `<td class="num">${n(r.normal)}</td><td class="num">${n(r.ot1)}</td><td class="num">${n(r.ot2)}</td><td class="num">${n(r.ot3)}</td><td class="num"><b>${fmtVN(+r.total || 0)}</b></td></tr>`; }).join('')
+      + '</tbody></table>';
+  }
   function renderTable(empRows, grand) {
     const tbody = document.querySelector('#empTable tbody');
-    tbody.innerHTML = empRows.map(e =>
-      `<tr><td>${e.name}</td><td>${e.empId}</td><td class="num">${fmtVN(e.normal)}</td><td class="num">${fmtVN(e.ot1)}</td><td class="num">${fmtVN(e.ot2)}</td><td class="num">${fmtVN(e.ot3)}</td><td class="num">${fmtVN(e.total)}</td><td class="num">${grand > 0 ? fmtPct(e.total / grand * 100) : '-'}</td></tr>`
-    ).join('');
+    if (!tbody.dataset.wired) {
+      tbody.dataset.wired = '1';
+      tbody.addEventListener('click', (ev) => {
+        const b = ev.target.closest('.emp-toggle');
+        if (!b) return;
+        const tr = b.closest('tr').nextElementSibling, show = tr.hidden;
+        tr.hidden = !show; b.textContent = show ? '−' : '+'; b.setAttribute('aria-expanded', String(show));
+        b.title = show ? 'Thu gọn' : 'Xem các ngày';
+        if (show) openEmp.add(b.dataset.emp); else openEmp.delete(b.dataset.emp);
+      });
+    }
+    tbody.innerHTML = empRows.map(e => {
+      const open = openEmp.has(e.empId);
+      return `<tr class="emp-row"><td class="emp-x"><button type="button" class="emp-toggle" data-emp="${escH(e.empId)}" aria-expanded="${open}" title="${open ? 'Thu gọn' : 'Xem các ngày'}">${open ? '−' : '+'}</button></td>`
+        + `<td>${escH(e.name)}</td><td>${escH(e.empId)}</td><td class="num">${fmtVN(e.normal)}</td><td class="num">${fmtVN(e.ot1)}</td><td class="num">${fmtVN(e.ot2)}</td><td class="num">${fmtVN(e.ot3)}</td><td class="num">${fmtVN(e.total)}</td><td class="num">${grand > 0 ? fmtPct(e.total / grand * 100) : '-'}</td></tr>`
+        + `<tr class="emp-days-row"${open ? '' : ' hidden'}><td></td><td colspan="8">${daysTable(e.rows)}</td></tr>`;
+    }).join('');
     const totals = empRows.reduce((s, e) => ({
       normal: s.normal + e.normal, ot1: s.ot1 + e.ot1, ot2: s.ot2 + e.ot2, ot3: s.ot3 + e.ot3, total: s.total + e.total
     }), { normal: 0, ot1: 0, ot2: 0, ot3: 0, total: 0 });
     document.querySelector('#empTable tfoot').innerHTML =
-      `<tr><td>Tổng</td><td></td><td class="num">${fmtVN(totals.normal)}</td><td class="num">${fmtVN(totals.ot1)}</td><td class="num">${fmtVN(totals.ot2)}</td><td class="num">${fmtVN(totals.ot3)}</td><td class="num">${fmtVN(totals.total)}</td><td class="num">100%</td></tr>`;
+      `<tr><td></td><td>Tổng</td><td></td><td class="num">${fmtVN(totals.normal)}</td><td class="num">${fmtVN(totals.ot1)}</td><td class="num">${fmtVN(totals.ot2)}</td><td class="num">${fmtVN(totals.ot3)}</td><td class="num">${fmtVN(totals.total)}</td><td class="num">100%</td></tr>`;
   }
 
   function renderActivities(mainRows, grand) {
