@@ -19,7 +19,7 @@
 <script src="incentive.js?v=1"></script>
 <script src="incexcel.js?v=1"></script>
 <script src="../../js/htmlxlsx.js?v=1"></script>
-<script src="app.js?v=4" defer></script>
+<script src="app.js?v=5" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="incentive" data-tool="Incentive — Thưởng lắp đặt" data-help="huong-dan.html#incentive"></script>
@@ -50,6 +50,7 @@
     <div class="in-head"><h2 id="hList">Các đợt chia thưởng SWAT</h2>
       <span class="in-acts">
         <button class="btn small" type="button" id="btnPubAll" hidden title="Cho người được chia thưởng xem các đợt đã chốt trong trang Thưởng của tôi">📣 Phát hành các đợt đã chốt</button>
+        <button class="btn small" type="button" id="btnRename" aria-expanded="false" aria-controls="renameForm" title="Sửa mã WBS bị nhầm (vd. từ file Excel cũ) ở mọi đợt cùng lúc">✎ Đổi mã WBS</button>
         <button class="btn small" type="button" id="btnImport">⬆ Tải Excel lên (ghi đè)</button>
         <button class="btn primary small" type="button" id="btnNew">+ Đợt mới</button>
       </span></div>
@@ -59,6 +60,16 @@
       <button class="btn primary small" type="submit">Tạo đợt</button>
       <button class="btn small" type="button" id="newCancel">Huỷ</button>
       <span class="ac-note err" id="newMsg"></span>
+    </form>
+    <form class="in-new" id="renameForm" hidden>
+      <label>Mã WBS đang sai <input type="text" id="rnFrom" list="dlHistWbs" required autocomplete="off" placeholder="vd. 11952457"></label>
+      <label>Mã WBS đúng <input type="text" id="rnTo" list="dlProjWbs" required autocomplete="off"></label>
+      <label class="in-grow">Tên dự án (tuỳ chọn) <input type="text" id="rnName" maxlength="300" placeholder="để trống = giữ tên cũ; WBS có trong danh sách dự án thì tự điền"></label>
+      <button class="btn small" type="button" id="rnPreview">Xem trước</button>
+      <button class="btn primary small" type="submit" id="rnGo" disabled>Đổi ở các đợt</button>
+      <button class="btn small" type="button" id="rnCancel">Đóng</button>
+      <div class="ac-note" id="rnMsg" style="flex-basis:100%"></div>
+      <datalist id="dlHistWbs"></datalist><datalist id="dlProjWbs"></datalist>
     </form>
     <div class="ac-scroll"><table class="ac-table ni-cards" id="tBatches">
       <thead><tr><th>Tháng</th><th>Đợt</th><th>Trạng thái</th><th class="r">Dự án</th><th class="r">Tổng tiền (đ)</th><th>Cập nhật</th><th></th></tr></thead>

@@ -2123,3 +2123,32 @@ test('Timesheet cá nhân: tự dựng bảng công các kỳ đã qua từ Theo
   assert.equal((await call('GET', '/api/ts/docs', { email: 'bf1@example.com' })).data.docs.length, want.length);
   assert.deepEqual((await call('GET', '/api/ts/docs', { email: 'bf2@example.com' })).data.docs.map(d => d.period), [P(old1)]);
 });
+
+test('Incentive: đổi mã WBS nhầm ở mọi đợt (xem trước, bỏ qua đợt đã có mã mới, giữ phát hành, cập nhật lịch sử / Thưởng của tôi)', async () => {
+  const A = 'boss@example.com';
+  const mk = async (month, projects, status = 'done') => {
+    const r = await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    const p = await call('PUT', `/api/incentive/batches/${r.data.id}`, { email: A, body: { version: 1, status, data: { projects } } });
+    assert.equal(p.status, 200, JSON.stringify(p.data));
+    return r.data.id;
+  };
+  const prj = (wbs, name, kind, amount) => ({ wbs, name, kind, fundF: 100, fundS: 0, lines: [{ role: 'fitter', empId: 'TS1', name: 'Thợ Một', hours: 10, pct: 1, amount }] });
+  const b1 = await mk('2031-01', [prj('SAI-1', 'Tên cũ', 'first70', 70)]);
+  await mk('2031-03', [prj('SAI-1', 'Tên cũ', 'final30', 30), prj('OTHER', 'Khác', 'first100', 5)]);
+  await mk('2031-05', [prj('SAI-1', 'Tên cũ', 'final30', 1), prj('DUNG-1', 'Đã có', 'final30', 2)]);
+  assert.equal((await call('POST', `/api/incentive/batches/${b1}/publish`, { email: A, body: { sendMail: false } })).status, 200);
+  assert.equal((await call('POST', '/api/incentive/rename-wbs', { email: 'ap1@example.com', body: { scheme: 'swat', from: 'SAI-1', to: 'DUNG-1' } })).status, 403);
+  const pre = (await call('POST', '/api/incentive/rename-wbs', { email: A, body: { scheme: 'swat', from: 'SAI-1', to: 'DUNG-1', name: 'Tên đúng', dryRun: true } })).data;
+  assert.deepEqual(pre.batches.map(b => b.month), ['2031-01', '2031-03']); assert.deepEqual(pre.conflicts.map(c => c.month), ['2031-05']);
+  assert.ok((await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items.some(x => x.wbs === 'SAI-1' && x.month === '2031-01'), 'xem trước không đổi gì');
+  const r = await call('POST', '/api/incentive/rename-wbs', { email: A, body: { scheme: 'swat', from: 'SAI-1', to: 'DUNG-1', name: 'Tên đúng' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const h = (await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items.filter(x => x.month.startsWith('2031'));
+  assert.deepEqual(h.map(x => [x.month, x.wbs, x.name]).sort(), [['2031-01', 'DUNG-1', 'Tên đúng'], ['2031-03', 'DUNG-1', 'Tên đúng'], ['2031-03', 'OTHER', 'Khác'], ['2031-05', 'DUNG-1', 'Đã có'], ['2031-05', 'SAI-1', 'Tên cũ']]);
+  const b = (await call('GET', `/api/incentive/batches/${b1}`, { email: A })).data;
+  assert.deepEqual([b.status, !!b.publishedAt, b.data.projects[0].wbs, b.data.projects[0].name], ['done', true, 'DUNG-1', 'Tên đúng']);
+  const mine = (await call('GET', '/api/incentive/mine', { email: 'ts1@example.com' })).data;
+  const it = (mine.batches || mine.items || []).find(x => x.month === '2031-01');
+  assert.ok(it && it.projects.some(p => p.wbs === 'DUNG-1'), JSON.stringify(mine).slice(0, 300));
+});

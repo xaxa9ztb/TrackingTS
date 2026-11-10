@@ -8,6 +8,7 @@
 //   GET    /api/incentive/hours?wbs=a,b              giờ công theo người của từng dự án (bảng Theo dõi giờ công)
 //   POST   /api/incentive/import                     ghi đè các đợt từ file Excel kế toán đã sửa {scheme, sheets:[{month, title, projects}]}
 //   POST   /api/incentive/batches/:id/publish        phát hành đợt đã chốt {sendMail} → email chi tiết cho từng người được chia
+//   POST   /api/incentive/rename-wbs                 đổi mã WBS (và tên) của một dự án ở MỌI đợt {scheme, from, to, name?, dryRun?}
 //   GET    /api/incentive/mine                       (mọi nhân viên) thưởng CỦA MÌNH ở các đợt đã phát hành
 //   GET    /api/incentive/mine/:batchId/:wbs         (mọi nhân viên) chi tiết một dự án: báo cáo SWAT + dòng của mình
 import Inc from '../tools/incentive/incentive.js';
@@ -291,6 +292,39 @@ async function mineDetail(h, env, me, id, wbs) {
   return h.json({ batch: { id: b.id, month: b.month, title: b.title }, project: { ...publicProject(p), lines: mineL.map(myLine) }, swatState: (p.swat && p.swat.state) || null });
 }
 
+// Sửa mã WBS bị nhầm ở các đợt (thường từ file Excel cũ): đổi `from` → `to` (và tên dự án nếu có) trong dữ liệu mọi đợt của scheme,
+// dựng lại inc_lines (báo cáo, lịch sử "đã trả", Thưởng của tôi đọc từ đây). dryRun → chỉ báo đợt / dòng sẽ đổi.
+// Một đợt mà đã có sẵn dự án `to` → không gộp tự động, báo lại để Admin mở đợt đó sửa tay.
+async function renameWbs(h, env, me, request) {
+  needAdmin(h, me);
+  const body = await h.readJson(request);
+  const scheme = schemeOf(h, body.scheme);
+  const from = h.str(body.from, 40), to = h.str(body.to, 40), name = h.str(body.name, 300);
+  if (!from || !to) throw new h.HttpError(400, 'Cần nhập mã WBS cũ và mã WBS mới');
+  if (from === to && !name) throw new h.HttpError(400, 'Mã WBS mới trùng mã cũ');
+  const { results } = await env.DB.prepare('SELECT id, month, status, version, data FROM inc_batches WHERE scheme = ? ORDER BY month').bind(scheme).all();
+  const hits = [], conflicts = [];
+  for (const r of results) {
+    const data = parse(r.data, { projects: [] });
+    const p = (data.projects || []).find(x => String(x.wbs) === from);
+    if (!p) continue;
+    if (from !== to && data.projects.some(x => String(x.wbs) === to)) { conflicts.push({ id: r.id, month: r.month }); continue; }
+    hits.push({ r, data, p, lines: (p.lines || []).length, oldName: p.name || '' });
+  }
+  const summary = { from, to, batches: hits.map(x => ({ id: x.r.id, month: x.r.month, status: x.r.status, lines: x.lines, name: x.oldName })), conflicts };
+  if (body.dryRun) return h.json({ ok: true, dryRun: true, ...summary });
+  const t = h.now(), by = me.name || me.email;
+  for (const x of hits) {
+    x.p.wbs = to; if (name) x.p.name = name;
+    const text = JSON.stringify(x.data);
+    const upd = env.DB.prepare('UPDATE inc_batches SET data = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?').bind(text, t, by, x.r.id, x.r.version);
+    const res = await env.DB.batch([upd, ...lineStmts(env, x.r.id, x.data.projects)]);
+    if (!(res[0].meta && res[0].meta.changes === 1)) throw new h.HttpError(409, `Đợt ${x.r.month} vừa được sửa ở nơi khác — tải lại rồi làm lại`);
+  }
+  await h.audit(env, me, 'inc_rename_wbs', 'inc_batch', scheme, { wbs: from }, { wbs: to, name, batches: hits.map(x => x.r.month) });
+  return h.json({ ok: true, ...summary });
+}
+
 export async function routeIncentive(h, env, me, path, method, url, request) {
   let m;
   if (path === '/api/incentive/mine' && method === 'GET') return mine(h, env, me);
@@ -307,5 +341,6 @@ export async function routeIncentive(h, env, me, path, method, url, request) {
   if (path === '/api/incentive/history' && method === 'GET') return history(h, env, me, url);
   if (path === '/api/incentive/hours' && method === 'GET') return hours(h, env, me, url);
   if (path === '/api/incentive/import' && method === 'POST') return importSheets(h, env, me, request);
+  if (path === '/api/incentive/rename-wbs' && method === 'POST') return renameWbs(h, env, me, request);
   return null;
 }
