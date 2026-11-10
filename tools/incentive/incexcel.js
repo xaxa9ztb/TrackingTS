@@ -58,7 +58,7 @@
       row.getCell('F').value = p.stops || null;
       row.getCell('G').value = p.product || '';
       row.getCell('K').value = { formula: `SUM(L${h}:M${last})` };
-      row.getCell('N').value = p.note || KIND_NOTE[p.kind] || '';
+      row.getCell('N').value = p.note || ((KIND_NOTE[p.kind] || '') + (p.supRule && p.supRule.zero && !p.imported ? ' — Site-sup = 0' + (p.supRule.days != null ? ` (final sau ${p.supRule.days} ngày)` : '') : ''));
       row.getCell('O').value = k.rate;
       if (fitRows.length) ws.getCell(`X${h}`).value = { formula: `SUM(X${fitRows[0]}:X${fitRows[fitRows.length - 1]})` };
       const pctF = (rr) => (fitRows.length ? { formula: `IF($X$${h}>0,X${rr}/$X$${h},0)` } : 0);

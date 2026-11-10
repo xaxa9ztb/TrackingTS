@@ -33,7 +33,8 @@ test('đợt cuối: tổng (100% hoặc 90%) × % giờ công − đã nhận �
   const r = Inc.compute({ kind: 'final20', fundF: 16100000, fundS: 4900000, sup: { empId: 'S1', name: 'GS' }, paid,
     fitters: [{ empId: 'F1', name: 'A', hours: 52.5 }, { empId: 'F2', name: 'B', hours: 20 }, { empId: 'F4', name: 'Mới', hours: 27.5 }] });
   const [s, a, b, n] = r.lines;
-  assert.deepEqual([s.total, s.before, s.amount], [4410000, 1750000, 2660000]);
+  // đợt cuối 20% (quá 6 tháng chưa final): Site-sup không nhận thêm (= 0); fitter vẫn chia theo giờ công
+  assert.deepEqual([s.total, s.before, s.amount], [4410000, 1750000, 0]);
   assert.deepEqual([a.total, a.amount], [7607250, 3013500]);
   assert.deepEqual([b.total, b.amount], [2898000, 1148000]);
   assert.deepEqual([n.before, n.amount], [0, 3984750]);
@@ -111,4 +112,19 @@ test('đã nhận đợt trước: khớp theo Mã NV, thiếu Mã NV thì theo 
   assert.equal(Inc.paidOf(paid, { empId: 'F2', name: 'Tên khác' }), 150);
   const r = Inc.compute({ kind: 'final30', fundF: 1000, fundS: 0, paid, fitters: [{ empId: 'F9', name: 'Nguyễn Văn A', hours: 1 }] });
   assert.equal(r.lines[0].amount, 300);
+});
+
+test('Site-sup đợt cuối: 30% final quá 60 ngày từ bàn giao khách hàng → 0; 20% → luôn 0; fitter không đổi', () => {
+  const base = { fundF: 1000, fundS: 200, sup: { empId: 'S1', name: 'GS' }, fitters: [{ empId: 'F1', name: 'Thợ', hours: 10 }], paid: { S1: 140, F1: 700 } };
+  const supOf = (r) => r.lines.find(l => l.role === 'sup').amount, fitOf = (r) => r.lines.find(l => l.role === 'fitter').amount;
+  let r = Inc.compute({ ...base, kind: 'final30', handoverDate: '2026-01-01', finalDate: '2026-03-01' });      // 59 ngày
+  assert.deepEqual([supOf(r), fitOf(r), r.supRule.zero, r.supRule.days], [60, 300, false, 59]);
+  r = Inc.compute({ ...base, kind: 'final30', handoverDate: '2026-01-01', finalDate: '2026-03-03' });         // 61 ngày
+  assert.deepEqual([supOf(r), fitOf(r), r.supRule.zero, r.supRule.days], [0, 300, true, 61]);
+  r = Inc.compute({ ...base, kind: 'final30' });                                                             // chưa nhập ngày
+  assert.deepEqual([supOf(r), r.supRule.need], [60, true]);
+  r = Inc.compute({ ...base, kind: 'final20' });
+  assert.deepEqual([supOf(r), fitOf(r), r.supRule.zero], [0, 200, true]);
+  r = Inc.compute({ ...base, kind: 'first70' });
+  assert.equal(supOf(r), 140);
 });
