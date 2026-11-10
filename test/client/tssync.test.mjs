@@ -67,6 +67,7 @@ function fakeServer() {
     const method = init.method || 'GET', body = init.body ? JSON.parse(init.body) : undefined;
     const reply = (status, data) => ({ status, ok: status < 300, type: 'basic', json: async () => data });
     if (fakeServer.offline) throw new TypeError('Failed to fetch');
+    url = String(url).replace(/\?history=1$/, '');   // dựng lịch sử 1 lần/ngày — máy chủ giả bỏ qua
     log.push(method + ' ' + url);
     let m;
     if (url === '/api/ts/docs' && method === 'GET') return reply(200, { docs: [...docs].map(([period, d]) => ({ period, version: d.version, status: d.status, entries: d.entries.length })) });

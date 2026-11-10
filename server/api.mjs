@@ -712,11 +712,14 @@ function periodParam(p) {
   return p;
 }
 
-async function listMyDocs(env, me) {
+async function listMyDocs(env, me, url) {
   const emp = needOwnEmp(me);
-  // các kỳ trước: dựng bảng công (chỉ xem, "đã duyệt") từ dữ liệu Theo dõi giờ công nếu người này chưa có — lỗi ở đây không chặn việc mở Timesheet
-  try { await backfillMine(H, env, emp, new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)); }   // ngày theo giờ Việt Nam
-  catch (e) { console.error('backfillMine', e); }
+  // các kỳ trước: dựng bảng công (chỉ xem, "đã duyệt") từ dữ liệu Theo dõi giờ công nếu người này chưa có — lỗi ở đây không chặn việc mở Timesheet.
+  // Chỉ chạy khi trình duyệt xin (?history=1 — lần đồng bộ đầu tiên mỗi ngày), KHÔNG mỗi lượt đồng bộ 90 giây (tốn hạn mức đọc D1).
+  if (url && url.searchParams.get('history') === '1') {
+    try { await backfillMine(H, env, emp, new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)); }   // ngày theo giờ Việt Nam
+    catch (e) { console.error('backfillMine', e); }
+  }
   const { results } = await env.DB.prepare('SELECT period, version, status, entry_count, saved_at, submitted_at, sitesup_by, sitesup_at, pm_by, pm_at, note, admin_by, admin_at, admin_note, amend_rev, amend_from, amend_note, amend_at, amend_since FROM ts_docs WHERE emp_id = ? ORDER BY period DESC LIMIT 36').bind(emp).all();
   return json({ docs: results.map(r => ({ period: r.period, version: r.version, status: r.status, entries: r.entry_count, savedAt: r.saved_at,
     submittedAt: r.submitted_at, sitesupBy: r.sitesup_by, sitesupAt: r.sitesup_at, pmBy: r.pm_by, pmAt: r.pm_at, note: r.note,
@@ -939,11 +942,15 @@ async function pushApprovedRows(env, me, row, period) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const { cas, meta } = await tsMetaRow(env);
     const batch = meta.active || meta.next;
-    await env.DB.prepare('DELETE FROM timesheets WHERE batch = ? AND emp_id = ? AND date >= ? AND date <= ?').bind(batch, emp, start, end).run();
+    const del = await env.DB.prepare('DELETE FROM timesheets WHERE batch = ? AND emp_id = ? AND date >= ? AND date <= ?').bind(batch, emp, start, end).run();
     const parts = chunks(rows, 14).map(c => env.DB.prepare(`INSERT INTO timesheets (batch, emp_id, date, wbs, data, src) VALUES ${c.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`)
       .bind(...c.flatMap(r => [batch, emp, r.date, r.wbs, JSON.stringify(r), src])));
     if (parts.length) await env.DB.batch(parts);
-    const count = (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
+    // số dòng = số cũ − dòng vừa xoá + dòng vừa thêm (không COUNT(*) cả bảng: mỗi lần duyệt đọc hàng chục nghìn dòng, tốn hạn mức D1)
+    const removed = (del && del.meta && Number.isFinite(del.meta.changes)) ? del.meta.changes : null;
+    const count = removed != null && meta.active === batch && Number.isFinite(meta.count)
+      ? Math.max(0, meta.count - removed + rows.length)
+      : (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
     const next = { ...meta, active: batch, next: Math.max(meta.next, batch + 1), dataVersion: meta.dataVersion + 1, count, updatedAt: now(), updatedBy: 'Duyệt bảng công · ' + me.name };
     if (await tsMetaWrite(env, cas, next)) return rows.length;
   }
@@ -1087,7 +1094,7 @@ async function handleApi(request, env, opts = {}) {
     if ((m = path.match(/^\/api\/admin\/employees\/([^/]+)$/)) && method === 'PATCH') return await patchEmployee(env, me, decodeURIComponent(m[1]), request);
     if ((m = path.match(/^\/api\/admin\/projects\/([^/]+)$/)) && method === 'PATCH') return await patchProject(env, me, decodeURIComponent(m[1]), request);
     if (path === '/api/admin/projects/delete' && method === 'POST') return await deleteProjects(env, me, request);
-    if (path === '/api/ts/docs' && method === 'GET') return await listMyDocs(env, me);
+    if (path === '/api/ts/docs' && method === 'GET') return await listMyDocs(env, me, url);
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'GET') return await getMyDoc(env, me, decodeURIComponent(m[1]), url);
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)$/)) && method === 'PUT') return await putMyDoc(env, me, decodeURIComponent(m[1]), request);
     if ((m = path.match(/^\/api\/ts\/docs\/([^/]+)\/submit$/)) && method === 'POST') return await submitMyDoc(env, me, decodeURIComponent(m[1]), request);

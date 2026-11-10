@@ -126,7 +126,10 @@
     running = (async () => {
       const result = { ok: false, statuses: {}, notes: {}, admin: {}, amend: {}, pushed: 0, pulled: 0 };
       try {
-        const listing = await call('GET', '/api/ts/docs');
+        // dựng bảng công các kỳ trước từ Theo dõi giờ công: chỉ xin 1 lần mỗi ngày trên máy này (máy chủ phải đọc lịch sử của người dùng)
+        let hist = false;
+        try { const d = new Date().toISOString().slice(0, 10); if (localStorage.getItem('tsHistoryDay') !== d) { hist = true; localStorage.setItem('tsHistoryDay', d); } } catch (e) { hist = false; }
+        const listing = await call('GET', '/api/ts/docs' + (hist ? '?history=1' : ''));
         if (listing.status !== 200) throw new Error(listing.data.error || ('Máy chủ báo lỗi (HTTP ' + listing.status + ')'));
         const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; if (d.adminNote) result.admin[d.period] = { by: d.adminBy, at: d.adminAt, note: d.adminNote };
           result.amend[d.period] = d.amendFrom ? { rev: d.amendRev, from: d.amendFrom, note: d.amendNote, at: d.amendAt, since: d.amendSince || '' } : null; });

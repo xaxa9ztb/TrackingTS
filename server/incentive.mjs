@@ -145,12 +145,14 @@ async function hours(h, env, me, url) {
   if (!list.length) return h.json({ projects: [] });
   const { meta } = await h.tsMetaRow(env);
   const ph = list.map(() => '?').join(', ');
-  const rows = meta.active ? (await env.DB.prepare(`SELECT wbs, emp_id, MAX(json_extract(data, '$.empName')) AS name, SUM(json_extract(data, '$.total')) AS hours
-      FROM timesheets WHERE batch = ? AND wbs IN (${ph}) AND ${NOT_1194} GROUP BY wbs, emp_id`).bind(meta.active, ...list).all()).results : [];
-  // giờ mã 1194 (lỗi chất lượng) đã loại — để hiện cho Admin biết
-  const q1194 = meta.active ? (await env.DB.prepare(`SELECT wbs, SUM(json_extract(data, '$.total')) AS hours FROM timesheets WHERE batch = ? AND wbs IN (${ph}) AND NOT ${NOT_1194} GROUP BY wbs`)
-    .bind(meta.active, ...list).all()).results : [];
-  const ex = new Map(q1194.map(r => [r.wbs, Math.round((Number(r.hours) || 0) * 100) / 100]));
+  // một lần quét: giờ tính thưởng (bỏ 1194) và giờ 1194 đã loại, theo người
+  const all = meta.active ? (await env.DB.prepare(`SELECT wbs, emp_id, MAX(json_extract(data, '$.empName')) AS name,
+      SUM(CASE WHEN ${NOT_1194} THEN json_extract(data, '$.total') ELSE 0 END) AS hours,
+      SUM(CASE WHEN ${NOT_1194} THEN 0 ELSE json_extract(data, '$.total') END) AS q
+      FROM timesheets WHERE batch = ? AND wbs IN (${ph}) GROUP BY wbs, emp_id`).bind(meta.active, ...list).all()).results : [];
+  const rows = all.filter(r => Number(r.hours) > 0);
+  const ex = new Map();
+  all.forEach(r => ex.set(r.wbs, Math.round(((ex.get(r.wbs) || 0) + (Number(r.q) || 0)) * 100) / 100));
   const emps = rows.length ? (await env.DB.prepare(`SELECT emp_id, full_name, position FROM employees WHERE emp_id IN (${[...new Set(rows.map(r => r.emp_id))].map(() => '?').join(', ')})`)
     .bind(...new Set(rows.map(r => r.emp_id))).all()).results : [];
   const byEmp = new Map(emps.map(e => [e.emp_id, e]));
