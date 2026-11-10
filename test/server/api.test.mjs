@@ -2096,3 +2096,30 @@ test('Incentive: phát hành → email chi tiết cho từng người; "Thưởn
   await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: cur.version, data, status: 'draft' } });
   assert.deepEqual((await call('GET', '/api/incentive/mine', { email: 'ts1@example.com' })).data.batches, []);
 });
+
+test('Timesheet cá nhân: tự dựng bảng công các kỳ đã qua từ Theo dõi giờ công (chỉ của mình, không đụng kỳ hiện tại / kỳ đã có)', async () => {
+  await call('POST', '/api/admin/import', { email: 'boss@example.com', body: { employees: [{ empId: 'BF1', fullName: 'Bù Lịch Sử', position: 'Fitter' }, { empId: 'BF2', fullName: 'Người Khác', position: 'Fitter' }] } });
+  await call('POST', '/api/admin/emails', { email: 'boss@example.com', body: { items: [{ empId: 'BF1', email: 'bf1@example.com' }, { empId: 'BF2', email: 'bf2@example.com' }] } });
+  const vn = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const shift = (iso, days) => new Date(Date.parse(iso + 'T00:00:00Z') + days * 864e5).toISOString().slice(0, 10);
+  const old1 = shift(vn, -70), old2 = shift(vn, -40), curDay = vn;   // hai kỳ đã qua + hôm nay (kỳ hiện tại)
+  const row = (emp, date, o = {}) => ({ empId: emp, empName: 'x', date, timeFrom: '08:00', timeTo: '17:00', normal: 8, ot1: 0, total: 8, activities: '1110', projectNameFree: 'DA cũ', wbs: '812441010', ...o });
+  const meta = (await call('GET', '/api/timesheets/meta', { email: 'boss@example.com' })).data;
+  const keep = [];
+  for (let after = 0; ;) { const p = (await call('GET', '/api/timesheets?after=' + after, { email: 'boss@example.com' })).data; keep.push(...p.rows); if (p.next == null) break; after = p.next; }
+  const up = await uploadTs('boss@example.com', [...keep, row('BF1', old1), row('BF1', shift(old1, 1)), row('BF1', old2, { normal: 8, ot1: 2, total: 10, timeTo: '19:00' }), row('BF1', curDay), row('BF2', old1)], { baseVersion: meta.version });
+  assert.equal(up.commit.status, 200, JSON.stringify(up.commit.data));
+  const P = (iso) => { let y = +iso.slice(0, 4), m = +iso.slice(5, 7); if (+iso.slice(8) >= 16) { m++; if (m > 12) { m = 1; y++; } } return `${y}-${String(m).padStart(2, '0')}`; };
+  const docs = (await call('GET', '/api/ts/docs', { email: 'bf1@example.com' })).data.docs;
+  const want = [...new Set([P(old1), P(old2)])].sort().reverse();
+  assert.deepEqual(docs.map(d => d.period), want, 'chỉ các kỳ đã qua, không có kỳ hiện tại');
+  assert.ok(docs.every(d => d.status === 'approved'));
+  const d1 = (await call('GET', '/api/ts/docs/' + P(old2), { email: 'bf1@example.com' })).data;
+  const e = d1.data.entries.find(x => x.date === old2);
+  assert.deepEqual([e.workNumber, e.bd.NORMAL, e.bd.OT1], ['812441010', 8, 2]);
+  // kỳ hiện tại vẫn trống → người dùng chấm công bình thường
+  assert.equal((await call('GET', '/api/ts/docs/' + P(curDay), { email: 'bf1@example.com' })).data.status, 'draft');
+  // gọi lại không tạo trùng; người khác chỉ thấy của mình
+  assert.equal((await call('GET', '/api/ts/docs', { email: 'bf1@example.com' })).data.docs.length, want.length);
+  assert.deepEqual((await call('GET', '/api/ts/docs', { email: 'bf2@example.com' })).data.docs.map(d => d.period), [P(old1)]);
+});

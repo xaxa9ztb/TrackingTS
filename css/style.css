@@ -357,3 +357,13 @@ body:not(.admin-mode) .chk-col { display: none; }
   .pm-body { padding: 0 6px 10px; }
   .pm-daytable td.pm-act { white-space: normal; }
 }
+
+/* Tổng quan: nút + ở bảng nhân viên → các ngày */
+#empTable .emp-x { width: 34px; padding-right: 0; }
+.emp-toggle { width: 24px; height: 24px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 6px; background: var(--card-bg); color: var(--blue); font: 700 15px/1 var(--ni-font, inherit); cursor: pointer; }
+.emp-toggle[aria-expanded="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+.emp-days-row > td { background: var(--ni-bg, #f4f6f9); padding-top: 4px; padding-bottom: 10px; }
+.emp-days { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.emp-days th { text-align: left; font-size: 11.5px; color: var(--text-muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--border); background: none; position: static; }
+.emp-days td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.emp-days .num { text-align: right; font-variant-numeric: tabular-nums; }
