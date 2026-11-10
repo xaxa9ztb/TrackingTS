@@ -53,6 +53,10 @@
       confirmed: !!p.targetSwat,
     };
   }
-  const api = { detectProduct, isSwatProject, spec, numTok, toToolItem };
+  // Giờ công tính cho SWAT / thưởng lắp đặt: KHÔNG tính mã 1194 (NI Quality Hour — open item: lỗi chất lượng, không phải lỗi lắp đặt)
+  const SWAT_EXCLUDE = ['1194'];
+  const actCode = (a) => String(a == null ? '' : a).replace(/\s+/g, '').slice(0, 4);
+  const countsForSwat = (row) => !SWAT_EXCLUDE.includes(actCode(row && row.activities));
+  const api = { detectProduct, isSwatProject, spec, numTok, toToolItem, SWAT_EXCLUDE, countsForSwat };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SwatItem = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -136,7 +136,9 @@ async function history(h, env, me, url) {
   return h.json({ items: [...map.values()] });
 }
 
-// Giờ công theo người của từng dự án, lấy từ bảng Theo dõi giờ công (đợt dữ liệu đang dùng)
+// Giờ công tính thưởng SWAT không gồm mã 1194 (NI Quality Hour — open item): lỗi chất lượng, không phải lỗi lắp đặt
+const NOT_1194 = "substr(replace(COALESCE(CAST(json_extract(data, '$.activities') AS TEXT), ''), ' ', ''), 1, 4) <> '1194'";
+// Giờ công theo người của từng dự án, lấy từ bảng Theo dõi giờ công (đợt dữ liệu đang dùng) — không tính mã 1194
 async function hours(h, env, me, url) {
   needAdmin(h, me);
   const list = [...new Set(String(url.searchParams.get('wbs') || '').split(',').map(x => x.trim()).filter(Boolean))].slice(0, 60);
@@ -144,7 +146,11 @@ async function hours(h, env, me, url) {
   const { meta } = await h.tsMetaRow(env);
   const ph = list.map(() => '?').join(', ');
   const rows = meta.active ? (await env.DB.prepare(`SELECT wbs, emp_id, MAX(json_extract(data, '$.empName')) AS name, SUM(json_extract(data, '$.total')) AS hours
-      FROM timesheets WHERE batch = ? AND wbs IN (${ph}) GROUP BY wbs, emp_id`).bind(meta.active, ...list).all()).results : [];
+      FROM timesheets WHERE batch = ? AND wbs IN (${ph}) AND ${NOT_1194} GROUP BY wbs, emp_id`).bind(meta.active, ...list).all()).results : [];
+  // giờ mã 1194 (lỗi chất lượng) đã loại — để hiện cho Admin biết
+  const q1194 = meta.active ? (await env.DB.prepare(`SELECT wbs, SUM(json_extract(data, '$.total')) AS hours FROM timesheets WHERE batch = ? AND wbs IN (${ph}) AND NOT ${NOT_1194} GROUP BY wbs`)
+    .bind(meta.active, ...list).all()).results : [];
+  const ex = new Map(q1194.map(r => [r.wbs, Math.round((Number(r.hours) || 0) * 100) / 100]));
   const emps = rows.length ? (await env.DB.prepare(`SELECT emp_id, full_name, position FROM employees WHERE emp_id IN (${[...new Set(rows.map(r => r.emp_id))].map(() => '?').join(', ')})`)
     .bind(...new Set(rows.map(r => r.emp_id))).all()).results : [];
   const byEmp = new Map(emps.map(e => [e.emp_id, e]));
@@ -155,7 +161,7 @@ async function hours(h, env, me, url) {
       return { empId: r.emp_id, name: e.full_name || r.name || r.emp_id, position: e.position || '', hours: Math.round((Number(r.hours) || 0) * 100) / 100,
         role: roles.includes('sitesup') || roles.includes('pm') ? 'sup' : 'fitter' };
     }).sort((a, b) => b.hours - a.hours);
-    return { wbs: w, total: Math.round(people.reduce((s, p) => s + p.hours, 0) * 100) / 100, people };
+    return { wbs: w, total: Math.round(people.reduce((s, p) => s + p.hours, 0) * 100) / 100, people, excluded1194: ex.get(w) || 0 };
   }) });
 }
 

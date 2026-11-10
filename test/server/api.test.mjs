@@ -2152,3 +2152,16 @@ test('Incentive: đổi mã WBS nhầm ở mọi đợt (xem trước, bỏ qua 
   const it = (mine.batches || mine.items || []).find(x => x.month === '2031-01');
   assert.ok(it && it.projects.some(p => p.wbs === 'DUNG-1'), JSON.stringify(mine).slice(0, 300));
 });
+
+test('Incentive: giờ công tính thưởng SWAT không gồm mã 1194 (NI Quality Hour)', async () => {
+  const A = 'boss@example.com';
+  const meta = (await call('GET', '/api/timesheets/meta', { email: A })).data;
+  const keep = [];
+  for (let after = 0; ;) { const p = (await call('GET', '/api/timesheets?after=' + after, { email: A })).data; keep.push(...p.rows); if (p.next == null) break; after = p.next; }
+  const row = (emp, date, act, total) => ({ empId: emp, empName: 'x', date, timeFrom: '08:00', timeTo: '17:00', normal: total, total, activities: act, wbs: 'Q-1194' });
+  const up = await uploadTs(A, [...keep, row('TS1', '2032-01-05', '1110', 8), row('TS1', '2032-01-06', '1194', 8), row('TS2', '2032-01-05', '1110', 8), row('TS2', '2032-01-07', '1194 ', 4)], { baseVersion: meta.version });
+  assert.equal(up.commit.status, 200, JSON.stringify(up.commit.data));
+  const p = (await call('GET', '/api/incentive/hours?wbs=Q-1194', { email: A })).data.projects[0];
+  assert.deepEqual([p.total, p.excluded1194], [16, 12]);
+  assert.deepEqual(p.people.map(x => [x.empId, x.hours]).sort(), [['TS1', 8], ['TS2', 8]]);
+});
