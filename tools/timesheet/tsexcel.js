@@ -75,6 +75,11 @@
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(templateBuffer);
     const sheet = workbook.getWorksheet('New TS') || workbook.worksheets[0];
+    // Chặn xuất lệch cột: mẫu phải đúng bố cục 2026 (P = Số giờ trực Standby, S = Project, T = Work Number). Gặp mẫu cũ (trình duyệt còn giữ bản lưu cũ) → báo lỗi.
+    const tl = layoutOf(sheet);
+    if (!tl || tl.standby !== COL.standby || tl.project !== COL.project || tl.wbs !== COL.wbs || tl.remarks !== COL.remarks) {
+        throw new Error('Mẫu bảng chấm công (ts-template.xlsx) không đúng mẫu Schindler 2026 — tải lại trang (Ctrl+F5) rồi xuất lại');
+    }
 
     // Mẫu: dòng 10.. là dòng dữ liệu mẫu (trống), dòng "Total:" (cột F) và khối chữ ký ngay dưới. Chụp kiểu ô TRƯỚC khi sửa.
     const N = COL.last;
@@ -303,6 +308,7 @@
     return out;
   }
 
-  const api = { parseTimesheet, layoutOf, codeOf, COL, COL_ACT, plainName, fileName, buildTimesheet, activityToCol, ACT_COL, ACT_META, catOf, OT_COL, calculateHours, removeAccents };
+  const TEMPLATE = 'ts-template.xlsx?v=2026.1';   // đổi số khi thay file mẫu → trình duyệt không dùng bản đã lưu cũ
+  const api = { TEMPLATE, parseTimesheet, layoutOf, codeOf, COL, COL_ACT, plainName, fileName, buildTimesheet, activityToCol, ACT_COL, ACT_META, catOf, OT_COL, calculateHours, removeAccents };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);

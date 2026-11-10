@@ -95,3 +95,11 @@ test('buildTimesheet → parseTimesheet (mẫu ts-template.xlsx 2026): đúng ô
   assert.deepEqual(r.entries.map(e => [e.date, e.projectName, e.workNumber, e.activityCode, e.remarks, e.dutyHour]),
     [['2026-10-16', 'Dự án A', 'W-1', '1110', 'ghi chú', undefined], ['2026-10-18', 'Dự án B', 'W-2', '5090', '', '2']]);
 });
+
+test('buildTimesheet từ chối mẫu không đúng bố cục 2026 (tránh xuất lệch cột khi trình duyệt còn giữ mẫu cũ)', { skip: !ExcelJS && 'chưa cài exceljs' }, async () => {
+  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('New TS');
+  ws.getCell('C8').value = 'Date'; ws.getCell('P8').value = 'Check'; ws.getCell('R8').value = 'Project Name';
+  const buf = await wb.xlsx.writeBuffer();
+  await assert.rejects(() => X.buildTimesheet(ExcelJS, buf, { entries: [], bdOf: () => ({}), profile: {}, month: '2026-11' }), /mẫu Schindler 2026/);
+  assert.match(X.TEMPLATE, /^ts-template\.xlsx\?v=/);
+});

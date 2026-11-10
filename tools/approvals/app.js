@@ -272,7 +272,7 @@
     if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
     const entries = doc.data.entries || [];
     const out = [];
-    const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl('ts-template.xlsx'), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
+    const ts = await TsExcel.buildTimesheet(ExcelJS, await tpl(TsExcel.TEMPLATE), { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: emp, position: doc.position, dept: 'NI' }, month: period });
     out.push({ name: ts.name, content: b64(ts.buffer) });
     const allow = TsAllowance.compute(entries, doc.data.allow, periodRange(period));
     // mỗi loại phụ cấp một file: "Pc Xang - TEN - thang M YYYY.xlsx", "Pc Xe - TEN - thang M YYYY.xlsx"

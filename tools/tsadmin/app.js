@@ -161,7 +161,7 @@
       if (!window.JSZip) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
       const d = new Date(), today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       const r = await TsHrExport.build({ ExcelJS, JSZip, TsExcel: TS, TsAllowance }, { docs: picked, period, today,
-        tpl: { timesheet: await tpl('ts-template.xlsx'), allowance: await tpl('phucap-xe-template.xlsx') },
+        tpl: { timesheet: await tpl(TsExcel.TEMPLATE), allowance: await tpl('phucap-xe-template.xlsx') },
         onProgress: (n, total) => { msg.textContent = `Đang tạo file Excel ${n}/${total}…`; } });
       const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = r.name; document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
