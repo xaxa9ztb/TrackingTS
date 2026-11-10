@@ -11,3 +11,10 @@
 .ta-st.submitted, .ta-st.sitesup_ok { background: var(--ni-warn-soft); color: var(--ni-warn); } .ta-st.pm_ok { background: var(--ni-info-soft); color: var(--ni-info); } .ta-st.approved { background: var(--ni-ok-soft); color: var(--ni-ok); } .ta-st.rejected { background: var(--ni-danger-soft); color: var(--ni-danger); }
 .ta-log { background: var(--ni-bar); color: #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 12.5px; max-height: 260px; overflow: auto; white-space: pre-wrap; margin: 8px 0 0; } .ta-log:empty { display: none; }
 .ta-adm { color: #92400e; font-size: 12px; }
+
+/* thêm nhiều ngày một lúc */
+.ta-many { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin: 0 0 10px; padding: 10px 12px; border: 1px dashed var(--ni-line-strong, #c9d0db); border-radius: 10px; background: var(--ni-sunk, #eef1f5); }
+.ta-many label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.ta-many label.ta-chk { flex-direction: row; align-items: center; gap: 6px; font-weight: 500; min-height: 36px; }
+.ta-many input[type=date] { min-height: 36px; padding: 5px 8px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 6px; font-size: 15px; background: var(--card); }
+.ta-many .ac-note { flex: 1 1 100%; }
