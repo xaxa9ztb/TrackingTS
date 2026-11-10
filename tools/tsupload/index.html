@@ -38,7 +38,7 @@
 
   <section class="ac-card" id="secPick" hidden>
     <h2>1. Chọn file Excel</h2>
-    <p class="ac-note">Mỗi file = bảng chấm công của <b>một nhân viên</b> (mẫu <i>New TS</i>: mã NV ở ô E4, tháng ở ô AS3, các dòng từ dòng 10). Chọn được nhiều file một lúc.</p>
+    <p class="ac-note">Mỗi file = bảng chấm công của <b>một nhân viên</b> (mẫu <i>New TS</i>, cả mẫu mới 2026 có cột "Số giờ trực Standby" lẫn mẫu cũ: mã NV ở ô E4, tháng ở ô MONTH, các dòng từ dòng 10 — cột được nhận theo tiêu đề). Chọn được nhiều file một lúc.</p>
     <div class="ac-row"><input type="file" id="fFiles" accept=".xlsx" multiple><span id="pickMsg" class="ac-note"></span></div>
   </section>
 
@@ -55,7 +55,7 @@
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <datalist id="dlWbs"></datalist>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="../timesheet/tsexcel.js?v=3"></script>
+<script src="../timesheet/tsexcel.js?v=4"></script>
 <script src="app.js?v=2"></script>
 </body>
 </html>

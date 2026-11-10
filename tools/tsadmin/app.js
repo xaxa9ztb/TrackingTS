@@ -182,11 +182,52 @@
     $('eClose').addEventListener('click', () => { $('secEdit').hidden = true; cur = null; });
     $('tEdit').tBodies[0].addEventListener('input', summary);
     $('tEdit').tBodies[0].addEventListener('click', (ev) => { const b = ev.target.closest('[data-del]'); if (!b) return; const i = +b.closest('tr').dataset.i; if (cur.del.has(i)) cur.del.delete(i); else cur.del.add(i); summary(); });
+    // thêm dòng: giống dòng CUỐI bảng (lấy giá trị đang hiển thị — kể cả vừa sửa), ngày = ngày kế tiếp
+    const addDay = (d, n) => { const [y, m, dd] = d.split('-').map(Number); const x = new Date(Date.UTC(y, m - 1, dd + n)); return x.toISOString().slice(0, 10); };
+    const schOf = () => (LaborVN.SCHEDULES[cur.d.data.sch] ? cur.d.data.sch : LaborVN.DEFAULT_SCHEDULE);
+    function template() {
+      const trs = [...$('tEdit').tBodies[0].rows].filter(tr => !cur.del.has(+tr.dataset.i));
+      const tr = trs[trs.length - 1];
+      const t = { startTime: '08:00', endTime: '17:00', breakTime: '1', activityCode: '1110', projectName: '', workNumber: '', report: '', date: '' };
+      if (tr) tr.querySelectorAll('[data-f]').forEach(el => { t[el.dataset.f] = el.value; });
+      return t;
+    }
+    function addRows(dates, t) {
+      const base = Date.now() * 100;
+      dates.forEach((d, k) => {
+        const e = { ...t, id: base + cur.rows.length + k, date: d, otMode: 'auto', otType: 'NORMAL', dutyHour: '0' };
+        cur.rows.push(e);
+        $('tEdit').tBodies[0].insertAdjacentHTML('beforeend', rowHtml(e, cur.rows.length - 1));
+      });
+      summary();
+      const last = $('tEdit').tBodies[0].lastElementChild; if (last) last.scrollIntoView({ block: 'nearest' });
+    }
     $('eAdd').addEventListener('click', () => {
-      const r = rangeOf(period), last = cur.rows.length ? cur.rows[cur.rows.length - 1] : null;
-      const e = { id: Date.now() * 100 + cur.rows.length, date: last ? last.date : r.end, startTime: '08:00', endTime: '17:00', breakTime: '1', otMode: 'auto', otType: 'NORMAL', activityCode: last ? last.activityCode : '1110', projectName: last ? last.projectName : '', workNumber: last ? last.workNumber : '', dutyHour: '0', report: '' };
-      cur.rows.push(e);
-      $('tEdit').tBodies[0].insertAdjacentHTML('beforeend', rowHtml(e, cur.rows.length - 1)); summary();
+      const r = rangeOf(period), t = template();
+      let d = /^\d{4}-\d{2}-\d{2}$/.test(t.date) ? addDay(t.date, 1) : r.start;
+      if (d > r.end) d = r.end;
+      addRows([d], t);
+    });
+    $('eAddMany').addEventListener('click', () => {
+      const box = $('eMany'), open = box.hidden;
+      box.hidden = !open; $('eAddMany').setAttribute('aria-expanded', String(open));
+      if (!open) return;
+      const r = rangeOf(period), t = template();
+      $('mFrom').min = $('mTo').min = r.start; $('mFrom').max = $('mTo').max = r.end;
+      const from = /^\d{4}-\d{2}-\d{2}$/.test(t.date) && addDay(t.date, 1) <= r.end ? addDay(t.date, 1) : r.start;
+      $('mFrom').value = from; $('mTo').value = r.end;
+    });
+    $('mGo').addEventListener('click', () => {
+      const r = rangeOf(period), a = $('mFrom').value, b = $('mTo').value || a, msg = $('mMsg');
+      if (!a || b < a) { msg.className = 'ac-note err'; msg.textContent = 'Chọn từ ngày ≤ đến ngày.'; return; }
+      if (a < r.start || b > r.end) { msg.className = 'ac-note err'; msg.textContent = `Ngày phải trong kỳ ${r.start.split('-').reverse().join('/')} – ${r.end.split('-').reverse().join('/')}.`; return; }
+      const sch = schOf(), skip = $('mSkip').checked, dates = [];
+      for (let d = a; d <= b && dates.length < 62; d = addDay(d, 1)) if (!skip || !(LaborVN.isRestDay(d, sch) || LaborVN.isHoliday(d, sch))) dates.push(d);
+      if (!dates.length) { msg.className = 'ac-note err'; msg.textContent = 'Khoảng này toàn ngày nghỉ / ngày lễ — bỏ tick "Bỏ ngày nghỉ" nếu vẫn muốn thêm.'; return; }
+      addRows(dates, template());
+      msg.className = 'ac-note'; msg.textContent = `✓ Đã thêm ${dates.length} dòng (${dates[0].split('-').reverse().join('/')} → ${dates[dates.length - 1].split('-').reverse().join('/')}), giống dòng cuối. Sửa lại từng dòng nếu cần, rồi Lưu bản sửa.`;
+      $('eMany').hidden = true; $('eAddMany').setAttribute('aria-expanded', 'false');
+      toast(msg.textContent);
     });
     $('eSave').addEventListener('click', save);
     $('hRun').addEventListener('click', runHistory);

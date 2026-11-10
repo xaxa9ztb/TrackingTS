@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="../../css/ni.css?v=4">
 <link rel="stylesheet" href="../accounts/style.css?v=7">
 <link rel="stylesheet" href="../approvals/style.css?v=9">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 <script src="../../js/demo.js?v=3"></script>
 <script src="../../js/session.js?v=49"></script>
 <script>Session.guard('tsadmin');</script>
@@ -74,7 +74,15 @@
       <thead><tr><th>Ngày</th><th>Từ</th><th>Đến</th><th>Nghỉ</th><th>Mã CV</th><th>Dự án</th><th>WBS</th><th>Báo cáo / ghi chú</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
-    <div class="ac-row"><button class="btn small" id="eAdd">＋ Thêm dòng</button><span class="ac-note" id="eSummary"></span></div>
+    <div class="ac-row"><button class="btn small" id="eAdd" title="Thêm 1 dòng cho ngày kế tiếp, giống dòng cuối (giờ, nghỉ, mã CV, dự án, WBS, ghi chú)">＋ Thêm dòng</button>
+      <button class="btn small" id="eAddMany" aria-expanded="false" aria-controls="eMany">＋ Thêm nhiều ngày…</button><span class="ac-note" id="eSummary"></span></div>
+    <div class="ta-many" id="eMany" hidden>
+      <label>Từ ngày <input type="date" id="mFrom"></label>
+      <label>Đến ngày <input type="date" id="mTo"></label>
+      <label class="ta-chk"><input type="checkbox" id="mSkip" checked> Bỏ ngày nghỉ hằng tuần &amp; ngày lễ</label>
+      <button class="btn small primary" id="mGo">Thêm các ngày</button>
+      <span class="ac-note" id="mMsg">Mỗi ngày một dòng, giống dòng cuối bảng (giờ vào – ra, nghỉ, mã CV, dự án, WBS, ghi chú). Sửa lại từng dòng nếu cần.</span>
+    </div>
     <label class="ta-note">Ghi chú lý do sửa <small>(bắt buộc — người chủ bảng công sẽ thấy)</small>
       <textarea id="eNote" rows="2" maxlength="400" placeholder="Ví dụ: Giờ ra thực tế 18:00 theo nhật ký công trình; nhập hộ từ bảng chấm công giấy…"></textarea></label>
     <div class="ap-actions"><button class="btn primary" id="eSave">Lưu bản sửa</button><span id="eMsg" class="ac-note"></span></div>
@@ -83,9 +91,9 @@
 
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="../timesheet/tsexcel.js?v=3"></script>
+<script src="../timesheet/tsexcel.js?v=4"></script>
 <script src="../timesheet/allowance.js?v=4"></script>
 <script src="hrexport.js?v=1"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
