@@ -62,11 +62,12 @@ test('applyChanges: giữ dòng người dùng vừa sửa / thêm trong lúc đ
 // ---- máy chủ giả: cùng quy tắc với /api/ts/docs (phiên bản, 409, 423) ----
 function fakeServer() {
   const docs = new Map();            // period → {version, status, entries, deleted}
-  const log = [];
+  const log = [], raw = [];
   const handler = async (url, init = {}) => {
     const method = init.method || 'GET', body = init.body ? JSON.parse(init.body) : undefined;
     const reply = (status, data) => ({ status, ok: status < 300, type: 'basic', json: async () => data });
     if (fakeServer.offline) throw new TypeError('Failed to fetch');
+    raw.push(String(url));
     url = String(url).replace(/\?history=1$/, '');   // dựng lịch sử 1 lần/ngày — máy chủ giả bỏ qua
     log.push(method + ' ' + url);
     let m;
@@ -84,7 +85,7 @@ function fakeServer() {
     }
     return reply(404, { error: 'nf' });
   };
-  return { docs, log, handler };
+  return { docs, log, raw, handler };
 }
 
 // Mỗi "thiết bị" có localStorage + mảng dòng riêng
@@ -92,9 +93,9 @@ function device(server) {
   const store = new Map();
   const ls = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
   const dev = { entries: [], allow: {} };
-  dev.run = async () => {
+  dev.run = async (history) => {
     globalThis.localStorage = ls; globalThis.fetch = server.handler;
-    return TsSync.sync({ getEntries: () => dev.entries, onMerged: (p, merged, startedAt) => { dev.entries = TsSync.applyChanges(dev.entries, p, merged, startedAt); },
+    return TsSync.sync({ history, getEntries: () => dev.entries, onMerged: (p, merged, startedAt) => { dev.entries = TsSync.applyChanges(dev.entries, p, merged, startedAt); },
       getAllow: (p) => dev.allow[p], onAllow: (p, a) => { dev.allow[p] = a; } });
   };
   dev.add = (e) => { globalThis.localStorage = ls; dev.entries = [...dev.entries, { ...e, u: Date.now() }]; TsSync.markDirty(e.date); };
@@ -216,4 +217,14 @@ test('allowChanged: bỏ qua thời điểm sửa (u)', () => {
   assert.equal(TsSync.allowChanged(a, b), false);
   assert.equal(TsSync.allowChanged(a, { allow: { rows: [{ ...b.allow.rows[0], to: '2026-11-12' }] } }), true);
   assert.equal(TsSync.allowChanged({}, {}), false);
+});
+
+test('đồng bộ: dựng lịch sử (?history=1) 1 lần/ngày; nút "Tải lại lịch sử" luôn xin lại', async () => {
+  const srv = fakeServer(), a = device(srv);
+  const lists = () => srv.raw.filter(u => u.startsWith('/api/ts/docs') && !u.includes('/api/ts/docs/'));
+  await a.run(); await a.run();
+  assert.deepEqual(lists(), ['/api/ts/docs?history=1', '/api/ts/docs'], 'lần đầu trong ngày mới xin, lần sau không');
+  srv.raw.length = 0;
+  await a.run(true); await a.run();
+  assert.deepEqual(lists(), ['/api/ts/docs?history=1', '/api/ts/docs'], 'bấm nút thì xin ngay, rồi lại thôi');
 });
