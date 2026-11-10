@@ -6,6 +6,9 @@
 //     (tổng = 90%). Số tiền đợt cuối của từng người = quỹ × hệ số × % giờ công − số người đó đã nhận đợt trước
 //     (như cột R/S/T trong file "List Fitter and Supervisor for Incentive").
 // Fitter chia theo % giờ công trên dự án (giờ của fitter / tổng giờ các fitter); Site-sup nhận quỹ Site-sup.
+// Site-sup ở đợt cuối KHÔNG nhận thêm (= 0) khi:
+//   - Đợt cuối 30%: ngày final bàn giao quá 60 ngày kể từ ngày bàn giao khách hàng;
+//   - Đợt cuối 20%: dự án firstpass quá 6 tháng chưa final được (luôn = 0).
 (function (root) {
   'use strict';
 
@@ -67,8 +70,22 @@
     }));
     return m;
   }
+  const FINAL_LATE_DAYS = 60;
+  const dayNo = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? Math.round(Date.parse(iso + 'T00:00:00Z') / 864e5) : null);
+  // Quy tắc Site-sup ở đợt cuối → { zero, reason, days, need }
+  //   need = true: đợt 30% nhưng chưa nhập đủ ngày bàn giao khách hàng / ngày final bàn giao để kiểm tra
+  function supRule(p) {
+    if (p.kind === 'final20') return { zero: true, reason: 'Đợt cuối 20%: dự án firstpass quá 6 tháng chưa final — Site-sup không nhận thêm' };
+    if (p.kind !== 'final30') return { zero: false };
+    const a = dayNo(p.handoverDate), b = dayNo(p.finalDate);
+    if (a == null || b == null) return { zero: false, need: true };
+    const days = b - a;
+    if (days > FINAL_LATE_DAYS) return { zero: true, days, reason: `Final bàn giao sau ${days} ngày kể từ ngày bàn giao khách hàng (quá ${FINAL_LATE_DAYS} ngày) — Site-sup không nhận thêm` };
+    return { zero: false, days };
+  }
   function compute(p) {
     const k = KINDS[p.kind] || KINDS.first70;
+    const rule = supRule(p);
     const rate = k.rate, final = k.stage === 'final';
     const paid = p.paid || {};
     const fundF = Number(p.fundF) || 0, fundS = Number(p.fundS) || 0;
@@ -77,7 +94,7 @@
     const lines = [];
     if (p.sup && (p.sup.name || p.sup.empId)) {
       const total = r2(fundS * rate), before = final ? r2(paidOf(paid, p.sup)) : 0;
-      const auto = r2(total - before);
+      const auto = rule.zero ? 0 : r2(total - before);
       const manual = p.sup.amount != null && p.sup.amount !== '' && isFinite(+p.sup.amount);
       lines.push({ role: 'sup', empId: p.sup.empId || '', name: p.sup.name || '', hours: null, pct: null, total, before, auto, amount: manual ? r2(+p.sup.amount) : auto, manual });
     }
@@ -92,7 +109,7 @@
     // đợt cuối: người đã nhận đợt trước mà nay không còn trong danh sách → vẫn giữ để thấy (không chia thêm)
     const fitterTotal = r2(lines.filter(l => l.role === 'fitter').reduce((s, l) => s + l.amount, 0));
     const supTotal = r2(lines.filter(l => l.role === 'sup').reduce((s, l) => s + l.amount, 0));
-    return { lines, fitterTotal, supTotal, total: r2(fitterTotal + supTotal), rate, final, hoursSum };
+    return { lines, fitterTotal, supTotal, total: r2(fitterTotal + supTotal), rate, final, hoursSum, supRule: rule };
   }
 
   // Tổng hợp theo người cho cả đợt: [{role, empId, name, amount, projects}]
@@ -242,6 +259,6 @@
     return { sheets };
   }
 
-  const api = { bookFromExcelJS, KINDS, plain, r2, keyOf, paidOf, paidMap, optionsFor, statusOf, monthsBetween, compute, byPerson, monthOfSheet, parseSheet, parseWorkbook };
+  const api = { bookFromExcelJS, KINDS, FINAL_LATE_DAYS, supRule, plain, r2, keyOf, paidOf, paidMap, optionsFor, statusOf, monthsBetween, compute, byPerson, monthOfSheet, parseSheet, parseWorkbook };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Incentive = api;
 })(typeof window !== 'undefined' ? window : globalThis);

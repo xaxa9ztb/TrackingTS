@@ -162,8 +162,8 @@
     recompute(p);
   }
   function recompute(p) {
-    const r = Incentive.compute({ kind: p.kind, fundF: p.fundF, fundS: p.fundS, sup: p.sup, fitters: p.fitters, paid: Incentive.paidMap(histOf(p.wbs)) });
-    p.lines = r.lines; p.total = r.total; p.fitterTotal = r.fitterTotal; p.supTotal = r.supTotal;
+    const r = Incentive.compute({ kind: p.kind, fundF: p.fundF, fundS: p.fundS, sup: p.sup, fitters: p.fitters, paid: Incentive.paidMap(histOf(p.wbs)), handoverDate: p.handoverDate, finalDate: p.finalDate });
+    p.lines = r.lines; p.total = r.total; p.fitterTotal = r.fitterTotal; p.supTotal = r.supTotal; p.supRule = r.supRule;
     return r;
   }
   function renderBar() {
@@ -387,6 +387,12 @@
     if (!p.swat.scOk && !p.imported) warn.push('Scorecard chưa duyệt (bước 3) — quỹ thưởng đang là số nhập tay.');
     if (!(Number(p.fundF) || Number(p.fundS))) warn.push('Quỹ thưởng = 0 (Scorecard không đạt điểm, hoặc chưa duyệt).');
     if (!(p.fitters || []).length) warn.push('Chưa có fitter — không có giờ công của dự án trong Theo dõi giờ công. Thêm tay bên dưới.');
+    const rule = p.supRule || {};
+    if (rule.need && !p.imported) warn.push(`Đợt cuối 30%: nhập <b>Ngày bàn giao khách hàng</b> và <b>Ngày final bàn giao</b> để kiểm tra điều kiện Site-sup (final quá ${Incentive.FINAL_LATE_DAYS} ngày → Site-sup = 0).`);
+    if (rule.zero && !p.imported) {
+      const supL = (p.lines || []).find(l => l.role === 'sup');
+      warn.push(esc(rule.reason) + (supL && supL.manual && supL.amount ? ' <b>— Site-sup đang có số nhập tay, kiểm tra lại.</b>' : '.'));
+    }
     if (final) {
       const have = new Set(p.lines.map(l => plain(l.name)));
       const miss = [...new Map(hist.flatMap(h => h.lines).filter(l => !have.has(plain(l.name))).map(l => [plain(l.name), l])).values()];
@@ -418,6 +424,11 @@
         ${sc ? `<span class="ac-note">Theo Scorecard: Fitter ${money(sc.pf * (p.units || 1))} · Site-sup ${money(sc.ps * (p.units || 1))}${p.fundManual && !ro ? ` <button class="btn small" type="button" data-f="resetFund">↺ Lấy theo Scorecard</button>` : ''}</span>` : ''}
         <span class="ac-note">Tỉ lệ ${final ? 'final' : 'trả'}: <b>${Math.round(k.rate * 100)}%</b></span>
       </div>
+      ${p.kind === 'final30' ? `<div class="in-funds">
+        <label>Ngày bàn giao khách hàng <input type="date" value="${esc(p.handoverDate || '')}" data-f="handoverDate" ${dis}></label>
+        <label>Ngày final bàn giao <input type="date" value="${esc(p.finalDate || '')}" data-f="finalDate" ${dis}></label>
+        <span class="ac-note">${rule.days != null ? `Final sau <b>${rule.days}</b> ngày — ${rule.zero ? '<b style="color:var(--red)">quá ' + Incentive.FINAL_LATE_DAYS + ' ngày: Site-sup = 0</b>' : 'trong ' + Incentive.FINAL_LATE_DAYS + ' ngày: Site-sup nhận đủ'}` : `Quá ${Incentive.FINAL_LATE_DAYS} ngày kể từ ngày bàn giao khách hàng → Site-sup = 0`}</span>
+      </div>` : ''}
       <div class="ac-scroll"><table class="ac-table ni-cards">
         <thead><tr><th>Vai trò</th><th>Họ tên</th><th>Mã NV</th><th class="r">Giờ công</th><th class="r">%</th>${final ? '<th class="r">Tổng final</th><th class="r">Đã nhận</th>' : ''}<th class="r">Kỳ này (đ)</th><th></th></tr></thead>
         <tbody>${supLine ? lineRow(supLine, 's') : (ro ? '' : `<tr><td>Site-sup</td><td colspan="${final ? 7 : 5}"><button class="btn small" type="button" data-f="addSup">+ Thêm Site-sup</button></td></tr>`)}
@@ -439,6 +450,7 @@
       const pr = projects.get(w); if (pr && (pr.projectName || pr.name)) p.name = pr.projectName || pr.name;
     }
     else if (f === 'pname') p.name = v.trim();
+    else if (f === 'handoverDate' || f === 'finalDate') p[f] = v;
     else if (f === 'kind') p.kind = v;
     else if (f === 'fundF' || f === 'fundS') { p[f] = Math.max(0, Number(v) || 0); p.fundManual = true; }
     else if (j != null) {
