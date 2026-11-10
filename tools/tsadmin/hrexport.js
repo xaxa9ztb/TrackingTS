@@ -58,6 +58,35 @@
     return { blob, name: `HR - Bang cong va phu cap - ky ${period.slice(5)}-${period.slice(0, 4)}.zip`, files, skipped };
   }
 
-  const api = { build, sheetName, monthLabel, periodRange };
+  // Một người: các file Excel LẺ (không nén) — bảng chấm công + phụ cấp xe đi tỉnh / phụ cấp xăng (nếu có), mỗi loại một file
+  // → [{ name, buffer }]
+  async function buildSingle({ ExcelJS, TsExcel, TsAllowance }, { doc, period, tpl, today }) {
+    const entries = (doc.data && doc.data.entries) || [];
+    const out = [];
+    const ts = await TsExcel.buildTimesheet(ExcelJS, tpl.timesheet, { entries, bdOf: (e) => e.bd || {}, profile: { name: doc.name, empId: doc.empId, position: doc.position, dept: 'NI' }, month: period });
+    out.push({ name: ts.name, buffer: ts.buffer });
+    const allow = TsAllowance.compute(entries, (doc.data && doc.data.allow) || { rows: [] }, periodRange(period));
+    for (const type of ['province', 'fuel']) {
+      if (!allow.rows.some(x => x.type === type)) continue;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(tpl.allowance);
+      TsAllowance.fillWorkbook(wb, { name: doc.name, empId: doc.empId, computed: allow, date: today });
+      TsAllowance.keepSheet(wb, type);
+      out.push({ name: TsAllowance.fileNameByType(doc.name, period, type), buffer: await wb.xlsx.writeBuffer() });
+    }
+    return out;
+  }
+  // tải các file về máy (trình duyệt), cách nhau một chút để trình duyệt không chặn tải nhiều file
+  async function saveFiles(files) {
+    for (const f of files) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([f.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      a.download = f.name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+
+  const api = { build, buildSingle, saveFiles, sheetName, monthLabel, periodRange };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TsHrExport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#0f1b2d">
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 <link rel="stylesheet" href="../approvals/style.css?v=9">
 <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');   // nhúng trong trang Quản trị: bỏ thanh đầu</script>
 <!-- Dữ liệu trên máy (IndexedDB) — để đưa EE Data + Dự án hiện có lên máy chủ -->
@@ -58,7 +58,7 @@
     <p class="ac-help">Mỗi người một email (Gmail cá nhân cũng được). Gõ tên hoặc mã NV để tìm người cần gắn, hoặc dán nhiều dòng một lúc ở dưới.
       Xem / chỉnh tất cả tài khoản đã có ở mục 3.</p>
     <div class="ac-row"><input type="search" id="q" placeholder="Tìm nhân viên cần gắn email (tên, mã NV)…" aria-label="Tìm nhân viên"><span id="peopleCount" class="ac-note"></span></div>
-    <div class="ac-scroll ac-tall ac-short" id="peopleWrap" hidden><table class="ac-table" id="people">
+    <div class="ac-scroll ac-tall ac-short" id="peopleWrap" hidden><table class="ac-table ac-hide3" id="people">
       <thead><tr><th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Email đăng nhập</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
@@ -77,7 +77,7 @@
     <p class="ac-help">Những người đã có email đăng nhập. <b>Vai trò</b> lấy theo chức danh; chỉ chỉnh tay khi cần.
       Bỏ dấu <i>Đang làm</i> = khoá tài khoản ngay.</p>
     <div class="ac-row"><input type="search" id="qa" placeholder="Lọc tài khoản (tên, mã NV, email)…" aria-label="Lọc tài khoản"><span id="accountsCount" class="ac-note"></span></div>
-    <div class="ac-scroll ac-tall"><table class="ac-table" id="accounts">
+    <div class="ac-scroll ac-tall"><table class="ac-table ac-hide3" id="accounts">
       <thead><tr><th>Mã NV</th><th>Họ tên</th><th>Chức danh</th><th>Email đăng nhập</th><th>Vai trò</th><th>Đang làm</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>

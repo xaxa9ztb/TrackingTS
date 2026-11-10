@@ -42,3 +42,13 @@ test('zip: Bảng công/<TEN>.xlsx và Phụ cấp/Pc Xe|Pc Xang - thang M YYYY.
   const pv = new ExcelJS.Workbook(); await pv.xlsx.load(await z.file('Phụ cấp/Pc Xe - thang 10 2026.xlsx').async('nodebuffer'));
   assert.deepEqual(pv.worksheets.map(w => w.name), ['Lê C']);
 });
+
+test('buildSingle: 1 người → file Excel lẻ (bảng chấm công + phụ cấp theo loại), không nén', { skip }, async () => {
+  const tsT = fs.readFileSync('tools/timesheet/ts-template.xlsx'), alT = fs.readFileSync('tools/timesheet/phucap-xe-template.xlsx');
+  const entries = ['2026-09-16', '2026-09-17'].map((date, i) => ({ id: i + 1, date, workNumber: '812441010', projectName: 'DA', activityCode: '1110', startTime: '08:00', endTime: '17:00', breakTime: '1', bd: { NORMAL: 8 } }));
+  const doc = { empId: 'E1', name: 'Nguyễn Văn A', position: 'Fitter', data: { entries, allow: { rows: [{ id: '1', type: 'fuel', wbs: '812441010', project: 'DA', from: '2026-09-16', to: '2026-10-15', location: 'HN', remarks: '', ownVehicle: false }] } } };
+  const files = await H.buildSingle({ ExcelJS, TsExcel: require('../../tools/timesheet/tsexcel.js'), TsAllowance: require('../../tools/timesheet/allowance.js') }, { doc, period: '2026-10', tpl: { timesheet: tsT, allowance: alT }, today: '2026-10-20' });
+  assert.deepEqual(files.map(f => f.name), ['NGUYEN VAN A.xlsx', 'Pc Xang - NGUYEN VAN A - thang 10 2026.xlsx']);
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.load(files[0].buffer);
+  assert.equal(wb.getWorksheet('New TS').getCell('T10').value, 812441010);
+});

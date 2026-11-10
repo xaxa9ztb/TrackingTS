@@ -127,6 +127,7 @@
     const n = apPicked().length;
     $('apPicked').textContent = apItems.length ? `Đã chọn ${n}/${apItems.length} bảng công` : '';
     $('apZip').disabled = !n;
+    $('apZip').textContent = n === 1 ? '⬇ Tải Excel bảng công + phụ cấp (1 người)' : '⬇ Tải zip bảng công + phụ cấp';
     $('apAll').checked = !!apItems.length && n === apItems.length;
     $('apAll').indeterminate = n > 0 && n < apItems.length;
   }
@@ -142,6 +143,14 @@
       const docs = (r.docs || []).filter(d => pick.has(d.empId));
       if (!docs.length) throw new Error('Không còn bảng công nào đã duyệt trong các dòng đã chọn — bấm Tải lại');
       const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (docs.length === 1) {      // một người: tải file Excel lẻ, không nén
+        msg.textContent = 'Đang tạo file Excel…';
+        const files = await TsHrExport.buildSingle({ ExcelJS, TsExcel, TsAllowance }, { doc: docs[0], period, today,
+          tpl: { timesheet: await tpl(TsExcel.TEMPLATE), allowance: await tpl('phucap-xe-template.xlsx') } });
+        await TsHrExport.saveFiles(files);
+        msg.textContent = `✓ Đã tải ${files.length} file Excel: ${files.map(f => f.name).join(', ')}.`;
+        return;
+      }
       const out = await TsHrExport.build({ ExcelJS, JSZip, TsExcel, TsAllowance }, { docs, period, today,
         tpl: { timesheet: await tpl(TsExcel.TEMPLATE), allowance: await tpl('phucap-xe-template.xlsx') },
         onProgress: (n, total) => { msg.textContent = `Đang tạo file Excel ${n}/${total}…`; } });
