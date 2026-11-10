@@ -42,6 +42,9 @@
     empById = new Map(employees.map(x => [String(x.empId), x]));
     projects = new Map((p.projects || []).map(x => [String(x.wbs), x]));
     history = h.items || [];
+    const hw = new Map(); history.forEach(x => { if (!hw.has(x.wbs)) hw.set(x.wbs, x.name || ''); });
+    $('dlHistWbs').innerHTML = [...hw].map(([w, n]) => `<option value="${esc(w)}" label="${esc(n)}"></option>`).join('');
+    $('dlProjWbs').innerHTML = [...projects.values()].map(x => `<option value="${esc(x.wbs)}" label="${esc(x.projectName || x.name || '')}"></option>`).join('');
     $('dlEmp').innerHTML = employees.filter(x => x.active !== false).map(x => `<option value="${esc(x.name)}" label="${esc(x.empId)} · ${esc(x.position || '')}"></option>`).join('');
   }
   const histOf = (wbs) => history.filter(x => x.wbs === wbs && (!cur || x.batchId !== cur.id));
@@ -404,6 +407,9 @@
     const fitLines = p.lines.filter(l => l.role === 'fitter');
     return `<div class="in-split" data-i="${i}">
       <h3>${esc(p.name || p.wbs)} <span class="mono ac-note">${esc(p.wbs)}</span> <span class="pill info">${esc(k.short)}</span>${p.imported ? ' <span class="pill">từ Excel</span>' : ''}</h3>
+      ${ro ? '' : `<div class="in-funds"><label>Mã WBS <input type="text" value="${esc(p.wbs)}" data-f="wbs" list="dlProjWbs" autocomplete="off" aria-label="Mã WBS"></label>
+        <label class="in-grow">Tên dự án <input type="text" value="${esc(p.name || '')}" data-f="pname" maxlength="300" aria-label="Tên dự án"></label>
+        <span class="ac-note">Sửa khi mã / tên bị nhầm (vd. từ file Excel cũ). WBS đúng ở nhiều đợt → dùng <b>✎ Đổi mã WBS</b> ở danh sách đợt.</span></div>`}
       ${warn.map(w => `<div class="in-warn">⚠ ${w}</div>`).join('')}
       <div class="in-funds">
         <label>Đợt này trả <select data-f="kind" ${dis}>${kinds.map(x => `<option value="${x}" ${x === p.kind ? 'selected' : ''}>${esc(KINDS[x].label)}</option>`).join('')}</select></label>
@@ -421,11 +427,19 @@
       </table></div></div>`;
   }
   function onSplitChange(ev) {
-    const card = ev.target.closest('.in-split'); if (!card || readOnly()) return;
+    const card = ev.target.closest('.in-split'); if (!card || !card.isConnected || readOnly() || onSplitChange.busy) return;   // busy: vẽ lại thẻ làm ô đang gõ mất focus → trình duyệt bắn thêm 'change'
     const p = items()[+card.dataset.i], f = ev.target.dataset.f, j = ev.target.dataset.j;
     if (!p || !f) return;
     const v = ev.target.value;
-    if (f === 'kind') p.kind = v;
+    if (f === 'wbs') {
+      const w = v.trim();
+      if (!w) return toast('Mã WBS không được để trống');
+      if (items().some((x, i) => i !== +card.dataset.i && String(x.wbs) === w)) { ev.target.value = p.wbs; return toast(`Đợt này đã có dự án ${w}`); }
+      p.wbs = w;
+      const pr = projects.get(w); if (pr && (pr.projectName || pr.name)) p.name = pr.projectName || pr.name;
+    }
+    else if (f === 'pname') p.name = v.trim();
+    else if (f === 'kind') p.kind = v;
     else if (f === 'fundF' || f === 'fundS') { p[f] = Math.max(0, Number(v) || 0); p.fundManual = true; }
     else if (j != null) {
       const x = j === 's' ? p.sup : p.fitters[+j];
@@ -435,7 +449,8 @@
       if (f === 'amount') x.amount = v === '' ? undefined : Number(v);
     }
     recompute(p);
-    card.outerHTML = splitCard(p, +card.dataset.i);
+    onSplitChange.busy = true;
+    try { card.outerHTML = splitCard(p, +card.dataset.i); } finally { onSplitChange.busy = false; }
     changed();
   }
   function onSplitClick(ev) {
@@ -570,6 +585,34 @@
 
   // ---------- gắn sự kiện ----------
   function wire() {
+    let rnPlan = null;
+    const rnReset = () => { rnPlan = null; $('rnGo').disabled = true; };
+    $('btnRename').onclick = () => { const f = $('renameForm'); f.hidden = !f.hidden; $('btnRename').setAttribute('aria-expanded', String(!f.hidden)); if (!f.hidden) $('rnFrom').focus(); };
+    $('rnCancel').onclick = () => { $('renameForm').hidden = true; $('btnRename').setAttribute('aria-expanded', 'false'); rnReset(); $('rnMsg').textContent = ''; };
+    ['rnFrom', 'rnTo', 'rnName'].forEach(id => $(id).addEventListener('input', rnReset));
+    $('rnTo').addEventListener('change', () => { const pr = projects.get($('rnTo').value.trim()); if (pr && !$('rnName').value.trim()) $('rnName').value = pr.projectName || pr.name || ''; });
+    const rnBody = (dryRun) => ({ scheme: SCHEME, from: $('rnFrom').value.trim(), to: $('rnTo').value.trim(), name: $('rnName').value.trim(), dryRun });
+    $('rnPreview').onclick = async () => {
+      const msg = $('rnMsg'); msg.className = 'ac-note'; msg.textContent = 'Đang kiểm tra…';
+      try {
+        const r = await api('POST', '/api/incentive/rename-wbs', rnBody(true));
+        rnPlan = r;
+        msg.innerHTML = (r.batches.length ? `Sẽ đổi <b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> ở ${r.batches.length} đợt: ` + r.batches.map(b => `${ml(b.month)} (${b.lines} người${b.name ? ', ' + esc(b.name) : ''})`).join(' · ') : `Không đợt nào có mã ${esc(r.from)}.`)
+          + (r.conflicts.length ? `<br><span style="color:var(--red)">Bỏ qua ${r.conflicts.length} đợt đã có sẵn dự án ${esc(r.to)} (mở đợt đó để gộp tay): ${r.conflicts.map(c => ml(c.month)).join(', ')}</span>` : '');
+        $('rnGo').disabled = !r.batches.length;
+      } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; rnReset(); }
+    };
+    $('renameForm').onsubmit = async (ev) => {
+      ev.preventDefault();
+      if (!rnPlan || !rnPlan.batches.length) return;
+      if (!confirm(`Đổi mã WBS ${rnPlan.from} → ${rnPlan.to} ở ${rnPlan.batches.length} đợt?\nBáo cáo, lịch sử "đã trả" và trang "Thưởng của tôi" sẽ hiện theo mã mới. Đợt đã phát hành vẫn giữ phát hành.`)) return;
+      const msg = $('rnMsg');
+      try {
+        const r = await api('POST', '/api/incentive/rename-wbs', rnBody(false));
+        msg.className = 'ac-note'; msg.textContent = `✓ Đã đổi ở ${r.batches.length} đợt.`;
+        rnReset(); await loadRefs(); await loadList();
+      } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+    };
     $('btnPubAll').onclick = async () => {
       const list = batches.filter(b => b.status === 'done' && !b.publishedAt).sort((a, b) => a.month.localeCompare(b.month));
       if (!list.length) return;
