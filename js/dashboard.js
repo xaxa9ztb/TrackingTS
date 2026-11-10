@@ -375,5 +375,5 @@ const Dashboard = (() => {
     };
   }
 
-  return { init, reloadAndRefresh, refresh, reportData };
+  return { init, reloadAndRefresh, refresh, reportData, activityName };
 })();

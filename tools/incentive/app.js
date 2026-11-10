@@ -60,6 +60,10 @@
         <td><button class="btn small" type="button" data-open>Mở</button></td></tr>`).join('')
       || '<tr><td colspan="7" class="ac-note">Chưa có đợt nào. Bấm <b>+ Đợt mới</b>, hoặc <b>Tải Excel lên</b> để ghi nhận các đợt đã chia trước đây.</td></tr>';
     $('listNote').textContent = batches.length ? `${batches.length} đợt · đã chốt ${batches.filter(b => b.status === 'done').length} · đã phát hành ${batches.filter(b => b.publishedAt).length}` : '';
+    const unpub = batches.filter(b => b.status === 'done' && !b.publishedAt);
+    $('btnPubAll').hidden = !unpub.length;
+    $('btnPubAll').textContent = `📣 Phát hành ${unpub.length} đợt đã chốt`;
+    if (unpub.length) $('listNote').textContent += ` — ${unpub.length} đợt đã chốt CHƯA phát hành: người được chia thưởng chưa xem được trong trang "Thưởng của tôi".`;
     renderReport();
   }
 
@@ -567,6 +571,24 @@
 
   // ---------- gắn sự kiện ----------
   function wire() {
+    $('btnPubAll').onclick = async () => {
+      const list = batches.filter(b => b.status === 'done' && !b.publishedAt).sort((a, b) => a.month.localeCompare(b.month));
+      if (!list.length) return;
+      if (!confirm(`Phát hành ${list.length} đợt đã chốt (${list.map(b => ml(b.month)).join(', ')})?\nNgười được chia thưởng sẽ xem được tiền của mình trong trang "Thưởng của tôi".`)) return;
+      const mail = confirm('Gửi email thông báo cho từng người?\n\nOK = gửi email (mỗi đợt một email cho mỗi người)\nHuỷ = KHÔNG gửi email, chỉ cho xem trong app (nên chọn với các đợt cũ)');
+      const btn = $('btnPubAll'); btn.disabled = true;
+      let ok = 0, sent = 0; const noId = new Set(), errs = [];
+      for (const b of list) {
+        btn.textContent = `Đang phát hành ${ok + 1}/${list.length}…`;
+        try { const r = await api('POST', `/api/incentive/batches/${b.id}/publish`, { sendMail: mail }); ok++; sent += r.sent || 0; (r.noId || []).forEach(n => noId.add(n)); }
+        catch (e) { errs.push(`${ml(b.month)}: ${e.message}`); }
+      }
+      btn.disabled = false;
+      alert(`Đã phát hành ${ok}/${list.length} đợt.` + (mail ? ` Đã gửi ${sent} email.` : ' Không gửi email.')
+        + (noId.size ? `\n\nThiếu Mã NV (chưa xem được thưởng): ${[...noId].join(', ')} — mở đợt, sửa ở bước 4 rồi chốt + phát hành lại.` : '')
+        + (errs.length ? '\n\nLỗi:\n' + errs.join('\n') : ''));
+      await loadList();
+    };
     $('btnNew').onclick = () => { $('newForm').hidden = false; $('newMonth').value = nextOddMonth(); $('newTitle').value = ''; $('newMsg').textContent = ''; $('newMonth').focus(); };
     $('newCancel').onclick = () => { $('newForm').hidden = true; };
     $('newForm').onsubmit = async (ev) => {
