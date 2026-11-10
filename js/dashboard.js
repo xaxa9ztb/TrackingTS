@@ -224,10 +224,15 @@ const Dashboard = (() => {
     const swatWrap = document.getElementById('gaugeSwatWrap');
     if (swatTarget > 0) {
       swatWrap.style.display = '';
-      Charts.renderGauge(document.getElementById('gaugeSwatSvg'), grand, swatTarget);
-      document.getElementById('gaugeSwatValue').textContent = fmtVN(grand);
+      // giờ tính SWAT: bỏ mã 1194 (NI Quality Hour — lỗi chất lượng, không phải lỗi lắp đặt)
+      const counts = (typeof SwatItem !== 'undefined' && SwatItem.countsForSwat) ? SwatItem.countsForSwat : () => true;
+      const swatHours = mainRows.filter(counts).reduce((s, r) => s + (+r.total || 0), 0);
+      Charts.renderGauge(document.getElementById('gaugeSwatSvg'), swatHours, swatTarget);
+      document.getElementById('gaugeSwatValue').textContent = fmtVN(swatHours);
       document.getElementById('gaugeSwatMax').textContent = fmtVN(swatTarget);
-      remainLabel(document.getElementById('gaugeSwatRemain'), grand, swatTarget);
+      remainLabel(document.getElementById('gaugeSwatRemain'), swatHours, swatTarget);
+      const q = grand - swatHours;
+      document.getElementById('gaugeSwatValue').title = q > 0 ? `Không tính ${fmtVN(q)} giờ mã 1194 (NI Quality Hour)` : '';
     } else {
       swatWrap.style.display = 'none';
     }

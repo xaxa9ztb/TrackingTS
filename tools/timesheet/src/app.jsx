@@ -346,10 +346,15 @@
             }, []);
 
             // ----- đồng bộ máy chủ (chỉ bản Cloudflare) -----
-            const runSync = useCallback(async () => {
+            const [histMsg, setHistMsg] = useState('');
+            const reloadHistory = useCallback(() => { setHistMsg(''); runSyncRef.current({ history: true }); }, []);
+            const runSyncRef = useRef(null);
+            const runSync = useCallback(async (opt) => {
                 if (!SERVER) return;
+                const history = !!(opt && opt.history === true);
                 setSyncInfo(i => ({ ...i, state: 'syncing' }));
                 const r = await TsSync.sync({
+                    history,
                     getSch: () => scheduleRef.current,
                     getEntries: () => entriesRef.current,
                     onMerged: (p, merged, startedAt) => setEntries(prev => {
@@ -370,10 +375,12 @@
                 if (r.notes) setDocNotes(prev => ({ ...prev, ...r.notes }));
                 if (r.admin) setDocAdmin(prev => ({ ...prev, ...r.admin }));
                 if (r.amend) setDocAmend(prev => ({ ...prev, ...r.amend }));
+                if (history) setHistMsg(r.ok ? `✓ Đã tải lại lịch sử: ${Object.keys(r.statuses || {}).length} kỳ trên máy chủ` : '');
                 setSyncInfo(r.ok ? { state: 'ok', at: new Date().toISOString(), error: '' }
                     : r.offline ? { state: 'offline', at: '', error: '' } : { state: 'error', at: '', error: r.error || 'Không đồng bộ được' });
                 if (r.ok) setTimeout(syncOtLeave, 50);     // sau khi bảng công đã gộp xong (giờ OT tính trên bản mới nhất)
             }, []);
+            runSyncRef.current = runSync;
             const scheduleSync = useCallback((ms = 2500) => {
                 if (!SERVER) return;
                 clearTimeout(syncTimer.current);
@@ -824,7 +831,7 @@
                             )}
                             <SyncBar info={syncInfo} status={periodStatus} note={docNotes[currentMonth] || ''} submitting={submitting} month={currentMonth} period={period} lead={IS_LEAD}
                                 amend={docAmend[currentMonth] || null} onAmend={openAmend} onCancelAmend={handleCancelAmend}
-                                onRetry={runSync} onSubmit={handleSubmit} onWithdraw={handleWithdraw}/>
+                                onRetry={() => runSync()} onHistory={reloadHistory} histMsg={histMsg} onSubmit={handleSubmit} onWithdraw={handleWithdraw}/>
                         </div>
                     )}
 
@@ -951,7 +958,7 @@
         }
 
         // ---------- Bản máy chủ: trạng thái kỳ + đồng bộ ----------
-        function SyncBar({ info, status, note, submitting, month, period, lead, amend, onAmend, onCancelAmend, onRetry, onSubmit, onWithdraw }) {
+        function SyncBar({ info, status, note, submitting, month, period, lead, amend, onAmend, onCancelAmend, onRetry, onHistory, histMsg, onSubmit, onWithdraw }) {
             const [y, m] = month.split('-');
             const pending = Object.keys(TsSync.load().dirty || {}).length;
             const tone = status === 'approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -994,7 +1001,11 @@
                         {info.state === 'offline' && <span>📴 Mất mạng — dữ liệu an toàn trên máy, sẽ tự gửi khi có mạng{pending ? ` (${pending} kỳ chưa gửi)` : ''}</span>}
                         {info.state === 'error' && <span className="text-rose-700">⚠ {info.error}</span>}
                         {(info.state === 'offline' || info.state === 'error') && <button type="button" onClick={onRetry} className="font-semibold text-blue-700 hover:text-blue-900">Thử lại</button>}
+                        {onHistory && <button id="tsHistoryBtn" type="button" onClick={onHistory} disabled={info.state === 'syncing' || info.state === 'offline'}
+                            className="font-semibold whitespace-nowrap text-blue-700 hover:text-blue-900 disabled:text-slate-400 disabled:cursor-not-allowed"
+                            title="Lấy bảng công các tháng trước từ Thống kê giờ công (vd. Admin vừa tải file Excel quá khứ lên). Bình thường máy tự lấy 1 lần mỗi ngày.">↻ Tải lại lịch sử</button>}
                     </span>
+                    {histMsg && <span id="tsHistoryMsg" className="w-full text-right text-xs text-emerald-700">{histMsg}</span>}
                 </div>
             );
         }

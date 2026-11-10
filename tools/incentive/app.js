@@ -387,6 +387,8 @@
     if (!p.swat.scOk && !p.imported) warn.push('Scorecard chưa duyệt (bước 3) — quỹ thưởng đang là số nhập tay.');
     if (!(Number(p.fundF) || Number(p.fundS))) warn.push('Quỹ thưởng = 0 (Scorecard không đạt điểm, hoặc chưa duyệt).');
     if (!(p.fitters || []).length) warn.push('Chưa có fitter — không có giờ công của dự án trong Theo dõi giờ công. Thêm tay bên dưới.');
+    const hb = hoursBy.get(p.wbs);
+    if (hb && hb.excluded1194 > 0 && !p.imported) warn.push(`Đã <b>không tính ${fmt1(hb.excluded1194)} giờ</b> mã <b>1194</b> (NI Quality Hour — lỗi chất lượng, không phải lỗi lắp đặt) khi chia % giờ công và giờ thực tế SWAT.`);
     const rule = p.supRule || {};
     if (rule.need && !p.imported) warn.push(`Đợt cuối 30%: nhập <b>Ngày bàn giao khách hàng</b> và <b>Ngày final bàn giao</b> để kiểm tra điều kiện Site-sup (final quá ${Incentive.FINAL_LATE_DAYS} ngày → Site-sup = 0).`);
     if (rule.zero && !p.imported) {

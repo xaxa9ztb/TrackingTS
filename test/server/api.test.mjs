@@ -2110,7 +2110,8 @@ test('Timesheet cá nhân: tự dựng bảng công các kỳ đã qua từ Theo
   const up = await uploadTs('boss@example.com', [...keep, row('BF1', old1), row('BF1', shift(old1, 1)), row('BF1', old2, { normal: 8, ot1: 2, total: 10, timeTo: '19:00' }), row('BF1', curDay), row('BF2', old1)], { baseVersion: meta.version });
   assert.equal(up.commit.status, 200, JSON.stringify(up.commit.data));
   const P = (iso) => { let y = +iso.slice(0, 4), m = +iso.slice(5, 7); if (+iso.slice(8) >= 16) { m++; if (m > 12) { m = 1; y++; } } return `${y}-${String(m).padStart(2, '0')}`; };
-  const docs = (await call('GET', '/api/ts/docs', { email: 'bf1@example.com' })).data.docs;
+  assert.deepEqual((await call('GET', '/api/ts/docs', { email: 'bf1@example.com' })).data.docs, [], 'không xin history=1 thì không dựng (đồng bộ 90 giây không tốn đọc)');
+  const docs = (await call('GET', '/api/ts/docs?history=1', { email: 'bf1@example.com' })).data.docs;
   const want = [...new Set([P(old1), P(old2)])].sort().reverse();
   assert.deepEqual(docs.map(d => d.period), want, 'chỉ các kỳ đã qua, không có kỳ hiện tại');
   assert.ok(docs.every(d => d.status === 'approved'));
@@ -2120,8 +2121,8 @@ test('Timesheet cá nhân: tự dựng bảng công các kỳ đã qua từ Theo
   // kỳ hiện tại vẫn trống → người dùng chấm công bình thường
   assert.equal((await call('GET', '/api/ts/docs/' + P(curDay), { email: 'bf1@example.com' })).data.status, 'draft');
   // gọi lại không tạo trùng; người khác chỉ thấy của mình
-  assert.equal((await call('GET', '/api/ts/docs', { email: 'bf1@example.com' })).data.docs.length, want.length);
-  assert.deepEqual((await call('GET', '/api/ts/docs', { email: 'bf2@example.com' })).data.docs.map(d => d.period), [P(old1)]);
+  assert.equal((await call('GET', '/api/ts/docs?history=1', { email: 'bf1@example.com' })).data.docs.length, want.length);
+  assert.deepEqual((await call('GET', '/api/ts/docs?history=1', { email: 'bf2@example.com' })).data.docs.map(d => d.period), [P(old1)]);
 });
 
 test('Incentive: đổi mã WBS nhầm ở mọi đợt (xem trước, bỏ qua đợt đã có mã mới, giữ phát hành, cập nhật lịch sử / Thưởng của tôi)', async () => {
@@ -2151,4 +2152,17 @@ test('Incentive: đổi mã WBS nhầm ở mọi đợt (xem trước, bỏ qua 
   const mine = (await call('GET', '/api/incentive/mine', { email: 'ts1@example.com' })).data;
   const it = (mine.batches || mine.items || []).find(x => x.month === '2031-01');
   assert.ok(it && it.projects.some(p => p.wbs === 'DUNG-1'), JSON.stringify(mine).slice(0, 300));
+});
+
+test('Incentive: giờ công tính thưởng SWAT không gồm mã 1194 (NI Quality Hour)', async () => {
+  const A = 'boss@example.com';
+  const meta = (await call('GET', '/api/timesheets/meta', { email: A })).data;
+  const keep = [];
+  for (let after = 0; ;) { const p = (await call('GET', '/api/timesheets?after=' + after, { email: A })).data; keep.push(...p.rows); if (p.next == null) break; after = p.next; }
+  const row = (emp, date, act, total) => ({ empId: emp, empName: 'x', date, timeFrom: '08:00', timeTo: '17:00', normal: total, total, activities: act, wbs: 'Q-1194' });
+  const up = await uploadTs(A, [...keep, row('TS1', '2032-01-05', '1110', 8), row('TS1', '2032-01-06', '1194', 8), row('TS2', '2032-01-05', '1110', 8), row('TS2', '2032-01-07', '1194 ', 4)], { baseVersion: meta.version });
+  assert.equal(up.commit.status, 200, JSON.stringify(up.commit.data));
+  const p = (await call('GET', '/api/incentive/hours?wbs=Q-1194', { email: A })).data.projects[0];
+  assert.deepEqual([p.total, p.excluded1194], [16, 12]);
+  assert.deepEqual(p.people.map(x => [x.empId, x.hours]).sort(), [['TS1', 8], ['TS2', 8]]);
 });

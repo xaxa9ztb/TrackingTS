@@ -121,12 +121,18 @@
   // getEntries(): mảng dòng hiện tại; onMerged(period, mergedEntries, startedAt): cập nhật giao diện;
   // getAllow(period) / onAllow(period, allow): phụ cấp xe của kỳ trên máy / nhận bản gộp (bản trên máy chủ mới hơn);
   // trả { ok, statuses:{period:status}, error?, offline?, pushed, pulled }
-  function sync({ getEntries, onMerged, getSch, getAllow, onAllow }) {
-    if (running) return running;
+  // history: true = người dùng bấm "Tải lại lịch sử" → luôn xin máy chủ dựng các kỳ cũ (chờ lượt đang chạy xong rồi chạy lại)
+  function sync(opts) {
+    const { getEntries, onMerged, getSch, getAllow, onAllow, history } = opts;
+    if (running) return history ? running.then(() => sync(opts)) : running;
     running = (async () => {
       const result = { ok: false, statuses: {}, notes: {}, admin: {}, amend: {}, pushed: 0, pulled: 0 };
       try {
-        const listing = await call('GET', '/api/ts/docs');
+        // dựng bảng công các kỳ trước từ Theo dõi giờ công: chỉ xin 1 lần mỗi ngày trên máy này (máy chủ phải đọc lịch sử của người dùng)
+        let hist = !!history;
+        if (hist) { try { localStorage.setItem('tsHistoryDay', new Date().toISOString().slice(0, 10)); } catch (e) { /* bỏ qua */ } }
+        else try { const d = new Date().toISOString().slice(0, 10); if (localStorage.getItem('tsHistoryDay') !== d) { hist = true; localStorage.setItem('tsHistoryDay', d); } } catch (e) { hist = false; }
+        const listing = await call('GET', '/api/ts/docs' + (hist ? '?history=1' : ''));
         if (listing.status !== 200) throw new Error(listing.data.error || ('Máy chủ báo lỗi (HTTP ' + listing.status + ')'));
         const remote = {}; (listing.data.docs || []).forEach(d => { remote[d.period] = d; result.notes[d.period] = d.note || ''; if (d.adminNote) result.admin[d.period] = { by: d.adminBy, at: d.adminAt, note: d.adminNote };
           result.amend[d.period] = d.amendFrom ? { rev: d.amendRev, from: d.amendFrom, note: d.amendNote, at: d.amendAt, since: d.amendSince || '' } : null; });

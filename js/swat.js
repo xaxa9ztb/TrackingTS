@@ -28,7 +28,7 @@ const SwatPage = (() => {
   }
 
   function usedHoursFor(wbs) {
-    return Math.round(timesheets.filter(t => t.wbs === wbs)
+    return Math.round(timesheets.filter(t => t.wbs === wbs && SwatItem.countsForSwat(t))      // bỏ mã 1194 (lỗi chất lượng)
       .reduce((s, t) => s + (+t.total || 0), 0) * 10) / 10;
   }
 
@@ -40,7 +40,7 @@ const SwatPage = (() => {
   // danh sách người của 1 dự án (cho mục 6 trong công cụ)
   function peopleFor(wbs) {
     const byEmp = {};
-    timesheets.filter(t => t.wbs === wbs).forEach(t => {
+    timesheets.filter(t => t.wbs === wbs && SwatItem.countsForSwat(t)).forEach(t => {
       if (!byEmp[t.empId]) byEmp[t.empId] = { empId: t.empId, name: (employeesById[t.empId] || {}).fullName || t.empName || t.empId, hours: 0 };
       byEmp[t.empId].hours += (+t.total || 0);
     });

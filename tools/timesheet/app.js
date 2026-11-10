@@ -891,13 +891,23 @@ function App() {
   }, []);
 
   // ----- đồng bộ máy chủ (chỉ bản Cloudflare) -----
-  const runSync = useCallback(async () => {
+  const [histMsg, setHistMsg] = useState('');
+  const reloadHistory = useCallback(() => {
+    setHistMsg('');
+    runSyncRef.current({
+      history: true
+    });
+  }, []);
+  const runSyncRef = useRef(null);
+  const runSync = useCallback(async opt => {
     if (!SERVER) return;
+    const history = !!(opt && opt.history === true);
     setSyncInfo(i => ({
       ...i,
       state: 'syncing'
     }));
     const r = await TsSync.sync({
+      history,
       getSch: () => scheduleRef.current,
       getEntries: () => entriesRef.current,
       onMerged: (p, merged, startedAt) => setEntries(prev => {
@@ -933,6 +943,7 @@ function App() {
       ...prev,
       ...r.amend
     }));
+    if (history) setHistMsg(r.ok ? `✓ Đã tải lại lịch sử: ${Object.keys(r.statuses || {}).length} kỳ trên máy chủ` : '');
     setSyncInfo(r.ok ? {
       state: 'ok',
       at: new Date().toISOString(),
@@ -948,6 +959,7 @@ function App() {
     });
     if (r.ok) setTimeout(syncOtLeave, 50); // sau khi bảng công đã gộp xong (giờ OT tính trên bản mới nhất)
   }, []);
+  runSyncRef.current = runSync;
   const scheduleSync = useCallback((ms = 2500) => {
     if (!SERVER) return;
     clearTimeout(syncTimer.current);
@@ -1751,7 +1763,9 @@ function App() {
     amend: docAmend[currentMonth] || null,
     onAmend: openAmend,
     onCancelAmend: handleCancelAmend,
-    onRetry: runSync,
+    onRetry: () => runSync(),
+    onHistory: reloadHistory,
+    histMsg: histMsg,
     onSubmit: handleSubmit,
     onWithdraw: handleWithdraw
   })), /*#__PURE__*/React.createElement("div", {
@@ -2021,6 +2035,8 @@ function SyncBar({
   onAmend,
   onCancelAmend,
   onRetry,
+  onHistory,
+  histMsg,
   onSubmit,
   onWithdraw
 }) {
@@ -2099,7 +2115,17 @@ function SyncBar({
     type: "button",
     onClick: onRetry,
     className: "font-semibold text-blue-700 hover:text-blue-900"
-  }, "Th\u1EED l\u1EA1i")));
+  }, "Th\u1EED l\u1EA1i"), onHistory && /*#__PURE__*/React.createElement("button", {
+    id: "tsHistoryBtn",
+    type: "button",
+    onClick: onHistory,
+    disabled: info.state === 'syncing' || info.state === 'offline',
+    className: "font-semibold whitespace-nowrap text-blue-700 hover:text-blue-900 disabled:text-slate-400 disabled:cursor-not-allowed",
+    title: "L\u1EA5y b\u1EA3ng c\xF4ng c\xE1c th\xE1ng tr\u01B0\u1EDBc t\u1EEB Th\u1ED1ng k\xEA gi\u1EDD c\xF4ng (vd. Admin v\u1EEBa t\u1EA3i file Excel qu\xE1 kh\u1EE9 l\xEAn). B\xECnh th\u01B0\u1EDDng m\xE1y t\u1EF1 l\u1EA5y 1 l\u1EA7n m\u1ED7i ng\xE0y."
+  }, "\u21BB T\u1EA3i l\u1EA1i l\u1ECBch s\u1EED")), histMsg && /*#__PURE__*/React.createElement("span", {
+    id: "tsHistoryMsg",
+    className: "w-full text-right text-xs text-emerald-700"
+  }, histMsg));
 }
 
 // ---------- Phụ cấp xe (xăng xe 60K / xe đi tỉnh) — nộp kèm bảng công cuối kỳ (xem allowance.js) ----------
