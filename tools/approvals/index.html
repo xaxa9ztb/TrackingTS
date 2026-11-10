@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
 <link rel="stylesheet" href="../accounts/style.css?v=7">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 <script src="../../js/demo.js?v=3"></script>
 <script src="../../js/session.js?v=49"></script>
 <script>Session.guard('approvals');</script>
@@ -65,10 +65,15 @@
   </section>
 
   <section class="ac-card" id="secApproved" hidden>
-    <div class="ap-head"><h2>✉ Đã duyệt xong — gửi lại thư kèm Excel</h2><button class="btn small" id="btnReloadAp">Tải lại</button></div>
+    <div class="ap-head"><h2>✅ Đã duyệt xong — tải Excel / gửi lại thư</h2><button class="btn small" id="btnReloadAp">Tải lại</button></div>
+    <div class="ap-zipbar">
+      <label>Kỳ lương <select id="apPeriod"></select></label>
+      <button class="btn primary small" id="apZip" type="button" disabled>⬇ Tải zip bảng công + phụ cấp</button>
+      <span class="ac-note" id="apPicked"></span>
+    </div>
     <p class="ac-note">Thư báo duyệt xong (kèm bảng chấm công và phụ cấp xe / xăng Excel) gửi Fitter, CC Site Sup + Quản lý dự án của các dự án và bạn. Nếu thư lần đầu bị lỗi hoặc ai đó chưa nhận được, bấm <b>Gửi lại</b>. Chỉ Admin / Admin dự án gửi lại được.</p>
     <div class="ac-scroll ac-short"><table class="ac-table" id="apTable">
-      <thead><tr><th>Người nộp</th><th>Kỳ lương</th><th>Duyệt bởi</th><th>Dự án</th><th></th></tr></thead>
+      <thead><tr><th class="ap-chk"><input type="checkbox" id="apAll" title="Chọn tất cả" aria-label="Chọn tất cả"></th><th>Người nộp</th><th>Kỳ lương</th><th>Admin xử lý</th><th>Dự án</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
     <p class="ac-note" id="apMsg"></p>
@@ -104,8 +109,9 @@
 <div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="../timesheet/allowance.js?v=4"></script>
-<script src="../timesheet/tsexcel.js?v=5"></script>
+<script src="../timesheet/tsexcel.js?v=6"></script>
 <script src="../timesheet/tssync.js?v=8"></script>
-<script src="app.js?v=14"></script>
+<script src="../tsadmin/hrexport.js?v=2"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

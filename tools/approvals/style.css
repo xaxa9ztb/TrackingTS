@@ -33,3 +33,9 @@
 .ac-table tr.chg td { background: var(--ni-action-soft, #eef4ff); }
 .ac-note.chg-tag { color: var(--ni-action, #1d4ed8); font-weight: 600; }
 .pill.amend { background: var(--ni-action-soft, #eef4ff); color: var(--ni-action, #1d4ed8); border: 1px solid #bfd3fe; }
+/* đã duyệt xong: chọn kỳ + tải zip */
+.ap-zipbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 10px; }
+.ap-zipbar label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.ap-zipbar select { min-height: 34px; padding: 4px 8px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 6px; font-size: 14px; background: var(--card); }
+#apTable .ap-chk { width: 34px; text-align: center; }
+#apTable .ap-chk input { width: 18px; height: 18px; }

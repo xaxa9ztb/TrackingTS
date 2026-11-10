@@ -103,3 +103,15 @@ test('buildTimesheet từ chối mẫu không đúng bố cục 2026 (tránh xu�
   await assert.rejects(() => X.buildTimesheet(ExcelJS, buf, { entries: [], bdOf: () => ({}), profile: {}, month: '2026-11' }), /mẫu Schindler 2026/);
   assert.match(X.TEMPLATE, /^ts-template\.xlsx\?v=/);
 });
+
+test('cột T (Work Number): mã toàn chữ số ghi dạng số, mã chữ (TRAINING-NI, PAID LEAVE) giữ dạng chữ; đọc lại vẫn là chuỗi', { skip: !ExcelJS && 'chưa cài exceljs' }, async () => {
+  const fs = require('node:fs');
+  const mk = (date, wn) => ({ date, startTime: '08:00', endTime: '17:00', breakTime: '1', activityCode: '1110', projectName: 'P', workNumber: wn, remarks: '', otType: 'NORMAL' });
+  const f = await X.buildTimesheet(ExcelJS, fs.readFileSync('tools/timesheet/ts-template.xlsx'), { entries: [mk('2026-10-16', '812441010'), mk('2026-10-17', 'TRAINING-NI'), mk('2026-10-18', 'PAID LEAVE'), mk('2026-10-19', '0123')],
+    bdOf: () => ({}), profile: { name: 'A', empId: '1', position: 'x', dept: 'NI' }, month: '2026-11' });
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.load(f.buffer); const ws = wb.getWorksheet('New TS');
+  assert.equal(ws.getCell('T10').value, 812441010); assert.equal(ws.getCell('T10').numFmt, '0');
+  assert.equal(ws.getCell('T11').value, 'TRAINING-NI'); assert.equal(ws.getCell('T12').value, 'PAID LEAVE');
+  assert.equal(ws.getCell('T13').value, '0123');          // số 0 đầu → giữ chữ để không mất số 0
+  assert.deepEqual(X.parseTimesheet(ws).entries.map(e => e.workNumber), ['812441010', 'TRAINING-NI', 'PAID LEAVE', '0123']);
+});

@@ -36,7 +36,8 @@ test('zip: Bảng công/<TEN>.xlsx và Phụ cấp/Pc Xe|Pc Xang - thang M YYYY.
   assert.deepEqual(names, ['Bảng công/KHONG PHU CAP.xlsx', 'Bảng công/LE C.xlsx', 'Bảng công/NGUYEN VAN A.xlsx', 'Bảng công/TRAN THI B.xlsx', 'Phụ cấp/Pc Xang - thang 10 2026.xlsx', 'Phụ cấp/Pc Xe - thang 10 2026.xlsx']);
   const fuel = new ExcelJS.Workbook(); await fuel.xlsx.load(await z.file('Phụ cấp/Pc Xang - thang 10 2026.xlsx').async('nodebuffer'));
   assert.deepEqual(fuel.worksheets.map(w => w.name), ['Nguyễn Văn A', 'Trần Thị B']);
-  assert.equal(fuel.worksheets[0].getCell('G8').value, 5); assert.equal(fuel.worksheets[1].getCell('G8').value, 3);
+  // phụ cấp độc lập với chấm công: số ngày = khoảng ngày khai (16/09 – 15/10 = 30 ngày), không theo số ngày chấm công
+  assert.equal(fuel.worksheets[0].getCell('G8').value, 30); assert.equal(fuel.worksheets[1].getCell('G8').value, 30);
   assert.equal(fuel.worksheets[1].getCell('B8').value, 'Trần Thị B');
   const pv = new ExcelJS.Workbook(); await pv.xlsx.load(await z.file('Phụ cấp/Pc Xe - thang 10 2026.xlsx').async('nodebuffer'));
   assert.deepEqual(pv.worksheets.map(w => w.name), ['Lê C']);

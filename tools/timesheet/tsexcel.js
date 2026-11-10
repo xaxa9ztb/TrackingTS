@@ -151,7 +151,11 @@
         row.getCell(COL.check).value = { formula: `MOD(F${r}-E${r},1)*24-SUM(G${r}:O${r})` };   // như mẫu: (To-From)*24 - SUM(G:O) (G:O gồm cả giờ nghỉ H) = 0; MOD: ca qua nửa đêm
         row.getCell(COL.act).value = { formula: `INDEX($${A(COL.firstAct)}$9:$${A(COL.lastAct)}$9,1,MATCH("x",${actRange(r)},0))` };
         row.getCell(COL.project).value = e.projectName || '';
-        row.getCell(COL.wbs).value = e.workNumber || '';
+        // T: mã dự án toàn chữ số (sales order / equipment number) ghi dạng SỐ; mã chữ (TRAINING-NI, MEETINGS, PAID LEAVE…) giữ dạng chữ
+        const wn = String(e.workNumber == null ? '' : e.workNumber).trim();
+        const wc = row.getCell(COL.wbs);
+        if (/^[1-9]\d{0,14}$/.test(wn)) { wc.value = Number(wn); wc.numFmt = '0'; }
+        else { wc.value = wn; wc.numFmt = '@'; }
         row.getCell(COL.ident).value = { formula: `INDEX($${A(COL.firstAct)}$6:$${A(COL.lastAct)}$6,1,MATCH("x",${actRange(r)},0))` };
         const actCol = activityToCol(e.activityCode);
         if (actCol) {
