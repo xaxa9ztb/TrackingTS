@@ -367,3 +367,8 @@ body:not(.admin-mode) .chk-col { display: none; }
 .emp-days th { text-align: left; font-size: 11.5px; color: var(--text-muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--border); background: none; position: static; }
 .emp-days td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
 .emp-days .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Quản trị › Dự án: sửa ngay trên dòng */
+#projectsTable tr.row-editing td { background: var(--ni-warn-soft, #fff7e6); vertical-align: middle; }
+#projectsTable .cell-in { width: 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 5px; font: 400 13px var(--ni-font, inherit); background: var(--card-bg); }
+#projectsTable .cell-in:focus { outline: 2px solid var(--blue); outline-offset: -1px; }

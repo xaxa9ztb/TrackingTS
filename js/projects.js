@@ -4,6 +4,7 @@ const ProjectsPage = (() => {
   let builtHeaderKey = null;
   let selected = new Set();
   let lastFilteredIds = [];
+  let editing = null;          // WBS của dòng đang sửa ngay trên bảng
 
   async function load() {
     selected.clear();
@@ -91,16 +92,18 @@ const ProjectsPage = (() => {
 
     lastFilteredIds = disp.map(d => d.p.wbs);
 
-    document.querySelector('#projectsTable tbody').innerHTML = disp.map(d => `
+    // dòng đang sửa luôn hiện (kể cả khi đổi giá trị làm nó không còn khớp bộ lọc)
+    if (editing && !disp.some(d => d.p.wbs === editing)) { const ep = projects.find(x => x.wbs === editing); if (ep) disp.unshift({ p: ep, cells: [] }); }
+    document.querySelector('#projectsTable tbody').innerHTML = disp.map(d => d.p.wbs === editing ? editRow(d.p, headers) : `
       <tr>
-        <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.p.wbs}" ${selected.has(d.p.wbs) ? 'checked' : ''}></td>
+        <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${esc(d.p.wbs)}" ${selected.has(d.p.wbs) ? 'checked' : ''}></td>
         ${d.cells.map((c, i) => {
           const cls = (i === 2) ? ' class="col-name"' : '';
-          return `<td${cls}>${c}</td>`;
+          return `<td${cls}>${esc(c)}</td>`;
         }).join('')}
         <td class="col-actions">
-          <button class="btn-icon" data-edit="${d.p.wbs}">✏️</button>
-          <button class="btn-icon" data-del="${d.p.wbs}">🗑️</button>
+          <button class="btn-icon" data-edit="${esc(d.p.wbs)}" title="Sửa ngay trên dòng (cả thông số kỹ thuật)">✏️</button>
+          <button class="btn-icon" data-del="${esc(d.p.wbs)}" title="Xoá dự án">🗑️</button>
         </td>
       </tr>`).join('');
 
@@ -108,9 +111,70 @@ const ProjectsPage = (() => {
       if (chk.checked) selected.add(chk.dataset.id); else selected.delete(chk.dataset.id);
       updateSelectionUI();
     }));
-    document.querySelectorAll('#projectsTable [data-edit]').forEach(b => b.addEventListener('click', () => openForm(b.dataset.edit)));
+    document.querySelectorAll('#projectsTable [data-edit]').forEach(b => b.addEventListener('click', () => {
+      if (editing && editing !== b.dataset.edit && !confirm('Đang sửa dự án ' + editing + ' chưa lưu — bỏ thay đổi đó?')) return;
+      editing = b.dataset.edit; render();
+      const first = document.querySelector('#projectsTable tr.row-editing input[data-k]'); if (first) first.focus();
+    }));
+    const er = document.querySelector('#projectsTable tr.row-editing');
+    if (er) {
+      er.querySelector('[data-save]').addEventListener('click', () => saveInline(er));
+      er.querySelector('[data-cancel]').addEventListener('click', () => { editing = null; render(); });
+      er.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); saveInline(er); }
+        if (ev.key === 'Escape') { ev.preventDefault(); editing = null; render(); }
+      });
+    }
     document.querySelectorAll('#projectsTable [data-del]').forEach(b => b.addEventListener('click', () => remove(b.dataset.del)));
     updateSelectionUI();
+  }
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // ô X hour ghi vào thông số INST_TIME_STANDARD nếu dự án có cột đó (X hour đọc từ đây), không thì vào trường xHour
+  const xKey = (p) => (p.specs && p.specs.INST_TIME_STANDARD != null ? 'spec:INST_TIME_STANDARD' : (p.specs && p.specs['INS Time Standard'] != null ? 'spec:INS Time Standard' : 'xHour'));
+  function editRow(p, headers) {
+    const inp = (k, v, w, extra) => `<td><input class="cell-in" data-k="${esc(k)}" value="${esc(v)}" style="min-width:${w || 70}px"${extra || ''}></td>`;
+    const x = xHourOf(p);
+    return `<tr class="row-editing">
+      <td class="chk-col"></td>
+      <td><b>${esc(p.wbs)}</b></td>
+      ${inp('projectNumber', p.projectNumber || '', 90)}
+      ${inp('projectName', p.projectName || '', 200)}
+      ${inp('productLine', p.productLine || '', 90)}
+      ${inp('supervisor', p.supervisor || '', 130)}
+      ${headers.map(h => inp('spec:' + h, (p.specs && p.specs[h] != null) ? p.specs[h] : '', 60)).join('')}
+      ${inp(xKey(p), x != null ? x : '', 60, ' inputmode="decimal"')}
+      ${inp('swatTargetHour', p.swatTargetHour != null ? p.swatTargetHour : '', 70, ' inputmode="decimal"')}
+      <td class="col-actions"><button class="btn-icon" data-save title="Lưu (Enter)">💾</button><button class="btn-icon" data-cancel title="Huỷ (Esc)">✕</button></td>
+    </tr>`;
+  }
+  // "12,5" / "12.5" → số; chữ (vd. "ES1", "Side opening") giữ nguyên
+  const toVal = (s) => { const t = String(s).trim(); if (t === '') return ''; const n = Number(t.replace(',', '.')); return /^-?[\d.,]+$/.test(t) && isFinite(n) ? n : t; };
+  async function saveInline(tr) {
+    const p = projects.find(x => x.wbs === editing); if (!p) return;
+    const fields = {}, specs = { ...(p.specs || {}) };
+    let specChanged = false;
+    tr.querySelectorAll('input[data-k]').forEach(i => {
+      const k = i.dataset.k, v = i.value;
+      if (k.startsWith('spec:')) {
+        const h = k.slice(5), nv = toVal(v), ov = specs[h] == null ? '' : specs[h];
+        if (String(nv) !== String(ov)) { if (nv === '') delete specs[h]; else specs[h] = nv; specChanged = true; }
+      } else if (k === 'swatTargetHour' || k === 'xHour') {
+        const nv = v.trim() === '' ? null : Number(v.replace(',', '.'));
+        if (nv !== null && !isFinite(nv)) return;
+        if ((p[k] == null ? null : Number(p[k])) !== nv) fields[k] = nv;
+      } else if (String(p[k] || '') !== v.trim()) fields[k] = v.trim();
+    });
+    if (specChanged) fields.specs = specs;
+    if (!Object.keys(fields).length) { editing = null; render(); return; }
+    const btn = tr.querySelector('[data-save]'); btn.disabled = true; btn.textContent = '…';
+    try { await Cloud.saveProject(p.wbs, fields); }
+    catch (err) { console.error(err); alert('Không lưu được lên máy chủ: ' + err.message); btn.disabled = false; btn.textContent = '💾'; return; }
+    const record = { ...p, ...fields };
+    await DB.put('projects', record);
+    editing = null;
+    await load();
+    await Dashboard.reloadAndRefresh();
   }
 
   function updateSelectionUI() {
