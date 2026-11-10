@@ -151,7 +151,7 @@
     } catch (e) { hrDocs = []; body.innerHTML = `<tr><td colspan="5" class="ac-note err">✗ ${esc(e.message)}</td></tr>`; }
   }
   const hrPicked = () => [...$('tHr').querySelectorAll('input[data-i]:checked')].map(x => hrDocs[+x.dataset.i]);
-  function hrCount() { $('hrNote').textContent = `Đã chọn ${hrPicked().length}/${hrDocs.length} bảng công`; $('hrExport').disabled = !hrPicked().length; }
+  function hrCount() { const n = hrPicked().length; $('hrNote').textContent = `Đã chọn ${n}/${hrDocs.length} bảng công` + (n === 1 ? ' — tải file Excel lẻ (không nén)' : ''); $('hrExport').disabled = !n; }
   async function hrRun() {
     const picked = hrPicked(), msg = $('hrMsg');
     if (!picked.length) return;
@@ -160,6 +160,14 @@
       if (!window.ExcelJS) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
       if (!window.JSZip) await loadJs('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
       const d = new Date(), today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      if (picked.length === 1) {    // một người: tải file Excel lẻ, không nén
+        msg.textContent = 'Đang tạo file Excel…';
+        const files = await TsHrExport.buildSingle({ ExcelJS, TsExcel: TS, TsAllowance }, { doc: picked[0], period, today,
+          tpl: { timesheet: await tpl(TsExcel.TEMPLATE), allowance: await tpl('phucap-xe-template.xlsx') } });
+        await TsHrExport.saveFiles(files);
+        msg.textContent = `✓ Đã tải ${files.length} file Excel: ${files.map(f => f.name).join(', ')}.`;
+        return;
+      }
       const r = await TsHrExport.build({ ExcelJS, JSZip, TsExcel: TS, TsAllowance }, { docs: picked, period, today,
         tpl: { timesheet: await tpl(TsExcel.TEMPLATE), allowance: await tpl('phucap-xe-template.xlsx') },
         onProgress: (n, total) => { msg.textContent = `Đang tạo file Excel ${n}/${total}…`; } });
