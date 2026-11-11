@@ -2193,3 +2193,79 @@ test('Incentive: gộp tên không dấu / đảo thứ tự ("SUU TRI NGO") và
   const p2 = (await call('GET', `/api/incentive/batches/${id}`, { email: A })).data.data.projects[0];
   assert.deepEqual([p2.lines[0].empId, p2.lines[0].name, p2.sup.empId, p2.sup.name], ['NS1', 'Ngô Trí Sửu', 'NS1', 'Ngô Trí Sửu']);
 });
+
+test('Incentive: tự lưu đợt chỉ ghi lại dòng chia thưởng của dự án có thay đổi (giảm lượt ghi D1)', async () => {
+  const A = 'boss@example.com';
+  const b = (await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2034-01' } })).data;
+  const prj = (wbs, amount) => ({ wbs, name: 'DA ' + wbs, kind: 'first70', lines: [{ role: 'fitter', empId: 'TS1', name: 'Thợ Một', amount }, { role: 'sup', empId: 'TS2', name: 'Thợ Hai', amount: 5 }] });
+  const put = async (version, projects) => { const r = await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version, data: { projects } } }); assert.equal(r.status, 200, JSON.stringify(r.data)); return r.data.version; };
+  const ids = async () => (await env.DB.prepare('SELECT rowid AS id, wbs FROM inc_lines WHERE batch_id = ? ORDER BY rowid').bind(b.id).all()).results;
+  let v = await put(1, [prj('W1', 10), prj('W2', 20), prj('W3', 30)]);
+  const first = await ids();
+  // dòng mốc (rowid lớn) — dòng nào được ghi lại sau đó sẽ có rowid lớn hơn mốc
+  await env.DB.prepare("INSERT INTO inc_lines (batch_id, wbs) VALUES (-1, 'MOC')").run();
+  const moc = (await env.DB.prepare("SELECT rowid r FROM inc_lines WHERE batch_id = -1").first()).r;
+  v = await put(v, [prj('W1', 10), prj('W2', 20), prj('W3', 30)]);
+  assert.deepEqual(await ids(), first, 'không đổi gì → không xoá / ghi lại dòng nào');
+  v = await put(v, [prj('W1', 10), prj('W2', 25), prj('W4', 1)]);
+  const after = await ids();
+  assert.deepEqual(after.filter(r => r.wbs === 'W1'), first.filter(r => r.wbs === 'W1'), 'dự án không đổi giữ nguyên dòng');
+  assert.ok(after.filter(r => r.wbs === 'W2').every(r => r.id > moc) && after.filter(r => r.wbs === 'W1').every(r => r.id < moc), 'chỉ dự án đổi số tiền được ghi lại');
+  assert.ok(!after.some(r => r.wbs === 'W3') && after.some(r => r.wbs === 'W4'));
+  await env.DB.prepare('DELETE FROM inc_lines WHERE batch_id = -1').run();
+  const sums = (await env.DB.prepare('SELECT wbs, SUM(amount) t FROM inc_lines WHERE batch_id = ? GROUP BY wbs ORDER BY wbs').bind(b.id).all()).results;
+  assert.deepEqual(sums.map(x => [x.wbs, x.t]), [['W1', 15], ['W2', 30], ['W4', 6]]);
+});
+
+test('Bảng công Thống kê: LƯU CHÊNH LỆCH — chỉ ghi dòng mới / sửa + xoá theo mã dòng, giữ dòng duyệt đẩy sang, chống ghi đè', async () => {
+  const A = 'boss@example.com';
+  const meta0 = (await call('GET', '/api/timesheets/meta', { email: A })).data;
+  // nền: bảng hiện có + 5 dòng thử
+  const keep = [];
+  for (let after = 0; ;) { const p = (await call('GET', '/api/timesheets?after=' + after, { email: A })).data; keep.push(...p.rows); if (p.next == null) break; after = p.next; }
+  const mk = (i) => ({ empId: 'DL' + i, empName: 'Delta ' + i, wbs: 'DW', projectName: 'Delta', activities: '1110', category: 'NI', date: '2035-01-0' + (i + 1), timeFrom: '08:00', timeTo: '17:00', role: 'Fitter', normal: 8, total: 8 });
+  const up = await uploadTs(A, [...keep, mk(1), mk(2), mk(3), mk(4)], { baseVersion: meta0.version });
+  assert.equal(up.commit.status, 200, JSON.stringify(up.commit.data));
+  const base = (await call('GET', '/api/timesheets/meta', { email: A })).data;
+  // dòng duyệt bảng công đẩy sang (src khác rỗng)
+  await env.DB.prepare("UPDATE timesheets SET src = 'ts:DL4:2035-01' WHERE batch = (SELECT json_extract(data, '$.active') FROM kv_store WHERE key = 'timesheets_meta') AND emp_id = 'DL4'").run();
+  // danh sách có mã dòng
+  const withId = (await call('GET', '/api/timesheets?withId=1&limit=1000', { email: A })).data;
+  const sid = (emp) => withId.rows.find(r => r.empId === emp)._sid;
+  assert.ok(sid('DL1') > 0 && !('_sid' in (await call('GET', '/api/timesheets?limit=5', { email: A })).data.rows[0]), 'chỉ kèm _sid khi xin withId=1');
+  const delta = async (add, del, baseVersion) => {
+    const b = (await call('POST', '/api/admin/timesheets/begin', { email: A, body: {} })).data;
+    if (add.length) assert.equal((await call('POST', '/api/admin/timesheets/rows', { email: A, body: { batch: b.batch, rows: add } })).status, 200);
+    return call('POST', '/api/admin/timesheets/commit', { email: A, body: { batch: b.batch, baseVersion, count: add.length, mode: 'delta', del } });
+  };
+  // sửa DL2 (xoá cũ + thêm mới), xoá DL3, thêm DL5; DL4 (dòng duyệt) nằm trong danh sách xoá nhưng KHÔNG có dòng mới cùng ngày → giữ lại
+  const r = await delta([{ ...mk(2), total: 9 }, mk(5)], [sid('DL2'), sid('DL3'), sid('DL4')], base.version);
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual([r.data.added, r.data.removed, r.data.count, r.data.version], [2, 2, base.count, base.version + 1]);
+  const rows = (await readTs(A)).rows.filter(x => x.wbs === 'DW').map(x => [x.empId, x.total]).sort();
+  assert.deepEqual(rows, [['DL1', 8], ['DL2', 9], ['DL4', 8], ['DL5', 8]]);
+  // bản cũ (baseVersion lệch) → 409, không đổi gì
+  const stale = await delta([mk(6)], [sid('DL1')], base.version);
+  assert.equal(stale.status, 409);
+  assert.deepEqual((await readTs(A)).rows.filter(x => x.wbs === 'DW').map(x => x.empId).sort(), ['DL1', 'DL2', 'DL4', 'DL5']);
+  assert.equal((await call('GET', '/api/timesheets/meta', { email: A })).data.version, base.version + 1);
+});
+
+test('Không đổi gì thì không ghi: lưu đợt Incentive giống hệt giữ nguyên phiên bản; PATCH dự án giống hệt không ghi nhật ký', async () => {
+  const A = 'boss@example.com';
+  const b = (await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2034-03' } })).data;
+  const data = { projects: [{ wbs: 'NC-1', name: 'DA', kind: 'first70', lines: [{ role: 'fitter', empId: 'TS1', name: 'Thợ Một', amount: 10 }] }] };
+  const p1 = (await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version: 1, data } })).data;
+  const p2 = (await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version: p1.version, data } })).data;
+  assert.deepEqual([p2.ok, p2.version, p2.unchanged], [true, p1.version, true]);
+  const p3 = (await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version: p2.version, data: { projects: [{ ...data.projects[0], lines: [{ ...data.projects[0].lines[0], amount: 11 }] }] } } })).data;
+  assert.equal(p3.version, p1.version + 1, 'đổi số tiền → lưu');
+  const n0 = (await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'project_update'").first()).c;
+  const f = { swatTargetHour: 204.8, targetSwat: true, swatState: { v: { stops: '4' } } };
+  await call('PATCH', '/api/admin/projects/NC-PRJ', { email: A, body: { fields: f } });
+  const again = (await call('PATCH', '/api/admin/projects/NC-PRJ', { email: A, body: { fields: f } })).data;
+  assert.equal(again.unchanged, true);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'project_update'").first()).c, n0, 'không ghi nhật ký khi không đổi');
+  await call('PATCH', '/api/admin/projects/NC-PRJ', { email: A, body: { fields: { ...f, swatTargetHour: 256.1 } } });
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'project_update'").first()).c, n0 + 1);
+});

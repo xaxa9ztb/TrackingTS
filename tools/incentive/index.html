@@ -20,7 +20,7 @@
 <script src="incexcel.js?v=3"></script>
 <script src="analysis.js?v=1"></script>
 <script src="../../js/htmlxlsx.js?v=1"></script>
-<script src="app.js?v=13" defer></script>
+<script src="app.js?v=14" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="incentive" data-tool="Incentive — Thưởng lắp đặt" data-help="huong-dan.html#incentive"></script>
@@ -116,6 +116,8 @@
       <div class="in-bartitle"><b id="edTitle"></b> <span id="edStatus"></span><span class="ac-note" id="edSaved" aria-live="polite"></span></div>
       <span class="in-total">Tổng đợt: <b id="edTotal">0</b> đ</span>
       <button class="btn small" type="button" id="edSave">Lưu</button>
+      <button class="btn small" type="button" id="edBackup" title="Tải toàn bộ dữ liệu đợt này (dự án, chia thưởng, duyệt Std/Scorecard, Analysis) về máy dạng JSON">⬇ Sao lưu đợt</button>
+      <label class="btn small" title="Khôi phục đợt này từ file JSON đã sao lưu (ghi đè bản đang mở)">⬆ Khôi phục<input type="file" id="edRestore" accept=".json,application/json" hidden></label>
     </div>
     <ol class="in-steps" id="steps">
       <li><button type="button" data-step="1"><span>1</span> Chọn dự án</button></li>

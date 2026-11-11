@@ -248,6 +248,31 @@ const Cloud = (() => {
     for (let i = 0; i < all.length; i += 60) await serverSendRetry('/api/admin/projects/delete', { wbs: all.slice(i, i + 60) });
   }
 
+  // ---- so chênh lệch bảng công máy này ↔ máy chủ (theo NỘI DUNG dòng, không theo mã dòng trên máy) ----
+  const DELTA_MAX_ADD = 8000, DELTA_MAX_DEL = 20000;
+  const TS_STR = ['empId', 'empName', 'wbs', 'projectName', 'activities', 'category', 'date', 'timeFrom', 'timeTo', 'role'];
+  function tsCanon(r) {
+    const o = {};
+    Object.keys(r).filter(k => k !== 'id' && k !== '_sid' && r[k] !== undefined).sort().forEach(k => {
+      o[k] = TS_STR.includes(k) ? (r[k] === null ? '' : String(r[k])) : r[k];
+    });
+    return JSON.stringify(o);
+  }
+  async function diffWithServer(local, version) {
+    const pool = new Map();
+    let after = 0;
+    for (;;) {
+      const page = await serverGet('/api/timesheets?withId=1&limit=1000&after=' + after);
+      if (page.version !== version) throw new Error('changed');
+      for (const r of page.rows) { const k = tsCanon(r); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(r._sid); }
+      if (page.next === null || page.next === undefined) break;
+      after = page.next;
+    }
+    const add = [];
+    for (const r of local) { const ids = pool.get(tsCanon(r)); if (ids && ids.length) ids.pop(); else add.push(r); }
+    return { add, del: [...pool.values()].flat() };
+  }
+
   // ---- bản máy chủ: lưu bảng công của máy này lên máy chủ (chỉ admin) ----
   // Nạp theo đợt nguyên tử: begin → rows (160 dòng/lần) → commit. Giữa chừng lỗi thì bản đang dùng không đổi.
   // Nhân viên / dự án do trang "Tài khoản" quản lý, không lưu từ đây.
@@ -268,6 +293,24 @@ const Cloud = (() => {
         err.code = 'NEEDS_CONFIRM';
         err.warnings = warnings;
         throw err;
+      }
+    }
+    // LƯU CHÊNH LỆCH: so với bản trên máy chủ, chỉ gửi dòng mới / đã sửa + mã dòng cần xoá (ghi lại cả bảng tốn ~4 lượt ghi D1 mỗi dòng)
+    if (meta.version) {
+      const d = await diffWithServer(rows, meta.version).catch(() => null);
+      if (d && d.add.length + d.del.length === 0) { tsRemember(meta.version); lastUpdatedAt = new Date().toISOString(); return { timesheets: meta.count, skipped: 0, unchanged: true }; }
+      if (d && d.add.length <= DELTA_MAX_ADD && d.del.length <= DELTA_MAX_DEL) {
+        const begin = await serverSendRetry('/api/admin/timesheets/begin');
+        let inserted = 0, skipped = 0;
+        for (let i = 0; i < d.add.length; i += 160) {
+          const r = await serverSendRetry('/api/admin/timesheets/rows', { batch: begin.batch, rows: d.add.slice(i, i + 160) });
+          inserted += r.inserted; skipped += r.skipped;
+          if (onProgress) onProgress(Math.min(i + 160, d.add.length), d.add.length);
+        }
+        const done = await serverSendRetry('/api/admin/timesheets/commit', { batch: begin.batch, baseVersion: meta.version, count: inserted, mode: 'delta', del: d.del });
+        tsRemember(done.version);
+        lastUpdatedAt = new Date().toISOString();
+        return { timesheets: done.count, skipped, added: done.added, removed: done.removed };
       }
     }
     const begin = await serverSendRetry('/api/admin/timesheets/begin');
