@@ -2193,3 +2193,26 @@ test('Incentive: gộp tên không dấu / đảo thứ tự ("SUU TRI NGO") và
   const p2 = (await call('GET', `/api/incentive/batches/${id}`, { email: A })).data.data.projects[0];
   assert.deepEqual([p2.lines[0].empId, p2.lines[0].name, p2.sup.empId, p2.sup.name], ['NS1', 'Ngô Trí Sửu', 'NS1', 'Ngô Trí Sửu']);
 });
+
+test('Incentive: tự lưu đợt chỉ ghi lại dòng chia thưởng của dự án có thay đổi (giảm lượt ghi D1)', async () => {
+  const A = 'boss@example.com';
+  const b = (await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2034-01' } })).data;
+  const prj = (wbs, amount) => ({ wbs, name: 'DA ' + wbs, kind: 'first70', lines: [{ role: 'fitter', empId: 'TS1', name: 'Thợ Một', amount }, { role: 'sup', empId: 'TS2', name: 'Thợ Hai', amount: 5 }] });
+  const put = async (version, projects) => { const r = await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version, data: { projects } } }); assert.equal(r.status, 200, JSON.stringify(r.data)); return r.data.version; };
+  const ids = async () => (await env.DB.prepare('SELECT rowid AS id, wbs FROM inc_lines WHERE batch_id = ? ORDER BY rowid').bind(b.id).all()).results;
+  let v = await put(1, [prj('W1', 10), prj('W2', 20), prj('W3', 30)]);
+  const first = await ids();
+  // dòng mốc (rowid lớn) — dòng nào được ghi lại sau đó sẽ có rowid lớn hơn mốc
+  await env.DB.prepare("INSERT INTO inc_lines (batch_id, wbs) VALUES (-1, 'MOC')").run();
+  const moc = (await env.DB.prepare("SELECT rowid r FROM inc_lines WHERE batch_id = -1").first()).r;
+  v = await put(v, [prj('W1', 10), prj('W2', 20), prj('W3', 30)]);
+  assert.deepEqual(await ids(), first, 'không đổi gì → không xoá / ghi lại dòng nào');
+  v = await put(v, [prj('W1', 10), prj('W2', 25), prj('W4', 1)]);
+  const after = await ids();
+  assert.deepEqual(after.filter(r => r.wbs === 'W1'), first.filter(r => r.wbs === 'W1'), 'dự án không đổi giữ nguyên dòng');
+  assert.ok(after.filter(r => r.wbs === 'W2').every(r => r.id > moc) && after.filter(r => r.wbs === 'W1').every(r => r.id < moc), 'chỉ dự án đổi số tiền được ghi lại');
+  assert.ok(!after.some(r => r.wbs === 'W3') && after.some(r => r.wbs === 'W4'));
+  await env.DB.prepare('DELETE FROM inc_lines WHERE batch_id = -1').run();
+  const sums = (await env.DB.prepare('SELECT wbs, SUM(amount) t FROM inc_lines WHERE batch_id = ? GROUP BY wbs ORDER BY wbs').bind(b.id).all()).results;
+  assert.deepEqual(sums.map(x => [x.wbs, x.t]), [['W1', 15], ['W2', 30], ['W4', 6]]);
+});

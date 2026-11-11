@@ -76,9 +76,24 @@ function attachIds(projects, match) {
   return { n, fixed, miss };
 }
 
-function lineStmts(env, id, projects) {
-  const stmts = [env.DB.prepare('DELETE FROM inc_lines WHERE batch_id = ?').bind(id)];
-  const rows = projects.flatMap(p => p.lines.map(l => [id, p.wbs, p.name || '', p.kind, l.role, l.empId || '', l.name || '', l.amount, l.pct == null ? null : l.pct]));
+// Dòng chia thưởng (inc_lines, có 3 chỉ mục → mỗi dòng xoá / thêm tốn ~4 lượt ghi D1): CHỈ ghi lại các dự án có dòng thay đổi
+// (so với dòng đang lưu), không xoá-ghi lại cả đợt mỗi lần tự lưu.
+const lineRow = (id, p, l) => [id, p.wbs, p.name || '', p.kind, l.role, l.empId || '', l.name || '', l.amount, l.pct == null ? null : l.pct];
+const sigOf = (rows) => rows.map(r => JSON.stringify(r.slice(2))).sort().join('|');
+async function lineStmts(env, id, projects) {
+  const { results } = await env.DB.prepare('SELECT wbs, project_name, kind, role, emp_id, name, amount, pct FROM inc_lines WHERE batch_id = ?').bind(id).all();
+  const old = new Map();
+  for (const r of results) { if (!old.has(r.wbs)) old.set(r.wbs, []); old.get(r.wbs).push([id, r.wbs, r.project_name, r.kind, r.role, r.emp_id, r.name, Number(r.amount), r.pct == null ? null : Number(r.pct)]); }
+  const now = new Map();
+  for (const p of projects) now.set(String(p.wbs), (p.lines || []).map(l => lineRow(id, p, l)).map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], Number(r[7]), r[8] == null ? null : Number(r[8])]));
+  const stmts = [], rows = [];
+  for (const w of old.keys()) if (!now.has(w)) stmts.push(env.DB.prepare('DELETE FROM inc_lines WHERE batch_id = ? AND wbs = ?').bind(id, w));
+  for (const [w, list] of now) {
+    const prev = old.get(w);
+    if (prev && sigOf(prev) === sigOf(list)) continue;
+    if (prev) stmts.push(env.DB.prepare('DELETE FROM inc_lines WHERE batch_id = ? AND wbs = ?').bind(id, w));
+    rows.push(...list);
+  }
   for (let i = 0; i < rows.length; i += 10) {
     const c = rows.slice(i, i + 10);
     stmts.push(env.DB.prepare(`INSERT INTO inc_lines (batch_id, wbs, project_name, kind, role, emp_id, name, amount, pct) VALUES ${c.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`).bind(...c.flat()));
@@ -131,7 +146,7 @@ async function putBatch(h, env, me, id, request) {
   const t = h.now();
   const upd = env.DB.prepare('UPDATE inc_batches SET data = ?, total = ?, n_projects = ?, status = ?, title = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?')
     .bind(text, total, data.projects.length, status, title, t, me.name || me.email, id, row.version);
-  const res = await env.DB.batch([upd, ...lineStmts(env, id, data.projects)]);
+  const res = await env.DB.batch([upd, ...(await lineStmts(env, id, data.projects))]);
   if (!(res[0].meta && res[0].meta.changes === 1)) throw new h.HttpError(409, 'Đợt thưởng vừa được sửa ở nơi khác — tải lại trang');
   if (status !== row.status) await h.audit(env, me, status === 'done' ? 'inc_done' : 'inc_reopen', 'inc_batch', String(id), { status: row.status }, { status, total });
   return h.json({ ok: true, id, version: row.version + 1, status, total, updatedAt: t });
@@ -231,7 +246,7 @@ async function importSheets(h, env, me, request) {
         .bind(scheme, month, h.str(s.title, 200), text, total, data.projects.length, t, me.name || me.email, t, me.name || me.email).run();
       id = (await env.DB.prepare('SELECT id FROM inc_batches WHERE scheme = ? AND month = ?').bind(scheme, month).first()).id;
     }
-    await env.DB.batch(lineStmts(env, id, data.projects));
+    const ls = await lineStmts(env, id, data.projects); if (ls.length) await env.DB.batch(ls);
     out.push({ id, month, projects: data.projects.length, total, replaced: !!row, before: row ? row.total : null });
   }
   await h.audit(env, me, 'inc_import', 'inc_batch', [...months].join(',').slice(0, 300), undefined, { scheme, batches: out.map(o => ({ month: o.month, total: o.total, replaced: o.replaced })) });
@@ -353,7 +368,7 @@ async function renameWbs(h, env, me, request) {
     x.p.wbs = to; if (name) x.p.name = name;
     const text = JSON.stringify(x.data);
     const upd = env.DB.prepare('UPDATE inc_batches SET data = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?').bind(text, t, by, x.r.id, x.r.version);
-    const res = await env.DB.batch([upd, ...lineStmts(env, x.r.id, x.data.projects)]);
+    const res = await env.DB.batch([upd, ...(await lineStmts(env, x.r.id, x.data.projects))]);
     if (!(res[0].meta && res[0].meta.changes === 1)) throw new h.HttpError(409, `Đợt ${x.r.month} vừa được sửa ở nơi khác — tải lại rồi làm lại`);
   }
   await h.audit(env, me, 'inc_rename_wbs', 'inc_batch', scheme, { wbs: from }, { wbs: to, name, batches: hits.map(x => x.r.month) });
@@ -381,7 +396,7 @@ async function fixNames(h, env, me, request) {
   const t = h.now(), by = me.name || me.email;
   for (const x of hits) {
     const upd = env.DB.prepare('UPDATE inc_batches SET data = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?').bind(JSON.stringify(x.data), t, by, x.r.id, x.r.version);
-    const res = await env.DB.batch([upd, ...lineStmts(env, x.r.id, x.data.projects)]);
+    const res = await env.DB.batch([upd, ...(await lineStmts(env, x.r.id, x.data.projects))]);
     if (!(res[0].meta && res[0].meta.changes === 1)) throw new h.HttpError(409, `Đợt ${x.r.month} vừa được sửa ở nơi khác — tải lại rồi làm lại`);
   }
   await h.audit(env, me, 'inc_fix_names', 'inc_batch', scheme, null, { lines: summary.lines, pairs: summary.pairs.map(p => `${p.from} → ${p.name} (${p.empId})`) });
