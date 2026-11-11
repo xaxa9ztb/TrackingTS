@@ -281,8 +281,21 @@
     S.selectProject(p.wbs);
     return S;
   }
+  // lọc danh sách dự án ở bước 2/3: gõ tên hoặc WBS (không phân biệt dấu / hoa thường), tuỳ chọn chỉ hiện dự án chưa duyệt bước này
+  const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  function revMatch(p) {
+    const q = fold(($('revQ') || {}).value || '').trim();
+    if ($('revTodo') && $('revTodo').checked && (step === 3 ? (p.swat || {}).scOk : (p.swat || {}).stdOk)) return false;
+    if (!q) return true;
+    const hay = fold((p.name || '') + ' ' + (p.wbs || ''));
+    return q.split(/\s+/).every(w => hay.includes(w));
+  }
   function renderRevList() {
-    $('revList').innerHTML = items().map((p, i) => {
+    const all = items();
+    const shown = all.map((p, i) => [p, i]).filter(([p]) => revMatch(p));
+    if ($('revCount')) $('revCount').textContent = shown.length === all.length ? `${all.length} dự án` : `${shown.length} / ${all.length} dự án`;
+    if (!shown.length) { $('revList').innerHTML = '<li class="in-empty">Không có dự án nào khớp bộ lọc.</li>'; return; }
+    $('revList').innerHTML = shown.map(([p, i]) => {
       const s = p.swat || {};
       const chips = `${s.stdOk ? '✓ Std' : '○ Std'} · ${s.scOk ? '✓ Scorecard' : '○ Scorecard'}${s.changed ? ' · ⚠ đã sửa' : ''}`;
       return `<li><button type="button" data-rev="${i}" class="${i === revIdx ? 'on' : ''}">${esc(p.name || p.wbs)}<small>${esc(p.wbs)} · ${KINDS[p.kind].short} · ${chips}</small></button></li>`;
@@ -687,7 +700,17 @@
     });
     $('revList').addEventListener('click', (ev) => { const b = ev.target.closest('[data-rev]'); if (b) openReview(+b.dataset.rev); });
     $('revApprove').onclick = approve;
-    $('revNext').onclick = () => openReview(revIdx + 1 < items().length ? revIdx + 1 : 0);
+    $('revNext').onclick = () => {
+      // dự án tiếp theo trong danh sách đang lọc (hết thì quay về đầu)
+      const idx = items().map((p, i) => i).filter(i => revMatch(items()[i]));
+      const nx = idx.find(i => i > revIdx); openReview(nx != null ? nx : (idx.length ? idx[0] : (revIdx + 1 < items().length ? revIdx + 1 : 0)));
+    };
+    $('revQ').addEventListener('input', renderRevList);
+    $('revTodo').addEventListener('change', renderRevList);
+    $('revQ').addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      const b = $('revList').querySelector('[data-rev]'); if (b) { ev.preventDefault(); openReview(+b.dataset.rev); }
+    });
     window.addEventListener('message', (ev) => {
       if (!ev.data || ev.data.type !== 'SWAT_RESULT' || !(step === 2 || step === 3) || !cur) return;
       const p = items()[revIdx]; if (!p) return;

@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
 <link rel="stylesheet" href="../accounts/style.css?v=8">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <script src="../../js/demo.js?v=3"></script>
 <script src="../../js/session.js?v=49"></script>
 <script>Session.guard('incentive');</script>
@@ -19,7 +19,7 @@
 <script src="incentive.js?v=2"></script>
 <script src="incexcel.js?v=2"></script>
 <script src="../../js/htmlxlsx.js?v=1"></script>
-<script src="app.js?v=8" defer></script>
+<script src="app.js?v=9" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="incentive" data-tool="Incentive — Thưởng lắp đặt" data-help="huong-dan.html#incentive"></script>
@@ -141,7 +141,14 @@
       <h2 id="h23">2. Duyệt Standard Hour</h2>
       <p class="ac-help" id="help23"></p>
       <div class="in-review">
-        <ul class="in-plist" id="revList" aria-label="Dự án trong đợt"></ul>
+        <div class="in-pside">
+          <div class="in-pfilter">
+            <input type="search" id="revQ" placeholder="🔍 Lọc: tên dự án / WBS…" aria-label="Lọc dự án theo tên hoặc WBS" autocomplete="off">
+            <label><input type="checkbox" id="revTodo"> Chỉ dự án chưa duyệt</label>
+            <span class="ac-note" id="revCount" aria-live="polite"></span>
+          </div>
+          <ul class="in-plist" id="revList" aria-label="Dự án trong đợt"></ul>
+        </div>
         <div class="in-revmain">
           <div class="in-sum" id="revSum"></div>
           <div class="in-acts">
