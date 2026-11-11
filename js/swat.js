@@ -105,7 +105,7 @@ const SwatPage = (() => {
     p.targetSwat = true;
     p.swatState = state;
     await DB.put('projects', p);
-    try { const api = swatApi(); if (api && api.setConfirmed) api.setConfirmed(true); } catch (e) { /* ignore */ }
+    try { const api = swatApi(); if (api && api.setConfirmed) api.setConfirmed(true); if (api && api.setTarget) api.setTarget(target, state && (state.v || state).shape); } catch (e) { /* ignore */ }
     await load();
     await Dashboard.reloadAndRefresh();
     alert(Cloud.SERVER

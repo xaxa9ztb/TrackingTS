@@ -339,6 +339,7 @@
   <!-- PROJECT HOURS BUDGET / REMAINING -->
   <div class="card">
     <h2><span class="num" style="background:var(--good)">Σ</span><span data-i18n="budgetTitle">Giờ công định mức & còn lại (toàn dự án) — cho dashboard TrackingTS</span></h2>
+    <div id="warnTarget" class="warnbox hide" role="alert" style="margin-bottom:10px"></div>
     <div class="grid">
       <div>
         <div class="row"><span class="k" data-i18n="bPerUnit">Giờ công định mức / thang</span><span class="v" id="bPerUnit">–</span></div>
@@ -638,6 +639,27 @@ function calc(){
  postResult();
 }
 
+/* ===== Swat Hour Target đã xác nhận (Dashboard / Incentive dùng con số đã lưu) — so với định mức đang tính ===== */
+let CONF={target:null,savedShape:null};
+function renderTargetWarn(){
+ const box=$('warnTarget');if(!box)return;
+ const s=ST,t=CONF.target;
+ if(!(t>0)||!s.product){box.classList.add('hide');box.innerHTML='';return;}
+ const cur=round1(s.budget!=null?s.budget:s.total*s.units);
+ if(Math.abs(cur-t)<0.05){box.classList.add('hide');box.innerHTML='';return;}
+ const d=round1(cur-t),shapeNow=round1(gn('shape')),shapeOld=CONF.savedShape;
+ const usesShape=!$('shapeBlock').classList.contains('hide');
+ const why=usesShape&&shapeOld!=null&&round1(shapeOld)!==shapeNow
+  ?` Giờ SHAPE (X hour) đã đổi từ <b>${fmt(shapeOld)}</b> → <b>${fmt(shapeNow)}</b> theo bảng Dự án.`
+  :' Thông số mục 1 & 2 khác lúc xác nhận.';
+ const canWrite=$('btnWriteTarget')&&$('btnWriteTarget').style.display!=='none';
+ box.innerHTML=`⚠ Định mức tính hiện tại <b>${fmt(cur)}h</b> khác Swat Hour Target đã xác nhận <b>${fmt(t)}h</b> (${d>0?'+':''}${fmt(d)}h) — Dashboard &amp; Incentive đang dùng ${fmt(t)}h.${why}`+
+  ` Kiểm tra lại thông số; nếu định mức hiện tại là đúng thì ${canWrite?'<button type="button" class="btn" id="btnWarnWrite" style="margin-left:4px;padding:2px 10px">⤓ Ghi lại Swat Target = '+fmt(cur)+'h</button>':'bấm <b>⤓ Ghi Swat Target</b> (Admin) để cập nhật'}.`;
+ box.classList.remove('hide');
+ const b=$('btnWarnWrite');if(b)b.onclick=reqWriteTarget;
+}
+function setTarget(n,shape){CONF.target=(+n>0)?Math.round(+n*10)/10:null;if(shape!==undefined)CONF.savedShape=shape;renderTargetWarn();}
+
 /* ===== Giờ công định mức toàn dự án & còn lại (cho TrackingTS) ===== */
 function updateBudget(){
  const s=ST;if(!s.product)return;
@@ -655,6 +677,7 @@ function updateBudget(){
  bar.style.background=col;$('bRemain').style.color=remain<0?'var(--accent)':'var(--good)';
  $('bRemInfo').textContent=`= ${fmt(budget)} − ${fmt(used)} (${s.units} thang)`;
  ST.budget=budget;ST.used=used;ST.remain=remain;ST.usedPct=pct;
+ renderTargetWarn();
 }
 
 function scorecard(){
@@ -1103,7 +1126,7 @@ function scPay(id){const t=$(id).textContent.replace(/[^\d]/g,'');return +t||0;}
 /* API cho nhúng iframe trong TrackingTS */
 function postResult(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_RESULT',data:getResult()},'*');}catch(e){}}
 window.addEventListener('message',ev=>{const d=ev.data;if(d&&d.type==='SWAT_SET'){setState(d.data||{});try{calc();}catch(e){}postResult();}else if(d&&d.type==='SWAT_GET'){postResult();}else if(d&&d.type==='SWAT_OVERVIEW_DATA'){try{renderOverview(d.data);}catch(e){}}else if(d&&d.type==='SWAT_BATCH'){try{runBatch(d.mode,d.projects);}catch(e){}}});
-window.SWAT={version:APP_VERSION,getResult,getState,scoreData:()=>{if(!ST.product)calc();return ST.scdata?{...ST.scdata,units:ST.units,stops:ST.stops,product:ST.product,year:ST.year,stdPerUnit:ST.total}:null;},exportTables:()=>{if(!ST.product)calc();return {hours:hoursTableHtml(),scorecard:ST.scdata?buildScorecardTable():'',name:gv('pname'),wbs:gv('pref'),product:ST.product,year:ST.year};},setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b),setCanWrite:b=>setCanWrite(b)};
+window.SWAT={version:APP_VERSION,getResult,getState,scoreData:()=>{if(!ST.product)calc();return ST.scdata?{...ST.scdata,units:ST.units,stops:ST.stops,product:ST.product,year:ST.year,stdPerUnit:ST.total}:null;},exportTables:()=>{if(!ST.product)calc();return {hours:hoursTableHtml(),scorecard:ST.scdata?buildScorecardTable():'',name:gv('pname'),wbs:gv('pref'),product:ST.product,year:ST.year};},setInputs:m=>{applyInputs(m);calc();},setState,recalc:calc,loadProjects:l=>loadProjects(l),setPeople:l=>setPeople(l),selectProject:w=>selectProject(w),setConfirmed:b=>setConfirmed(b),setCanWrite:b=>setCanWrite(b),setTarget:(n,sh)=>setTarget(n,sh)};
 
 /* ============ DANH SÁCH DỰ ÁN + COMBO "TÊN CÔNG TRÌNH" (kiểu Dashboard) ============ */
 /* TrackingTS gọi SWAT.loadProjects([...]) đổ danh sách công trình (tab Dự án)
@@ -1128,7 +1151,7 @@ function loadProjects(list){
 }
 let __confirmed=false;
 function setConfirmed(ok){__confirmed=!!ok;const b=$('confirmBadge');if(b){b.textContent=ok?'✓ đã xác nhận Swat':'• chưa xác nhận Swat';b.className='confirm-badge '+(ok?'ok':'no');}const ob=$('btnOverview');if(ob)ob.style.display=ok?'':'none';}
-function setCanWrite(on){const b=$('btnWriteTarget');if(b)b.style.display=on?'':'none';}
+function setCanWrite(on){const b=$('btnWriteTarget');if(b)b.style.display=on?'':'none';try{renderTargetWarn();}catch(e){}}
 function reqWriteTarget(){try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'SWAT_WRITE_TARGET'},'*');}catch(e){}}
 /* Báo cáo tổng quan PDF: xin dữ liệu giờ công (fitter + activities) từ TrackingTS */
 function reqOverviewReport(){
@@ -1259,6 +1282,8 @@ function runBatch(mode,list){
 function selectProject(wbs){const p=PROJECTS.find(x=>String(x.pref)===String(wbs));if(p)applyProject(p);}
 function applyProject(p){
  if(!p)return;const set=(id,v)=>{const e=$(id);if(e&&v!==''&&v!=null&&!(typeof v==='number'&&isNaN(v)))e.value=v;};
+ const sv=p.saved?(p.saved.v||p.saved):null;
+ CONF={target:(p.confirmed&&+p.target>0)?Math.round(+p.target*10)/10:null,savedShape:sv&&sv.shape!=null&&sv.shape!==''?+sv.shape:null};
  const r2=n=>Math.round((+n||0)*100)/100;
  if(p.saved){
    // đã "xác nhận Swat" trước đó -> khôi phục nguyên trạng mục 1 & 2
