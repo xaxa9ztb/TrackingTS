@@ -218,7 +218,14 @@ async function demoStart(realEnv, email, request) {
   if (!realEnv.DB_DEMO) throw new HttpError(503, 'Chế độ demo chưa được bật trên máy chủ này');
   const body = await readJson(request);
   const role = DEMO_ROLES.includes(body.role) ? body.role : 'staff';
+  // dữ liệu mẫu vừa dựng (< 12 giờ) → chỉ đổi vai trò, không xoá / dựng lại (mỗi lần dựng ~ vài trăm lượt ghi D1, tính chung hạn mức tài khoản)
+  const mark = await realEnv.DB_DEMO.prepare("SELECT saved_at FROM kv_store WHERE key = 'demo_seeded'").first().catch(() => null);
+  if (mark && Date.now() - Date.parse(mark.saved_at) < 12 * 3600e3 && !body.fresh) {
+    const p = await switchPersona(realEnv.DB_DEMO, email, role).catch(() => null);
+    if (p) return json({ ok: true, role, reused: true, ...p }, 200, { 'set-cookie': demoCookie(true) });
+  }
   const r = await seedDemo(realEnv.DB_DEMO, { email }, role);
+  await realEnv.DB_DEMO.prepare("INSERT INTO kv_store (key, version, data, saved_at, saved_by) VALUES ('demo_seeded', 1, '', ?, '') ON CONFLICT(key) DO UPDATE SET saved_at = excluded.saved_at").bind(now()).run();
   return json({ ok: true, role, ...r }, 200, { 'set-cookie': demoCookie(true) });
 }
 // đổi vai trò trong demo, giữ nguyên dữ liệu (bảng công đã nộp / duyệt…)
@@ -581,7 +588,10 @@ async function tsList(env, url) {
     ? await env.DB.prepare('SELECT id, data FROM timesheets WHERE batch = ? AND id > ? ORDER BY id LIMIT ?').bind(meta.active, after, limit).all()
     : { results: [] };
   const next = results.length === limit ? results[results.length - 1].id : null;
-  const text = `{"version":${meta.dataVersion},"count":${meta.count},"next":${next === null ? 'null' : next},"rows":[${results.map(r => r.data).join(',')}]}`;
+  // withId=1: kèm mã dòng (_sid) — máy admin so chênh lệch rồi chỉ gửi dòng đổi khi lưu (giảm lượt ghi D1)
+  const withId = url.searchParams.get('withId') === '1';
+  const one = (r) => (withId ? (r.data.length > 2 ? `{"_sid":${r.id},${r.data.slice(1)}` : `{"_sid":${r.id}}`) : r.data);
+  const text = `{"version":${meta.dataVersion},"count":${meta.count},"next":${next === null ? 'null' : next},"rows":[${results.map(one).join(',')}]}`;
   return new Response(text, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
@@ -636,6 +646,7 @@ async function tsCommit(env, me, request) {
   if (Number(body.baseVersion) !== meta.dataVersion) {
     return json({ ok: false, conflict: true, version: meta.dataVersion, error: 'Máy chủ có bảng công mới hơn bản bạn đang có — Đồng bộ lại trước khi lưu.' }, 409);
   }
+  if (body.mode === 'delta') return await tsCommitDelta(env, me, body, batch, cas, meta);
   let have = (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
   const want = Number(body.count);
   if (have !== want) throw new HttpError(400, `Đợt tải lên chưa đủ dòng (có ${have}, cần ${want}) — thử lại`);
@@ -650,6 +661,42 @@ async function tsCommit(env, me, request) {
   await env.DB.prepare('DELETE FROM timesheets WHERE batch <> ?').bind(batch).run();
   await audit(env, me, 'timesheets_commit', 'timesheets', String(next.dataVersion), { count: meta.count, version: meta.dataVersion }, { count: have, version: next.dataVersion });
   return json({ ok: true, version: next.dataVersion, count: have });
+}
+
+// Lưu CHÊNH LỆCH (thay cho ghi lại cả bảng — mỗi lần ghi lại cả bảng tốn ~4 lượt ghi D1 cho MỖI dòng):
+// đợt `batch` chỉ chứa các dòng mới / đã sửa; body.del = mã các dòng (_sid) của bản đang dùng cần xoá.
+// Một giao dịch: ghi meta có điều kiện (cas) + chuyển dòng mới sang đợt đang dùng + xoá dòng cũ + cập nhật số dòng;
+// mọi câu sau câu ghi meta đều kèm điều kiện "meta đúng là của lần lưu này" (nonce) → bị người khác lưu trước thì không đổi gì.
+// Dòng do duyệt bảng công đẩy sang (src khác rỗng) chỉ bị xoá khi lần lưu này có dòng mới cùng người + cùng ngày (như khi nạp cả bảng).
+const TS_DELTA_MAX_DEL = 20000;
+async function tsCommitDelta(env, me, body, batch, cas, meta) {
+  if (!meta.active) throw new HttpError(400, 'Máy chủ chưa có bảng công — lưu cả bảng');
+  const del = [...new Set((Array.isArray(body.del) ? body.del : []).map(x => parseInt(x, 10)).filter(x => x > 0))];
+  if (del.length > TS_DELTA_MAX_DEL) throw new HttpError(413, 'Quá nhiều dòng cần xoá — lưu cả bảng');
+  const st = await env.DB.prepare('SELECT COUNT(*) c, MIN(id) m FROM timesheets WHERE batch = ?').bind(batch).first();
+  if (st.c !== Number(body.count)) throw new HttpError(400, `Đợt tải lên chưa đủ dòng (có ${st.c}, cần ${Number(body.count)}) — thử lại`);
+  const minNew = st.m == null ? Number.MAX_SAFE_INTEGER : st.m;
+  const nonce = crypto.randomUUID();
+  const next = { ...meta, dataVersion: meta.dataVersion + 1, updatedAt: now(), updatedBy: me.name, nonce };
+  const guard = "EXISTS (SELECT 1 FROM kv_store WHERE key = ? AND json_extract(data, '$.nonce') = ?)";
+  const stmts = [
+    env.DB.prepare('UPDATE kv_store SET version = version + 1, data = ?, saved_at = ? WHERE key = ? AND version = ?').bind(JSON.stringify(next), now(), TS_KEY, cas),
+    env.DB.prepare(`UPDATE timesheets SET batch = ? WHERE batch = ? AND ${guard}`).bind(meta.active, batch, TS_KEY, nonce),
+  ];
+  for (const c of chunks(del, 90)) {
+    stmts.push(env.DB.prepare(`DELETE FROM timesheets WHERE batch = ? AND id IN (${c.map(() => '?').join(', ')})
+      AND (src = '' OR EXISTS (SELECT 1 FROM timesheets n WHERE n.batch = ? AND n.emp_id = timesheets.emp_id AND n.date = timesheets.date AND n.id >= ?)) AND ${guard}`)
+      .bind(meta.active, ...c, meta.active, minNew, TS_KEY, nonce));
+  }
+  stmts.push(env.DB.prepare(`UPDATE kv_store SET data = json_set(data, '$.count', (SELECT COUNT(*) FROM timesheets WHERE batch = ?)) WHERE key = ? AND json_extract(data, '$.nonce') = ?`)
+    .bind(meta.active, TS_KEY, nonce));
+  const res = await env.DB.batch(stmts);
+  if (!(res[0].meta && res[0].meta.changes === 1)) return json({ ok: false, conflict: true, version: meta.dataVersion, error: 'Có người vừa cập nhật bảng công — Đồng bộ lại trước khi lưu.' }, 409);
+  const removed = res.slice(2, -1).reduce((s, r) => s + ((r.meta && r.meta.changes) || 0), 0);
+  const { meta: after } = await tsMetaRow(env);
+  await audit(env, me, 'timesheets_commit', 'timesheets', String(after.dataVersion), { count: meta.count, version: meta.dataVersion },
+    { count: after.count, version: after.dataVersion, mode: 'delta', added: st.c, removed });
+  return json({ ok: true, version: after.dataVersion, count: after.count, added: st.c, removed });
 }
 
 // ---------- sửa / xoá từng dự án (tab Dự án, Swat Hour Target) ----------
@@ -942,14 +989,24 @@ async function pushApprovedRows(env, me, row, period) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const { cas, meta } = await tsMetaRow(env);
     const batch = meta.active || meta.next;
-    const del = await env.DB.prepare('DELETE FROM timesheets WHERE batch = ? AND emp_id = ? AND date >= ? AND date <= ?').bind(batch, emp, start, end).run();
-    const parts = chunks(rows, 14).map(c => env.DB.prepare(`INSERT INTO timesheets (batch, emp_id, date, wbs, data, src) VALUES ${c.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`)
-      .bind(...c.flatMap(r => [batch, emp, r.date, r.wbs, JSON.stringify(r), src])));
-    if (parts.length) await env.DB.batch(parts);
+    // chỉ xoá / thêm dòng KHÁC với dòng đang có của người này trong kỳ (duyệt lại bản giống hệt → không ghi gì)
+    const { results: cur } = await env.DB.prepare('SELECT id, data, src FROM timesheets WHERE batch = ? AND emp_id = ? AND date >= ? AND date <= ?').bind(batch, emp, start, end).all();
+    const pool = new Map();
+    for (const r of cur) { const k = r.src + '\u0001' + r.data; if (!pool.has(k)) pool.set(k, []); pool.get(k).push(r.id); }
+    const add = [];
+    for (const r of rows) { const k = src + '\u0001' + JSON.stringify(r), ids = pool.get(k); if (ids && ids.length) ids.pop(); else add.push(r); }
+    const drop = [...pool.values()].flat();
+    if (!add.length && !drop.length && meta.active === batch) return rows.length;
+    const parts = [
+      ...chunks(drop, 90).map(c => env.DB.prepare(`DELETE FROM timesheets WHERE batch = ? AND id IN (${c.map(() => '?').join(', ')})`).bind(batch, ...c)),
+      ...chunks(add, 14).map(c => env.DB.prepare(`INSERT INTO timesheets (batch, emp_id, date, wbs, data, src) VALUES ${c.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`)
+        .bind(...c.flatMap(r => [batch, emp, r.date, r.wbs, JSON.stringify(r), src]))),
+    ];
+    const res = await env.DB.batch(parts);
     // số dòng = số cũ − dòng vừa xoá + dòng vừa thêm (không COUNT(*) cả bảng: mỗi lần duyệt đọc hàng chục nghìn dòng, tốn hạn mức D1)
-    const removed = (del && del.meta && Number.isFinite(del.meta.changes)) ? del.meta.changes : null;
-    const count = removed != null && meta.active === batch && Number.isFinite(meta.count)
-      ? Math.max(0, meta.count - removed + rows.length)
+    const removed = res.slice(0, chunks(drop, 90).length).reduce((s, r) => s + ((r.meta && r.meta.changes) || 0), 0);
+    const count = meta.active === batch && Number.isFinite(meta.count)
+      ? Math.max(0, meta.count - removed + add.length)
       : (await env.DB.prepare('SELECT COUNT(*) c FROM timesheets WHERE batch = ?').bind(batch).first()).c;
     const next = { ...meta, active: batch, next: Math.max(meta.next, batch + 1), dataVersion: meta.dataVersion + 1, count, updatedAt: now(), updatedBy: 'Duyệt bảng công · ' + me.name };
     if (await tsMetaWrite(env, cas, next)) return rows.length;
@@ -1070,7 +1127,9 @@ async function handleApi(request, env, opts = {}) {
     if (path === '/api/demo/reset' && method === 'POST') {       // dựng lại dữ liệu mẫu (giữ nguyên vai trò đang thử)
       if (!demo) throw new HttpError(400, 'Chỉ dùng trong chế độ demo');
       const role = me.isAdmin ? 'admin' : me.roles.includes('pm') ? 'pm' : me.roles.includes('sitesup') ? 'sitesup' : 'staff';
-      return json({ ok: true, role, ...(await seedDemo(env.DB, { email }, role)) });
+      const r = await seedDemo(env.DB, { email }, role);
+      await env.DB.prepare("INSERT INTO kv_store (key, version, data, saved_at, saved_by) VALUES ('demo_seeded', 1, '', ?, '') ON CONFLICT(key) DO UPDATE SET saved_at = excluded.saved_at").bind(now()).run();
+      return json({ ok: true, role, ...r });
     }
 
     let m;
