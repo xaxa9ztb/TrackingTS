@@ -1323,12 +1323,12 @@ function computeBonusRows(){
 function renderBonus6(){
  const body=$('bonusBody'),foot=$('bonusFoot'),note=$('bonusNote');if(!body)return;
  const vi=LANG==='vi';
- if(!PEOPLE.length){body.innerHTML=`<tr><td colspan="6" style="color:var(--muted)">${vi?'Chọn công trình để xem dự kiến tiền thưởng theo người.':'Select a project to see per-person incentive.'}</td></tr>`;foot.innerHTML='';note.textContent='';return;}
+ if(!PEOPLE.length){body.innerHTML=`<tr><td colspan="6" style="color:var(--muted)">${vi?'Chọn công trình để xem dự kiến tiền thưởng theo người.':'Select a project to see per-person incentive.'}</td></tr>`;foot.innerHTML='';note.textContent='';note.style.display='none';return;}
  const B=computeBonusRows();
  const eh=t=>String(t==null?'':t).replace(/</g,'&lt;');
  body.innerHTML=B.rows.map(r=>`<tr><td>${eh(r.name)}</td><td>${eh(r.empId)}</td><td>${r.role}</td><td class="num">${fmt(r.hours)}</td><td class="num">${r.pct==null?'-':fmt(r.pct)+'%'}</td><td class="num">${money(r.bonus)}</td></tr>`).join('');
  foot.innerHTML=`<tr><td colspan="5">${vi?'Tổng cộng':'Total'} (${B.rows.length})</td><td class="num">${money(B.total)}</td></tr>`;
- note.textContent=vi?`Fitter: chia theo tỉ lệ giờ công / tổng giờ fitter (tổng ${money(B.fitterPool)}). Site-sup: ${money(B.supPool)}${B.supCount>1?' (chia đều '+B.supCount+' người)':''}. Số liệu tham khảo.`:`Fitters split by hours share (pool ${money(B.fitterPool)}). Site-sup: ${money(B.supPool)}. Reference only.`;
+ note.style.display='';note.textContent=vi?`Fitter: chia theo tỉ lệ giờ công / tổng giờ fitter (tổng ${money(B.fitterPool)}). Site-sup: ${money(B.supPool)}${B.supCount>1?' (chia đều '+B.supCount+' người)':''}. Số liệu tham khảo.`:`Fitters split by hours share (pool ${money(B.fitterPool)}). Site-sup: ${money(B.supPool)}. Reference only.`;
 }
 
 /* ================= EVENTS ================= */

@@ -279,6 +279,8 @@
     it.saved = p.swat.state || (proj && proj.swatState) || null;
     S.loadProjects([it]);
     S.selectProject(p.wbs);
+    // mục 6 "Dự kiến tiền thưởng theo người": danh sách người + giờ (không gồm 1194) từ /api/incentive/hours
+    if (S.setPeople) S.setPeople(((hoursBy.get(p.wbs) || {}).people || []).map(x => ({ empId: x.empId, name: x.name, hours: x.hours, role: x.role })));
     return S;
   }
   // lọc danh sách dự án ở bước 2/3: gõ tên hoặc WBS (không phân biệt dấu / hoa thường), tuỳ chọn chỉ hiện dự án chưa duyệt bước này
