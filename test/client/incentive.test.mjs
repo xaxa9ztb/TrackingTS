@@ -128,3 +128,23 @@ test('Site-sup đợt cuối: 30% final quá 60 ngày từ bàn giao khách hàn
   r = Inc.compute({ ...base, kind: 'first70' });
   assert.equal(supOf(r), 140);
 });
+
+test('Báo cáo tổng quan chi thưởng: ghi chú rõ dự án final quá 60 ngày / đợt 20% không chi thưởng giám sát', async (t) => {
+  let ExcelJS; try { ExcelJS = require('exceljs'); } catch (e) { return t.skip('chưa cài exceljs'); }
+  const X = require('../../tools/incentive/incexcel.js');
+  const mk = (wbs, kind, extra) => { const p = { wbs, name: 'DA ' + wbs, kind, fundF: 1000, fundS: 500, sup: { empId: 'S1', name: 'Ngô Trí Sửu' }, fitters: [{ empId: 'F1', name: 'Thợ', hours: 10 }], ...extra };
+    return { ...p, lines: Inc.compute(p).lines }; };
+  const projects = [mk('A', 'final30', { handoverDate: '2026-06-01', finalDate: '2026-09-15' }), mk('B', 'final30', { handoverDate: '2026-07-01', finalDate: '2026-08-10' }), mk('C', 'final20', {}), mk('D', 'first70', {})];
+  assert.match(X.supNote(Inc, projects[0]).text, /KHÔNG chi thưởng giám sát: final bàn giao sau 106 ngày.*quá 60 ngày/);
+  assert.equal(X.supNote(Inc, projects[1]).zero, undefined);
+  const wb = X.buildOverview(ExcelJS, { month: '2026-11', status: 'done', projects }, { Incentive: Inc, today: '2026-11-11' });
+  assert.deepEqual(wb.worksheets.map(w => w.name), ['Tổng quan', 'Theo người', 'Chi tiết']);
+  const ws = wb.getWorksheet('Tổng quan');
+  const texts = []; ws.eachRow(r => r.eachCell(c => { if (typeof c.value === 'string') texts.push(c.value); }));
+  const all = texts.join('\n');
+  assert.match(all, /QUÁ 60 NGÀY kể từ ngày bàn giao khách hàng thì KHÔNG chi thưởng cho giám sát/);
+  assert.match(all, /DỰ ÁN KHÔNG CHI THƯỞNG GIÁM SÁT TRONG ĐỢT NÀY \(2\)/);
+  assert.match(all, /1\. A — DA A \(giám sát: Ngô Trí Sửu\)/);
+  assert.match(all, /2\. C — DA C/);
+  assert.ok(!/\d\. B — DA B/.test(all), 'final trong 60 ngày không nằm trong danh sách');
+});

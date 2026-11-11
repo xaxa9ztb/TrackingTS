@@ -170,6 +170,144 @@
   }
 
   const fileName = (batch) => `List Fitter and Supervisor for Incentive - HN ${monthLabel(batch.month)}.xlsx`;
-  const api = { build, fileName, monthLabel };
+
+  // ===== Báo cáo tổng quan chi thưởng của đợt (Admin / kế toán đọc nhanh) =====
+  // Sheet "Tổng quan": số tổng + bảng theo dự án (quỹ, Fitter / Site-sup nhận, ngày bàn giao, GHI CHÚ vì sao Site-sup = 0)
+  //   + mục "Quy định" và danh sách dự án KHÔNG chi thưởng giám sát (final quá 60 ngày / đợt 20%) + chữ ký.
+  // Sheet "Theo người": tổng theo người (Site-sup, Fitter). Sheet "Chi tiết": từng dòng chia thưởng theo dự án.
+  const vnDate = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+  const KIND_VN = { first70: 'Đợt 1 – 70%', first100: 'Trả đủ 100%', final30: 'Đợt cuối 30% (đã final)', final20: 'Đợt cuối 20% (quá 6 tháng chưa final)' };
+  // ghi chú Site-sup của một dự án → { text, zero, warn }
+  function supNote(Inc, p) {
+    const rule = Inc.supRule(p);
+    const sup = (p.lines || []).find(l => l.role === 'sup');
+    const supAmt = sup ? Number(sup.amount) || 0 : 0;
+    if (rule.zero && p.kind === 'final30') return { zero: true, text: `KHÔNG chi thưởng giám sát: final bàn giao sau ${rule.days} ngày kể từ ngày bàn giao khách hàng (quá ${Inc.FINAL_LATE_DAYS} ngày)` + (supAmt ? ` — LƯU Ý: đang nhập tay ${supAmt.toLocaleString('vi-VN')} đ` : '') };
+    if (rule.zero) return { zero: true, text: 'KHÔNG chi thưởng giám sát: đợt cuối 20% — dự án firstpass quá 6 tháng chưa final bàn giao' + (supAmt ? ` — LƯU Ý: đang nhập tay ${supAmt.toLocaleString('vi-VN')} đ` : '') };
+    if (rule.need) return p.imported ? { zero: !supAmt, text: supAmt ? 'Theo file Excel (không có ngày bàn giao để kiểm tra điều kiện 60 ngày)' : 'Site-sup = 0 theo file Excel' }
+      : { warn: true, text: `LƯU Ý: chưa nhập ngày bàn giao khách hàng / ngày final — chưa kiểm tra điều kiện ${Inc.FINAL_LATE_DAYS} ngày` };
+    if (p.kind === 'final30' && rule.days != null) return { text: `Final sau ${rule.days} ngày (trong ${Inc.FINAL_LATE_DAYS} ngày) — giám sát nhận đủ` };
+    if (sup && sup.manual) return { text: 'Site-sup: số tiền nhập tay' };
+    return { text: '' };
+  }
+
+  function buildOverview(ExcelJS, batch, opts = {}) {
+    const Inc = opts.Incentive || root.Incentive;
+    const projects = batch.projects || [];
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Bộ công cụ dự án';
+    const thin = { style: 'thin', color: { argb: 'FFB0B0B0' } };
+    const border = { top: thin, left: thin, bottom: thin, right: thin };
+    const money = '#,##0';
+    const fill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+    const head = (row) => row.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = fill('FF1F4E79'); c.border = border; c.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' }; });
+    const sum = (f) => Math.round(projects.reduce((s, p) => s + (Number(f(p)) || 0), 0));
+    const amt = (p, role) => (p.lines || []).filter(l => l.role === role).reduce((s, l) => s + (Number(l.amount) || 0), 0);
+
+    // ---------- Sheet 1: Tổng quan ----------
+    const ws = wb.addWorksheet('Tổng quan', { views: [{ showGridLines: false }] });
+    const W = [5, 13, 38, 20, 14, 14, 14, 14, 15, 12, 12, 8, 60];
+    W.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+    ws.mergeCells('A1:M1');
+    ws.getCell('A1').value = `BÁO CÁO TỔNG QUAN CHI THƯỞNG SWAT — ĐỢT ${batch.month.slice(5, 7)}/${batch.month.slice(0, 4)}`;
+    ws.getCell('A1').font = { bold: true, size: 15, color: { argb: 'FF1F4E79' } };
+    ws.mergeCells('A2:M2');
+    ws.getCell('A2').value = [batch.title, batch.status === 'done' ? 'Đã chốt' : 'Bản nháp (chưa chốt)', batch.publishedAt ? 'Đã phát hành' : '', 'Xuất ngày ' + vnDate(opts.today || new Date().toISOString().slice(0, 10))].filter(Boolean).join(' · ');
+    ws.getCell('A2').font = { italic: true, color: { argb: 'FF595959' } };
+    const people = Inc.byPerson(projects).filter(x => x.amount);
+    const tf = sum(p => amt(p, 'fitter')), ts = sum(p => amt(p, 'sup'));
+    const zeroList = projects.map(p => ({ p, n: supNote(Inc, p) })).filter(x => x.n.zero && Inc.supRule(x.p).zero);
+    const kpi = [['Tổng chi đợt này (đ)', tf + ts], ['Fitter (đ)', tf], ['Site-sup (đ)', ts], ['Số dự án', projects.length],
+      ['Người nhận', `${people.filter(x => x.role === 'fitter').length} fitter · ${people.filter(x => x.role === 'sup').length} site-sup`], ['Dự án không chi giám sát', zeroList.length]];
+    let r = 4;
+    kpi.forEach(([l, v], i) => {
+      const col = 1 + (i % 3) * 4, row = r + Math.floor(i / 3) * 2;
+      ws.mergeCells(row, col, row, col + 2); ws.mergeCells(row + 1, col, row + 1, col + 2);
+      const a = ws.getCell(row, col), b = ws.getCell(row + 1, col);
+      a.value = l; a.font = { color: { argb: 'FF595959' } }; a.fill = fill('FFF2F6FB');
+      b.value = v; b.font = { bold: true, size: 13, color: { argb: i === 5 && v ? 'FFC00000' : 'FF000000' } }; b.fill = fill('FFF2F6FB');
+      if (typeof v === 'number' && i < 3) b.numFmt = money;
+      b.alignment = { horizontal: 'left' };
+    });
+    r = 9;
+    const H = ['STT', 'WBS', 'Dự án', 'Đợt trả', 'Quỹ Fitter', 'Quỹ Site-sup', 'Fitter nhận', 'Site-sup nhận', 'Tổng chi', 'Ngày BG khách hàng', 'Ngày final BG', 'Số ngày', 'Ghi chú'];
+    ws.getRow(r).values = H; head(ws.getRow(r)); ws.getRow(r).height = 32;
+    ws.views = [{ state: 'frozen', ySplit: r, showGridLines: false }];
+    const first = r + 1;
+    projects.forEach((p, i) => {
+      r++;
+      const n = supNote(Inc, p), rule = Inc.supRule(p);
+      const row = ws.getRow(r);
+      row.values = [i + 1, p.wbs, p.name || '', KIND_VN[p.kind] || p.kind, Number(p.fundF) || 0, Number(p.fundS) || 0, amt(p, 'fitter'), amt(p, 'sup'), amt(p, 'fitter') + amt(p, 'sup'),
+        vnDate(p.handoverDate), vnDate(p.finalDate), rule.days != null ? rule.days : '', n.text];
+      row.eachCell({ includeEmpty: true }, (c, col) => { if (col > 13) return; c.border = border; c.alignment = { vertical: 'top', wrapText: col === 3 || col === 4 || col === 13, horizontal: col >= 10 && col <= 12 ? 'center' : undefined }; if (col >= 5 && col <= 9) c.numFmt = money; });
+      if (n.zero && rule.zero) { row.eachCell({ includeEmpty: true }, (c, col) => { if (col <= 13) c.fill = fill('FFFDE9E7'); }); ws.getCell(r, 13).font = { bold: true, color: { argb: 'FFC00000' } }; ws.getCell(r, 8).font = { bold: true, color: { argb: 'FFC00000' } }; }
+      else if (n.warn) ws.getCell(r, 13).font = { color: { argb: 'FFB45F06' } };
+    });
+    r++;
+    const tot = ws.getRow(r);
+    tot.getCell(3).value = 'TỔNG CỘNG';
+    [5, 6, 7, 8, 9].forEach(c => { const L = String.fromCharCode(64 + c); tot.getCell(c).value = projects.length ? { formula: `SUM(${L}${first}:${L}${r - 1})`, result: [sum(p => p.fundF), sum(p => p.fundS), tf, ts, tf + ts][c - 5] } : 0; tot.getCell(c).numFmt = money; });
+    for (let c = 1; c <= 13; c++) { const x = tot.getCell(c); x.font = { bold: true }; x.fill = fill('FFDDEBF7'); x.border = border; }
+
+    // quy định + danh sách không chi giám sát
+    r += 2;
+    ws.mergeCells(r, 1, r, 13); ws.getCell(r, 1).value = 'QUY ĐỊNH CHI THƯỞNG GIÁM SÁT (SITE-SUP) Ở ĐỢT CUỐI'; ws.getCell(r, 1).font = { bold: true, color: { argb: 'FF1F4E79' } };
+    const rules = [
+      `1. Đợt cuối 30% (dự án đã final bàn giao): nếu ngày final bàn giao QUÁ ${Inc.FINAL_LATE_DAYS} NGÀY kể từ ngày bàn giao khách hàng thì KHÔNG chi thưởng cho giám sát (Site-sup = 0). Fitter vẫn nhận theo tỉ lệ giờ công.`,
+      '2. Đợt cuối 20% (dự án firstpass quá 6 tháng chưa final bàn giao): KHÔNG chi thưởng cho giám sát (Site-sup = 0). Fitter nhận 90% quỹ final.',
+      '3. Dòng tô đỏ trong bảng trên là dự án KHÔNG chi thưởng giám sát ở đợt này; lý do ghi ở cột "Ghi chú".'];
+    rules.forEach(t => { r++; ws.mergeCells(r, 1, r, 13); ws.getCell(r, 1).value = t; ws.getCell(r, 1).alignment = { wrapText: true, vertical: 'top' }; ws.getRow(r).height = 30; });
+    r += 2;
+    ws.mergeCells(r, 1, r, 13);
+    ws.getCell(r, 1).value = zeroList.length ? `DỰ ÁN KHÔNG CHI THƯỞNG GIÁM SÁT TRONG ĐỢT NÀY (${zeroList.length})` : 'Đợt này không có dự án nào bị trừ thưởng giám sát.';
+    ws.getCell(r, 1).font = { bold: true, color: { argb: zeroList.length ? 'FFC00000' : 'FF375623' } };
+    zeroList.forEach(({ p, n }, i) => {
+      r++;
+      const sup = (p.sup && p.sup.name) || ((p.lines || []).find(l => l.role === 'sup') || {}).name || '';
+      ws.mergeCells(r, 1, r, 13);
+      ws.getCell(r, 1).value = `${i + 1}. ${p.wbs} — ${p.name || ''}${sup ? ` (giám sát: ${sup})` : ''}: ${n.text}` + (p.handoverDate || p.finalDate ? ` [BG khách hàng ${vnDate(p.handoverDate) || '?'} → final ${vnDate(p.finalDate) || '?'}]` : '');
+      ws.getCell(r, 1).alignment = { wrapText: true, vertical: 'top' }; ws.getRow(r).height = 30;
+    });
+    // ký tên
+    r += 3;
+    const sg = batch.signers || {};
+    [[2, 'Prepared - NID', sg.prepared], [4, 'Agreed - HAN Director', sg.director], [7, 'Agreed - NID', sg.nid1], [9, 'Agreed - NID', sg.nid2], [13, 'Verified - FIN', sg.fin]].forEach(([c, l, n]) => {
+      ws.getCell(r, c).value = l; ws.getCell(r, c).font = { bold: true };
+      if (n) ws.getCell(r + 5, c).value = n;
+    });
+    ws.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 } };
+
+    // ---------- Sheet 2: Theo người ----------
+    const wp = wb.addWorksheet('Theo người', { views: [{ state: 'frozen', ySplit: 1 }] });
+    [12, 32, 12, 10, 16].forEach((w, i) => { wp.getColumn(i + 1).width = w; });
+    wp.getRow(1).values = ['Vai trò', 'Họ tên', 'Mã NV', 'Số dự án', 'Tiền thưởng (đ)']; head(wp.getRow(1));
+    let pr = 1;
+    ['sup', 'fitter'].forEach(role => {
+      const g = people.filter(x => x.role === role).sort((a, b) => b.amount - a.amount);
+      g.forEach(x => { pr++; wp.getRow(pr).values = [role === 'sup' ? 'Site-sup' : 'Fitter', x.name, x.empId || '—', x.projects, x.amount]; });
+      pr++; const t = wp.getRow(pr);
+      t.values = ['', `Cộng ${role === 'sup' ? 'Site-sup' : 'Fitter'} (${g.length} người)`, '', '', Math.round(g.reduce((s, x) => s + x.amount, 0))];
+      t.eachCell(c => { c.font = { bold: true }; c.fill = fill('FFDDEBF7'); });
+    });
+    pr++; wp.getRow(pr).values = ['', 'TỔNG CỘNG', '', '', tf + ts]; wp.getRow(pr).font = { bold: true };
+    wp.eachRow((row, i) => { if (i > 1) row.eachCell({ includeEmpty: true }, (c, col) => { if (col <= 5) { c.border = border; if (col === 5) c.numFmt = money; } }); });
+
+    // ---------- Sheet 3: Chi tiết ----------
+    const wd = wb.addWorksheet('Chi tiết', { views: [{ state: 'frozen', ySplit: 1 }] });
+    [12, 36, 16, 10, 30, 12, 10, 10, 16].forEach((w, i) => { wd.getColumn(i + 1).width = w; });
+    wd.getRow(1).values = ['WBS', 'Dự án', 'Đợt trả', 'Vai trò', 'Họ tên', 'Mã NV', 'Giờ công', '% giờ', 'Tiền thưởng (đ)']; head(wd.getRow(1));
+    let dr = 1;
+    projects.forEach(p => (p.lines || []).forEach(l => {
+      dr++;
+      wd.getRow(dr).values = [p.wbs, p.name || '', KIND_VN[p.kind] || p.kind, l.role === 'sup' ? 'Site-sup' : 'Fitter', l.name || '', l.empId || '—', l.hours == null ? '' : Number(l.hours),
+        l.pct == null ? '' : Number(l.pct), Number(l.amount) || 0];
+      wd.getRow(dr).eachCell({ includeEmpty: true }, (c, col) => { if (col <= 9) c.border = border; if (col === 9) c.numFmt = money; if (col === 8) c.numFmt = '0.0%'; });
+      if (l.role === 'sup' && Inc.supRule(p).zero) wd.getRow(dr).eachCell({ includeEmpty: true }, (c, col) => { if (col <= 9) c.fill = fill('FFFDE9E7'); });
+    }));
+    return wb;
+  }
+  const overviewName = (batch) => `Bao cao tong quan chi thuong SWAT - ${batch.month.slice(5, 7)}-${batch.month.slice(0, 4)}.xlsx`;
+  const api = { build, fileName, monthLabel, buildOverview, overviewName, supNote };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.IncExcel = api;
 })(typeof window !== 'undefined' ? window : globalThis);

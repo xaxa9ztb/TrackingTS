@@ -541,6 +541,17 @@
       $('xMsg').textContent = '✓ Đã tải file List Fitter and Supervisor.';
     } catch (e) { $('xMsg').textContent = '✗ ' + e.message; }
   }
+  async function exportOverview() {
+    $('xMsg').textContent = 'Đang tạo báo cáo tổng quan…';
+    try {
+      await waitFor(() => window.ExcelJS);
+      items().forEach(recompute);
+      const wb = IncExcel.buildOverview(window.ExcelJS, { month: cur.month, title: cur.title, status: cur.status, publishedAt: cur.publishedAt, projects: items(), signers: cur.data.signers || {} });
+      const buf = await wb.xlsx.writeBuffer();
+      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), IncExcel.overviewName(cur));
+      $('xMsg').textContent = '✓ Đã tải báo cáo tổng quan chi thưởng.';
+    } catch (e) { $('xMsg').textContent = '✗ ' + e.message; }
+  }
   let sheetJs = null;
   const loadSheetJs = () => sheetJs || (sheetJs = new Promise((res, rej) => { if (window.XLSX) return res(window.XLSX); const s = document.createElement('script'); s.src = '../../js/xlsx.full.min.js?v=36'; s.onload = () => res(window.XLSX); s.onerror = () => rej(new Error('Không tải được thư viện Excel')); document.head.appendChild(s); }));
   // Standard Hour / Scorecard: mỗi dự án 1 sheet, ĐÚNG FORM của công cụ SWAT (màu, viền, ô gộp, độ rộng cột — cùng bộ chuyển js/htmlxlsx.js)
@@ -768,6 +779,7 @@
       finally { $('pubGo').disabled = false; }
     };
     $('xList').onclick = exportList;
+    $('xOverview').onclick = exportOverview;
     $('xStd').onclick = () => exportSwat('std');
     $('xSc').onclick = () => exportSwat('sc');
     $('edDone').onclick = async () => {
