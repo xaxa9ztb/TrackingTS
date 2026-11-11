@@ -9,6 +9,7 @@
 //   POST   /api/incentive/import                     ghi đè các đợt từ file Excel kế toán đã sửa {scheme, sheets:[{month, title, projects}]}
 //   POST   /api/incentive/batches/:id/publish        phát hành đợt đã chốt {sendMail} → email chi tiết cho từng người được chia
 //   POST   /api/incentive/rename-wbs                 đổi mã WBS (và tên) của một dự án ở MỌI đợt {scheme, from, to, name?, dryRun?}
+//   POST   /api/incentive/fix-names                  gắn Mã NV cho các dòng chỉ có tên (vd. "SUU TRI NGO" từ Excel cũ) ở MỌI đợt {scheme, dryRun?}
 //   GET    /api/incentive/mine                       (mọi nhân viên) thưởng CỦA MÌNH ở các đợt đã phát hành
 //   GET    /api/incentive/mine/:batchId/:wbs         (mọi nhân viên) chi tiết một dự án: báo cáo SWAT + dòng của mình
 import Inc from '../tools/incentive/incentive.js';
@@ -50,6 +51,29 @@ function cleanData(h, data) {
   const text = JSON.stringify(out);
   if (text.length > MAX_DATA) throw new h.HttpError(413, 'Dữ liệu đợt thưởng quá lớn');
   return { data: out, text, total: Math.round(projects.reduce((s, p) => s + p.lines.reduce((a, l) => a + l.amount, 0), 0) * 100) / 100 };
+}
+
+// ---- khớp tên → nhân viên: bỏ dấu, không phân biệt hoa thường, không theo thứ tự từ ("SUU TRI NGO" = "Ngô Trí Sửu") ----
+export const nameKey = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd')
+  .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean).sort().join(' ');
+async function empMatcher(env) {
+  const { results } = await env.DB.prepare('SELECT emp_id, full_name FROM employees').all();
+  const by = new Map();
+  for (const e of results) { const k = nameKey(e.full_name); if (!k) continue; if (!by.has(k)) by.set(k, []); by.get(k).push(e); }
+  return (name) => { const l = by.get(nameKey(name)); return l && l.length === 1 ? l[0] : null; };   // trùng tên → không tự gắn
+}
+// gắn empId + tên tiếng Việt cho các dòng / người chưa có Mã NV (lines, sup, fitters). Trả số dòng đã gắn + tên không khớp được
+function attachIds(projects, match) {
+  let n = 0; const fixed = new Map(), miss = new Set();
+  const fix = (o) => {
+    if (!o || o.empId || !String(o.name || '').trim()) return;
+    const e = match(o.name);
+    if (!e) { miss.add(String(o.name).trim()); return; }
+    fixed.set(String(o.name).trim(), { empId: e.emp_id, name: e.full_name });
+    o.empId = e.emp_id; o.name = e.full_name; n++;
+  };
+  for (const p of projects || []) { (p.lines || []).forEach(fix); fix(p.sup); (p.fitters || []).forEach(fix); }
+  return { n, fixed, miss };
 }
 
 function lineStmts(env, id, projects) {
@@ -100,6 +124,7 @@ async function putBatch(h, env, me, id, request) {
   const row = await env.DB.prepare('SELECT * FROM inc_batches WHERE id = ?').bind(id).first();
   if (!row) throw new h.HttpError(404, 'Không có đợt thưởng này');
   if (Number(body.version) !== row.version) throw new h.HttpError(409, 'Đợt thưởng vừa được sửa ở nơi khác — tải lại trang để xem bản mới', { version: row.version });
+  if (body.data && Array.isArray(body.data.projects)) attachIds(body.data.projects, await empMatcher(env));   // dòng chỉ có tên → gắn Mã NV nếu khớp đúng 1 nhân viên
   const { data, text, total } = cleanData(h, body.data);
   const status = body.status === 'done' ? 'done' : body.status === 'draft' ? 'draft' : row.status;
   const title = body.title == null ? row.title : h.str(body.title, 200);
@@ -178,6 +203,7 @@ async function importSheets(h, env, me, request) {
   if (sheets.length > 40) throw new h.HttpError(400, 'Tối đa 40 đợt mỗi lần nhập');
   const months = new Set();
   const out = [];
+  const match = await empMatcher(env);
   for (const s of sheets) {
     const month = String(s && s.month || '');
     if (!MONTH_RE.test(month)) throw new h.HttpError(400, 'Có sheet không xác định được tháng');
@@ -192,6 +218,7 @@ async function importSheets(h, env, me, request) {
         stops: p.stops || prev.stops || null, product: p.product || prev.product || '', kind: p.kind, rate: p.rate == null ? null : p.rate, note: p.note || '',
         lines: p.lines, imported: true };
     });
+    attachIds(projects, match);
     const { data, text, total } = cleanData(h, { ...old, projects, importedAt: h.now(), importedFrom: h.str(s.sheet, 60) });
     const t = h.now();
     let id;
@@ -333,6 +360,34 @@ async function renameWbs(h, env, me, request) {
   return h.json({ ok: true, ...summary });
 }
 
+// Gộp tên: các dòng chỉ có tên (không Mã NV) ở mọi đợt → gắn Mã NV + tên tiếng Việt của nhân viên khớp tên (bỏ dấu, đổi thứ tự từ),
+// dựng lại inc_lines (báo cáo theo người, "Thưởng của tôi" đọc theo Mã NV). dryRun → chỉ báo sẽ gộp gì.
+async function fixNames(h, env, me, request) {
+  needAdmin(h, me);
+  const body = await h.readJson(request);
+  const scheme = schemeOf(h, body.scheme);
+  const match = await empMatcher(env);
+  const { results } = await env.DB.prepare('SELECT id, month, version, data FROM inc_batches WHERE scheme = ? ORDER BY month').bind(scheme).all();
+  const pairs = new Map(), miss = new Set(), hits = [];
+  for (const r of results) {
+    const data = parse(r.data, { projects: [] });
+    const a = attachIds(data.projects, match);
+    a.miss.forEach(x => miss.add(x));
+    a.fixed.forEach((v, k) => { const o = pairs.get(k) || { from: k, empId: v.empId, name: v.name, months: [] }; if (!o.months.includes(r.month)) o.months.push(r.month); pairs.set(k, o); });
+    if (a.n) hits.push({ r, data, n: a.n });
+  }
+  const summary = { batches: hits.length, lines: hits.reduce((s, x) => s + x.n, 0), pairs: [...pairs.values()], unmatched: [...miss].sort() };
+  if (body.dryRun) return h.json({ ok: true, dryRun: true, ...summary });
+  const t = h.now(), by = me.name || me.email;
+  for (const x of hits) {
+    const upd = env.DB.prepare('UPDATE inc_batches SET data = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?').bind(JSON.stringify(x.data), t, by, x.r.id, x.r.version);
+    const res = await env.DB.batch([upd, ...lineStmts(env, x.r.id, x.data.projects)]);
+    if (!(res[0].meta && res[0].meta.changes === 1)) throw new h.HttpError(409, `Đợt ${x.r.month} vừa được sửa ở nơi khác — tải lại rồi làm lại`);
+  }
+  await h.audit(env, me, 'inc_fix_names', 'inc_batch', scheme, null, { lines: summary.lines, pairs: summary.pairs.map(p => `${p.from} → ${p.name} (${p.empId})`) });
+  return h.json({ ok: true, ...summary });
+}
+
 export async function routeIncentive(h, env, me, path, method, url, request) {
   let m;
   if (path === '/api/incentive/mine' && method === 'GET') return mine(h, env, me);
@@ -350,5 +405,6 @@ export async function routeIncentive(h, env, me, path, method, url, request) {
   if (path === '/api/incentive/hours' && method === 'GET') return hours(h, env, me, url);
   if (path === '/api/incentive/import' && method === 'POST') return importSheets(h, env, me, request);
   if (path === '/api/incentive/rename-wbs' && method === 'POST') return renameWbs(h, env, me, request);
+  if (path === '/api/incentive/fix-names' && method === 'POST') return fixNames(h, env, me, request);
   return null;
 }

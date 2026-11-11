@@ -643,6 +643,21 @@
         rnReset(); await loadRefs(); await loadList();
       } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
     };
+    // gộp tên: dòng chỉ có tên (không Mã NV, vd. "SUU TRI NGO") → nhân viên khớp tên (bỏ dấu, đổi thứ tự từ) ở mọi đợt
+    $('btnFixNames').onclick = async () => {
+      const btn = $('btnFixNames'); btn.disabled = true;
+      try {
+        const r = await api('POST', '/api/incentive/fix-names', { scheme: SCHEME, dryRun: true });
+        const miss = r.unmatched.length ? `\n\nKhông khớp được nhân viên nào (hoặc trùng tên) — sửa tay ở bước 4 của đợt: ${r.unmatched.join(', ')}` : '';
+        if (!r.lines) { alert('Không có dòng nào cần gộp: mọi người đã có Mã NV.' + miss); return; }
+        const list = r.pairs.map(p => `• ${p.from} → ${p.name} (${p.empId}) — ${p.months.map(ml).join(', ')}`).join('\n');
+        if (!confirm(`Gộp ${r.lines} dòng ở ${r.batches} đợt:\n\n${list}${miss}\n\nBáo cáo theo người và trang "Thưởng của tôi" sẽ tính chung cho nhân viên đó. Tiếp tục?`)) return;
+        const d = await api('POST', '/api/incentive/fix-names', { scheme: SCHEME });
+        alert(`✓ Đã gộp ${d.lines} dòng ở ${d.batches} đợt.`);
+        await loadRefs(); await loadList();
+      } catch (e) { alert('✗ ' + e.message); }
+      finally { btn.disabled = false; }
+    };
     $('btnPubAll').onclick = async () => {
       const list = batches.filter(b => b.status === 'done' && !b.publishedAt).sort((a, b) => a.month.localeCompare(b.month));
       if (!list.length) return;
