@@ -2166,3 +2166,30 @@ test('Incentive: giờ công tính thưởng SWAT không gồm mã 1194 (NI Qual
   assert.deepEqual([p.total, p.excluded1194], [16, 12]);
   assert.deepEqual(p.people.map(x => [x.empId, x.hours]).sort(), [['TS1', 8], ['TS2', 8]]);
 });
+
+test('Incentive: gộp tên không dấu / đảo thứ tự ("SUU TRI NGO") vào nhân viên có Mã NV — tự gắn khi lưu + nút gộp các đợt cũ', async () => {
+  const A = 'boss@example.com';
+  await call('POST', '/api/admin/import', { email: A, body: { employees: [{ empId: 'NS1', fullName: 'Ngô Trí Sửu', position: 'Site Supervisor' }, { empId: 'NT1', fullName: 'Lê Văn Trùng', position: 'Fitter' }, { empId: 'NT2', fullName: 'Lê Văn Trùng', position: 'Fitter' }] } });
+  const r = await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2033-02' } });
+  const id = r.data.id;
+  // dữ liệu cũ (nhập Excel trước đây) nằm thẳng trong DB, chưa có Mã NV
+  const data = { projects: [{ wbs: 'NM-1', name: 'Dự án', kind: 'first70', lines: [
+    { role: 'sup', empId: '', name: 'SUU TRI NGO', amount: 100 }, { role: 'fitter', empId: '', name: 'LE VAN TRUNG', amount: 50 }, { role: 'fitter', empId: '', name: 'Ai Đó Lạ', amount: 10 }] }] };
+  await env.DB.prepare("UPDATE inc_batches SET data = ?, status = 'done' WHERE id = ?").bind(JSON.stringify(data), id).run();
+  assert.equal((await call('POST', '/api/incentive/fix-names', { email: 'ap1@example.com', body: { scheme: 'swat' } })).status, 403);
+  const pre = (await call('POST', '/api/incentive/fix-names', { email: A, body: { scheme: 'swat', dryRun: true } })).data;
+  assert.deepEqual(pre.pairs.filter(p => p.months.includes('2033-02')).map(p => [p.from, p.empId, p.name]), [['SUU TRI NGO', 'NS1', 'Ngô Trí Sửu']]);
+  assert.ok(pre.unmatched.includes('LE VAN TRUNG') && pre.unmatched.includes('Ai Đó Lạ'), 'trùng tên / không có → không tự gắn');
+  const done = await call('POST', '/api/incentive/fix-names', { email: A, body: { scheme: 'swat' } });
+  assert.equal(done.status, 200, JSON.stringify(done.data));
+  const b = (await call('GET', `/api/incentive/batches/${id}`, { email: A })).data;
+  assert.deepEqual(b.data.projects[0].lines.map(l => [l.empId, l.name]), [['NS1', 'Ngô Trí Sửu'], ['', 'LE VAN TRUNG'], ['', 'Ai Đó Lạ']]);
+  const h = (await call('GET', '/api/incentive/history?scheme=swat', { email: A })).data.items.find(x => x.month === '2033-02');
+  assert.ok(h.lines.some(l => l.empId === 'NS1' && l.name === 'Ngô Trí Sửu'));
+  // lưu đợt (bước 4) với tên không dấu → máy chủ tự gắn Mã NV
+  const put = await call('PUT', `/api/incentive/batches/${id}`, { email: A, body: { version: b.version, data: { projects: [{ wbs: 'NM-1', name: 'Dự án', kind: 'first70', sup: { empId: '', name: 'ngo tri suu' },
+    lines: [{ role: 'sup', empId: '', name: 'ngo tri suu', amount: 100 }] }] } } });
+  assert.equal(put.status, 200, JSON.stringify(put.data));
+  const p2 = (await call('GET', `/api/incentive/batches/${id}`, { email: A })).data.data.projects[0];
+  assert.deepEqual([p2.lines[0].empId, p2.lines[0].name, p2.sup.empId, p2.sup.name], ['NS1', 'Ngô Trí Sửu', 'NS1', 'Ngô Trí Sửu']);
+});

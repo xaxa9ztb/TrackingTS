@@ -514,6 +514,7 @@
       || '<tr><td colspan="4" class="ac-note">—</td></tr>';
     $('tSumSup').tBodies[0].innerHTML = pr('sup');
     $('tSumFit').tBodies[0].innerHTML = pr('fitter');
+    renderAnalysis();
     const sg = cur.data.signers || {};
     document.querySelectorAll('[data-sg]').forEach(i => { i.value = sg[i.dataset.sg] || ''; i.disabled = readOnly(); });
     const ro = readOnly();
@@ -525,6 +526,69 @@
     if (noId.length && !cur.publishedAt) $('pubNote').innerHTML += ` <span style="color:var(--red)">Thiếu Mã NV (không nhận được email / không xem được): ${noId.map(esc).join(', ')} — sửa ở bước 4.</span>`;
     const notOk = list.filter(p => !p.imported && !(p.swat.stdOk && p.swat.scOk));
     $('doneNote').textContent = ro ? 'Đợt đã chốt — được tính vào lịch sử "đã trả" của các dự án.' : (notOk.length ? `Còn ${notOk.length} dự án chưa duyệt đủ Standard Hour + Scorecard.` : 'Kiểm tra xong → Chốt đợt: dự án được ghi nhận đã trả đợt này.');
+  }
+
+  // ----- SWAT Analysis (bước 5): Admin nhập YANSPN cost (cột J), phần còn lại lấy từ dự án / Scorecard -----
+  const anCfg = () => SwatAnalysis.cfgOf(cur.data.analysisCfg);
+  function anCtx() {
+    return {
+      project: (w) => { const pr = projects.get(w); if (!pr) return {}; const t = SwatItem.toToolItem(pr, 0); return { projectNumber: pr.projectNumber, productLine: pr.productLine, projectName: pr.projectName, stops: t.stops }; },
+      pmName: (w) => { const pr = projects.get(w); const ids = (pr && pr.staff && pr.staff.pm) || []; return ids.map(id => (empById.get(String(id)) || {}).name || id).join(', '); },
+      paidBefore: (w) => histOf(w).reduce((s, h) => s + (h.lines || []).reduce((a, l) => a + (Number(l.amount) || 0), 0), 0),
+    };
+  }
+  const anRows = () => SwatAnalysis.rows({ projects: items() }, anCtx());
+  function renderAnalysis() {
+    const c = anCfg();
+    $('anBranch').value = c.branch; $('anOffset').value = money(c.offset); $('anAdjust').value = c.adjust; $('anRate').value = money(c.rate2025);
+    const m = (v) => (v == null ? '—' : `<span class="${v < 0 ? 'neg' : ''}">${money(Math.round(v))}</span>`);
+    const pc = (v) => (v == null ? '—' : Math.round(v * 100) + '%');
+    $('tAna').tBodies[0].innerHTML = anRows().map((r, i) => { const x = SwatAnalysis.calc(r, c); return `<tr data-i="${i}">
+      <td><b>${esc(r.name)}</b> <span class="mono ac-note">${esc(r.wbs)}</span></td><td>${esc(r.pm || '—')}</td><td>${esc(r.product || '—')}</td><td class="r">${r.units}</td><td class="r">${r.stops == null ? '—' : r.stops}</td>
+      <td class="r"><input data-an="yanspn" inputmode="numeric" value="${r.yanspn == null ? '' : money(r.yanspn)}" placeholder="nhập" aria-label="YANSPN cost ${esc(r.wbs)}"></td>
+      <td class="r">${m(x.K)}</td><td class="r">${m(x.M)}</td><td class="r">${m(x.N)}</td><td class="r">${m(x.V)}</td><td class="r"><b>${m(x.W)}</b></td><td class="r">${pc(x.Y)}</td><td class="r">${m(x.AC)}</td>
+      <td class="r">${r.paidBefore ? m(r.paidBefore) : '—'}</td><td class="r">${m(r.paidNow)}</td><td class="r">${r.fitterHours == null ? '—' : fmt1(r.fitterHours)}</td></tr>`; }).join('')
+      || '<tr><td colspan="16" class="ac-note">Chưa có dự án.</td></tr>';
+  }
+  const parseNum = (s) => { const t = String(s || '').replace(/[^\d,.-]/g, ''); if (!t) return null; const n = Number(/,\d{1,2}$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(/[.,]/g, '')); return isFinite(n) ? n : null; };
+  let anTimer = null;
+  function saveAnalysis() {
+    // đợt đã chốt vẫn lưu được (chỉ dữ liệu phân tích, không đổi tiền) → gửi thẳng, giữ nguyên trạng thái
+    if (!readOnly()) { changed(); return; }
+    clearTimeout(anTimer);
+    anTimer = setTimeout(async () => {
+      $('anMsg').textContent = 'Đang lưu…';
+      try { const r = await api('PUT', '/api/incentive/batches/' + cur.id, { version: cur.version, data: cur.data }); cur.version = r.version; $('anMsg').textContent = '✓ Đã lưu'; }
+      catch (e) { $('anMsg').textContent = '✗ ' + e.message; }
+    }, 800);
+  }
+  function onAnalysisInput(ev) {
+    const t = ev.target;
+    if (t.dataset.an === 'yanspn') {
+      const p = items()[+t.closest('tr').dataset.i]; if (!p) return;
+      p.analysis = { ...(p.analysis || {}), yanspn: parseNum(t.value) };
+    } else if (t.id && t.id.startsWith('an')) {
+      const c = { ...(cur.data.analysisCfg || {}) };
+      if (t.id === 'anBranch') c.branch = t.value.trim() || SwatAnalysis.DEFAULTS.branch;
+      if (t.id === 'anOffset') c.offset = parseNum(t.value) || SwatAnalysis.DEFAULTS.offset;
+      if (t.id === 'anAdjust') { const v = Number(String(t.value).replace(',', '.')); c.adjust = v > 0 ? v : SwatAnalysis.DEFAULTS.adjust; }
+      if (t.id === 'anRate') c.rate2025 = parseNum(t.value) || SwatAnalysis.DEFAULTS.rate2025;
+      cur.data.analysisCfg = c;
+    } else return;
+    renderAnalysis(); saveAnalysis();
+  }
+  async function exportAnalysis() {
+    $('xMsg').textContent = 'Đang tạo SWAT Analysis…';
+    try {
+      await waitFor(() => window.ExcelJS);
+      items().forEach(recompute);
+      const list = anRows();
+      const wb = SwatAnalysis.build(window.ExcelJS, { month: cur.month }, list, anCfg());
+      const buf = await wb.xlsx.writeBuffer();
+      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), SwatAnalysis.fileName(cur.month));
+      const miss = list.filter(r => r.yanspn == null).length;
+      $('xMsg').textContent = '✓ Đã tải SWAT Analysis.' + (miss ? ` Còn ${miss} dự án chưa nhập YANSPN cost (cột J tô cam).` : '');
+    } catch (e) { $('xMsg').textContent = '✗ ' + e.message; }
   }
 
   // ---------- xuất file ----------
@@ -539,6 +603,17 @@
       const buf = await wb.xlsx.writeBuffer();
       download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), IncExcel.fileName(cur));
       $('xMsg').textContent = '✓ Đã tải file List Fitter and Supervisor.';
+    } catch (e) { $('xMsg').textContent = '✗ ' + e.message; }
+  }
+  async function exportOverview() {
+    $('xMsg').textContent = 'Đang tạo báo cáo tổng quan…';
+    try {
+      await waitFor(() => window.ExcelJS);
+      items().forEach(recompute);
+      const wb = IncExcel.buildOverview(window.ExcelJS, { month: cur.month, title: cur.title, status: cur.status, publishedAt: cur.publishedAt, projects: items(), signers: cur.data.signers || {} });
+      const buf = await wb.xlsx.writeBuffer();
+      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), IncExcel.overviewName(cur));
+      $('xMsg').textContent = '✓ Đã tải báo cáo tổng quan chi thưởng.';
     } catch (e) { $('xMsg').textContent = '✗ ' + e.message; }
   }
   let sheetJs = null;
@@ -642,6 +717,21 @@
         msg.className = 'ac-note'; msg.textContent = `✓ Đã đổi ở ${r.batches.length} đợt.`;
         rnReset(); await loadRefs(); await loadList();
       } catch (e) { msg.className = 'ac-note err'; msg.textContent = '✗ ' + e.message; }
+    };
+    // gộp tên: dòng chỉ có tên (không Mã NV, vd. "SUU TRI NGO") → nhân viên khớp tên (bỏ dấu, đổi thứ tự từ) ở mọi đợt
+    $('btnFixNames').onclick = async () => {
+      const btn = $('btnFixNames'); btn.disabled = true;
+      try {
+        const r = await api('POST', '/api/incentive/fix-names', { scheme: SCHEME, dryRun: true });
+        const miss = r.unmatched.length ? `\n\nKhông khớp được nhân viên nào (hoặc trùng tên) — sửa tay ở bước 4 của đợt: ${r.unmatched.join(', ')}` : '';
+        if (!r.lines) { alert('Không có dòng nào cần gộp: mọi người đã có Mã NV.' + miss); return; }
+        const list = r.pairs.map(p => `• ${p.from} → ${p.name} (${p.empId}) — ${p.months.map(ml).join(', ')}`).join('\n');
+        if (!confirm(`Gộp ${r.lines} dòng ở ${r.batches} đợt:\n\n${list}${miss}\n\nBáo cáo theo người và trang "Thưởng của tôi" sẽ tính chung cho nhân viên đó. Tiếp tục?`)) return;
+        const d = await api('POST', '/api/incentive/fix-names', { scheme: SCHEME });
+        alert(`✓ Đã gộp ${d.lines} dòng ở ${d.batches} đợt.`);
+        await loadRefs(); await loadList();
+      } catch (e) { alert('✗ ' + e.message); }
+      finally { btn.disabled = false; }
     };
     $('btnPubAll').onclick = async () => {
       const list = batches.filter(b => b.status === 'done' && !b.publishedAt).sort((a, b) => a.month.localeCompare(b.month));
@@ -753,6 +843,10 @@
       finally { $('pubGo').disabled = false; }
     };
     $('xList').onclick = exportList;
+    $('xOverview').onclick = exportOverview;
+    $('xAna').onclick = exportAnalysis;
+    $('tAna').addEventListener('change', onAnalysisInput);
+    ['anBranch', 'anOffset', 'anAdjust', 'anRate'].forEach(id => $(id).addEventListener('change', onAnalysisInput));
     $('xStd').onclick = () => exportSwat('std');
     $('xSc').onclick = () => exportSwat('sc');
     $('edDone').onclick = async () => {

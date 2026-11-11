@@ -10,16 +10,17 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
 <link rel="stylesheet" href="../accounts/style.css?v=8">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 <script src="../../js/demo.js?v=3"></script>
 <script src="../../js/session.js?v=49"></script>
 <script>Session.guard('incentive');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
 <script src="../../js/swatitem.js?v=3"></script>
 <script src="incentive.js?v=2"></script>
-<script src="incexcel.js?v=2"></script>
+<script src="incexcel.js?v=3"></script>
+<script src="analysis.js?v=1"></script>
 <script src="../../js/htmlxlsx.js?v=1"></script>
-<script src="app.js?v=10" defer></script>
+<script src="app.js?v=13" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="incentive" data-tool="Incentive — Thưởng lắp đặt" data-help="huong-dan.html#incentive"></script>
@@ -51,6 +52,7 @@
       <span class="in-acts">
         <button class="btn small" type="button" id="btnPubAll" hidden title="Cho người được chia thưởng xem các đợt đã chốt trong trang Thưởng của tôi">📣 Phát hành các đợt đã chốt</button>
         <button class="btn small" type="button" id="btnRename" aria-expanded="false" aria-controls="renameForm" title="Sửa mã WBS bị nhầm (vd. từ file Excel cũ) ở mọi đợt cùng lúc">✎ Đổi mã WBS</button>
+        <button class="btn small" type="button" id="btnFixNames" title="Dòng chỉ có tên (vd. &quot;SUU TRI NGO&quot; từ Excel cũ) → gắn Mã NV + tên tiếng Việt của nhân viên khớp tên, ở mọi đợt">👤 Gộp tên nhân viên</button>
         <button class="btn small" type="button" id="btnImport">⬆ Tải Excel lên (ghi đè)</button>
         <button class="btn primary small" type="button" id="btnNew">+ Đợt mới</button>
       </span></div>
@@ -181,6 +183,19 @@
         <div class="ac-scroll"><table class="ac-table ni-cards" id="tSumSup"><thead><tr><th>Site-sup</th><th>Mã NV</th><th class="r">Dự án</th><th class="r">Tiền thưởng (đ)</th></tr></thead><tbody></tbody></table></div>
         <div class="ac-scroll"><table class="ac-table ni-cards" id="tSumFit"><thead><tr><th>Fitter</th><th>Mã NV</th><th class="r">Dự án</th><th class="r">Tiền thưởng (đ)</th></tr></thead><tbody></tbody></table></div>
       </div>
+      <h3>SWAT Analysis</h3>
+      <p class="ac-help">Nhập <b>YANSPN cost</b> (cột J) cho từng dự án — các cột khác lấy từ dữ liệu dự án / Scorecard đã duyệt và tính theo công thức của file SWAT Analysis.
+        Lưu được cả khi đợt đã chốt (không đổi tiền thưởng).</p>
+      <div class="in-anacfg">
+        <label>Chi nhánh <input id="anBranch" maxlength="40"></label>
+        <label>Offset / unit <input id="anOffset" inputmode="numeric"></label>
+        <label>Adjustment rate <input id="anAdjust" inputmode="decimal"></label>
+        <label>2025 Hourrate on SHAPE <input id="anRate" inputmode="numeric"></label>
+        <span class="ac-note" id="anMsg" aria-live="polite"></span>
+      </div>
+      <div class="ac-scroll"><table class="ac-table in-ana" id="tAna"><thead><tr><th>Dự án</th><th>PM/PE</th><th>Product</th><th class="r">Unit</th><th class="r">Stop</th>
+        <th class="r">YANSPN cost (J)</th><th class="r">Labour plan cost (K)</th><th class="r">Labour actual (M)</th><th class="r">Saving SWAT (N)</th><th class="r">Gap vs SWAT (V)</th>
+        <th class="r">Incentive (W)</th><th class="r">% incentive / Var X</th><th class="r">Saving after incentive (AC)</th><th class="r">Đã chi trước (AD)</th><th class="r">Chi đợt này (AE)</th><th class="r">Giờ Fitter (AG)</th></tr></thead><tbody></tbody></table></div>
       <details class="in-signers"><summary>Người lập / duyệt (in ở cuối file List)</summary>
         <div class="in-grid">
           <label>Prepared - NID <input data-sg="prepared" maxlength="80"></label>
@@ -191,6 +206,8 @@
         </div></details>
       <div class="in-exports">
         <button class="btn primary" type="button" id="xList">📊 Xuất List Fitter &amp; Supervisor</button>
+        <button class="btn" type="button" id="xOverview" title="Tổng quan chi thưởng của đợt: theo dự án, theo người, chi tiết + ghi chú dự án không chi thưởng giám sát (final quá 60 ngày / đợt 20%)">📋 Báo cáo tổng quan chi thưởng</button>
+        <button class="btn" type="button" id="xAna" title="File SWAT Analysis của đợt (sheet tháng + Standard Saving, đủ công thức)">📈 Xuất SWAT Analysis</button>
         <button class="btn" type="button" id="xStd">⬇ Standard Hour SWAT (mỗi dự án 1 sheet)</button>
         <button class="btn" type="button" id="xSc">⬇ Scorecard (mỗi dự án 1 sheet)</button>
         <span class="ac-note" id="xMsg" aria-live="polite"></span>
