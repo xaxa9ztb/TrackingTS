@@ -351,6 +351,7 @@
       // lưu trạng thái SWAT vào dự án (như "Ghi Swat Target" ở Thống kê giờ công dự án) để lần sau dùng lại
       await api('PATCH', '/api/admin/projects/' + encodeURIComponent(p.wbs), { fields: { swatState: t.state, swatTargetHour: Math.round((t.res.hours.standard_whole_project || 0) * 10) / 10, targetSwat: true } });
       const proj = projects.get(p.wbs); if (proj) { proj.swatState = t.state; proj.targetSwat = true; proj.swatTargetHour = t.res.hours.standard_whole_project; }
+      try { const S = await tool(); if (S.setTarget) S.setTarget(t.res.hours.standard_whole_project, (t.state.v || {}).shape); } catch (e) { /* bỏ qua: chỉ để tắt cảnh báo lệch Swat Target */ }
       $('revMsg').textContent = step === 2 ? '✓ Đã duyệt Standard Hour và lưu vào dự án.' : `✓ Đã duyệt Scorecard — quỹ Fitter ${money(p.fundF)} đ, Site-sup ${money(p.fundS)} đ.`;
     } catch (e) { $('revMsg').textContent = '⚠ Đã duyệt trong đợt nhưng chưa lưu được vào dự án: ' + e.message; }
     changed(); renderRevList(); renderRevSum();

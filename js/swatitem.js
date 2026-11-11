@@ -51,6 +51,7 @@
       usedHours: usedHours,
       saved: p.swatState || null,   // trạng thái đã "xác nhận Swat" (nếu có)
       confirmed: !!p.targetSwat,
+      target: p.targetSwat && p.swatTargetHour != null ? Number(p.swatTargetHour) || null : null,   // Swat Hour Target đã lưu (Dashboard dùng) → công cụ cảnh báo khi lệch định mức đang tính
     };
   }
   // Giờ công tính cho SWAT / thưởng lắp đặt: KHÔNG tính mã 1194 (NI Quality Hour — open item: lỗi chất lượng, không phải lỗi lắp đặt)
