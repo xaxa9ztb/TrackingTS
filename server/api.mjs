@@ -725,6 +725,9 @@ async function patchProject(env, me, wbs, request) {
   }
   const extraText = JSON.stringify(extra);
   if (extraText.length > PROJECT_EXTRA_MAX) throw new HttpError(413, 'Dữ liệu dự án quá lớn');
+  // không đổi gì (vd. duyệt lại Standard Hour với cùng thông số) → không ghi, không ghi nhật ký
+  if (row && extraText === (row.extra || '{}') && col.projectName === row.project_name && col.projectNumber === row.project_number
+    && col.productLine === row.product_line && col.customer === row.customer && col.supervisor === row.supervisor) return json({ ok: true, wbs, updatedAt: row.updated_at, created: false, unchanged: true });
   const t = now();
   await env.DB.prepare('INSERT INTO projects (wbs, project_name, project_number, product_line, customer, supervisor, extra, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ' +
     'ON CONFLICT(wbs) DO UPDATE SET project_name = excluded.project_name, project_number = excluded.project_number, product_line = excluded.product_line, ' +

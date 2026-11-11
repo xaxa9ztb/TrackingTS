@@ -144,6 +144,39 @@
     renderBar();
     go(items().length ? (items().every(p => p.lines && p.lines.length) ? 5 : 1) : 1);
     window.scrollTo(0, 0);
+    offerDraft();
+  }
+  // mở đợt mà trên máy còn bản nháp chưa lên máy chủ → hỏi khôi phục
+  function offerDraft() {
+    const d = readDraft(cur.id);
+    if (!d || !d.data) return;
+    if (JSON.stringify(d.data) === JSON.stringify(cur.data)) { clearDraft(cur.id); return; }
+    const at = new Date(d.at).toLocaleString('vi-VN');
+    if (d.baseVersion === cur.version) {
+      if (confirm(`Máy này còn thay đổi của đợt ${ml(cur.month)} CHƯA LƯU lên máy chủ (lúc ${at}).\n\nOK = khôi phục và lưu lên máy chủ\nHuỷ = bỏ bản nháp, dùng bản trên máy chủ`)) applyData(d.data, 'Đã khôi phục bản nháp');
+      else clearDraft(cur.id);
+    } else {
+      if (confirm(`Máy này còn bản nháp của đợt ${ml(cur.month)} (lúc ${at}) nhưng bản trên máy chủ đã được sửa sau đó.\n\nOK = tải bản nháp về máy (JSON) để đối chiếu, rồi dùng bản trên máy chủ\nHuỷ = bỏ bản nháp`)) backupFile(d.data, 'ban-nhap');
+      clearDraft(cur.id);
+    }
+  }
+  // bỏ phần Analysis (YANSPN cost / thông số) → so phần tiền thưởng
+  const moneyOnly = (data) => JSON.stringify({ ...data, analysisCfg: undefined, projects: (data.projects || []).map(p => ({ ...p, analysis: undefined })) });
+  function applyData(data, msg) {
+    if (readOnly()) {
+      // đợt đã chốt: chỉ nhận lại phần Analysis (không đổi tiền thưởng); khác phần tiền → phải Mở lại để sửa
+      if (moneyOnly(data) !== moneyOnly(cur.data)) { alert('Đợt đã chốt — bấm "Mở lại để sửa" rồi khôi phục lại.'); return; }
+      cur.data = data; items().forEach(normalize); renderAnalysis(); saveAnalysis(); toast(msg + ' (SWAT Analysis)'); return;
+    }
+    cur.data = { ...data, projects: (data.projects || []).filter(p => p && p.wbs) };
+    items().forEach(normalize);
+    hoursBy = new Map(); revIdx = 0;
+    renderBar(); go(step || 1); changed();
+    toast(msg + ' — đang lưu lên máy chủ…');
+  }
+  function backupFile(data, tag) {
+    const blob = new Blob([JSON.stringify({ format: 'incentive-batch', scheme: SCHEME, id: cur.id, month: cur.month, title: cur.title, version: cur.version, savedAt: new Date().toISOString(), data }, null, 1)], { type: 'application/json' });
+    download(blob, `Incentive ${SCHEME.toUpperCase()} ${cur.month}${tag ? ' ' + tag : ''} ${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`);
   }
   // dự án nhập từ Excel chưa có cấu trúc chia → dựng lại từ các dòng (giữ đúng số tiền: nhập tay)
   function normalize(p) {
@@ -175,8 +208,17 @@
   }
 
   // ---------- lưu ----------
+  // ---- bản nháp trên máy: mỗi thay đổi giữ ngay trong trình duyệt (máy chủ không nhận / mất mạng / đóng nhầm tab vẫn khôi phục được) ----
+  const draftKey = (id) => 'incDraft:' + id;
+  function writeDraft() {
+    if (!cur) return;
+    try { localStorage.setItem(draftKey(cur.id), JSON.stringify({ id: cur.id, month: cur.month, baseVersion: cur.version, at: Date.now(), data: cur.data })); } catch (e) { /* bộ nhớ đầy: bỏ qua */ }
+  }
+  const clearDraft = (id) => { try { localStorage.removeItem(draftKey(id)); } catch (e) { /* bỏ qua */ } };
+  const readDraft = (id) => { try { return JSON.parse(localStorage.getItem(draftKey(id)) || 'null'); } catch (e) { return null; } };
   function changed() {
     if (readOnly()) return;
+    writeDraft();
     dirty = true; $('edSaved').textContent = '● chưa lưu';
     renderBar();
     clearTimeout(saveTimer); saveTimer = setTimeout(() => save().catch(() => {}), 1500);
@@ -188,15 +230,17 @@
     items().forEach(recompute);
     const body = { version: cur.version, data: cur.data };
     if (status) body.status = status;
+    const sentAt = Date.now();
     $('edSaved').textContent = 'Đang lưu…';
     saving = api('PUT', '/api/incentive/batches/' + cur.id, body);
     try {
       const r = await saving;
       cur.version = r.version; cur.status = r.status; cur.total = r.total; dirty = false;
+      const d = readDraft(cur.id); if (!d || d.at <= sentAt) clearDraft(cur.id);   // có sửa mới trong lúc đang gửi → giữ bản nháp mới
       $('edSaved').textContent = '✓ Đã lưu ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
       renderBar();
       return r;
-    } catch (e) { $('edSaved').textContent = '⚠ Chưa lưu được'; toast(e.message); throw e; }
+    } catch (e) { writeDraft(); $('edSaved').textContent = '⚠ Chưa lưu lên máy chủ — đã giữ bản nháp trên máy này'; toast(e.message); throw e; }
     finally { saving = null; }
   }
 
@@ -272,7 +316,7 @@
   }
   async function loadIntoTool(p) {
     const S = await tool();
-    await hoursFor([p.wbs]);
+    await hoursFor(hoursBy.has(p.wbs) ? [p.wbs] : items().map(x => x.wbs));   // lần đầu lấy giờ cho CẢ đợt (1 lần đọc / 50 dự án thay vì mỗi dự án 1 lần)
     const used = (hoursBy.get(p.wbs) || {}).total || 0;
     const proj = projects.get(p.wbs);
     const it = proj ? SwatItem.toToolItem(proj, used) : { label: `${p.name} (${p.wbs})`, pname: p.name, pref: p.wbs, product: 's3300', usedHours: used };
@@ -555,11 +599,13 @@
   function saveAnalysis() {
     // đợt đã chốt vẫn lưu được (chỉ dữ liệu phân tích, không đổi tiền) → gửi thẳng, giữ nguyên trạng thái
     if (!readOnly()) { changed(); return; }
+    writeDraft();
     clearTimeout(anTimer);
     anTimer = setTimeout(async () => {
       $('anMsg').textContent = 'Đang lưu…';
-      try { const r = await api('PUT', '/api/incentive/batches/' + cur.id, { version: cur.version, data: cur.data }); cur.version = r.version; $('anMsg').textContent = '✓ Đã lưu'; }
-      catch (e) { $('anMsg').textContent = '✗ ' + e.message; }
+      const sentAt = Date.now();
+      try { const r = await api('PUT', '/api/incentive/batches/' + cur.id, { version: cur.version, data: cur.data }); cur.version = r.version; $('anMsg').textContent = '✓ Đã lưu'; const d = readDraft(cur.id); if (!d || d.at <= sentAt) clearDraft(cur.id); }
+      catch (e) { $('anMsg').textContent = '✗ Chưa lưu lên máy chủ — đã giữ bản nháp trên máy này. ' + e.message; }
     }, 800);
   }
   function onAnalysisInput(ev) {
@@ -768,6 +814,20 @@
     $('impAll').onchange = (ev) => { document.querySelectorAll('[data-imp]').forEach(c => { c.checked = ev.target.checked; }); impCount(); };
     $('impGo').onclick = doImport;
 
+    $('edBackup').onclick = () => { if (cur) backupFile(cur.data); };
+    $('edRestore').addEventListener('change', async (ev) => {
+      const f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+      if (!f || !cur) return;
+      try {
+        const j = JSON.parse(await f.text());
+        if (!j || j.format !== 'incentive-batch' || !j.data || !Array.isArray(j.data.projects)) throw new Error('File không phải bản sao lưu đợt Incentive');
+        if (j.month !== cur.month && !confirm(`File là đợt tháng ${ml(j.month)}, đang mở đợt ${ml(cur.month)}. Vẫn khôi phục vào đợt này?`)) return;
+        if (!confirm(`Khôi phục đợt ${ml(cur.month)} từ file (sao lưu lúc ${new Date(j.savedAt).toLocaleString('vi-VN')}, ${j.data.projects.length} dự án)?\nBản đang mở sẽ bị thay bằng nội dung trong file.`)) return;
+        backupFile(cur.data, 'truoc-khi-khoi-phuc');
+        applyData(j.data, 'Đã khôi phục từ file');
+      } catch (e) { alert('✗ ' + e.message); }
+    });
+    window.addEventListener('beforeunload', (ev) => { if (cur && dirty) { writeDraft(); ev.preventDefault(); ev.returnValue = ''; } });
     $('edBack').onclick = async () => {
       if (dirty) { try { await save(); } catch (e) { if (!confirm('Chưa lưu được thay đổi. Vẫn rời đợt này?')) return; } }
       cur = null; $('editor').hidden = true; $('secList').hidden = false; $('secReport').hidden = false; await loadRefs(); await loadList();

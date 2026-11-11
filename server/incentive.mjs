@@ -143,6 +143,8 @@ async function putBatch(h, env, me, id, request) {
   const { data, text, total } = cleanData(h, body.data);
   const status = body.status === 'done' ? 'done' : body.status === 'draft' ? 'draft' : row.status;
   const title = body.title == null ? row.title : h.str(body.title, 200);
+  // không đổi gì so với bản đang lưu → không ghi (tự lưu / bấm Lưu nhiều lần không tốn lượt ghi D1)
+  if (text === row.data && status === row.status && title === row.title) return h.json({ ok: true, id, version: row.version, status, total, updatedAt: row.updated_at, unchanged: true });
   const t = h.now();
   const upd = env.DB.prepare('UPDATE inc_batches SET data = ?, total = ?, n_projects = ?, status = ?, title = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?')
     .bind(text, total, data.projects.length, status, title, t, me.name || me.email, id, row.version);

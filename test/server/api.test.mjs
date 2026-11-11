@@ -2250,3 +2250,22 @@ test('Bảng công Thống kê: LƯU CHÊNH LỆCH — chỉ ghi dòng mới / s
   assert.deepEqual((await readTs(A)).rows.filter(x => x.wbs === 'DW').map(x => x.empId).sort(), ['DL1', 'DL2', 'DL4', 'DL5']);
   assert.equal((await call('GET', '/api/timesheets/meta', { email: A })).data.version, base.version + 1);
 });
+
+test('Không đổi gì thì không ghi: lưu đợt Incentive giống hệt giữ nguyên phiên bản; PATCH dự án giống hệt không ghi nhật ký', async () => {
+  const A = 'boss@example.com';
+  const b = (await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month: '2034-03' } })).data;
+  const data = { projects: [{ wbs: 'NC-1', name: 'DA', kind: 'first70', lines: [{ role: 'fitter', empId: 'TS1', name: 'Thợ Một', amount: 10 }] }] };
+  const p1 = (await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version: 1, data } })).data;
+  const p2 = (await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version: p1.version, data } })).data;
+  assert.deepEqual([p2.ok, p2.version, p2.unchanged], [true, p1.version, true]);
+  const p3 = (await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version: p2.version, data: { projects: [{ ...data.projects[0], lines: [{ ...data.projects[0].lines[0], amount: 11 }] }] } } })).data;
+  assert.equal(p3.version, p1.version + 1, 'đổi số tiền → lưu');
+  const n0 = (await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'project_update'").first()).c;
+  const f = { swatTargetHour: 204.8, targetSwat: true, swatState: { v: { stops: '4' } } };
+  await call('PATCH', '/api/admin/projects/NC-PRJ', { email: A, body: { fields: f } });
+  const again = (await call('PATCH', '/api/admin/projects/NC-PRJ', { email: A, body: { fields: f } })).data;
+  assert.equal(again.unchanged, true);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'project_update'").first()).c, n0, 'không ghi nhật ký khi không đổi');
+  await call('PATCH', '/api/admin/projects/NC-PRJ', { email: A, body: { fields: { ...f, swatTargetHour: 256.1 } } });
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'project_update'").first()).c, n0 + 1);
+});
