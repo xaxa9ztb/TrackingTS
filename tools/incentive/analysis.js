@@ -2,7 +2,7 @@
 // công thức như file gốc) + sheet "Standard Saving" (cột Q tra ngay trong file, không còn liên kết file ngoài).
 //   Lấy từ dữ liệu: A tháng chi, B chi nhánh, C PM/PE, D Project Number, E WBS, F tên dự án, G số unit, H số điểm dừng,
 //   I Product line (ES1.1 / ES1.2 / ES1.3 … → "ES1"), W thưởng SWAT theo Scorecard đã duyệt (Fitter + Site-sup, × unit),
-//   AD đã chi các đợt trước, AE chi đợt này, AG giờ Fitter theo Scorecard. Admin nhập J (YANSPN cost).
+//   AD đã chi các đợt trước, AE chi đợt này, AG = giờ thực tế theo Scorecard (đã dùng + dự phòng). Admin nhập J (YANSPN cost).
 // Dùng được trong trình duyệt và Node (kiểm thử).
 (function (root) {
   'use strict';
@@ -21,7 +21,10 @@
       const pr = (ctx.project && ctx.project(p.wbs)) || {};
       const sc = (p.swat && p.swat.sc) || null, units = Number(p.units) || 1;
       const incentive = sc ? Math.round(((Number(sc.pf) || 0) + (Number(sc.ps) || 0)) * units) : Math.round((Number(p.fundF) || 0) + (Number(p.fundS) || 0));
-      const fitterHours = sc && sc.used != null ? Number(sc.used) : (p.swat && p.swat.std && p.swat.std.used != null ? Number(p.swat.std.used) : null);
+      // AG = "Giờ thực tế = đã dùng + dự phòng" của Scorecard đã duyệt
+      const fitterHours = sc && sc.act != null ? Number(sc.act)
+        : sc && sc.used != null ? Number(sc.used) + (Number(sc.reserve) || 0)
+        : (p.swat && p.swat.std && p.swat.std.used != null ? Number(p.swat.std.used) : null);
       const a = p.analysis || {};
       return {
         wbs: p.wbs, projectNumber: pr.projectNumber || p.projectNumber || '', name: p.name || pr.projectName || '',
