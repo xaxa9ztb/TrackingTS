@@ -2282,3 +2282,25 @@ test('Incentive SWAT Analysis: YANSPN cost đã nhập ở đợt trước đư�
   assert.deepEqual(r['AN-1'], { yanspn: 50000000, month: '2035-05' }, 'lấy đợt gần nhất');
   assert.equal(r['AN-2'], undefined);
 });
+
+test('Hồ sơ Dự án: lưu thông tin theo dự án, danh sách tra cứu, chống ghi đè, không đổi thì không ghi, phân quyền', async () => {
+  const A = 'boss@example.com';
+  assert.equal((await call('GET', '/api/hs/projects', { email: 'ts1@example.com' })).status, 403, 'thợ không dùng được');
+  const c = await call('POST', '/api/hs/projects', { email: A, body: { wbs: 'HS-1', name: 'SHOWROOM DEMO', customer: 'Công ty A', contract: '1/SCH', data: { info: { diaDiem: 'Hà Nội' } } } });
+  assert.equal(c.status, 200, JSON.stringify(c.data));
+  const p = c.data.project;
+  assert.deepEqual([p.name, p.wbs, p.version, p.data.info.diaDiem], ['SHOWROOM DEMO', 'HS-1', 1, 'Hà Nội']);
+  const again = (await call('POST', '/api/hs/projects', { email: A, body: { wbs: 'HS-1', name: 'khác' } })).data;
+  assert.deepEqual([again.existing, again.project.id], [true, p.id], 'WBS đã có → mở dự án đó');
+  const list = (await call('GET', '/api/hs/projects', { email: A })).data.items;
+  assert.ok(list.some(x => x.id === p.id && x.customer === 'Công ty A' && !('data' in x)));
+  const u = (await call('PUT', `/api/hs/projects/${p.id}`, { email: A, body: { version: 1, data: { info: { diaDiem: 'Việt Hưng' } } } })).data;
+  assert.equal(u.project.version, 2);
+  const same = (await call('PUT', `/api/hs/projects/${p.id}`, { email: A, body: { version: 2, data: { info: { diaDiem: 'Việt Hưng' } } } })).data;
+  assert.deepEqual([same.unchanged, same.project.version], [true, 2]);
+  assert.equal((await call('PUT', `/api/hs/projects/${p.id}`, { email: A, body: { version: 1, data: {} } })).status, 409);
+  const g = (await call('GET', `/api/hs/projects/${p.id}`, { email: A })).data.project;
+  assert.deepEqual([g.data.info.diaDiem, g.name], ['Việt Hưng', 'SHOWROOM DEMO']);
+  assert.equal((await call('DELETE', `/api/hs/projects/${p.id}`, { email: A, body: {} })).status, 200);
+  assert.equal((await call('GET', `/api/hs/projects/${p.id}`, { email: A })).status, 404);
+});

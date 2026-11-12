@@ -1,4 +1,4 @@
-> Trong **Bộ công cụ dự án**, ứng dụng này là chức năng **Hồ sơ chất lượng thang máy** (thư mục `tools/tiendotm/`, chỉ Quản lý dự án và Site Sup).
+> Trong **Bộ công cụ dự án**, ứng dụng này là chức năng **Hồ sơ Dự án** (trước đây: Hồ sơ chất lượng thang máy) (thư mục `tools/tiendotm/`, chỉ Quản lý dự án và Site Sup).
 
 # Lift Schedule Builder — Bảng tiến độ thi công thang máy
 
