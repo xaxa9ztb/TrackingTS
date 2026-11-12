@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="vi" class="ni" data-app="tiendotm">
+<head>
+<script>if(/\.github\.io$/i.test(location.hostname))location.replace('https://nihan-ts.pages.dev'+(location.pathname.replace(/^\/TrackingTS(?=\/|$)/i,'')||'/')+location.search+location.hash);</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hướng dẫn Hồ sơ Dự án — Bộ công cụ dự án</title>
+<meta name="description" content="Hướng dẫn sử dụng chức năng Hồ sơ Dự án: lưu hồ sơ theo dự án, tiến độ & nghiệm thu, công văn – biên bản, hồ sơ pháp lý, bìa & trang ký bản vẽ.">
+<meta name="theme-color" content="#0f1b2d">
+<link rel="stylesheet" href="css/ni.css?v=4">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<!-- Trang hướng dẫn mở được cả khi chưa đăng nhập (không gọi Session.guard). -->
+<style>
+  :root { --ink:#111827; --ink-2:#374151; --muted:#6b7280; --line:#e5e7eb; --bg:#f4f5f7; --card:#fff; --app:#7c3aed; --app-bg:#f5f3ff;
+    --blue:#1d4ed8; --blue-bg:#eff6ff; --green:#047857; --green-bg:#ecfdf5; --amber:#92400e; --amber-bg:#fffbeb; --red:#b91c1c; --brand:#e2001a; }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; scroll-padding-top:72px; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 var(--ni-font); -webkit-font-smoothing:antialiased; }
+  a { color:var(--blue); }
+  img { max-width:100%; }
+  .top { position:sticky; top:0; z-index:20; background:var(--ni-bar,#0f1b2d); color:#f9fafb; border-bottom:3px solid var(--app); }
+  .top .in { max-width:1240px; margin:0 auto; padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
+  .top a.home { color:#f9fafb; text-decoration:none; display:inline-flex; align-items:center; gap:8px; font-weight:600; padding:6px 10px 6px 6px; margin-left:-6px; border-radius:8px; }
+  .top a.home:hover { background:#1f2937; }
+  .top .dot { width:10px; height:10px; border-radius:2px; background:var(--brand); }
+  .top .ttl { color:#9ca3af; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .top .act { margin-left:auto; display:flex; gap:8px; }
+  .top .act a, .top .act button { font:600 13px/1 inherit; color:#f9fafb; background:#1f2937; border:1px solid #374151; border-radius:8px; padding:9px 12px; cursor:pointer; text-decoration:none; white-space:nowrap; }
+  .top .act a:hover, .top .act button:hover { background:#374151; }
+  .hero { background:#fff; border-bottom:1px solid var(--line); }
+  .hero .in { max-width:1240px; margin:0 auto; padding:28px 16px 24px; }
+  .hero h1 { margin:0 0 6px; font-size:clamp(26px,4vw,36px); line-height:1.2; display:flex; align-items:center; gap:12px; }
+  .hero h1 .bar { width:5px; height:30px; border-radius:3px; background:var(--app); flex:none; }
+  .hero p.lead { margin:0 0 16px; color:var(--ink-2); max-width:860px; }
+  .facts { display:flex; flex-wrap:wrap; gap:8px; }
+  .facts span { background:var(--app-bg); color:#5b21b6; border-radius:999px; padding:4px 12px; font-size:13.5px; font-weight:600; }
+  .layout { max-width:1240px; margin:0 auto; padding:24px 16px 80px; display:grid; grid-template-columns:250px minmax(0,1fr); gap:28px; }
+  nav.toc { position:sticky; top:72px; align-self:start; max-height:calc(100vh - 90px); overflow:auto; font-size:14px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; }
+  nav.toc b { display:block; margin:0 0 6px 8px; }
+  nav.toc ol { list-style:none; margin:0; padding:0; counter-reset:t; }
+  nav.toc li { counter-increment:t; }
+  nav.toc a { display:block; text-decoration:none; color:var(--ink-2); padding:5px 8px; border-radius:7px; }
+  nav.toc a::before { content:counter(t) ". "; color:var(--muted); }
+  nav.toc a:hover { background:#f3f4f6; }
+  nav.toc a.on { background:var(--app-bg); color:#5b21b6; font-weight:600; }
+  main section { background:#fff; border:1px solid var(--line); border-radius:16px; padding:26px 28px; margin-bottom:22px; }
+  main h2 { margin:0 0 6px; font-size:24px; line-height:1.3; display:flex; align-items:center; gap:12px; }
+  main h2 .n { width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background:var(--app); color:#fff; font-size:16px; flex:none; }
+  main h2 .ic { width:40px; height:40px; border-radius:11px; display:grid; place-items:center; background:var(--app-bg); color:var(--app); flex:none; }
+  main h2 .ic svg { width:24px; height:24px; }
+  main h3 { margin:24px 0 8px; font-size:18px; }
+  main p.sub { margin:0 0 14px; color:var(--muted); }
+  figure.shot { margin:10px 0 8px; }
+  figure.shot img { display:block; width:100%; height:auto; border:1px solid #d1d5db; border-radius:12px; box-shadow:0 6px 20px rgba(17,24,39,.08); cursor:zoom-in; background:#fff; }
+  figure.shot.sm img { max-width:520px; }
+  figure.shot figcaption { font-size:13.5px; color:var(--muted); margin-top:6px; text-align:center; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  .pair figure.shot img { max-width:100%; }
+  ol.steps { margin:8px 0 14px; padding-left:22px; }
+  ol.steps li { margin:4px 0; }
+  .btn { display:inline-block; background:#eef2ff; border:1px solid #c7d2fe; border-radius:6px; padding:0 7px; font-size:14px; font-weight:600; color:#1e3a8a; white-space:nowrap; }
+  .note { border-radius:12px; padding:12px 16px; margin:12px 0; font-size:15px; }
+  .note.tip { background:var(--green-bg); border:1px solid #a7f3d0; }
+  .note.warn { background:var(--amber-bg); border:1px solid #fde68a; }
+  .note.info { background:var(--blue-bg); border:1px solid #bfdbfe; }
+  .note b:first-child { margin-right:4px; }
+  table.tbl { width:100%; border-collapse:collapse; font-size:14.5px; margin:10px 0 14px; }
+  table.tbl th { text-align:left; background:#f9fafb; font-size:12.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); border-bottom:1px solid var(--line); padding:8px 10px; }
+  table.tbl td { border-bottom:1px solid var(--line); padding:8px 10px; vertical-align:top; }
+  .k { display:inline-block; font-size:11px; font-weight:700; color:var(--app); background:var(--app-bg); border-radius:5px; padding:1px 6px; margin-right:4px; }
+  .map { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:14px 0 6px; }
+  .map a { display:block; text-decoration:none; color:inherit; border:1px solid var(--line); border-radius:12px; padding:14px; background:#fff; transition:.15s; }
+  .map a:hover { border-color:var(--app); box-shadow:0 0 0 3px #ede9fe; }
+  .map .ic { width:40px; height:40px; border-radius:11px; display:grid; place-items:center; background:var(--app-bg); color:var(--app); margin-bottom:8px; }
+  .map .ic svg { width:24px; height:24px; }
+  .map b { display:block; margin-bottom:4px; }
+  .map small { color:var(--muted); font-size:13px; line-height:1.45; display:block; }
+  .flow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; font-size:14.5px; }
+  .flow span { background:#fff; border:1px solid var(--line); border-radius:10px; padding:6px 12px; font-weight:600; }
+  .flow i { color:var(--muted); font-style:normal; }
+  details.faq { border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin:8px 0; }
+  details.faq summary { font-weight:600; cursor:pointer; }
+  details.faq p { margin:8px 0 2px; color:var(--ink-2); }
+  #zoom { position:fixed; inset:0; background:rgba(17,24,39,.85); display:none; place-items:center; z-index:50; cursor:zoom-out; padding:16px; }
+  #zoom.on { display:grid; }
+  #zoom img { max-width:100%; max-height:100%; border-radius:8px; background:#fff; }
+  @media (max-width:900px) { .layout { grid-template-columns:1fr; } nav.toc { position:static; max-height:none; } .map { grid-template-columns:1fr 1fr; } }
+  @media (max-width:600px) { main section { padding:18px 16px; } .pair, .map { grid-template-columns:1fr; } .top .ttl { display:none; } table.tbl { font-size:13.5px; } }
+  @media print { .top, nav.toc, #zoom { display:none!important; } .layout { display:block; padding:0; } main section { break-inside:auto; border:none; padding:8px 0; } figure.shot, .note, table.tbl, ol.steps li { break-inside:avoid; } body { background:#fff; } }
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <a class="home" href="tools/tiendotm/"><span class="dot"></span>Hồ sơ Dự án</a>
+  <span class="ttl">/ Hướng dẫn sử dụng</span>
+  <div class="act"><a href="tools/tiendotm/">← Mở chức năng</a><button onclick="print()">In / lưu PDF</button></div>
+</div></div>
+
+<div class="hero"><div class="in">
+  <h1><span class="bar"></span>Hướng dẫn sử dụng Hồ sơ Dự án</h1>
+  <p class="lead">Lập toàn bộ hồ sơ của một dự án thang máy ở một nơi: <b>bảng tiến độ, hồ sơ nghiệm thu, nhật ký thi công, công văn – biên bản gửi các bên, hồ sơ pháp lý và bìa – trang ký bản vẽ</b>. Thông tin chỉ nhập <b>một lần</b>, được lưu theo dự án, lần sau mở lại là có đủ.</p>
+  <div class="facts"><span>Dành cho: Quản lý dự án · Site Sup · Admin dự án</span><span>Xuất Word (.docx) và PDF</span><span>Tự lưu 5 phút / lần</span><span>Dùng được trên điện thoại</span></div>
+</div></div>
+
+<div class="layout">
+<nav class="toc" id="toc"><b>Nội dung</b><ol>
+  <li><a href="#tong-quan">Tổng quan 4 chức năng</a></li>
+  <li><a href="#bat-dau">Bắt đầu một hồ sơ</a></li>
+  <li><a href="#luu">Lưu và mở lại hồ sơ</a></li>
+  <li><a href="#thong-tin-chung">Thông tin dự án dùng chung</a></li>
+  <li><a href="#tien-do">Tiến độ &amp; nghiệm thu</a></li>
+  <li><a href="#cong-van">Công văn, biên bản</a></li>
+  <li><a href="#phap-ly">Hồ sơ pháp lý</a></li>
+  <li><a href="#ban-ve">Bìa &amp; trang ký bản vẽ</a></li>
+  <li><a href="#hoi-dap">Hỏi đáp &amp; lưu ý</a></li>
+</ol></nav>
+
+<main>
+<section id="tong-quan">
+  <h2><span class="n">1</span>Tổng quan 4 chức năng</h2>
+  <p class="sub">Mỗi dự án là một <b>hồ sơ</b>. Trong hồ sơ có 4 chức năng dùng chung dữ liệu hợp đồng và thông tin dự án.</p>
+  <div class="map">
+    <a href="#tien-do"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3.5v17h17.5"/><path d="M7 8h7M7 12h4.5"/><path d="M13 16.5l2.2 2.2L19.5 14"/></svg></div><b>Tiến độ &amp; nghiệm thu</b><small>Bảng tiến độ thi công, bộ hồ sơ chất lượng (nghiệm thu), nhật ký thi công.</small></a>
+    <a href="#cong-van"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/></svg></div><b>Công văn, biên bản</b><small>10 công văn + 4 biên bản, cùng một khuôn công văn của nhà thầu.</small></a>
+    <a href="#phap-ly"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></div><b>Hồ sơ pháp lý</b><small>8 văn bản: bìa, danh mục, quyết định BCH, PCCC, sơ đồ tổ chức, máy móc…</small></a>
+    <a href="#ban-ve"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></div><b>Bìa &amp; trang ký bản vẽ</b><small>Bìa + trang “Duyệt bản vẽ thi công” A3, ghép trước bộ bản vẽ PDF.</small></a>
+  </div>
+  <div class="flow"><span>Danh sách hồ sơ</span><i>→</i><span>Tạo mới / Mở</span><i>→</i><span>Nhập hợp đồng</span><i>→</i><span>Chọn chức năng</span><i>→</i><span>Xuất Word / PDF</span><i>→</i><span>Tự lưu</span></div>
+  <figure class="shot"><img src="docs/huong-dan/hsda-choose.jpg" alt="Màn hình chọn chức năng" loading="lazy" width="1280" height="860"><figcaption>Màn hình chọn chức năng của một hồ sơ dự án</figcaption></figure>
+</section>
+
+<section id="bat-dau">
+  <h2><span class="n">2</span>Bắt đầu một hồ sơ</h2>
+  <p class="sub">Từ trang chủ Bộ công cụ, bấm thẻ <b>Hồ sơ Dự án</b>.</p>
+  <h3>2.1. Danh sách hồ sơ dự án đã nhập</h3>
+  <figure class="shot"><img src="docs/huong-dan/hsda-list.jpg" alt="Danh sách hồ sơ dự án" loading="lazy" width="1280" height="860"><figcaption>Bảng tra cứu lịch sử các dự án đã nhập</figcaption></figure>
+  <ol class="steps">
+    <li>Bảng liệt kê mọi hồ sơ đã lưu: <b>tên dự án, WBS, chủ đầu tư, số hợp đồng, thời điểm và người cập nhật gần nhất</b> (mới nhất ở trên).</li>
+    <li>Gõ vào ô <b>Tìm dự án…</b> để lọc nhanh theo tên, WBS, chủ đầu tư, số hợp đồng hoặc tên người cập nhật (không cần gõ dấu).</li>
+    <li>Bấm <span class="btn">Mở</span> (hoặc bấm vào dòng) để làm tiếp. <span class="btn">Xoá</span> chỉ dành cho người tạo hồ sơ hoặc Admin.</li>
+    <li>Dòng có nhãn <b>nháp trên máy</b>: hồ sơ còn thay đổi chưa lưu lên máy chủ — mở ra để lưu tiếp.</li>
+  </ol>
+  <h3>2.2. Tạo hồ sơ mới</h3>
+  <figure class="shot"><img src="docs/huong-dan/hsda-new.jpg" alt="Nhập hợp đồng" loading="lazy" width="1280" height="860"><figcaption>Bước nhập hợp đồng khi tạo hồ sơ mới</figcaption></figure>
+  <ol class="steps">
+    <li>Bấm <span class="btn">＋ Tạo hồ sơ dự án mới</span>.</li>
+    <li><b>Chọn dự án từ danh sách chung</b> (gõ tên hoặc WBS) để điền sẵn tên dự án, chủ đầu tư, thiết bị.</li>
+    <li><b>Kéo thả file hợp đồng</b> (PDF / ảnh): app quét chữ ngay trên máy để lấy số hợp đồng, ngày ký, các bên, thời gian thực hiện… File hợp đồng <b>không</b> tải lên máy chủ.</li>
+    <li>Hoặc bấm <span class="btn">Bỏ qua — nhập tay</span>.</li>
+    <li>Bấm <span class="btn">Tiếp tục → Chọn chức năng</span>. Ngay khi có <b>tên công trình</b>, hồ sơ được tạo và lưu.</li>
+  </ol>
+  <div class="note info"><b>WBS:</b> mỗi mã WBS chỉ có một hồ sơ. Nếu tạo mới trùng WBS đã có, app hỏi mở hồ sơ cũ (để không có hai bản song song).</div>
+  <figure class="shot sm"><img src="docs/huong-dan/hsda-list-phone.jpg" alt="Danh sách trên điện thoại" loading="lazy" width="390" height="844" style="max-width:300px;margin:0 auto"><figcaption>Trên điện thoại, mỗi hồ sơ hiện thành một thẻ</figcaption></figure>
+</section>
+
+<section id="luu">
+  <h2><span class="n">3</span>Lưu và mở lại hồ sơ</h2>
+  <figure class="shot"><img src="docs/huong-dan/hsda-bar.jpg" alt="Thanh hồ sơ" loading="lazy" width="1236" height="54"><figcaption>Thanh <b>Hồ sơ</b> luôn ở đầu trang khi đang làm một dự án</figcaption></figure>
+  <table class="tbl">
+    <thead><tr><th style="width:34%">Khi nào lưu</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>Bấm <span class="btn">💾 Lưu</span></td><td>Lưu ngay lên máy chủ. Không có gì thay đổi thì báo “Không có thay đổi cần lưu” (không tốn lượt ghi).</td></tr>
+      <tr><td>Tự động mỗi 5 phút</td><td>Chỉ khi có thay đổi.</td></tr>
+      <tr><td>Sau khi xuất tài liệu</td><td>Mỗi lần xuất Word / PDF / Excel, hồ sơ được lưu sau ~1,5 giây.</td></tr>
+      <tr><td>Khi quay về chọn chức năng / danh sách</td><td>Lưu trước khi chuyển màn hình.</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><b>Trạng thái</b> cạnh nút Lưu: <span style="color:var(--green)">✓ Đã lưu …</span> · <span style="color:var(--amber)">● Có thay đổi chưa lưu</span> · <span style="color:var(--red)">⚠ Chưa lưu được</span>.</li>
+    <li><b>Nháp trên máy:</b> mọi thay đổi luôn được giữ nháp trong trình duyệt. Mất mạng hoặc máy chủ tạm khoá ghi thì dữ liệu vẫn còn; lần mở sau app hỏi <i>Khôi phục các thay đổi đó?</i> → bấm OK rồi bấm Lưu.</li>
+    <li><b>Hai người cùng sửa:</b> người lưu sau được báo “Hồ sơ vừa được người khác sửa”. Bản của bạn vẫn giữ nháp — tải lại trang, so lại rồi nhập bổ sung.</li>
+    <li>Những gì <b>được lưu</b>: mọi ô đã nhập ở cả 4 chức năng, danh sách thang, các bên, nhân sự, máy móc, danh mục bản vẽ, số / ngày từng công văn. Những gì <b>không lưu lên máy chủ</b>: file hợp đồng, file bản vẽ PDF, file Word mẫu tải lên.</li>
+  </ul>
+</section>
+
+<section id="thong-tin-chung">
+  <h2><span class="n">4</span>Thông tin dự án dùng chung</h2>
+  <p class="sub">Ở cuối màn hình chọn chức năng. Tự lấy từ hợp đồng / hồ sơ chất lượng (chỉ điền ô đang trống), sửa được. Dùng cho công văn, hồ sơ pháp lý và bìa bản vẽ.</p>
+  <figure class="shot"><img src="docs/huong-dan/hsda-common.jpg" alt="Thông tin dự án dùng chung" loading="lazy" width="1182" height="970"><figcaption>Mở mục “Thông tin dự án dùng chung” để kiểm tra trước khi xuất văn bản</figcaption></figure>
+  <table class="tbl">
+    <thead><tr><th style="width:36%">Ô</th><th>In ở đâu</th></tr></thead>
+    <tbody>
+      <tr><td>Tên công trình, địa điểm, hạng mục</td><td>Mọi văn bản; tên công trình là tên hồ sơ trong danh sách.</td></tr>
+      <tr><td>Chủ đầu tư, địa chỉ, người đại diện</td><td>Mục <b>Kính gửi</b> của công văn; bìa và cột ký “Chủ đầu tư” của bản vẽ.</td></tr>
+      <tr><td>Ban QLDA, Tư vấn giám sát</td><td>Mục <b>Đồng kính gửi</b>; cột ký giữa của trang duyệt bản vẽ.</td></tr>
+      <tr><td>Số / ngày hợp đồng</td><td>Dòng <b>Tham chiếu hợp đồng</b> của công văn, quyết định pháp lý, bìa bản vẽ.</td></tr>
+      <tr><td>Nhà thầu, địa chỉ nhà thầu, nơi lập</td><td>Khối ký, quốc hiệu, dòng “Hà Nội, ngày …”, bìa bản vẽ.</td></tr>
+      <tr><td>Người ký, chức vụ</td><td>Khối ký cuối công văn / quyết định; cột ký Nhà thầu ở trang duyệt bản vẽ.</td></tr>
+      <tr><td>Người liên hệ, điện thoại, email</td><td>Dòng “Người liên hệ” cuối công văn.</td></tr>
+      <tr><td>Chỉ huy trưởng</td><td>Gợi ý sẵn ở danh sách nhân sự pháp lý, biên bản huấn luyện.</td></tr>
+    </tbody>
+  </table>
+  <div class="note tip"><b>Mẹo:</b> ô nào để trống, văn bản in dấu chấm “……” để điền tay sau khi in.</div>
+</section>
+
+<section id="tien-do">
+  <h2><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3.5v17h17.5"/><path d="M7 8h7M7 12h4.5"/><path d="M13 16.5l2.2 2.2L19.5 14"/></svg></span>5. Tiến độ &amp; nghiệm thu</h2>
+  <p class="sub">Gồm 3 mục con trong thẻ đầu tiên.</p>
+  <h3>5.1. Lập bảng tiến độ thi công</h3>
+  <ol class="steps">
+    <li><b>Bước 1</b> — mốc tiến độ, cách tính ngày (bỏ thứ 7, chủ nhật, ngày lễ VN tự liệt kê), thành phần ký.</li>
+    <li><b>Bước 2</b> — kiểm tra thông tin hợp đồng, thời gian 3 giai đoạn, các bước lắp đặt, điều kiện và nghĩa vụ Bên Mua.</li>
+    <li><b>Bước 3</b> — xem trước bảng Gantt theo tuần, xuất Excel / PDF A3 ngang; soạn thư xác nhận hàng về và email.</li>
+  </ol>
+  <figure class="shot"><img src="docs/huong-dan/hs-schedule.jpg" alt="Bảng tiến độ" loading="lazy" width="1280" height="860"><figcaption>Bảng tiến độ thi công</figcaption></figure>
+  <h3>5.2. Hồ sơ chất lượng (nghiệm thu)</h3>
+  <p>Điền lần lượt các mục A → E rồi bấm <span class="btn">⬇ Xuất bộ hồ sơ chất lượng (.docx)</span>: bìa, căn cứ &amp; danh mục, 7 phần nghiệm thu (phiếu đề nghị, biên bản nghiệm thu, biên bản kiểm tra), kiểm định và bản vẽ hoàn công.</p>
+  <ul>
+    <li><b>A</b> Công trình &amp; hạng mục · <b>B</b> Các bên tham gia (người ký, nhận phiếu yêu cầu, ký biên bản kiểm tra) · <b>C</b> Hợp đồng, phụ lục (chỉ tick khi thật sự có), giấy ủy quyền · <b>C2</b> Chứng từ hàng hóa (đẩy file C/O, C/Q, Packing List, HBL để quét số hoặc nhập tay) · <b>D</b> Danh sách thang, <b>D3</b> các đợt nghiệm thu, <b>D2</b> hạng mục khác (đà thép, điều hòa, nội thất cabin) · <b>E</b> Kiểu in 1 mặt / 2 mặt.</li>
+    <li>Chi tiết từng mục: xem <a href="huong-dan.html#gs-hoso">Hướng dẫn chung, mục 3.4</a>.</li>
+  </ul>
+  <figure class="shot"><img src="docs/huong-dan/hs-elevs.jpg" alt="Danh sách thang" loading="lazy" width="1280" height="860"><figcaption>Mục D — Danh sách thang máy &amp; đợt nghiệm thu</figcaption></figure>
+  <h3>5.3. Nhật ký thi công</h3>
+  <p>Nhập quyển số, mã định danh, cán bộ giám sát, chỉ huy trưởng, ngày khởi công / bàn giao theo hợp đồng, ngày trang nhật ký đầu tiên và số trang → <span class="btn">⬇ Xuất nhật ký thi công (.docx)</span>. Các trang nhật ký hằng ngày được điền sẵn ngày (có thể bỏ thứ 7, chủ nhật).</p>
+  <figure class="shot"><img src="docs/huong-dan/hsda-nhatky.jpg" alt="Nhật ký thi công" loading="lazy" width="1280" height="860"><figcaption>Nhật ký thi công</figcaption></figure>
+</section>
+
+<section id="cong-van">
+  <h2><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/></svg></span>6. Công văn, biên bản</h2>
+  <p class="sub">Mọi văn bản dùng <b>một khuôn công văn của nhà thầu</b>: logo đầu trang, địa chỉ chân trang, khối Số / ngày, <b>Kính gửi – Đồng kính gửi – Công trình – V/v</b>, dòng <b>Tham chiếu hợp đồng</b>, khối ký, <b>Nơi nhận</b> và người liên hệ.</p>
+  <figure class="shot"><img src="docs/huong-dan/hsda-letters.jpg" alt="Công văn, biên bản" loading="lazy" width="1280" height="860"><figcaption>Chọn văn bản ở cột trái, điền ô riêng ở cột phải</figcaption></figure>
+  <ol class="steps">
+    <li>Kiểm tra <a href="#thong-tin-chung">Thông tin dự án dùng chung</a> (chủ đầu tư, hợp đồng, người ký).</li>
+    <li>Bấm tên văn bản ở cột trái (<span class="k">CV</span> công văn, <span class="k">BB</span> biên bản).</li>
+    <li>Điền <b>Số công văn</b>, <b>Ngày lập</b> và các ô riêng của văn bản đó (ngày hàng về, danh sách tồn tại, số tháng bảo hành…). Có thể đổi <b>Kính gửi / Đồng kính gửi</b> cho riêng văn bản này.</li>
+    <li>Bấm <span class="btn">⬇ Xuất công văn (.docx)</span> → mở bằng Word, kiểm tra, in, ký, đóng dấu. Văn bản đã xuất có dấu <b style="color:var(--green)">✓</b>; số và ô đã nhập được lưu lại cho lần sau.</li>
+  </ol>
+  <table class="tbl">
+    <thead><tr><th style="width:42%">Văn bản</th><th>Dùng khi / ô cần nhập</th></tr></thead>
+    <tbody>
+      <tr><td><span class="k">CV</span>Thông báo hàng về — lần 1 (trước 30 ngày)</td><td>Ngày hàng về cảng, cảng nhập, ngày về công trình, hạn chuẩn bị mặt bằng, diện tích kho.</td></tr>
+      <tr><td><span class="k">CV</span>Thông báo hàng về — lần 2 (trước 01 tuần)</td><td>Hành trình tàu, ngày giao về công trường, thời gian khảo sát nâng hạ, diện tích kho.</td></tr>
+      <tr><td><span class="k">CV</span>Tồn tại giếng thang trước khi hàng tới</td><td>Ngày khảo sát, danh sách tồn tại (mỗi dòng 1 mục), hạn hoàn thành, ngày bàn giao theo tiến độ.</td></tr>
+      <tr><td><span class="k">CV</span>Tồn tại giếng thang trước kiểm định</td><td>Ngày kiểm tra, danh sách tồn tại, hạn hoàn thành, ngày kiểm định dự kiến.</td></tr>
+      <tr><td><span class="k">CV</span>Thư mời tham gia kiểm định</td><td>Thang được kiểm định, giờ / ngày, đơn vị kiểm định.</td></tr>
+      <tr><td><span class="k">CV</span>Thông báo thời hạn bảo hành, bảo trì</td><td>Ngày thiết bị về, thời hạn bảo hành (từ – đến), điều khoản HĐ, số tháng theo bàn giao / theo ngày hàng về.</td></tr>
+      <tr><td><span class="k">CV</span>Tính thời gian bảo hành &amp; bảo trì miễn phí</td><td>Số tháng, ngày bắt đầu – kết thúc, điều khoản HĐ (khi dự án tạm dừng, chậm trễ không do nhà thầu).</td></tr>
+      <tr><td><span class="k">CV</span>Trách nhiệm bảo quản tài sản khi tạm dừng</td><td>Số / ngày thông báo tạm dừng của Bên Mua, ngày tạm ngưng.</td></tr>
+      <tr><td><span class="k">CV</span>Thông báo kết quả nghiệm thu</td><td>Hạng mục đã mời, số / ngày thư mời, số ngày không phản hồi, ngày nghiệm thu, điều khoản, đợt thanh toán, tài liệu đính kèm.</td></tr>
+      <tr><td><span class="k">CV</span>Thông báo về việc bàn giao thang máy</td><td>Số ngày coi như hợp lệ, ngày nghiệm thu đề xuất, điều khoản HĐ.</td></tr>
+      <tr><td><span class="k">BB</span>Biên bản hiện trường — cote cửa tầng</td><td>Giờ, các tầng (cách nhau dấu phẩy), đại diện hai bên, yêu cầu kiểm tra → bảng Đạt / Không đạt từng tầng.</td></tr>
+      <tr><td><span class="k">BB</span>Biên bản huấn luyện &amp; bàn giao chìa khoá</td><td>Thời gian, người huấn luyện, chìa khoá bàn giao, số dòng danh sách học viên. Gồm nội dung huấn luyện, khuyến cáo, hướng dẫn sử dụng, danh sách ký tên, biên bản giao chìa khoá.</td></tr>
+      <tr><td><span class="k">BB</span>Biên bản xác nhận thiết bị đến công trường</td><td>Ở khung <b>Biên bản theo dữ liệu Hồ sơ chất lượng</b>: chọn ngày hàng về → xuất. Lấy chứng từ (C2) và danh sách thang (D).</td></tr>
+      <tr><td><span class="k">BB</span>Biên bản bàn giao thang máy (song ngữ)</td><td>Mỗi thang 1 biên bản (nhiều thang → 1 file .zip). Thông tin Bên Mua / Bên Bán nhập ở mục <b>B2</b> ngay bên dưới.</td></tr>
+    </tbody>
+  </table>
+  <div class="pair">
+    <figure class="shot"><img src="docs/huong-dan/hsda-out-cv.jpg" alt="Công văn mẫu" loading="lazy" width="662" height="936"><figcaption>Công văn xuất ra (dữ liệu thử)</figcaption></figure>
+    <figure class="shot"><img src="docs/huong-dan/hsda-out-bb.jpg" alt="Biên bản mẫu" loading="lazy" width="662" height="936"><figcaption>Biên bản cote cửa tầng (dữ liệu thử)</figcaption></figure>
+  </div>
+</section>
+
+<section id="phap-ly">
+  <h2><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></span>7. Hồ sơ pháp lý</h2>
+  <p class="sub">Nhập nhân sự và máy móc một lần → xuất trọn bộ văn bản pháp lý nhà thầu nộp cho Ban QLDA.</p>
+  <figure class="shot"><img src="docs/huong-dan/hsda-legal.jpg" alt="Hồ sơ pháp lý" loading="lazy" width="1280" height="860"><figcaption>Nhân sự công trường và máy móc thiết bị</figcaption></figure>
+  <h3>7.1. Nhân sự công trường</h3>
+  <table class="tbl">
+    <thead><tr><th style="width:32%">Vai trò</th><th>Mặc định</th></tr></thead>
+    <tbody>
+      <tr><td>Chỉ huy trưởng, Giám sát chất lượng</td><td>Có trong <b>BCH</b> (QĐ Ban chỉ huy, chữ ký mẫu); có điều bổ nhiệm riêng trong “Trách nhiệm quyền hạn”.</td></tr>
+      <tr><td>Chỉ huy phó</td><td>Có trong BCH.</td></tr>
+      <tr><td>Trưởng ban ATLĐ, VSMT, PCCC</td><td>Có trong BCH và đội <b>PCCC</b>.</td></tr>
+      <tr><td>Công nhân kỹ thuật lắp đặt</td><td>Gộp chung một điều trong “Trách nhiệm quyền hạn”; tick PCCC nếu cử vào đội PCCC.</td></tr>
+      <tr><td>Khác</td><td>Ghi vị trí ở cột “Vị trí ghi trên văn bản”.</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>Gõ họ tên — app gợi ý từ danh sách nhân viên. Chọn <b>Ông / Bà</b> cho đúng cách xưng hô.</li>
+    <li>Cột <b>BCH</b> và <b>PCCC</b> tự tick theo vai trò, có thể sửa từng người.</li>
+    <li>Họ tên tự đưa vào <b>Danh mục</b> (căn cước, hợp đồng lao động, bảo hiểm, khám sức khỏe, thẻ an toàn…).</li>
+  </ul>
+  <h3>7.2. Máy móc, thiết bị</h3>
+  <p>Có sẵn 13 thiết bị thường dùng (sàn thao tác, pa lăng 3T, máy laser…). Sửa, thêm, xoá tuỳ dự án; <span class="btn">⟲ Danh sách mặc định</span> để làm lại.</p>
+  <h3>7.3. Xuất tài liệu</h3>
+  <figure class="shot"><img src="docs/huong-dan/hsda-legal-docs.jpg" alt="Danh sách tài liệu" loading="lazy" width="1182" height="211"><figcaption>Bỏ tick tài liệu không cần; “tải riêng” để lấy 1 file</figcaption></figure>
+  <p>Gồm 8 văn bản: bìa hồ sơ pháp lý · danh mục hồ sơ pháp lý · quyết định thành lập Ban chỉ huy · trách nhiệm, quyền hạn từng cá nhân · danh sách chữ ký mẫu · quyết định cử nhân sự Đội PCCC · sơ đồ tổ chức công trường · danh sách máy móc, thiết bị.</p>
+  <p>Bấm <span class="btn">⬇ Xuất bộ hồ sơ pháp lý (.zip Word)</span> → giải nén, mở từng file bằng Word. Văn bản dùng Times New Roman 13, A4, có số trang.</p>
+  <div class="pair">
+    <figure class="shot"><img src="docs/huong-dan/hsda-out-qd.jpg" alt="Quyết định Ban chỉ huy" loading="lazy" width="662" height="936"><figcaption>Quyết định thành lập Ban chỉ huy</figcaption></figure>
+    <figure class="shot"><img src="docs/huong-dan/hsda-out-sodo.jpg" alt="Sơ đồ tổ chức" loading="lazy" width="662" height="936"><figcaption>Sơ đồ tổ chức công trường</figcaption></figure>
+  </div>
+  <h3>7.4. Kế hoạch an toàn &amp; tài liệu mẫu khác — đổi tên công trình</h3>
+  <ol class="steps">
+    <li>Nhập <b>tên công trình trong file mẫu</b> (VD: tên dự án cũ, viết đúng như trong file) và <b>tên mới</b> (mặc định là tên công trình hiện tại, chữ in hoa).</li>
+    <li>Bấm <span class="btn">⬆ Chọn file Word mẫu (.docx)…</span> → chọn file Kế hoạch an toàn của dự án trước.</li>
+    <li>App thay tên ở toàn bộ nội dung, đầu trang, chân trang rồi tải về bản mới và báo số chỗ đã thay. File chỉ xử lý trên máy.</li>
+  </ol>
+  <div class="note warn"><b>Lưu ý:</b> chỉ nhận file <b>.docx</b> (file .doc cũ: mở bằng Word → Lưu thành .docx trước). Sau khi đổi tên vẫn cần đọc lại các phần riêng của dự án (sơ đồ tổ chức, nhân sự, số điện thoại).</div>
+</section>
+
+<section id="ban-ve">
+  <h2><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></span>8. Bìa &amp; trang ký bản vẽ</h2>
+  <p class="sub">Tạo trang bìa “BẢN VẼ THI CÔNG (SHOP DRAWING)” và trang “DUYỆT BẢN VẼ THI CÔNG” khổ A3 ngang, có danh mục bản vẽ và 3 cột ký.</p>
+  <figure class="shot"><img src="docs/huong-dan/hsda-drawing.jpg" alt="Bìa & trang ký bản vẽ" loading="lazy" width="1280" height="860"><figcaption>Tải bản vẽ PDF lên → danh mục tự lập</figcaption></figure>
+  <ol class="steps">
+    <li>Bấm vào khung <b>Tải bản vẽ PDF lên</b>, chọn một hoặc nhiều file. <b>Mỗi trang PDF = 1 bản vẽ</b>; số hiệu tự đánh (TM-01, TM-02…), tên lấy theo tên file, khổ giấy tự nhận (A0–A4).</li>
+    <li>Sửa trực tiếp <b>số hiệu, tên bản vẽ, khổ</b> trong bảng; <span class="btn">+ Thêm dòng</span> nếu cần ghi thêm bản vẽ không có file.</li>
+    <li>Kiểm tra <b>Nội dung bìa</b>: tiêu đề, phụ đề, hệ thống, thiết bị, số lượng bản vẽ (để trống = tự đếm, VD “06 bản vẽ khổ A3, A1”), tiền tố số hiệu, ngày lập.</li>
+    <li>Kiểm tra <b>Khối ký duyệt</b> (Chủ đầu tư · Ban QLDA / TVGS · Nhà thầu): tiêu đề, đơn vị, họ tên, chức vụ. Để trống họ tên thì in dòng chấm để ký tay. <span class="btn">⟲ Lấy lại từ thông tin dự án</span> để điền lại.</li>
+    <li>Bấm <span class="btn">⬇ Bìa + trang ký (PDF A3)</span> để lấy riêng 2 trang, hoặc <span class="btn">⬇ Bộ bản vẽ đã ghép bìa + trang ký (PDF)</span> để có một file hoàn chỉnh: bìa → trang duyệt → toàn bộ bản vẽ theo thứ tự tải lên.</li>
+  </ol>
+  <figure class="shot"><img src="docs/huong-dan/hsda-ky.jpg" alt="Khối ký duyệt" loading="lazy" width="1182" height="252"><figcaption>Khối ký duyệt — 3 cột</figcaption></figure>
+  <div class="pair">
+    <figure class="shot"><img src="docs/huong-dan/hsda-out-bia.jpg" alt="Bìa bản vẽ" loading="lazy" width="827" height="585"><figcaption>Trang bìa (dữ liệu thử)</figcaption></figure>
+    <figure class="shot"><img src="docs/huong-dan/hsda-out-ky.jpg" alt="Trang duyệt bản vẽ" loading="lazy" width="827" height="585"><figcaption>Trang “Duyệt bản vẽ thi công”</figcaption></figure>
+  </div>
+  <div class="note info"><b>Nhiều bản vẽ:</b> danh mục dài tự thu nhỏ dòng; quá một trang thì chuyển sang trang “DUYỆT BẢN VẼ THI CÔNG (tiếp)”, khối ký luôn ở trang cuối.</div>
+  <div class="note warn"><b>File bản vẽ không được lưu:</b> chỉ danh mục được lưu cùng hồ sơ. Lần sau muốn ghép bìa vào bản vẽ thì tải lại file PDF (danh mục cũ vẫn còn; tải lại sẽ lập danh mục mới theo file).</div>
+</section>
+
+<section id="hoi-dap">
+  <h2><span class="n">9</span>Hỏi đáp &amp; lưu ý</h2>
+  <details class="faq"><summary>Tôi không thấy nút lưu / hồ sơ không có trong danh sách?</summary><p>Hồ sơ chỉ được tạo khi có <b>Tên công trình</b> (ô đầu tiên của Thông tin dự án dùng chung, hoặc Tên dự án ở bước tiến độ). Nhập tên rồi bấm 💾 Lưu.</p></details>
+  <details class="faq"><summary>Báo “Chưa lưu được” — dữ liệu có mất không?</summary><p>Không. Dữ liệu vẫn giữ nháp trên máy này. Khi mạng / máy chủ ổn định, bấm 💾 Lưu lại; hoặc mở lại hồ sơ, app sẽ hỏi khôi phục thay đổi chưa lưu.</p></details>
+  <details class="faq"><summary>Mở hồ sơ trên máy khác có đủ dữ liệu không?</summary><p>Có — mọi thông tin đã <b>lưu lên máy chủ</b> đều có ở mọi máy. Riêng nháp chưa lưu chỉ có trên máy đã nhập.</p></details>
+  <details class="faq"><summary>Văn bản xuất ra muốn sửa thêm?</summary><p>File Word mở và sửa bình thường. Nên sửa thông tin gốc trong app (để lần sau xuất lại đúng), còn câu chữ riêng của một lần gửi thì sửa trực tiếp trong Word.</p></details>
+  <details class="faq"><summary>Ai xem / sửa được hồ sơ dự án?</summary><p>Quản lý dự án, Site Sup, Admin dự án và Admin đều xem và sửa được mọi hồ sơ (để thay nhau làm tiếp). Chỉ người tạo hoặc Admin được xoá; việc xoá được ghi nhật ký.</p></details>
+  <details class="faq"><summary>Phông chữ trên bìa bản vẽ?</summary><p>Dùng phông Tinos (cùng kích thước chữ với Times New Roman, giấy phép SIL OFL) được nhúng sẵn trong PDF nên in ở đâu cũng đúng dấu tiếng Việt.</p></details>
+  <div class="note tip"><b>Quy trình gợi ý cho một dự án mới:</b> tạo hồ sơ → quét hợp đồng → kiểm tra Thông tin dự án dùng chung → lập tiến độ → hồ sơ pháp lý (khi vào công trường) → thông báo hàng về lần 1, lần 2 → biên bản hàng về → tồn tại giếng thang → bìa bản vẽ thi công → mời kiểm định → hồ sơ chất lượng → bàn giao, huấn luyện → thông báo bảo hành.</div>
+</section>
+</main>
+</div>
+<div id="zoom" onclick="this.classList.remove('on')"><img alt=""></div>
+<script>
+  // phóng to ảnh khi bấm
+  document.querySelectorAll('figure.shot img').forEach(function (im) {
+    im.addEventListener('click', function () { var z = document.getElementById('zoom'); z.querySelector('img').src = im.src; z.classList.add('on'); });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.getElementById('zoom').classList.remove('on'); });
+  // đánh dấu mục đang đọc ở mục lục
+  var links = [].slice.call(document.querySelectorAll('#toc a'));
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id); }); }); }, { rootMargin: '-40% 0px -55% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+  }
+</script>
+</body>
+</html>
