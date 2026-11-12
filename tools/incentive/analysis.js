@@ -26,10 +26,13 @@
         : sc && sc.used != null ? Number(sc.used) + (Number(sc.reserve) || 0)
         : (p.swat && p.swat.std && p.swat.std.used != null ? Number(p.swat.std.used) : null);
       const a = p.analysis || {};
+      // chưa nhập ở đợt này → lấy YANSPN cost đã nhập cho công trình ở đợt trước (vd. đợt 2 / final)
+      const prev = num(a.yanspn) == null && ctx.prevYanspn ? ctx.prevYanspn(p.wbs) : null;
       return {
         wbs: p.wbs, projectNumber: pr.projectNumber || p.projectNumber || '', name: p.name || pr.projectName || '',
         pm: (ctx.pmName && ctx.pmName(p.wbs)) || '', units, stops: num(p.stops) != null ? +p.stops : num(pr.stops),
-        product: productLine(pr.productLine || p.product || ''), yanspn: num(a.yanspn),
+        product: productLine(pr.productLine || p.product || ''), yanspn: num(a.yanspn) != null ? num(a.yanspn) : (prev ? num(prev.yanspn) : null),
+        yanspnFrom: num(a.yanspn) == null && prev ? prev.month : '',
         incentive, paidBefore: Math.round(Number(ctx.paidBefore ? ctx.paidBefore(p.wbs) : 0) || 0), paidNow: Math.round(Number(p.total) || 0),
         fitterHours: fitterHours == null || !isFinite(fitterHours) ? null : Math.round(fitterHours * 100) / 100,
       };

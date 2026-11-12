@@ -145,6 +145,7 @@
     go(items().length ? (items().every(p => p.lines && p.lines.length) ? 5 : 1) : 1);
     window.scrollTo(0, 0);
     offerDraft();
+    loadAnPrev().then(() => { if (step === 5) renderAnalysis(); });
   }
   // mở đợt mà trên máy còn bản nháp chưa lên máy chủ → hỏi khôi phục
   function offerDraft() {
@@ -219,13 +220,21 @@
   function changed() {
     if (readOnly()) return;
     writeDraft();
-    dirty = true; $('edSaved').textContent = '● chưa lưu';
+    // tự lưu lên máy chủ 5 phút/lần (mỗi lần lưu = 1 lượt ghi D1); trong lúc chờ, thay đổi nằm trong bản nháp trên máy
+    if (!dirty || !saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => { saveTimer = null; save().catch(() => {}); }, AUTOSAVE_MS);
+      dueAt = Date.now() + AUTOSAVE_MS;
+    }
+    dirty = true;
+    $('edSaved').textContent = `● chưa lưu lên máy chủ — tự lưu lúc ${new Date(dueAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} (bấm Lưu để lưu ngay; đã giữ bản nháp trên máy)`;
     renderBar();
-    clearTimeout(saveTimer); saveTimer = setTimeout(() => save().catch(() => {}), 1500);
   }
+  const AUTOSAVE_MS = 5 * 60 * 1000;
+  let dueAt = 0;
   async function save(status) {
     if (!cur) return;
-    clearTimeout(saveTimer);
+    clearTimeout(saveTimer); saveTimer = null;
     if (saving) await saving.catch(() => {});
     items().forEach(recompute);
     const body = { version: cur.version, data: cur.data };
@@ -574,8 +583,13 @@
 
   // ----- SWAT Analysis (bước 5): Admin nhập YANSPN cost (cột J), phần còn lại lấy từ dự án / Scorecard -----
   const anCfg = () => SwatAnalysis.cfgOf(cur.data.analysisCfg);
+  let anPrev = {};   // YANSPN cost đã nhập ở các đợt khác (theo WBS)
+  async function loadAnPrev() {
+    try { anPrev = (await api('GET', `/api/incentive/analysis-prev?scheme=${SCHEME}&exclude=${cur.id}`)).items || {}; } catch (e) { anPrev = {}; }
+  }
   function anCtx() {
     return {
+      prevYanspn: (w) => anPrev[w] || null,
       project: (w) => { const pr = projects.get(w); if (!pr) return {}; const t = SwatItem.toToolItem(pr, 0); return { projectNumber: pr.projectNumber, productLine: pr.productLine, projectName: pr.projectName, stops: t.stops }; },
       pmName: (w) => { const pr = projects.get(w); const ids = (pr && pr.staff && pr.staff.pm) || []; return ids.map(id => (empById.get(String(id)) || {}).name || id).join(', '); },
       paidBefore: (w) => histOf(w).reduce((s, h) => s + (h.lines || []).reduce((a, l) => a + (Number(l.amount) || 0), 0), 0),
@@ -589,24 +603,28 @@
     const pc = (v) => (v == null ? '—' : Math.round(v * 100) + '%');
     $('tAna').tBodies[0].innerHTML = anRows().map((r, i) => { const x = SwatAnalysis.calc(r, c); return `<tr data-i="${i}">
       <td><b>${esc(r.name)}</b> <span class="mono ac-note">${esc(r.wbs)}</span></td><td>${esc(r.pm || '—')}</td><td>${esc(r.product || '—')}</td><td class="r">${r.units}</td><td class="r">${r.stops == null ? '—' : r.stops}</td>
-      <td class="r"><input data-an="yanspn" inputmode="numeric" value="${r.yanspn == null ? '' : money(r.yanspn)}" placeholder="nhập" aria-label="YANSPN cost ${esc(r.wbs)}"></td>
+      <td class="r"><input data-an="yanspn" inputmode="numeric" value="${r.yanspn == null ? '' : money(r.yanspn)}" placeholder="nhập" aria-label="YANSPN cost ${esc(r.wbs)}"${r.yanspnFrom ? ` class="from-prev" title="Lấy từ đợt ${ml(r.yanspnFrom)} — sửa ô này nếu cần"` : ''}>${r.yanspnFrom ? `<small class="ac-note" style="display:block">từ đợt ${ml(r.yanspnFrom)}</small>` : ''}</td>
       <td class="r">${m(x.K)}</td><td class="r">${m(x.M)}</td><td class="r">${m(x.N)}</td><td class="r">${m(x.V)}</td><td class="r"><b>${m(x.W)}</b></td><td class="r">${pc(x.Y)}</td><td class="r">${m(x.AC)}</td>
       <td class="r">${r.paidBefore ? m(r.paidBefore) : '—'}</td><td class="r">${m(r.paidNow)}</td><td class="r">${r.fitterHours == null ? '—' : fmt1(r.fitterHours)}</td></tr>`; }).join('')
       || '<tr><td colspan="16" class="ac-note">Chưa có dự án.</td></tr>';
   }
   const parseNum = (s) => { const t = String(s || '').replace(/[^\d,.-]/g, ''); if (!t) return null; const n = Number(/,\d{1,2}$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(/[.,]/g, '')); return isFinite(n) ? n : null; };
-  let anTimer = null;
-  function saveAnalysis() {
-    // đợt đã chốt vẫn lưu được (chỉ dữ liệu phân tích, không đổi tiền) → gửi thẳng, giữ nguyên trạng thái
-    if (!readOnly()) { changed(); return; }
-    writeDraft();
+  let anTimer = null, anDue = 0;
+  // lưu phần Analysis của đợt đã chốt (khi tới hạn 5 phút, hoặc khi rời đợt)
+  async function anFlush() {
     clearTimeout(anTimer);
-    anTimer = setTimeout(async () => {
+      anTimer = null;
       $('anMsg').textContent = 'Đang lưu…';
       const sentAt = Date.now();
       try { const r = await api('PUT', '/api/incentive/batches/' + cur.id, { version: cur.version, data: cur.data }); cur.version = r.version; $('anMsg').textContent = '✓ Đã lưu'; const d = readDraft(cur.id); if (!d || d.at <= sentAt) clearDraft(cur.id); }
       catch (e) { $('anMsg').textContent = '✗ Chưa lưu lên máy chủ — đã giữ bản nháp trên máy này. ' + e.message; }
-    }, 800);
+  }
+  function saveAnalysis() {
+    // đợt đã chốt vẫn lưu được (chỉ dữ liệu phân tích, không đổi tiền) → gửi thẳng, giữ nguyên trạng thái
+    if (!readOnly()) { changed(); return; }
+    writeDraft();
+    if (!anTimer) { anTimer = setTimeout(anFlush, AUTOSAVE_MS); anDue = Date.now() + AUTOSAVE_MS; }
+    $('anMsg').textContent = `● chưa lưu lên máy chủ — tự lưu lúc ${new Date(anDue).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} (đã giữ bản nháp trên máy)`;
   }
   function onAnalysisInput(ev) {
     const t = ev.target;
@@ -827,8 +845,9 @@
         applyData(j.data, 'Đã khôi phục từ file');
       } catch (e) { alert('✗ ' + e.message); }
     });
-    window.addEventListener('beforeunload', (ev) => { if (cur && dirty) { writeDraft(); ev.preventDefault(); ev.returnValue = ''; } });
+    window.addEventListener('beforeunload', (ev) => { if (cur && (dirty || anTimer)) { writeDraft(); ev.preventDefault(); ev.returnValue = ''; } });
     $('edBack').onclick = async () => {
+      if (anTimer) await anFlush();
       if (dirty) { try { await save(); } catch (e) { if (!confirm('Chưa lưu được thay đổi. Vẫn rời đợt này?')) return; } }
       cur = null; $('editor').hidden = true; $('secList').hidden = false; $('secReport').hidden = false; await loadRefs(); await loadList();
     };

@@ -40,3 +40,9 @@ test('xuất Excel: sheet tháng (công thức, cột Q tra sheet Standard Savin
   assert.deepEqual([ws.getCell('W8').value, ws.getCell('AE8').value, ws.getCell('AG8').value, ws.getCell('E8').value], [11487500, 8041250, 224, 11947299]);
   assert.equal(A.fileName('2026-09'), 'SWAT Analysis - HN SEPT 2026.xlsx');
 });
+
+test('YANSPN cost chưa nhập ở đợt này → lấy của đợt trước (ghi rõ đợt); đã nhập thì dùng số của đợt này', () => {
+  const ctx = { prevYanspn: (w) => (w === 'P' ? { yanspn: 41216040, month: '2026-09' } : null) };
+  const [a, b] = A.rows({ projects: [{ wbs: 'P' }, { wbs: 'P', analysis: { yanspn: 5 } }] }, ctx);
+  assert.deepEqual([a.yanspn, a.yanspnFrom, b.yanspn, b.yanspnFrom], [41216040, '2026-09', 5, '']);
+});

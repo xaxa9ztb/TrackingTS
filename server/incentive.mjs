@@ -10,6 +10,7 @@
 //   POST   /api/incentive/batches/:id/publish        phát hành đợt đã chốt {sendMail} → email chi tiết cho từng người được chia
 //   POST   /api/incentive/rename-wbs                 đổi mã WBS (và tên) của một dự án ở MỌI đợt {scheme, from, to, name?, dryRun?}
 //   POST   /api/incentive/fix-names                  gắn Mã NV cho các dòng chỉ có tên (vd. "SUU TRI NGO" từ Excel cũ) ở MỌI đợt {scheme, dryRun?}
+//   GET    /api/incentive/analysis-prev?scheme=swat&exclude=:id   YANSPN cost (SWAT Analysis) đã nhập ở các đợt khác, theo WBS (đợt gần nhất)
 //   GET    /api/incentive/mine                       (mọi nhân viên) thưởng CỦA MÌNH ở các đợt đã phát hành
 //   GET    /api/incentive/mine/:batchId/:wbs         (mọi nhân viên) chi tiết một dự án: báo cáo SWAT + dòng của mình
 import Inc from '../tools/incentive/incentive.js';
@@ -176,6 +177,19 @@ async function history(h, env, me, url) {
     map.get(k).lines.push({ role: r.role, empId: r.emp_id, name: r.name, amount: r.amount, pct: r.pct });
   }
   return h.json({ items: [...map.values()] });
+}
+
+// YANSPN cost đã nhập ở các đợt khác (đợt 2 / final của cùng công trình tự lấy lại); chỉ đọc đúng 2 trường qua json_each
+async function analysisPrev(h, env, me, url) {
+  needAdmin(h, me);
+  const scheme = schemeOf(h, url.searchParams.get('scheme'));
+  const exclude = parseInt(url.searchParams.get('exclude') || '0', 10) || 0;
+  const { results } = await env.DB.prepare(`SELECT b.month, json_extract(p.value, '$.wbs') AS wbs, json_extract(p.value, '$.analysis.yanspn') AS y
+      FROM inc_batches b, json_each(b.data, '$.projects') p
+      WHERE b.scheme = ? AND b.id <> ? AND json_extract(p.value, '$.analysis.yanspn') IS NOT NULL ORDER BY b.month`).bind(scheme, exclude).all();
+  const out = {};
+  for (const r of results) if (r.wbs != null && Number.isFinite(Number(r.y))) out[String(r.wbs)] = { yanspn: Number(r.y), month: r.month };   // đợt sau ghi đè đợt trước
+  return h.json({ items: out });
 }
 
 // Giờ công tính thưởng SWAT không gồm mã 1194 (NI Quality Hour — open item): lỗi chất lượng, không phải lỗi lắp đặt
@@ -420,6 +434,7 @@ export async function routeIncentive(h, env, me, path, method, url, request) {
   }
   if (path === '/api/incentive/history' && method === 'GET') return history(h, env, me, url);
   if (path === '/api/incentive/hours' && method === 'GET') return hours(h, env, me, url);
+  if (path === '/api/incentive/analysis-prev' && method === 'GET') return analysisPrev(h, env, me, url);
   if (path === '/api/incentive/import' && method === 'POST') return importSheets(h, env, me, request);
   if (path === '/api/incentive/rename-wbs' && method === 'POST') return renameWbs(h, env, me, request);
   if (path === '/api/incentive/fix-names' && method === 'POST') return fixNames(h, env, me, request);
