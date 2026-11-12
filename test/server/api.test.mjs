@@ -2269,3 +2269,16 @@ test('Không đổi gì thì không ghi: lưu đợt Incentive giống hệt gi�
   await call('PATCH', '/api/admin/projects/NC-PRJ', { email: A, body: { fields: { ...f, swatTargetHour: 256.1 } } });
   assert.equal((await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'project_update'").first()).c, n0 + 1);
 });
+
+test('Incentive SWAT Analysis: YANSPN cost đã nhập ở đợt trước được trả lại cho đợt sau (cùng WBS)', async () => {
+  const A = 'boss@example.com';
+  const mk = async (month, projects) => { const b = (await call('POST', '/api/incentive/batches', { email: A, body: { scheme: 'swat', month } })).data;
+    await call('PUT', `/api/incentive/batches/${b.id}`, { email: A, body: { version: 1, data: { projects } } }); return b.id; };
+  await mk('2035-03', [{ wbs: 'AN-1', name: 'A', kind: 'first70', analysis: { yanspn: 41216040 }, lines: [] }, { wbs: 'AN-2', name: 'B', kind: 'first70', lines: [] }]);
+  await mk('2035-05', [{ wbs: 'AN-1', name: 'A', kind: 'first70', analysis: { yanspn: 50000000 }, lines: [] }]);
+  const cur = await mk('2035-09', [{ wbs: 'AN-1', name: 'A', kind: 'final30', lines: [] }]);
+  assert.equal((await call('GET', `/api/incentive/analysis-prev?scheme=swat&exclude=${cur}`, { email: 'ap1@example.com' })).status, 403);
+  const r = (await call('GET', `/api/incentive/analysis-prev?scheme=swat&exclude=${cur}`, { email: A })).data.items;
+  assert.deepEqual(r['AN-1'], { yanspn: 50000000, month: '2035-05' }, 'lấy đợt gần nhất');
+  assert.equal(r['AN-2'], undefined);
+});

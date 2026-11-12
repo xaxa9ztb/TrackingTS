@@ -107,3 +107,4 @@ tr.dim td { color: var(--muted); }
 /* phát hành */
 .in-publish { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; padding: 12px 14px; border: 1px solid #bfd3fe; background: #eef4ff; border-radius: 10px; }
 .in-publish > div { flex: 1 1 320px; } .in-publish p { margin: 4px 0 0; }
+.in-ana input.from-prev { background: #eef6ff; color: #1d4ed8; }
