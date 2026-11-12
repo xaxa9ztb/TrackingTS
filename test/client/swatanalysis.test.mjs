@@ -9,11 +9,13 @@ test('Product line: ES1.1 / ES1.2 / ES 1.3 → ES1; các dòng khác giữ nguy�
   assert.deepEqual(['ES1.1', 'ES1.2', 'es 1.3', 'ES1', 'ES 5.0', 'S3300', 'Villa Lift', 'ES10'].map(A.productLine), ['ES1', 'ES1', 'ES1', 'ES1', 'ES 5.0', 'S3300', 'Villa Lift', 'ES10']);
 });
 
-test('lấy dữ liệu dòng: W = thưởng Scorecard (Fitter + Site-sup) × unit, AD đã chi trước, AE chi đợt này, AG giờ Fitter theo Scorecard', () => {
-  const batch = { projects: [{ wbs: '111', name: 'DA', units: 2, stops: 4, kind: 'final30', total: 3000000, swat: { sc: { pf: 4000000, ps: 1000000, used: 224 } }, analysis: { yanspn: 41216040 } }] };
+test('lấy dữ liệu dòng: W = thưởng Scorecard (Fitter + Site-sup) × unit, AD đã chi trước, AE chi đợt này, AG = giờ thực tế Scorecard (đã dùng + dự phòng)', () => {
+  const batch = { projects: [{ wbs: '111', name: 'DA', units: 2, stops: 4, kind: 'final30', total: 3000000, swat: { sc: { pf: 4000000, ps: 1000000, used: 208, reserve: 16, act: 224 } }, analysis: { yanspn: 41216040 } }] };
   const [r] = A.rows(batch, { project: () => ({ projectNumber: '814520969', productLine: 'ES1.2' }), pmName: () => 'Tên PM', paidBefore: () => 7000000 });
   assert.deepEqual([r.projectNumber, r.product, r.pm, r.units, r.stops, r.incentive, r.paidBefore, r.paidNow, r.fitterHours, r.yanspn],
     ['814520969', 'ES1', 'Tên PM', 2, 4, 10000000, 7000000, 3000000, 224, 41216040]);
+  const old = A.rows({ projects: [{ wbs: '2', swat: { sc: { pf: 1, ps: 1, used: 180, reserve: 12 } } }] })[0];
+  assert.equal(old.fitterHours, 192, 'Scorecard không có act → đã dùng + dự phòng');
 });
 
 test('tính như công thức Excel của file mẫu (dòng ES1, 4 stops)', () => {
