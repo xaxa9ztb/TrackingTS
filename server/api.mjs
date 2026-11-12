@@ -12,6 +12,7 @@ import { PERIOD_RE, checkDoc, periodRange, checkSubmitEntries, checkSubmitAllowa
 import { routeTsAdmin } from './tsadmin.mjs';
 import { routeTsImport, backfillMine } from './tsimport.mjs';
 import { routeIncentive } from './incentive.mjs';
+import { routeHsProject } from './hsproject.mjs';
 import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs, projectWbsKnown } from './tsflow.mjs';
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
@@ -1173,6 +1174,10 @@ async function handleApi(request, env, opts = {}) {
     if (path === '/api/admin/audit' && method === 'GET') return await listAudit(env, me, url);
     if (path.startsWith('/api/admin/ts/') || path === '/api/ts/import') {
       const r = (await routeTsImport(H, env, me, path, method, url, request)) || (await routeTsAdmin(H, env, me, path, method, url, request));
+      if (r) return r;
+    }
+    if (path.startsWith('/api/hs/')) {
+      const r = await routeHsProject(H, env, me, path, method, request);
       if (r) return r;
     }
     if (path.startsWith('/api/incentive/')) {

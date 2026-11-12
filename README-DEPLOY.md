@@ -26,7 +26,7 @@ trong repo này. Người dùng **đăng nhập một lần ở trang chủ rồ
 | `tracking.html` | Thống kê giờ công dự án (các bước bên dưới) | Mọi nhân viên | — |
 | `tools/swat-hour/` | SWAT Hour (nhúng trong tab SWAT của `tracking.html`) | theo `tracking.html` | chép từ `xaxa9ztb/swat-hour` |
 | `tools/timesheet/` | Timesheet cá nhân | Mọi nhân viên | `xaxa9ztb/Timesheet` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
-| `tools/tiendotm/` | Hồ sơ chất lượng thang máy (hồ sơ quản lý chất lượng + bảng tiến độ thi công) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
+| `tools/tiendotm/` | Hồ sơ Dự án (tiến độ & nghiệm thu, công văn – biên bản, hồ sơ pháp lý, bìa & trang ký bản vẽ; lưu theo dự án) | **Quản lý dự án, Site Sup** | `xaxa9ztb/TiendoTM` (`git subtree`, giữ lịch sử) — **ngừng phát triển** |
 | `tools/accounts/` | Tài khoản & phân quyền — chỉ chạy trên **máy chủ Cloudflare** (xem mục *Máy chủ mới*) | **Admin**, Quản lý dự án (phân công) | — |
 | `tools/projectplan/` | Quản lý dự án — **bản demo**: điều phối fitter + lịch trình dự án; lưu chung trên Drive qua Apps Script (`PM_SYNC_URL`), Excel nhập / xuất dự phòng | **Quản lý dự án, Site Sup** | — (xem `tools/projectplan/README.md`, `apps-script/HUONG-DAN.md`) |
 

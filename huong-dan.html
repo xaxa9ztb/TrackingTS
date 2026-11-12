@@ -468,7 +468,7 @@
     <figure class="shot"><img src="docs/huong-dan/hub-sitesup.jpg" alt="Trang chủ giám sát" loading="lazy" width="1280" height="800"><figcaption>Nhóm chức năng “Quản lý dự án &amp; Giám sát dự án”</figcaption></figure>
     <ol class="legend">
       <li><b>Duyệt bảng công</b> — nhãn đỏ “<b>N chờ duyệt</b>” cho biết số bảng công đang chờ bạn.</li>
-      <li><b>Hồ sơ chất lượng thang máy</b> — lập trọn bộ hồ sơ nghiệm thu, biên bản, nhật ký (mục 3.4).</li>
+      <li><b>Hồ sơ Dự án</b> — tiến độ &amp; nghiệm thu, công văn – biên bản, hồ sơ pháp lý, bìa &amp; trang ký bản vẽ (mục 3.4).</li>
       <li><b>Quản lý dự án</b> — xem lịch trình các dự án, điều phối fitter (mục 3.3 và phần 4).</li>
     </ol>
 
@@ -508,8 +508,16 @@
     </table>
     <p>Bấm tên dự án để mở chi tiết: ngày hàng về, giao hố, nhận hố, bàn giao, ghi chú. Chi tiết các thao tác xem mục <a href="#ql-lichtrinh">4.3</a>.</p>
 
-    <h3 id="gs-hoso">3.4. Hồ sơ chất lượng thang máy</h3>
-    <p>Lập trọn bộ hồ sơ nghiệm thu (.docx, mở bằng Word để in), biên bản hàng về, biên bản bàn giao thang và nhật ký thi công — chỉ cần nhập thông tin một lần.</p>
+    <h3 id="gs-hoso">3.4. Hồ sơ Dự án</h3>
+    <p>Hồ sơ của từng dự án gồm 4 chức năng: <b>Tiến độ &amp; nghiệm thu</b> (bảng tiến độ, bộ hồ sơ chất lượng, nhật ký thi công), <b>Công văn, biên bản</b>, <b>Hồ sơ pháp lý</b> và <b>Bìa &amp; trang ký bản vẽ</b>. Mọi thông tin đã nhập được <b>lưu theo dự án</b> — lần sau mở lại không phải nhập lại.</p>
+    <h4>Danh sách hồ sơ dự án</h4>
+    <figure class="shot"><img src="docs/huong-dan/hs-list.jpg" alt="Danh sách hồ sơ dự án đã nhập" loading="lazy" width="1280" height="860"><figcaption>Bảng hồ sơ dự án đã nhập — tìm nhanh, mở lại để làm tiếp</figcaption></figure>
+    <ol class="legend">
+      <li>Mở chức năng → bảng <b>Hồ sơ dự án đã nhập</b> (tên, WBS, chủ đầu tư, hợp đồng, lần cập nhật, người cập nhật). Gõ vào ô tìm kiếm để lọc nhanh, bấm <span class="btnlike">Mở</span> để làm tiếp.</li>
+      <li><span class="btnlike">＋ Tạo hồ sơ dự án mới</span> → nhập hợp đồng như bước 1 bên dưới.</li>
+      <li>Thanh <b>Hồ sơ</b> ở đầu trang: <span class="btnlike">💾 Lưu</span> bất kỳ lúc nào; app cũng tự lưu mỗi 5 phút khi có thay đổi và sau mỗi lần xuất tài liệu. Thay đổi chưa lưu luôn được giữ nháp trên máy (mất mạng vẫn không mất).</li>
+      <li>File hợp đồng, bản vẽ PDF, file Word mẫu <b>không</b> tải lên máy chủ — chỉ lưu thông tin đã nhập và danh mục bản vẽ.</li>
+    </ol>
     <h4>Bước 1 — Nhập hợp đồng</h4>
     <figure class="shot"><img src="docs/huong-dan/hs-start.jpg" alt="Nhập hợp đồng" loading="lazy" width="1280" height="860"><figcaption>Màn hình đầu</figcaption></figure>
     <ol class="legend">
@@ -518,12 +526,16 @@
       <li>Hoặc <span class="btnlike">Bỏ qua — nhập tay</span>.</li>
     </ol>
     <h4>Bước 2 — Chọn chức năng</h4>
-    <figure class="shot"><img src="docs/huong-dan/hs-choose.jpg" alt="Chọn chức năng" loading="lazy" width="1280" height="860"><figcaption>Hai chức năng dùng chung dữ liệu hợp đồng</figcaption></figure>
+    <figure class="shot"><img src="docs/huong-dan/hs-choose.jpg" alt="Chọn chức năng" loading="lazy" width="1280" height="860"><figcaption>4 chức năng dùng chung dữ liệu hợp đồng và thông tin dự án</figcaption></figure>
     <ol class="legend">
-      <li><b>Lập bảng tiến độ thi công</b> — Gantt theo tuần, xuất Excel / PDF khổ A3 (xem mục <a href="#ql-tiendo">4.5</a>).</li>
-      <li><b>Hồ sơ quản lý chất lượng</b> — bộ hồ sơ nghiệm thu Word.</li>
+      <li><b>Tiến độ &amp; nghiệm thu</b> — <i>Lập bảng tiến độ thi công</i> (Gantt theo tuần, xuất Excel / PDF A3, xem mục <a href="#ql-tiendo">4.5</a>), <i>Hồ sơ chất lượng</i> (bộ hồ sơ nghiệm thu Word), <i>Nhật ký thi công</i>.</li>
+      <li><b>Công văn, biên bản</b> — 10 công văn (thông báo hàng về lần 1/lần 2, tồn tại giếng thang trước khi hàng về / trước kiểm định, mời kiểm định, thời hạn bảo hành – bảo trì, tính thời gian bảo hành, bảo quản tài sản khi tạm dừng, kết quả nghiệm thu, bàn giao thang máy) và các biên bản (cote cửa tầng, huấn luyện &amp; bàn giao chìa khoá, hàng về, bàn giao thang). Tất cả dùng chung một khuôn công văn của nhà thầu: logo, địa chỉ chân trang, khối Kính gửi – V/v – Tham chiếu hợp đồng, khối ký và nơi nhận.</li>
+      <li><b>Hồ sơ pháp lý</b> — nhập nhân sự công trường (BCH, PCCC) và máy móc → xuất .zip: bìa, danh mục, QĐ Ban chỉ huy, trách nhiệm quyền hạn, chữ ký mẫu, đội PCCC, sơ đồ tổ chức, danh sách máy móc. Kế hoạch an toàn: tải file Word mẫu lên để đổi tên công trình.</li>
+      <li><b>Bìa &amp; trang ký bản vẽ</b> — tải bản vẽ PDF → tự lập danh mục (số hiệu, tên, khổ giấy) → tải bìa + trang “Duyệt bản vẽ thi công” A3, hoặc bộ bản vẽ đã ghép sẵn bìa.</li>
+      <li>Mục <b>Thông tin dự án dùng chung</b> (cuối màn hình chọn chức năng): chủ đầu tư, Ban QLDA, TVGS, hợp đồng, người ký, người liên hệ — tự lấy từ hợp đồng, sửa được.</li>
     </ol>
-    <h4>Bước 3 — Điền thông tin hồ sơ</h4>
+    <figure class="shot"><img src="docs/huong-dan/hs-letters.jpg" alt="Công văn, biên bản" loading="lazy" width="1280" height="860"><figcaption>Công văn, biên bản — chọn mẫu bên trái, điền ô riêng bên phải rồi xuất Word</figcaption></figure>
+    <h4>Bước 3 — Điền thông tin hồ sơ chất lượng</h4>
     <p>Điền lần lượt các mục A → F. Ô để trống sẽ in dấu chấm để điền tay sau.</p>
     <figure class="shot"><img src="docs/huong-dan/hs-contract.jpg" alt="Mục hợp đồng và tài liệu căn cứ" loading="lazy" width="1280" height="860"><figcaption>Mục C — Hợp đồng &amp; tài liệu căn cứ</figcaption></figure>
     <ol class="legend">

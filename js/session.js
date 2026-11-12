@@ -29,7 +29,7 @@ const Session = (() => {
   const TOOLS = {
     tracking: { name: 'Thống kê giờ công dự án', path: 'tracking.html' },
     timesheet: { name: 'Timesheet cá nhân', path: 'tools/timesheet/' },
-    tiendotm: { name: 'Hồ sơ chất lượng thang máy', path: 'tools/tiendotm/', ...PM_TEAM },
+    tiendotm: { name: 'Hồ sơ Dự án', path: 'tools/tiendotm/', ...PM_TEAM },
     handover: { name: 'Hồ sơ bàn giao NI – EI', soon: true, ...PM_TEAM },
     ffplus: { name: 'Hồ sơ FF+', soon: true, ...PM_TEAM },
     projectplan: { name: 'Quản lý dự án', path: 'tools/projectplan/', demo: true, ...PM_TEAM }, // bản demo
