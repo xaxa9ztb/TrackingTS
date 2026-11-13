@@ -2304,3 +2304,40 @@ test('Hồ sơ Dự án: lưu thông tin theo dự án, danh sách tra cứu, ch
   assert.equal((await call('DELETE', `/api/hs/projects/${p.id}`, { email: A, body: {} })).status, 200);
   assert.equal((await call('GET', `/api/hs/projects/${p.id}`, { email: A })).status, 404);
 });
+
+test('Hồ sơ Dự án: phân quyền sửa — QLDA sửa mọi hồ sơ, Site Sup sửa hồ sơ của mình, hồ sơ khác chỉ xem trừ khi Admin cấp quyền', async () => {
+  const A = 'boss@example.com', PM = 'hspm@example.com', SUP = 'sup@example.com';
+  await call('POST', '/api/admin/import', { email: A, body: { employees: [{ empId: 'HSPM1', fullName: 'Quản Lý Hồ Sơ', position: 'Project Manager' }] } });
+  assert.equal((await call('POST', '/api/admin/emails', { email: A, body: { items: [{ empId: 'HSPM1', email: PM }] } })).data.applied, 1);
+  assert.deepEqual((await call('GET', '/api/me', { email: PM })).data.roles, ['pm']);
+  assert.equal((await call('PATCH', '/api/admin/employees/S01', { email: A, body: { active: true } })).status, 200, 'mở khoá Site Sup mẫu');
+  assert.deepEqual((await call('GET', '/api/me', { email: SUP })).data.roles, ['sitesup']);
+  const mk = async (email, wbs, name) => { const r = await call('POST', '/api/hs/projects', { email, body: { wbs, name, data: {} } }); assert.equal(r.status, 200, email + ' ' + JSON.stringify(r.data)); return r.data.project; };
+  const pmP = await mk(PM, 'HSP-1', 'DỰ ÁN CỦA QLDA');
+  const supP = await mk(SUP, 'HSP-2', 'DỰ ÁN CỦA SITE SUP');
+  assert.deepEqual([pmP.canEdit, supP.canEdit, supP.owner], [true, true, 'emp:s01']);
+  // Site Sup thấy hồ sơ của mọi người, nhưng hồ sơ của QLDA chỉ xem
+  const sl = (await call('GET', '/api/hs/projects', { email: SUP })).data.items;
+  const a = sl.find(x => x.id === pmP.id), b = sl.find(x => x.id === supP.id);
+  assert.deepEqual([a.canEdit, a.canDelete, a.canGrant, b.canEdit, b.canDelete], [false, false, false, true, true]);
+  const put = (email, id, version) => call('PUT', `/api/hs/projects/${id}`, { email, body: { version, data: { x: email + version } } });
+  const r1 = await put(SUP, pmP.id, 1);
+  assert.equal(r1.status, 403); assert.match(r1.data.error, /chỉ được xem/);
+  assert.equal((await put(PM, supP.id, 1)).status, 200, 'QLDA sửa được hồ sơ của Site Sup');
+  assert.equal((await put(SUP, supP.id, 2)).status, 200, 'Site Sup sửa hồ sơ của mình');
+  // cấp quyền: chỉ Admin
+  const grant = (email, id, editors) => call('PUT', `/api/hs/projects/${id}/editors`, { email, body: { editors } });
+  assert.equal((await grant(PM, pmP.id, [SUP])).status, 403);
+  assert.equal((await grant(A, pmP.id, ['khong-hop-le'])).status, 400);
+  const g = await grant(A, pmP.id, [' SUP@example.com ', 'sup@example.com']);
+  assert.deepEqual(g.data.project.editors, ['sup@example.com']);
+  assert.equal((await grant(A, pmP.id, ['sup@example.com'])).data.unchanged, true, 'không đổi thì không ghi');
+  assert.equal((await put(SUP, pmP.id, 1)).status, 200, 'được cấp quyền thì sửa được');
+  assert.equal((await call('GET', `/api/hs/projects/${pmP.id}`, { email: SUP })).data.project.canEdit, true);
+  await grant(A, pmP.id, []);
+  assert.equal((await put(SUP, pmP.id, 2)).status, 403, 'thu hồi quyền');
+  // xoá: chỉ Admin hoặc người tạo
+  assert.equal((await call('DELETE', `/api/hs/projects/${pmP.id}`, { email: SUP, body: {} })).status, 403);
+  assert.equal((await call('DELETE', `/api/hs/projects/${supP.id}`, { email: SUP, body: {} })).status, 200);
+  assert.equal((await call('DELETE', `/api/hs/projects/${pmP.id}`, { email: A, body: {} })).status, 200);
+});
