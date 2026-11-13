@@ -36,10 +36,11 @@
     get: (id) => api('GET', '/api/hs/projects/' + id).then(r => r.project),
     create: (b) => api('POST', '/api/hs/projects', b),
     put: (id, b) => api('PUT', '/api/hs/projects/' + id, b),
+    editors: (id, editors) => api('PUT', '/api/hs/projects/' + id + '/editors', { editors }),
     del: (id) => api('DELETE', '/api/hs/projects/' + id, {}),
   } : {
-    async list() { return local.read().items.map(head).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))); },
-    async get(id) { const x = local.read().items.find(i => i.id === +id); if (!x) { const e = new Error('Không có hồ sơ dự án này'); e.status = 404; throw e; } return x; },
+    async list() { return local.read().items.map(head).map(x => ({ ...x, canEdit: true, canDelete: true })).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))); },
+    async get(id) { const x = local.read().items.find(i => i.id === +id); if (!x) { const e = new Error('Không có hồ sơ dự án này'); e.status = 404; throw e; } return { ...x, canEdit: true, canDelete: true }; },
     async create(b) {
       const db = local.read();
       const ex = b.wbs && db.items.find(i => i.wbs === b.wbs);
@@ -140,7 +141,9 @@
   function readDraft(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
 
   // ---------- lưu ----------
+  const readOnly = () => !!(st.cur && st.cur.canEdit === false);
   async function save(reason) {
+    if (readOnly()) { if (reason === 'manual') bar('👁 Chỉ xem — bạn chưa có quyền sửa hồ sơ này (liên hệ Admin để được cấp quyền). Vẫn xuất được tài liệu.', 'warn'); return true; }
     if (st.saving) return st.saving;
     const run = (async () => {
       const data = snapshot(), text = JSON.stringify(data), h = headFields();
@@ -181,6 +184,7 @@
   }
   const saveSoon = () => { clearTimeout(st.soon); st.soon = setTimeout(() => save('export'), 1500); };
   function onEdit() {
+    if (readOnly()) return;
     clearTimeout(st.draftT);
     st.draftT = setTimeout(() => {
       if (!st.booted || !$('screenHome').classList.contains('hide') || st.saving) return;
@@ -203,12 +207,12 @@
     const rows = items.filter(x => { const k = plain([x.name, x.wbs, x.customer, x.contract, x.updatedBy].join(' ')); return terms.every(t => k.includes(t)); });
     $('hsCount').textContent = items.length ? `${rows.length}/${items.length} hồ sơ` : '';
     const nd = readDraft('hs_draft_new');
-    const draftRow = nd && nd.data ? `<tr class="hs-draft"><td data-label="Dự án"><b>${esc((nd.data.f && nd.data.f.hs_congtrinh) || (nd.data.S && nd.data.S.project && nd.data.S.project.name) || 'Hồ sơ mới chưa lưu')}</b> <span class="pill wait">nháp trên máy</span></td><td colspan="4" data-label="">Bắt đầu lúc ${esc(fmtTime(nd.t))} — chưa lưu lên ${SERVER ? 'máy chủ' : 'danh sách'}</td><td class="hs-act"><button class="btn sm pri" data-open="new">Mở tiếp</button></td></tr>` : '';
+    const draftRow = nd && nd.data ? `<tr class="hs-draft"><td data-label="Dự án"><b>${esc((nd.data.f && nd.data.f.hs_congtrinh) || (nd.data.S && nd.data.S.project && nd.data.S.project.name) || 'Hồ sơ mới chưa lưu')}</b> <span class="pill wait">nháp trên máy</span></td><td colspan="4" data-label="">Bắt đầu lúc ${esc(fmtTime(nd.t))} — chưa lưu lên ${SERVER ? 'máy chủ' : 'danh sách'}</td><td class="hs-act"><button class="btn sm pri" data-open="new">Mở tiếp</button> <button class="btn sm gho" data-deldraft="new" title="Xoá bản nháp trên máy này">Xoá nháp</button></td></tr>` : '';
     tb.innerHTML = draftRow + (rows.length ? rows.map(x => `<tr data-id="${x.id}">
-      <td data-label="Dự án"><b>${esc(x.name)}</b>${readDraft('hs_draft_' + x.id) ? ' <span class="pill wait" title="Có thay đổi chưa lưu trên máy này">nháp</span>' : ''}</td>
+      <td data-label="Dự án"><b>${esc(x.name)}</b>${x.canEdit === false ? ' <span class="pill ro" title="Bạn chỉ được xem — liên hệ Admin để được cấp quyền sửa">chỉ xem</span>' : ''}${readDraft('hs_draft_' + x.id) ? ` <span class="pill wait" title="Có thay đổi chưa lưu trên máy này">nháp</span> <button class="hs-link" data-deldraft="${x.id}" title="Bỏ các thay đổi chưa lưu trên máy này">xoá nháp</button>` : ''}${x.editors && x.editors.length ? `<div class="hs-by" title="${esc(x.editors.join(', '))}">Được cấp quyền sửa: ${x.editors.length} người</div>` : ''}</td>
       <td data-label="WBS">${esc(x.wbs || '—')}</td><td data-label="Chủ đầu tư">${esc(x.customer || '—')}</td><td data-label="Hợp đồng">${esc(x.contract || '—')}</td>
-      <td data-label="Cập nhật">${esc(fmtTime(x.updatedAt))}<div class="hs-by">${esc(x.updatedBy || '')}</div></td>
-      <td class="hs-act"><button class="btn sm pri" data-open="${x.id}">Mở</button> <button class="btn sm gho" data-del="${x.id}" title="Xoá hồ sơ">Xoá</button></td></tr>`).join('')
+      <td data-label="Cập nhật">${esc(fmtTime(x.updatedAt))}<div class="hs-by">${esc(x.updatedBy || '')}${x.createdBy && x.createdBy !== x.updatedBy ? ' · tạo: ' + esc(x.createdBy) : ''}</div></td>
+      <td class="hs-act"><button class="btn sm pri" data-open="${x.id}">${x.canEdit === false ? 'Xem' : 'Mở'}</button>${x.canGrant ? ` <button class="btn sm gho" data-grant="${x.id}" title="Cấp quyền sửa cho Site Sup">Quyền sửa</button>` : ''}${x.canDelete !== false ? ` <button class="btn sm gho" data-del="${x.id}" title="Xoá hồ sơ">Xoá</button>` : ''}</td></tr>`).join('')
       : `<tr><td colspan="6" class="hs-empty">${items.length ? 'Không có hồ sơ khớp từ khoá' : 'Chưa có hồ sơ dự án nào — bấm “Tạo hồ sơ dự án mới”.'}</td></tr>`);
   }
   async function delProject(id) {
@@ -216,6 +220,46 @@
     if (!confirm(`Xoá hồ sơ dự án “${x.name}”? Thao tác không hoàn tác được.`)) return;
     try { await Store.del(id); try { localStorage.removeItem('hs_draft_' + id); } catch (e) { /* bỏ qua */ } items = items.filter(i => i.id !== +id); paintList(); }
     catch (e) { alert(e.message); }
+  }
+  function delDraft(key) {
+    const isNew = key === 'new';
+    const x = isNew ? null : items.find(i => i.id === +key);
+    if (!confirm(isNew ? 'Xoá hồ sơ mới đang nhập dở (chưa lưu) trên máy này?' : `Bỏ các thay đổi chưa lưu của “${x ? x.name : 'hồ sơ'}” trên máy này? Bản đã lưu trên ${SERVER ? 'máy chủ' : 'danh sách'} vẫn giữ nguyên.`)) return;
+    try { localStorage.removeItem('hs_draft_' + key); } catch (e) { /* bỏ qua */ }
+    paintList();
+  }
+  let sups = null;
+  async function grantDlg(id) {
+    const x = items.find(i => i.id === +id); if (!x) return;
+    let dlg = $('hsGrantDlg');
+    if (!dlg) {
+      dlg = document.createElement('dialog'); dlg.id = 'hsGrantDlg'; dlg.className = 'hs-dlg';
+      dlg.innerHTML = `<form method="dialog"><h3 style="margin:0 0 4px">Cấp quyền sửa hồ sơ</h3><p class="hs-mini" id="hsGrantName" style="margin:0 0 10px"></p>
+        <p class="hs-mini" style="margin:0 0 6px">Admin, Quản lý dự án và người tạo luôn sửa được. Tick Site Sup được phép sửa hồ sơ này:</p>
+        <div id="hsGrantList" class="hs-grant-list"></div>
+        <label class="hs-mini" style="display:block;margin-top:10px">Email khác (cách nhau dấu phẩy)<input id="hsGrantMore" type="text" style="width:100%;margin-top:4px"></label>
+        <p id="hsGrantSt" class="hs-mini" style="min-height:1.2em"></p>
+        <div class="row" style="justify-content:flex-end;gap:8px"><button value="cancel" class="btn gho sm">Đóng</button><button id="hsGrantSave" value="default" class="btn pri sm">Lưu quyền</button></div></form>`;
+      document.body.appendChild(dlg);
+    }
+    $('hsGrantName').textContent = x.name + (x.wbs ? ' · WBS ' + x.wbs : '');
+    $('hsGrantSt').textContent = '';
+    const cur = new Set((x.editors || []).map(e => e.toLowerCase()));
+    if (!sups) {
+      try { const r = await api('GET', '/api/employees'); sups = (r.employees || []).filter(e => e.email && e.active !== false && (e.roles || []).includes('sitesup')).map(e => ({ email: String(e.email).toLowerCase(), name: e.name || e.fullName || e.email })); }
+      catch (e) { sups = []; }
+    }
+    const known = new Set(sups.map(s => s.email));
+    $('hsGrantList').innerHTML = sups.length ? sups.map(s => `<label class="chk"><input type="checkbox" value="${esc(s.email)}"${cur.has(s.email) ? ' checked' : ''}> ${esc(s.name)} <span class="hs-mini">${esc(s.email)}</span></label>`).join('') : '<span class="hs-mini">Không tải được danh sách Site Sup — nhập email bên dưới.</span>';
+    $('hsGrantMore').value = [...cur].filter(e => !known.has(e)).join(', ');
+    $('hsGrantSave').onclick = async (ev) => {
+      ev.preventDefault();
+      const list = [...dlg.querySelectorAll('#hsGrantList input:checked')].map(i => i.value).concat($('hsGrantMore').value.split(/[,;\s]+/).map(v => v.trim()).filter(Boolean));
+      $('hsGrantSt').textContent = 'Đang lưu…';
+      try { const r = await Store.editors(id, list); Object.assign(x, r.project); paintList(); dlg.close(); }
+      catch (e) { $('hsGrantSt').textContent = '⚠ ' + e.message; }
+    };
+    dlg.showModal();
   }
   async function toList() {
     if (st.booted && !$('screenHome').classList.contains('hide')) return;
@@ -405,6 +449,8 @@
     $('hsTable').addEventListener('click', (e) => {
       const o = e.target.closest('[data-open]'); if (o) { location.search = '?p=' + o.dataset.open; return; }
       const d = e.target.closest('[data-del]'); if (d) { delProject(d.dataset.del); return; }
+      const dd = e.target.closest('[data-deldraft]'); if (dd) { delDraft(dd.dataset.deldraft); return; }
+      const gr = e.target.closest('[data-grant]'); if (gr) { grantDlg(gr.dataset.grant); return; }
       const tr = e.target.closest('tr[data-id]'); if (tr && !e.target.closest('button')) location.search = '?p=' + tr.dataset.id;
     });
     $('hsNew').onclick = () => { location.search = '?p=new'; };
@@ -455,7 +501,7 @@
     $('hsDwCover').onclick = () => exportDrawing(false);
     $('hsDwMerge').onclick = () => exportDrawing(true);
     window.addEventListener('beforeunload', (e) => {
-      if (!st.booted || $('screenHome').classList.contains('hide') === false) return;
+      if (!st.booted || $('screenHome').classList.contains('hide') === false || readOnly()) return;
       try { if (json() !== st.lastJson) { saveDraft(); e.preventDefault(); e.returnValue = ''; } } catch (x) { /* bỏ qua */ }
     });
     setInterval(() => { if (st.booted && $('screenHome').classList.contains('hide') && (st.cur || projName())) save('auto'); }, AUTOSAVE_MS);
@@ -480,8 +526,9 @@
       restore(p.data);
       st.lastJson = json();
       const d = readDraft('hs_draft_' + p.id);
-      if (d && d.data && JSON.stringify(d.data) !== st.lastJson && confirm(`Trên máy này có thay đổi chưa lưu của hồ sơ “${p.name}” (${fmtTime(d.t)}).\nKhôi phục các thay đổi đó?`)) { restore(d.data); bar('Đã khôi phục thay đổi chưa lưu — bấm Lưu để lưu lên ' + (SERVER ? 'máy chủ' : 'danh sách'), 'warn'); }
+      if (!readOnly() && d && d.data && JSON.stringify(d.data) !== st.lastJson && confirm(`Trên máy này có thay đổi chưa lưu của hồ sơ “${p.name}” (${fmtTime(d.t)}).\nKhôi phục các thay đổi đó?`)) { restore(d.data); bar('Đã khôi phục thay đổi chưa lưu — bấm Lưu để lưu lên ' + (SERVER ? 'máy chủ' : 'danh sách'), 'warn'); }
       else { if (d) dropDraft(); bar('✓ Đã mở hồ sơ', 'ok'); }
+      if (readOnly()) { dropDraft(); bar('👁 Chỉ xem — hồ sơ của ' + (p.createdBy || 'người khác') + '. Muốn sửa: liên hệ Admin để được cấp quyền. Vẫn xuất được tài liệu.', 'warn'); $('hsSave').disabled = true; $('hsSave').title = 'Bạn chưa có quyền sửa hồ sơ này'; }
       prefillCommon();
     } catch (e) { bar('⚠ ' + e.message, 'err'); showScreen('screenHome'); loadList(); }
     st.booted = true;

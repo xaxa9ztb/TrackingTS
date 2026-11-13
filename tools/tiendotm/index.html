@@ -30,7 +30,7 @@
 <script src="hsletters.js?v=1"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=1"></script>
-<script src="hoso.js?v=1"></script>
+<script src="hoso.js?v=2"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -249,6 +249,12 @@ table.hs-table td{border-bottom:1px solid var(--line);padding:9px 8px;vertical-a
 table.hs-table tbody tr[data-id]{cursor:pointer}table.hs-table tbody tr[data-id]:hover{background:color-mix(in srgb,var(--ni-app) 6%,transparent)}
 .hs-by{font-size:11.5px;color:var(--muted)}.hs-act{white-space:nowrap;text-align:right}.hs-empty{text-align:center;color:var(--muted);padding:22px!important}.hs-empty.err{color:var(--red)}
 .hs-draft td{background:#fffbeb}
+.pill.ro{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#e0e7ff;color:#3730a3;font-weight:600}
+.hs-link{background:none;border:none;padding:0;font:inherit;font-size:12px;color:var(--ni-action,#1d4ed8);text-decoration:underline;cursor:pointer}
+.hs-dlg{border:1px solid var(--line);border-radius:14px;padding:18px;max-width:520px;width:calc(100% - 32px);margin:auto;position:fixed;inset:0;height:fit-content;max-height:90vh;overflow:auto}
+.hs-dlg::backdrop{background:rgba(15,23,42,.45)}
+.hs-grant-list{display:grid;gap:6px;max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px}
+.hs-grant-list .chk{font-weight:500;text-transform:none}
 .pill.wait{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:600}
 .fn4{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
 .fncard{text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;font:inherit;color:inherit}
@@ -282,7 +288,8 @@ table.edit td.c{text-align:center}
 @media(max-width:720px){.fn4,.hs-letters,.hs-kys{grid-template-columns:1fr}
   table.hs-table thead{display:none}table.hs-table tr,table.hs-table td{display:block}table.hs-table tr{border-bottom:1px solid var(--line);padding:6px 0}
   table.hs-table td{border:none;padding:3px 4px}table.hs-table td[data-label]::before{content:attr(data-label) ": ";color:var(--muted);font-size:12px}
-  .hs-act{text-align:left}.hsbar{position:static}}
+  .hs-act{text-align:left}.hsbar{position:static}
+  .hs-tools input{max-width:none;flex-basis:100%}.hs-tools a.btn{margin-left:0!important;padding:6px 8px}.hs-tools #hsNew{flex-basis:100%}}
 
 @media print{
   @page{size:A3 landscape;margin:8mm}
