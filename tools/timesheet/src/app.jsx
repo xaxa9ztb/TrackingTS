@@ -795,7 +795,7 @@
                                     {exportMenu && (
                                         <React.Fragment>
                                             <div className="fixed inset-0 z-30" onClick={() => setExportMenu(false)} aria-hidden="true"></div>
-                                            <div id="tsExportMenu" role="menu" className="absolute right-0 mt-1 z-40 w-60 rounded-xl border border-slate-200 bg-white shadow-lg p-1"
+                                            <div id="tsExportMenu" role="menu" className="absolute left-0 sm:left-auto sm:right-0 mt-1 z-40 w-60 rounded-xl border border-slate-200 bg-white shadow-lg p-1"
                                                 onKeyDown={e => { if (e.key === 'Escape') setExportMenu(false); }}>
                                                 {exportItems.map((it, i) => (
                                                     <button key={it.kind} type="button" role="menuitem" data-kind={it.kind} disabled={it.off} autoFocus={i === 0 && !it.off}
