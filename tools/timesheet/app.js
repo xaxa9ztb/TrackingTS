@@ -1707,7 +1707,7 @@ function App() {
   }), /*#__PURE__*/React.createElement("div", {
     id: "tsExportMenu",
     role: "menu",
-    className: "absolute right-0 mt-1 z-40 w-60 rounded-xl border border-slate-200 bg-white shadow-lg p-1",
+    className: "absolute left-0 sm:left-auto sm:right-0 mt-1 z-40 w-60 rounded-xl border border-slate-200 bg-white shadow-lg p-1",
     onKeyDown: e => {
       if (e.key === 'Escape') setExportMenu(false);
     }
