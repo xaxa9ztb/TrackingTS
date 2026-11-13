@@ -12,7 +12,7 @@ const INCLUDE = ['index.html', 'tracking.html', 'admin.html', 'design.html', 'ma
   'huong-dan.html', 'docs/huong-dan', // tài liệu hướng dẫn sử dụng + ảnh minh họa
   'huong-dan-timesheet.html', 'docs/Huong-dan-Timesheet-ca-nhan.pdf', // tài liệu training Timesheet cá nhân (video gửi riêng, không đưa lên site cho đỡ tốn dung lượng)
   'docs/Training-Timesheet-Fitter-GiamSat.pptx', 'docs/Training-Timesheet-Fitter-GiamSat.pdf', // slide training Timesheet
-  'huong-dan-ho-so-du-an.html', 'docs/Huong-dan-Ho-so-Du-an.pdf']; // tài liệu Hồ sơ Dự án
+  'huong-dan-ho-so-du-an.html', 'docs/Huong-dan-Ho-so-Du-an.pdf', 'docs/Training-Ho-so-Du-an.pptx', 'docs/Training-Ho-so-Du-an.pdf']; // tài liệu + slide Hồ sơ Dự án
 const SKIP = /(^|\/)(node_modules|package(-lock)?\.json)(\/|$)/;
 
 rmSync(OUT, { recursive: true, force: true });
