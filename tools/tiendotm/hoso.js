@@ -65,8 +65,16 @@
   // dữ liệu riêng của 3 chức năng mới (lưu cùng hồ sơ)
   const LT = {};                                              // công văn: LT[id] = {so, ngay, ...ô riêng}
   const LG = { ngay: '', people: [], machines: [], docs: {}, khOld: '', khNew: '' };   // hồ sơ pháp lý
-  const DW = { tieuDe: 'BẢN VẼ THI CÔNG', phuDe: '(SHOP DRAWING)', heThong: 'HỆ THỐNG THANG MÁY', thietBi: '', prefix: 'TM', ngay: '', soBanVe: '', list: [], ky: [] };
-  let dwFiles = [];                                          // bản vẽ tải lên: chỉ giữ trong bộ nhớ, không lưu lên máy chủ
+  // bìa & trang ký bản vẽ: 2 loại — bản vẽ thi công (shop drawing) và bản vẽ hoàn công (as-built), mỗi loại một bộ dữ liệu riêng
+  const DWK = {
+    shop: { label: 'Bản vẽ thi công (Shop drawing)', short: 'Bản vẽ thi công', tieuDe: 'BẢN VẼ THI CÔNG', phuDe: '(SHOP DRAWING)', kyTitle: 'DUYỆT BẢN VẼ THI CÔNG', prefix: 'TM', file: 'Ban ve thi cong' },
+    asbuilt: { label: 'Bản vẽ hoàn công (As-built)', short: 'Bản vẽ hoàn công', tieuDe: 'BẢN VẼ HOÀN CÔNG', phuDe: '(AS-BUILT DRAWING)', kyTitle: 'XÁC NHẬN BẢN VẼ HOÀN CÔNG', prefix: 'HC', file: 'Ban ve hoan cong' },
+  };
+  const blankDW = (k) => ({ kind: k, tieuDe: DWK[k].tieuDe, phuDe: DWK[k].phuDe, kyTitle: DWK[k].kyTitle, heThong: 'HỆ THỐNG THANG MÁY', thietBi: '', prefix: DWK[k].prefix, ngay: '', soBanVe: '', list: [], ky: [] });
+  const DWS = { shop: blankDW('shop'), asbuilt: blankDW('asbuilt') };
+  let dwKind = 'shop', DW = DWS.shop;
+  const dwFilesBy = { shop: [], asbuilt: [] };
+  let dwFiles = dwFilesBy.shop;                              // bản vẽ tải lên: chỉ giữ trong bộ nhớ, không lưu lên máy chủ
 
   // ---------- chụp / khôi phục toàn bộ dữ liệu của công cụ ----------
   const SKIP = new Set(['ppInput', 'file', 'ct_file', 'hsFilter', 'hsKhFile', 'hsDwFiles']);
@@ -75,7 +83,7 @@
     if (typeof pullForm === 'function') { try { pullForm(); } catch (e) { /* form chưa sẵn sàng */ } }
     const f = {};
     fieldEls().forEach(el => { f[el.id] = (el.type === 'checkbox' || el.type === 'radio') ? !!el.checked : el.value; });
-    return { v: 1, S: JSON.parse(JSON.stringify(S)), f, lt: LT, lg: LG, dw: { ...DW } };
+    return { v: 1, S: JSON.parse(JSON.stringify(S)), f, lt: LT, lg: LG, dw: { ...DWS.shop }, dws: JSON.parse(JSON.stringify(DWS)) };
   }
   function restore(d) {
     if (!d || typeof d !== 'object') return;
@@ -91,7 +99,8 @@
     if (typeof qTogglePL === 'function') { try { qTogglePL(); } catch (e) { /* bỏ qua */ } }
     Object.keys(LT).forEach(k => delete LT[k]); Object.assign(LT, d.lt || {});
     Object.assign(LG, { ngay: '', people: [], machines: [], docs: {}, khOld: '', khNew: '' }, d.lg || {});
-    Object.assign(DW, d.dw || {});
+    Object.keys(DWS).forEach(k => { const src = (d.dws && d.dws[k]) || (k === 'shop' ? d.dw : null); DWS[k] = Object.assign(blankDW(k), src || {}, { kind: k }); });
+    DW = DWS[dwKind];
   }
   const json = () => JSON.stringify(snapshot());
 
@@ -269,6 +278,8 @@
 
   // ---------- 4 chức năng ----------
   function enter(screen) {
+    const sub = String(screen).split(':'); screen = sub[0];
+    if (screen === 'screenDrawing' && sub[1] && DWK[sub[1]]) { dwFilesBy[dwKind] = dwFiles; dwKind = sub[1]; DW = DWS[dwKind]; dwFiles = dwFilesBy[dwKind]; }
     prefillCommon();
     if (typeof prefillQuality === 'function' && /screenLetters|screenNhatKy/.test(screen)) { try { prefillQuality(); } catch (e) { /* bỏ qua */ } }
     showScreen(screen);
@@ -392,14 +403,24 @@
   })());
   function defaultKy() {
     const I = info();
+    if (dwKind === 'asbuilt') return [{ title: 'Chủ đầu tư', org: I.chuDauTu, ten: '', chucVu: '' }, { title: 'Tư vấn giám sát', org: I.tvgs || I.banQLDA, ten: '', chucVu: '' },
+      { title: 'Nhà thầu thi công (lập bản vẽ)', org: I.nhaThau, ten: I.chtTen, chucVu: I.chtTen ? 'Chỉ huy trưởng' : '' }];
     return [{ title: 'Chủ đầu tư', org: I.chuDauTu, ten: '', chucVu: '' }, { title: 'Ban quản lý dự án / Tư vấn giám sát', org: I.banQLDA || I.tvgs, ten: '', chucVu: '' },
       { title: 'Nhà thầu cung cấp, lắp đặt', org: I.nhaThau, ten: I.nguoiKy, chucVu: I.chucVuKy }];
   }
+  function setDwKind(k) {
+    if (!DWK[k]) k = 'shop';
+    dwFilesBy[dwKind] = dwFiles;
+    dwKind = k; DW = DWS[k]; dwFiles = dwFilesBy[k];
+    renderDrawing();
+  }
   function renderDrawing() {
+    document.querySelectorAll('#hsDwKind [data-kind]').forEach(b => { const on = b.dataset.kind === dwKind; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    const kn = $('hsDwKindName'); if (kn) kn.textContent = DWK[dwKind].short;
     if (!DW.ngay) DW.ngay = todayISO();
     if (!DW.thietBi) DW.thietBi = gv('hs_thietbi');
     if (!DW.ky || !DW.ky.length) DW.ky = defaultKy();
-    ['tieuDe', 'phuDe', 'heThong', 'thietBi', 'prefix', 'ngay', 'soBanVe'].forEach(k => { const el = $('hsDw_' + k); if (el) el.value = DW[k] || ''; });
+    ['tieuDe', 'phuDe', 'kyTitle', 'heThong', 'thietBi', 'prefix', 'ngay', 'soBanVe'].forEach(k => { const el = $('hsDw_' + k); if (el) el.value = DW[k] || ''; });
     $('hsDwKy').innerHTML = DW.ky.map((c, i) => `<div class="hs-ky" data-i="${i}"><div class="f"><label>Cột ký ${i + 1} — tiêu đề</label><input data-kk="title" value="${esc(c.title)}"></div>
       <div class="f"><label>Đơn vị</label><input data-kk="org" value="${esc(c.org)}"></div><div class="f"><label>Họ tên người ký</label><input data-kk="ten" value="${esc(c.ten)}" placeholder="(để trống: điền tay)"></div>
       <div class="f"><label>Chức vụ</label><input data-kk="chucVu" value="${esc(c.chucVu)}"></div></div>`).join('');
@@ -419,7 +440,7 @@
       for (const f of fileList) { if (!/\.pdf$/i.test(f.name)) continue; add.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }); }
       if (!add.length) { stEl.textContent = 'Chỉ nhận file PDF'; return; }
       const fresh = !dwFiles.length;
-      dwFiles = dwFiles.concat(add);
+      dwFiles = dwFiles.concat(add); dwFilesBy[dwKind] = dwFiles;
       const rows = await HsDrawing.listDrawings(PDFLib, add, DW.prefix || 'TM');
       // bắt đầu phiên mới → danh mục theo file mới; đã có file → nối tiếp và đánh lại số hiệu
       if (fresh) DW.list = rows; else DW.list = DW.list.concat(rows);
@@ -437,7 +458,7 @@
       const cover = await HsDrawing.buildCover(PDFLib, fontkit, await fonts(), D);
       const out = withFiles ? await HsDrawing.merge(PDFLib, cover, dwFiles) : cover;
       const nm = (I.congTrinh || 'du an').replace(/[\\/:*?"<>|]/g, '');
-      saveAs(new Blob([out], { type: 'application/pdf' }), withFiles ? `Ban ve thi cong (kem bia va trang ky) - ${nm}.pdf` : `Bia va trang ky ban ve - ${nm}.pdf`);
+      saveAs(new Blob([out], { type: 'application/pdf' }), withFiles ? `${DWK[dwKind].file} (kem bia va trang ky) - ${nm}.pdf` : `Bia va trang ky - ${DWK[dwKind].file} - ${nm}.pdf`);
       DW._last = new Date().toISOString();
       stEl.textContent = '✓ Đã tạo PDF'; saveSoon();
     } catch (e) { console.error(e); stEl.textContent = '⚠ ' + e.message; }
@@ -490,14 +511,15 @@
     $('hsKhNew').addEventListener('input', (e) => { LG.khNew = e.target.value; });
     $('hsKhFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; exportKh(f); });
     // bản vẽ
-    ['tieuDe', 'phuDe', 'heThong', 'thietBi', 'prefix', 'ngay', 'soBanVe'].forEach(k => $('hsDw_' + k).addEventListener('input', (e) => { DW[k] = e.target.value; }));
+    ['tieuDe', 'phuDe', 'kyTitle', 'heThong', 'thietBi', 'prefix', 'ngay', 'soBanVe'].forEach(k => $('hsDw_' + k).addEventListener('input', (e) => { DW[k] = e.target.value; }));
+    $('hsDwKind').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) setDwKind(b.dataset.kind); });
     $('hsDwKy').addEventListener('input', (e) => { const k = e.target.dataset.kk, box = e.target.closest('[data-i]'); if (k && box) DW.ky[+box.dataset.i][k] = e.target.value; });
     $('hsDwResetKy').onclick = () => { DW.ky = defaultKy(); renderDrawing(); onEdit(); };
     $('hsDwTable').addEventListener('input', (e) => { const k = e.target.dataset.dk, tr = e.target.closest('tr[data-i]'); if (k && tr) DW.list[+tr.dataset.i][k] = e.target.value; });
     $('hsDwTable').addEventListener('click', (e) => { const b = e.target.closest('[data-ddel]'); if (b) { DW.list.splice(+b.dataset.ddel, 1); paintDwList(); onEdit(); } });
     $('hsDwAdd').onclick = () => { DW.list.push({ so: `${DW.prefix || 'TM'}-${String(DW.list.length + 1).padStart(2, '0')}`, ten: '', kho: 'A3' }); paintDwList(); };
     $('hsDwFiles').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; addDwFiles(fs); });
-    $('hsDwClear').onclick = () => { dwFiles = []; DW.list = []; paintDwList(); onEdit(); };
+    $('hsDwClear').onclick = () => { dwFiles = []; dwFilesBy[dwKind] = dwFiles; DW.list = []; paintDwList(); onEdit(); };
     $('hsDwCover').onclick = () => exportDrawing(false);
     $('hsDwMerge').onclick = () => exportDrawing(true);
     window.addEventListener('beforeunload', (e) => {
@@ -533,5 +555,5 @@
     } catch (e) { bar('⚠ ' + e.message, 'err'); showScreen('screenHome'); loadList(); }
     st.booted = true;
   }
-  window.HS = { boot, save, toList, enter, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, _DW: DW };
+  window.HS = { boot, save, toList, enter, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, get _DW() { return DW; }, _DWS: DWS };
 })();
