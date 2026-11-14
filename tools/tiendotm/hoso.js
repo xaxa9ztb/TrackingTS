@@ -272,7 +272,7 @@
     prefillCommon();
     if (typeof prefillQuality === 'function' && /screenLetters|screenNhatKy/.test(screen)) { try { prefillQuality(); } catch (e) { /* bỏ qua */ } }
     showScreen(screen);
-    if (screen === 'screenLetters') renderLetters();
+    if (screen === 'screenLetters') { renderLetters(); if (typeof letterAutofillCV === 'function') { try { letterAutofillCV(); } catch (e) { /* bỏ qua */ } } }
     if (screen === 'screenLegal') renderLegal();
     if (screen === 'screenDrawing') renderDrawing();
   }
@@ -283,7 +283,7 @@
   function renderLetters() {
     const box = $('hsLetterList');
     const item = (d) => { const done = LT[d.id] && LT[d.id]._last; return `<button class="hs-li${curLetter === d.id ? ' on' : ''}" data-letter="${d.id}"><span class="hs-k">${d.kind === 'bb' ? 'BB' : 'CV'}</span><span class="hs-n">${esc(d.name)}</span>${done ? `<span class="hs-done" title="Đã xuất lúc ${esc(fmtTime(done))}">✓</span>` : ''}</button>`; };
-    box.innerHTML = `<div class="hs-grp">Công văn gửi Chủ đầu tư / các bên</div>${HsLetters.LETTERS.filter(d => d.kind === 'letter').map(item).join('')}
+    box.innerHTML = `<div class="hs-grp">Công văn gửi Chủ đầu tư / các bên</div><button class="hs-li" data-jump="hsTxPanel"><span class="hs-k">CV</span><span class="hs-n">Thư xác nhận hàng về (cùng mẫu ở Tiến độ)</span><span class="hs-mini">↓</span></button>${HsLetters.LETTERS.filter(d => d.kind === 'letter').map(item).join('')}
       <div class="hs-grp">Biên bản</div>${HsLetters.LETTERS.filter(d => d.kind === 'bb').map(item).join('')}`;
     renderLetterForm();
   }
@@ -466,7 +466,7 @@
       else enter(f);
     }));
     // công văn
-    $('hsLetterList').addEventListener('click', (e) => { const b = e.target.closest('[data-letter]'); if (!b) return; curLetter = b.dataset.letter; renderLetters(); });
+    $('hsLetterList').addEventListener('click', (e) => { const j = e.target.closest('[data-jump]'); if (j) { const el = $(j.dataset.jump); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const f = $('lc_from'); if (f) setTimeout(() => f.focus({ preventScroll: true }), 400); } return; } const b = e.target.closest('[data-letter]'); if (!b) return; curLetter = b.dataset.letter; renderLetters(); });
     $('hsLetterForm').addEventListener('input', (e) => { const k = e.target.dataset.lk; if (k && curLetter) (LT[curLetter] || (LT[curLetter] = {}))[k] = e.target.value; });
     $('hsLetterForm').addEventListener('click', (e) => { if (e.target.id === 'hsLetterGo') exportLetter(); });
     // pháp lý

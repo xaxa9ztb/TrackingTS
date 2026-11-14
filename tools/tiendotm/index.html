@@ -30,7 +30,7 @@
 <script src="hsletters.js?v=1"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=1"></script>
-<script src="hoso.js?v=2"></script>
+<script src="hoso.js?v=4"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -738,6 +738,22 @@ table.edit td.c{text-align:center}
     <div class="hs-letters">
       <div class="hs-ll" id="hsLetterList"></div>
       <div class="hs-lf" id="hsLetterForm" data-hs-nosave></div>
+    </div>
+  </div>
+  <div class="panel" id="hsTxPanel">
+    <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">TX</span>Thư xác nhận hàng về</h2>
+    <p class="hint">Cùng mẫu thư ở <b>Lập bảng tiến độ</b> (bước 3). Ngày hàng về / mặt bằng tự lấy từ bảng tiến độ nếu đã lập; sửa lại nếu cần rồi xuất.</p>
+    <div class="grid g4">
+      <div class="f"><label>Người gửi</label><input id="lc_from" placeholder="Họ tên người gửi"></div>
+      <div class="f"><label>Ngày thư</label><input type="date" id="lc_date"></div>
+      <div class="f"><label>Ngày hàng về công trình</label><input type="date" id="lc_arrive"></div>
+      <div class="f"><label>Cần xong mặt bằng trước ngày</label><input type="date" id="lc_site"></div>
+      <div class="f"><label>Số lượng thang</label><input id="lc_qty" value="01"></div>
+      <div class="f"><label>Cảng nhập hàng</label><input id="lc_cang" value="Hải Phòng"></div>
+    </div>
+    <div class="row" style="margin-top:12px;gap:10px">
+      <button class="btn pri sm" onclick="exportLetter('lc_')">⬇ Xuất thư xác nhận hàng về (.docx)</button>
+      <span id="lc_status" style="font-size:12.5px;color:var(--muted)"></span>
     </div>
   </div>
   <div class="panel">
@@ -3092,28 +3108,44 @@ function letterAutofill(){
   if(qEl&&(!qEl.value||qEl.value==="01")&&q)qEl.value=pad2(+q[1]);
   buildEmail();
 }
+// Công văn, biên bản: điền ô trống của thư hàng về từ bước 3 tiến độ / bảng tiến độ (không ghi đè ô đã sửa)
+function letterAutofillCV(){
+  const setIf=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value&&v)el.value=v;};
+  ["from","date","arrive","site","cang"].forEach(k=>{const src=document.getElementById("l_"+k);if(src&&src.value)setIf("lc_"+k,src.value);});
+  try{const m=scheduleMilestones();if(m.I){setIf("lc_arrive",isoUTC(m.I.e));setIf("lc_site",isoUTC(backWork(m.I.e,7,m.mode,m.H)));}}catch(e){}
+  setIf("lc_date",isoUTC(new Date()));
+  const q=document.getElementById("lc_qty"),lq=document.getElementById("l_qty");
+  if(q&&(!q.value||q.value==="01")){const n=(S.qElevs||[]).filter(e=>String(e.name||"").trim()).length;const v=(lq&&lq.value&&lq.value!=="01")?lq.value:(n?pad2(n):"");if(v)q.value=v;}
+}
 /* ---------- Thư xác nhận hàng về (.docx) ---------- */
-async function exportLetter(){
-  const st=document.getElementById("l_status");st.textContent="Đang tạo thư…";
+// px = "l_" (bước 3 tiến độ) hoặc "lc_" (Công văn, biên bản) — cùng một mẫu thư
+async function exportLetter(px){
+  px=px||"l_";
+  const st=document.getElementById(px+"status");st.textContent="Đang tạo thư…";
   try{
     if(typeof JSZip==="undefined")throw new Error("Chưa tải được thư viện JSZip");
     const resp=await fetch("thu_hangve_template.docx");
     if(!resp.ok)throw new Error("Không tải được file mẫu thư (HTTP "+resp.status+")");
     const zip=await JSZip.loadAsync(await resp.arrayBuffer());
     let doc=await zip.file("word/document.xml").async("string");
-    const P=S.project;
+    try{pullForm();}catch(e){}
+    // thông tin hợp đồng: ưu tiên dữ liệu quét hợp đồng, thiếu thì lấy ở Thông tin dự án dùng chung
+    const I=(window.HS&&HS.info)?HS.info():{};
+    const P=Object.assign({},S.project);
+    P.buyer=P.buyer||I.chuDauTu||"";P.baddr=P.baddr||I.cdtDiaChi||"";P.no=P.no||I.soHD||"";
+    P.cdate=P.cdate||(I.ngayHD?isoToVN(I.ngayHD):"");P.name=P.name||I.congTrinh||"";P.addr=P.addr||I.diaDiem||"";
     const map={
       "{{KHACH_HANG}}":P.buyer||"Quý Khách hàng",
       "{{DIA_CHI_KH}}":P.baddr||"",
       "{{SO_HD}}":P.no||"",
       "{{NGAY_KY_HD}}":P.cdate||"",
       "{{DU_AN}}":P.name+(P.addr?" - "+P.addr:""),
-      "{{NGAY_HANG_VE}}":isoToVN(lv("l_arrive")),
-      "{{NGAY_MAT_BANG}}":isoToVN(lv("l_site")),
-      "{{NGAY_THU}}":isoToVN(lv("l_date")),
-      "{{NGUOI_GUI}}":lv("l_from"),
-      "{{SL_THANG}}":lv("l_qty")||"01",
-      "{{CANG}}":lv("l_cang")||"Hải Phòng"
+      "{{NGAY_HANG_VE}}":isoToVN(lv(px+"arrive")),
+      "{{NGAY_MAT_BANG}}":isoToVN(lv(px+"site")),
+      "{{NGAY_THU}}":isoToVN(lv(px+"date")),
+      "{{NGUOI_GUI}}":lv(px+"from"),
+      "{{SL_THANG}}":lv(px+"qty")||"01",
+      "{{CANG}}":lv(px+"cang")||"Hải Phòng"
     };
     for(const k in map)doc=doc.split(k).join(xescQ(map[k]));
     zip.file("word/document.xml",doc);
