@@ -47,7 +47,7 @@
     return { text, rect, line, H, W: page.getWidth() };
   }
 
-  // D: { chuDauTu, banQLDA, tieuDe, phuDe, heThong, congTrinh, diaDiem, hangMuc, hopDong, thietBi, nhaThau, nhaThauDiaChi, noiLap, ngay(YYYY-MM-DD),
+  // D: { chuDauTu, banQLDA, tieuDe, phuDe, kyTitle (tiêu đề trang ký: DUYỆT BẢN VẼ THI CÔNG / XÁC NHẬN BẢN VẼ HOÀN CÔNG), heThong, congTrinh, diaDiem, hangMuc, hopDong, thietBi, nhaThau, nhaThauDiaChi, noiLap, ngay(YYYY-MM-DD),
   //      drawings:[{so, ten, kho}], ky:[{title, org, ten, chucVu}] }
   async function buildCover(PDFLib, fontkit, fonts, D) {
     const { PDFDocument, rgb } = PDFLib;
@@ -99,7 +99,8 @@
       const last = ci === chunks.length - 1;
       const pg = doc.addPage(A3), b = pen(pg, F), cx2 = b.W / 2;
       b.rect(28, 28, b.W - 56, b.H - 56, { bw: 1.4, bc: black });
-      b.text(ci ? 'DUYỆT BẢN VẼ THI CÔNG (tiếp)' : 'DUYỆT BẢN VẼ THI CÔNG', cx2, 62, { f: 'b', s: 26, a: 'center' });
+      const kt = up(D.kyTitle || 'DUYỆT BẢN VẼ THI CÔNG');
+      b.text(ci ? kt + ' (tiếp)' : kt, cx2, 62, { f: 'b', s: 26, a: 'center' });
       b.text(`${up(D.heThong || 'HỆ THỐNG THANG MÁY')} – CÔNG TRÌNH ${up(D.congTrinh) || DOT}`, cx2, 98, { f: 'b', s: 14, a: 'center', w: 1000, maxLines: 2 });
       if (S(D.hopDong)) b.text('Hợp đồng số ' + D.hopDong, cx2, 120, { f: 'i', s: 10, a: 'center' });
       let yy = 150;
