@@ -422,7 +422,23 @@
   let asCtx = null;
   function projectOptions(sel) {
     const open = data.projects.filter(p => !p.done || p.id === sel).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-    return '<option value="">— chọn dự án —</option>' + open.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('') + '<option value="__new">＋ Dự án mới…</option>';
+    const label = (p) => esc(p.name) + (p.wbs ? ' · ' + esc(p.wbs) : '');
+    return '<option value="">— chọn dự án —</option>' +
+      (SHARED.length ? `<option value="__shared">🔎 Chọn từ dữ liệu dự án chung (${SHARED.length})…</option>` : '') +
+      (open.length ? `<optgroup label="Dự án đang theo dõi">${open.map(p => `<option value="${esc(p.id)}">${label(p)}</option>`).join('')}</optgroup>` : '') +
+      '<option value="__new">＋ Dự án mới (nhập tay)…</option>';
+  }
+  // dự án chung (Thống kê giờ công) chọn trong ô tìm kiếm: "WBS — Tên"
+  function pickedShared() {
+    const v = $('asShared').value.trim(); if (!v) return null;
+    return sharedByWbs(v.split(' — ')[0].trim()) || SHARED.find(x => P.plain(x.projectName) === P.plain(v)) || null;
+  }
+  function asSharedHint() {
+    const v = $('asShared').value.trim(), x = pickedShared();
+    const has = x && data.projects.find(p => p.wbs && P.plain(p.wbs) === P.plain(x.wbs));
+    $('asSharedHint').textContent = !v ? 'Chọn dự án có sẵn trong dữ liệu chung — tên, WBS, loại thang, giám sát được điền sẵn.'
+      : !x ? 'Không thấy dự án này trong dữ liệu chung.'
+      : has ? `Đã có trong danh sách theo dõi: ${has.name}.` : `${x.wbs} — ${x.projectName}${x.customer ? ' · ' + x.customer : ''} (sẽ thêm vào danh sách dự án).`;
   }
   function openAssign(ctx) {
     if (!data.fitters.length) { toast('Hãy thêm fitter trước.'); openFitter(null); return; }
@@ -433,6 +449,7 @@
     $('asProject').innerHTML = projectOptions(ctx.edit && ctx.edit.p);
     $('asProject').value = ctx.edit ? ctx.edit.p : (ui.lastProject && byId()[ui.lastProject] ? ui.lastProject : '');
     $('asNewWrap').hidden = true; $('asNewName').value = '';
+    $('asSharedWrap').hidden = true; $('asShared').value = ''; $('asSharedHint').textContent = '';
     $('asFrom').value = ctx.from; $('asTo').value = ctx.to;
     document.querySelector(`input[name=asStatus][value="${ctx.edit && ctx.edit.t ? 1 : 0}"]`).checked = true;
     $('asSkipSun').checked = false;
@@ -467,7 +484,13 @@
   }
   ['asFitter', 'asFrom', 'asTo', 'asProject'].forEach(id => $(id).addEventListener('change', assignWarn));
   document.querySelectorAll('input[name=asStatus]').forEach(r => r.addEventListener('change', assignWarn));
-  $('asProject').addEventListener('change', () => { const n = $('asProject').value === '__new'; $('asNewWrap').hidden = !n; if (n) $('asNewName').focus(); });
+  $('asProject').addEventListener('change', () => {
+    const v = $('asProject').value, n = v === '__new', sh = v === '__shared';
+    $('asNewWrap').hidden = !n; $('asSharedWrap').hidden = !sh;
+    if (n) $('asNewName').focus();
+    if (sh) { asSharedHint(); $('asShared').focus(); }
+  });
+  $('asShared').addEventListener('input', asSharedHint);
   $('asCancel').addEventListener('click', () => $('dlgAssign').close());
   $('formAssign').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -479,11 +502,19 @@
     let pid = $('asProject').value;
     const newName = $('asNewName').value.trim();
     if (!pid || (pid === '__new' && !newName)) { $('asWarn').textContent = pid === '__new' ? 'Nhập tên dự án mới.' : 'Chọn dự án.'; (pid === '__new' ? $('asNewName') : $('asProject')).focus(); return; }
+    const sx = pid === '__shared' ? pickedShared() : null;
+    if (pid === '__shared' && !sx) { $('asWarn').textContent = 'Chọn một dự án trong danh sách gợi ý (gõ WBS hoặc tên).'; $('asShared').focus(); return; }
     const t = document.querySelector('input[name=asStatus]:checked').value === '1';
     const skip = $('asSkipSun').checked;
     const fname = data.fitters.find(f => f.id === fid).name;
     commit(null, () => {
       if (pid === '__new') { const p = P.newProject({ name: newName }); data.projects.push(p); P.assignColors(data.projects); pid = p.id; }
+      if (sx) {   // dự án từ dữ liệu chung: dùng dự án đã theo dõi cùng WBS, chưa có thì thêm mới (điền sẵn tên, WBS, thông số thang)
+        let p = data.projects.find(x => x.wbs && P.plain(x.wbs) === P.plain(sx.wbs));
+        if (!p) { p = P.newProject({ name: sx.projectName || sx.wbs, wbs: sx.wbs }); fillProject(p, sx, false); data.projects.push(p); P.assignColors(data.projects); }
+        else if (p.done) p.done = false;
+        pid = p.id;
+      }
       const m = data.alloc[fid] || (data.alloc[fid] = {});
       if (asCtx.edit) { const om = data.alloc[asCtx.f] || {}; P.daysBetween(asCtx.edit.from, asCtx.edit.to).forEach(d => { delete om[d]; }); }
       P.daysBetween(a, b).forEach(d => { if (skip && offDay(d)) { delete m[d]; return; } m[d] = t ? { p: pid, t: 1 } : { p: pid }; });

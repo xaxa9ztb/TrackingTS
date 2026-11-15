@@ -144,6 +144,10 @@
       <select id="asProject" required></select>
     </label>
     <label class="fld" id="asNewWrap" hidden>Tên dự án mới <input id="asNewName" type="text" autocomplete="off"></label>
+    <label class="fld" id="asSharedWrap" hidden>Tìm trong dữ liệu dự án chung (gõ WBS hoặc tên)
+      <input id="asShared" type="search" list="sharedProjects" autocomplete="off" placeholder="vd: E-1234 hoặc tên công trình">
+      <span class="hint" id="asSharedHint"></span>
+    </label>
     <div class="fld-row">
       <label class="fld">Từ ngày <input id="asFrom" type="date" required></label>
       <label class="fld">Đến ngày <input id="asTo" type="date" required></label>
@@ -278,6 +282,6 @@
 <script src="../timesheet/labor.js?v=40"></script>
 <script src="pmio.js?v=2"></script>
 <script src="actual.js?v=1"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
