@@ -444,7 +444,90 @@
         return { data: out, conflicts: stat.conflicts };
     }
 
-    const api = { merge, same, assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
+
+    // ---------------- NHẬP CÓ CHỌN LỌC ----------------
+    // Gộp dữ liệu đọc từ file (imp) vào dữ liệu hiện có (cur).
+    //   opts.plan / opts.grid : nhập sheet Plan (dự án) / sheet Nhân sự (fitter + phân công)
+    //   opts.mode : 'merge'     — bổ sung: thêm dự án / fitter mới, chỉ điền ô còn trống, không đổi dữ liệu đã có
+    //               'overwrite' — ghi đè dữ liệu trùng: dự án trùng (WBS / tên) lấy theo file; fitter có trong file
+    //                             được thay lịch đúng như file trong khoảng ngày của file
+    //               'replace'   — thay toàn bộ phần đã chọn bằng dữ liệu file
+    function applyImport(cur, imp, opts) {
+        const o = Object.assign({ plan: true, grid: true, mode: 'merge' }, opts || {});
+        const cp = (x) => JSON.parse(JSON.stringify(x));
+        const S = { pAdd: 0, pUpd: 0, pDel: 0, pKept: 0, pGrid: 0, fAdd: 0, fDel: 0, cells: 0, cellsSkip: 0, cellsDel: 0 };
+        if (o.mode === 'replace' && o.plan && o.grid) {
+            const d = cp(imp);
+            return { data: d, summary: Object.assign(S, { all: true, pAdd: d.projects.length, fAdd: d.fitters.length, cells: Object.values(d.alloc).reduce((n, m) => n + Object.keys(m).length, 0) }) };
+        }
+        const out = cp(cur);
+        const isEmpty = (v) => v === '' || v == null || (typeof v === 'object' && !Array.isArray(v) && !v.date && !v.note && !v.done);
+        const W = (p) => plain(p.wbs);
+        const findP = (ip, list) => (W(ip) && list.find(p => W(p) === W(ip))) ||
+            list.find(p => plain(p.name) === plain(ip.name) || (p.aliases || []).some(a => plain(a) === plain(ip.name))) ||
+            (ip.fromGrid ? matchProject(ip.name, list).project : null);
+        const SKIP = new Set(['id', 'color', 'fromGrid', 'aliases']);
+        const pmap = {}, seen = new Set();
+        // ---- Plan ----
+        if (o.plan) {
+            imp.projects.filter(p => !p.fromGrid).forEach(ip => {
+                const ex = findP(ip, out.projects);
+                if (!ex) { const np = cp(ip); out.projects.push(np); pmap[ip.id] = np.id; seen.add(np.id); S.pAdd++; return; }
+                pmap[ip.id] = ex.id; seen.add(ex.id);
+                let ch = false;
+                Object.keys(ip).forEach(k => {
+                    if (SKIP.has(k)) return;
+                    const v = ip[k];
+                    if (isEmpty(v) || same(ex[k], v)) return;
+                    if (o.mode === 'merge' && !isEmpty(ex[k])) return;
+                    ex[k] = cp(v); ch = true;
+                });
+                if (ex.fromGrid) delete ex.fromGrid;   // đã có trong Plan của file — không tính là cập nhật
+                if (ch) S.pUpd++;
+            });
+        }
+        // ---- Nhân sự ----
+        if (o.grid) {
+            const resolveP = (ipid) => {
+                if (pmap[ipid]) return pmap[ipid];
+                const ip = imp.projects.find(p => p.id === ipid); if (!ip) return null;
+                const ex = findP(ip, out.projects);
+                if (ex) return (pmap[ipid] = ex.id);
+                const np = cp(ip); out.projects.push(np); S.pGrid++; seen.add(np.id);
+                return (pmap[ipid] = np.id);
+            };
+            if (o.mode === 'replace') { S.fDel = out.fitters.length; out.fitters = []; out.alloc = {}; }
+            const r = allocRange(imp);
+            imp.fitters.forEach(f => {
+                let ex = out.fitters.find(x => (f.empId && x.empId && plain(x.empId) === plain(f.empId)) || plain(x.name) === plain(f.name));
+                if (!ex) { ex = cp(f); out.fitters.push(ex); S.fAdd++; }
+                else if (!ex.empId && f.empId) ex.empId = f.empId;
+                const dst = out.alloc[ex.id] || (out.alloc[ex.id] = {}), src = imp.alloc[f.id] || {};
+                if (o.mode === 'overwrite' && r) Object.keys(dst).forEach(d => { if (d >= r.from && d <= r.to && !src[d]) { delete dst[d]; S.cellsDel++; } });
+                Object.keys(src).forEach(d => {
+                    const pid = resolveP(src[d].p); if (!pid) return;
+                    const v = src[d].t ? { p: pid, t: 1 } : { p: pid };
+                    if (same(dst[d], v)) return;
+                    if (dst[d] && o.mode === 'merge') { S.cellsSkip++; return; }
+                    dst[d] = v; S.cells++;
+                });
+            });
+        }
+        // ---- Plan "thay toàn bộ": bỏ dự án không có trong file (dự án còn phân công thì giữ) ----
+        if (o.plan && o.mode === 'replace') {
+            const used = new Set(); Object.values(out.alloc).forEach(m => Object.values(m).forEach(v => used.add(v.p)));
+            out.projects = out.projects.filter(p => {
+                if (seen.has(p.id)) return true;
+                if (used.has(p.id)) { S.pKept++; return true; }
+                S.pDel++; return false;
+            });
+        }
+        assignColors(out.projects);
+        out.updatedAt = new Date().toISOString();
+        return { data: out, summary: S };
+    }
+
+    const api = { merge, same, applyImport, assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
         parseMilestone, plain, uid, iso, isISO, addDays, daysBetween, fmtVN, serialToISO, isoToUTCDate, allocRange, isGray };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.PMIO = api;
