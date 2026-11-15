@@ -102,6 +102,13 @@
   // cách cũ: cột cố định của sheet EE DATA trong "Data v1.xlsx"
   // 0 EmpID, 1 PersonId, 2 First, 3 Last, 4 FullNameVN, 5 Username, 6 DOB, 7 Gender, 8 HireDate, 9 GroupStart, 10 Seniority, 11 Position, 12 Supervisor
   function legacy(rows) {
+    // chặn nhập lệch: file có tiêu đề lạ (vd file HRMS đổi tên cột) mà đọc theo vị trí sẽ ra "Ngày bắt đầu" = tên người,
+    // "Quản lý trực tiếp" = mã phòng ban → báo lỗi thay vì nhập sai
+    const body = rows.slice(1).filter(r => r[0] !== undefined && r[0] !== '');
+    const shifted = body.filter(r => suspect({ supervisor: txt(r[12]), startDate: txt(r[10]) })).length;
+    if (body.length && shifted / body.length > 0.2) {
+      throw new Error('Không nhận diện được tiêu đề cột của file (cần cột "User/Employee ID", "Supervisor", "Employment Details Seniority Start Date"…). Đã dừng để không nhập lệch cột.');
+    }
     const employees = rows.slice(1).filter(r => r[0] !== undefined && r[0] !== '').map(r => ({
       empId: idTxt(r[0]),
       personId: r[1] !== undefined ? idTxt(r[1]) : '',
@@ -117,8 +124,15 @@
     return { employees, mode: 'legacy', columns: {}, missing: [], headerRow: 0 };
   }
 
+  // dòng nghi bị lệch cột (nhập bằng cách đọc theo vị trí cũ): Quản lý trực tiếp là mã phòng ban (vd 80589258-NID-TRC-RS)
+  // hoặc Ngày bắt đầu là chữ (tên người) thay vì ngày
+  function suspect(e) {
+    const sup = txt(e && e.supervisor), sd = txt(e && e.startDate);
+    return /^\d{6,}-[A-Z0-9]+(-[A-Z0-9]+)*$/.test(sup) || (sd !== '' && /[A-Za-zÀ-ỹ]/.test(sd));
+  }
+
   const LABELS = { empId: 'Mã NV', fullName: 'Họ tên', position: 'Chức danh', supervisor: 'Quản lý trực tiếp', hireDate: 'Ngày vào làm' };
-  const api = { mapEmployees, toDate, norm, FIELDS, LABELS };
+  const api = { mapEmployees, toDate, norm, suspect, FIELDS, LABELS };
   root.EEMap = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -78,3 +78,18 @@ test('mẫu EE DATA cũ không có tiêu đề nhận diện được → đọc
   assert.equal(r.employees[0].supervisor, 'Trần Giám Sát');
   assert.equal(r.employees[0].fullName, 'Nguyễn Văn An');
 });
+
+test('file HRMS tiêu đề lạ (không nhận diện được) → dừng, không nhập lệch cột theo vị trí', () => {
+  // bố cục HRMS: 10 Supervisor, 12 Department (mã phòng ban) — đọc theo vị trí cũ sẽ ra Ngày bắt đầu = tên người
+  const mk = (id, sup) => [id, id, 'A', 'B', 'Tên', 'Male', 43236, 43236, 43236, 'NI Technician', sup, 'NID-TRC-RS', '80589258-NID-TRC-RS'];
+  const head = Array.from({ length: 13 }, (_, i) => 'X' + i);
+  assert.throws(() => E.mapEmployees([head, mk(1, 'Lai, Vinh Van'), mk(2, 'Tran, Binh'), mk(3, 'Pham, Dung')]), /Không nhận diện được tiêu đề/);
+});
+
+test('suspect: nhận ra dòng đã bị lệch cột (Quản lý = mã phòng ban / Ngày bắt đầu = tên người)', () => {
+  assert.equal(E.suspect({ supervisor: '80589258-NID-TRC-RS', startDate: 'Lai, Vinh Van' }), true);
+  assert.equal(E.suspect({ supervisor: '10007607-DAN-NID-T5', startDate: '2026-07-20' }), true);
+  assert.equal(E.suspect({ supervisor: 'Tran, Trung Van', startDate: '2018-01-10' }), false);
+  assert.equal(E.suspect({ supervisor: 'Tran, Trung Van', startDate: '43110' }), false);
+  assert.equal(E.suspect({ supervisor: '', startDate: '' }), false);
+});

@@ -16,7 +16,7 @@
 <script src="js/session.js?v=50"></script>
 <script>Session.guard('admin'); window.PAGE_TOOL = 'admin';</script>
 <link rel="stylesheet" href="css/ni.css?v=4">
-<link rel="stylesheet" href="css/style.css?v=42">
+<link rel="stylesheet" href="css/style.css?v=43">
 <script src="js/xlsx.full.min.js?v=36"></script>
 </head>
 <body>
@@ -53,6 +53,7 @@
         <button class="btn btn-primary admin-only" id="btnAddEmployee">+ Thêm nhân viên</button>
         <button class="btn btn-danger admin-only" id="btnDelSelEmployees" style="display:none">Xoá đã chọn</button>
       </div>
+      <div id="empShiftWarn" class="emp-shift-warn" hidden></div>
       <div class="table-scroll">
         <table id="employeesTable" class="data-table">
           <thead>
@@ -129,13 +130,13 @@ window.SwatPage = { load() { return Promise.resolve(); }, wire() {} };
 <script src="js/db.js?v=37"></script>
 <script src="js/backup.js?v=36"></script>
 <script src="js/cloud.js?v=43"></script>
-<script src="js/eemap.js?v=1"></script>
+<script src="js/eemap.js?v=2"></script>
 <script src="js/importer.js?v=41"></script>
 <script src="js/combo.js?v=36"></script>
 <script src="js/tablefilter.js?v=36"></script>
 <script src="js/projects.js?v=38"></script>
 <script src="js/timesheet.js?v=37"></script>
-<script src="js/employees.js?v=37"></script>
+<script src="js/employees.js?v=38"></script>
 <script src="js/main.js?v=43"></script>
 </body>
 </html>

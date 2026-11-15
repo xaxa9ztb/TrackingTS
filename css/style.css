@@ -372,3 +372,8 @@ body:not(.admin-mode) .chk-col { display: none; }
 #projectsTable tr.row-editing td { background: var(--ni-warn-soft, #fff7e6); vertical-align: middle; }
 #projectsTable .cell-in { width: 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 5px; font: 400 13px var(--ni-font, inherit); background: var(--card-bg); }
 #projectsTable .cell-in:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+
+/* cảnh báo nhân viên nghi lệch cột (Quản trị → Nhân viên) */
+.emp-shift-warn { margin: 0 0 12px; padding: 10px 14px; border: 1px solid #f0c36d; background: #fff8e6; color: #6b4a00; border-radius: 8px; font-size: 13.5px; line-height: 1.55; }
+.emp-shift-warn .btn { margin-top: 8px; display: inline-block; }
+#employeesTable tr.row-shifted td { background: #fff3d6; }
