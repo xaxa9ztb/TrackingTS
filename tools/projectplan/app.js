@@ -451,13 +451,51 @@
     $('asNewWrap').hidden = true; $('asNewName').value = '';
     $('asSharedWrap').hidden = true; $('asShared').value = ''; $('asSharedHint').textContent = '';
     $('asFrom').value = ctx.from; $('asTo').value = ctx.to;
+    rc.month = ctx.from.slice(0, 7); rc.stage = 0; renderCal();
     document.querySelector(`input[name=asStatus][value="${ctx.edit && ctx.edit.t ? 1 : 0}"]`).checked = true;
     $('asSkipSun').checked = false;
     $('asClear').hidden = !ctx.edit && !rangeHasAlloc();
     assignWarn();
     $('dlgAssign').showModal();
-    (ctx.edit ? $('asFrom') : $('asProject')).focus();
+    (ctx.edit ? $('asCal').querySelector('.rc-d.rs') || $('asProject') : $('asProject')).focus();
   }
+  // ---------- lịch chọn khoảng ngày (1 bảng: chạm ngày bắt đầu, chạm ngày kết thúc) ----------
+  const rc = { month: '', stage: 0 };   // stage 0: lần chạm tới đặt ngày bắt đầu; 1: đặt ngày kết thúc
+  const MONTH_VN = (ym) => `Tháng ${+ym.slice(5, 7)}/${ym.slice(0, 4)}`;
+  function renderCal() {
+    const a = $('asFrom').value, b = $('asTo').value, lo = a <= b ? a : b, hi = a <= b ? b : a;
+    const busy = data.alloc[$('asFitter').value] || {}, own = asCtx && asCtx.edit ? new Set(P.daysBetween(asCtx.edit.from, asCtx.edit.to)) : new Set();
+    const first = rc.month + '-01', start = mondayOf(first), td = today();
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const d = P.addDays(start, i);
+      if (i === 35 && d.slice(0, 7) !== rc.month) break;
+      const cls = ['rc-d'];
+      if (d.slice(0, 7) !== rc.month) cls.push('out');
+      if (offDay(d)) cls.push('off');
+      if (d === td) cls.push('today');
+      if (lo && d >= lo && d <= hi) cls.push('in');
+      if (d === lo) cls.push('rs'); if (d === hi) cls.push('re');
+      if (busy[d] && !own.has(d)) cls.push('busy');
+      const h = holiday(d);
+      cells += `<button type="button" class="${cls.join(' ')}" data-d="${d}" title="${esc(d.split('-').reverse().join('/') + (h ? ' · ' + (h.name || 'Ngày lễ') : '') + (busy[d] && !own.has(d) ? ' · đã có phân công' : ''))}">${+d.slice(8)}</button>`;
+    }
+    const n = lo ? P.daysBetween(lo, hi).length : 0;
+    $('asCal').innerHTML = `<div class="rc-head"><button type="button" class="rc-nav" data-m="-1" aria-label="Tháng trước">‹</button><b>${MONTH_VN(rc.month)}</b><button type="button" class="rc-nav" data-m="1" aria-label="Tháng sau">›</button></div>
+      <div class="rc-grid">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(x => `<span class="rc-w">${x}</span>`).join('')}${cells}</div>
+      <div class="rc-sum">${lo ? `<b>${dm(lo)}/${lo.slice(0, 4)}</b> → <b>${dm(hi)}/${hi.slice(0, 4)}</b> · ${n} ngày` : ''}${rc.stage === 1 ? ' <span class="rc-next">— chạm ngày kết thúc</span>' : ''}</div>`;
+  }
+  $('asCal').addEventListener('click', (e) => {
+    const nav = e.target.closest('.rc-nav');
+    if (nav) { rc.month = shiftMonth(rc.month, +nav.dataset.m); renderCal(); return; }
+    const c = e.target.closest('.rc-d'); if (!c) return;
+    const d = c.dataset.d;
+    if (rc.stage === 0) { $('asFrom').value = d; $('asTo').value = d; rc.stage = 1; }
+    else { const a = $('asFrom').value; if (d < a) { $('asFrom').value = d; $('asTo').value = a; } else $('asTo').value = d; rc.stage = 0; }
+    if (d.slice(0, 7) !== rc.month) rc.month = d.slice(0, 7);
+    renderCal(); assignWarn();
+  });
+  $('asFitter').addEventListener('change', renderCal);
   function rangeHasAlloc() {
     const m = data.alloc[$('asFitter').value] || {};
     const a = $('asFrom').value, b = $('asTo').value; if (!a || !b) return false;

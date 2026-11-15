@@ -265,3 +265,26 @@ main.pp-wrap { padding-block: 16px 40px; }
 .gt .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--red); opacity: .55; z-index: 1; pointer-events: none; }
 .gt-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); margin: 8px 0; }
 .gt-legend i { display: inline-block; width: 18px; height: 8px; border-radius: 4px; vertical-align: middle; margin-right: 5px; }
+
+/* ---------- lịch chọn khoảng ngày trong hộp Phân công ---------- */
+.rc-help { font-weight: 400; color: var(--muted); font-size: 12px; }
+.rcal { border: 1px solid var(--line); border-radius: 12px; padding: 8px; margin-top: 4px; user-select: none; }
+.rc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.rc-head b { font-size: 14.5px; }
+.rc-nav { border: 0; background: none; font-size: 22px; line-height: 1; width: 40px; height: 36px; border-radius: 8px; cursor: pointer; color: var(--ink-2); }
+.rc-nav:hover { background: var(--ni-sunk, #eef1f5); }
+.rc-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; }
+.rc-w { text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); padding: 4px 0; }
+.rc-d { position: relative; height: 38px; border: 0; background: none; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; border-radius: 0; padding: 0; }
+.rc-d.out { color: #b7bfcc; }
+.rc-d.off { color: var(--red); }
+.rc-d.out.off { color: #e6a9a3; }
+.rc-d.today { font-weight: 700; text-decoration: underline; }
+.rc-d.in { background: var(--blue-bg); }
+.rc-d.rs, .rc-d.re { background: var(--blue); color: #fff; font-weight: 700; }
+.rc-d.rs { border-radius: 10px 0 0 10px; } .rc-d.re { border-radius: 0 10px 10px 0; } .rc-d.rs.en { border-radius: 10px; }
+.rc-d.busy::after { content: ""; position: absolute; left: 50%; bottom: 4px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--amber); }
+.rc-d.rs.busy::after, .rc-d.re.busy::after { background: #fff; }
+.rc-d:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.rc-sum { margin-top: 6px; font-size: 13px; color: var(--ink-2); min-height: 18px; }
+.rc-next { color: var(--blue); font-weight: 600; }
