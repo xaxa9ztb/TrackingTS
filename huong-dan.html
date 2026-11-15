@@ -647,14 +647,16 @@
 
     <h4>Baseline và sai lệch so với kế hoạch gốc</h4>
     <ol class="steps">
-      <li>Khi kế hoạch đã được duyệt: tab <b>Lịch trình dự án</b> → <b>Sai lệch</b> (hoặc Gantt) → <span class="btnlike">📌 Chốt baseline</span>, đặt tên (vd. “BL0 – kế hoạch tháng 11”). App lưu lại <b>ngày các mốc</b> và <b>phân công chính thức</b> lúc đó. Chốt được nhiều lần (khi chủ đầu tư đổi tiến độ); chọn baseline cần so ở ô <b>Baseline</b>.</li>
-      <li>Sau đó cứ sửa kế hoạch như bình thường. Bảng <b>Sai lệch</b> hiện từng mốc: ngày hiện tại, ngày baseline (BL) và số ngày lệch — <b>+n ngày</b> (đỏ) là trễ hơn baseline, <b>−n ngày</b> (xanh) là sớm hơn. Dự án trễ nhiều nhất xếp trên cùng.</li>
+      <li><b>Baseline chốt riêng cho từng dự án</b>, vào lúc kế hoạch của dự án đó được duyệt. Tab <b>Lịch trình dự án</b> → <b>Sai lệch</b> → bấm <span class="btnlike">📌 Chốt</span> ở dòng dự án (hoặc mở dự án → <b>Lưu &amp; chốt baseline</b>). App lưu <b>ngày các mốc</b> và <b>phân công chính thức</b> của dự án lúc đó thành bản <b>BL0</b>.</li>
+      <li>Chốt nhiều dự án một lần: <span class="btnlike">📌 Chốt baseline…</span> ở đầu bảng → chọn <b>chỉ các dự án chưa có baseline</b> (mặc định) hoặc <b>tất cả dự án đang hiện</b> (lọc danh sách trước nếu chỉ muốn một nhóm).</li>
+      <li>Kế hoạch đổi chính thức (vd. chủ đầu tư dời tiến độ): bấm <b>📌 Chốt lại</b> → thêm bản <b>BL1, BL2…</b>, bản cũ vẫn giữ. Ô <b>So với</b> chọn so với <b>baseline mới nhất</b> hay <b>baseline đầu tiên</b> (kế hoạch gốc). Xem / xoá các bản trong hộp thoại dự án.</li>
+      <li>Sau khi chốt cứ sửa kế hoạch như bình thường. Bảng <b>Sai lệch</b> hiện từng mốc: ngày hiện tại, ngày baseline (BL) và số ngày lệch — <b>+n ngày</b> (đỏ) là trễ hơn baseline, <b>−n ngày</b> (xanh) là sớm hơn. Dự án trễ nhiều nhất xếp trên cùng; dự án chưa chốt ghi rõ “Chưa chốt baseline”.</li>
       <li>Cột <b>Thực tế theo chấm công</b>: ngày đầu – ngày cuối có giờ công lắp đặt và giờ test trên WBS của dự án (tự lấy từ bảng công, không nhập tay). Dự án <b>Subcon</b> chỉ có giờ của tester.</li>
       <li>Cột <b>Giờ công</b>: ĐM = Target hour của dự án · KH = ngày công fitter công ty đã phân công × 8 · TT = giờ đã chấm; phần trăm đã dùng so với định mức chuyển vàng từ 75% và đỏ khi vượt 100%.</li>
       <li>Hai mốc mới <b>Xong lắp cơ khí</b> và <b>Sẵn sàng test</b> (trong hộp thoại dự án): giám sát ghi ngày và tick “Đã xong” — với dự án subcon đây là cách theo dõi tiến độ giữa chừng.</li>
     </ol>
-    <figure class="shot"><img src="docs/huong-dan/pp-variance.jpg" alt="Bảng sai lệch so với baseline" loading="lazy" width="1366" height="740"><figcaption>Sai lệch: mỗi mốc so với baseline, thực tế theo chấm công, giờ công so với định mức</figcaption></figure>
-    <p>Ở chế độ <b>Lịch trình (Gantt)</b>, khi đã chọn baseline, mỗi dự án có thêm một <b>vạch đứt xám</b> là thời gian lắp đặt theo kế hoạch gốc — nhìn là thấy thanh màu hiện tại đã trượt bao xa.</p>
+    <figure class="shot"><img src="docs/huong-dan/pp-variance.jpg" alt="Bảng sai lệch so với baseline" loading="lazy" width="1366" height="840"><figcaption>Sai lệch: mỗi dự án so với baseline của riêng nó (📌 Chốt / Chốt lại ở từng dòng), thực tế theo chấm công, giờ công so với định mức</figcaption></figure>
+    <p>Ở chế độ <b>Lịch trình (Gantt)</b>, dự án đã chốt baseline có thêm một <b>vạch đứt xám</b> là thời gian lắp đặt theo baseline của dự án đó — nhìn là thấy thanh màu hiện tại đã trượt bao xa.</p>
 
     <h3 id="ql-thucte">4.4. Thực tế &amp; bám kế hoạch</h3>
     <p>So <b>kế hoạch điều phối</b> với <b>chấm công thực tế</b> (bảng Theo dõi giờ công) để biết fitter có làm đúng dự án như kế hoạch không và đánh giá chất lượng lên kế hoạch của giám sát.</p>

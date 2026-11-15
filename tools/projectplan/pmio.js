@@ -73,7 +73,7 @@
     const emptyMs = () => ({ date: '', done: false, note: '' });
     function newProject(over) {
         const p = { id: uid('p'), name: '', address: '', province: null, liftCount: '', liftType: '', travel: '', load: '', stops: '',
-            transport: '', teamPlan: '', note: '', supervisor: '', done: false, color: '', wbs: '', mode: '', subcon: '' };
+            transport: '', teamPlan: '', note: '', supervisor: '', done: false, color: '', wbs: '', mode: '', subcon: '', bl: [] };
         MILESTONES.forEach(m => { p[m.key] = emptyMs(); });
         return Object.assign(p, over || {});
     }
@@ -86,7 +86,19 @@
         if (!d) return d;
         ['fitters', 'projects', 'baselines', 'subcons'].forEach(k => { if (!Array.isArray(d[k])) d[k] = []; });
         if (!d.alloc || typeof d.alloc !== 'object') d.alloc = {};
-        d.projects.forEach(p => { MILESTONES.forEach(m => { if (!p[m.key] || typeof p[m.key] !== 'object') p[m.key] = emptyMs(); }); if (p.mode == null) p.mode = ''; if (p.subcon == null) p.subcon = ''; });
+        d.projects.forEach(p => { MILESTONES.forEach(m => { if (!p[m.key] || typeof p[m.key] !== 'object') p[m.key] = emptyMs(); }); if (p.mode == null) p.mode = ''; if (p.subcon == null) p.subcon = ''; if (!Array.isArray(p.bl)) p.bl = []; });
+        // baseline CHUNG (bản đầu) → chuyển thành baseline của TỪNG dự án rồi bỏ danh sách chung
+        if (d.baselines.length) {
+            const byId = {}; d.projects.forEach(p => { byId[p.id] = p; });
+            d.baselines.slice().sort((a, b) => String(a.at).localeCompare(String(b.at))).forEach(b => {
+                new Set([...Object.keys(b.ms || {}), ...Object.keys(b.al || {})]).forEach(pid => {
+                    const p = byId[pid]; if (!p || p.bl.some(x => x.id === b.id + pid)) return;
+                    p.bl.push({ id: b.id + pid, name: b.name || 'BL' + p.bl.length, at: b.at || '', by: b.by || '', note: b.note || '', ms: (b.ms || {})[pid] || {}, al: (b.al || {})[pid] || null });
+                });
+            });
+            d.projects.forEach(p => p.bl.sort((x, y) => String(x.at).localeCompare(String(y.at))));   // bản cũ nhất đứng đầu
+            d.baselines = [];
+        }
         return d;
     }
 
@@ -483,7 +495,10 @@
         const S = { pAdd: 0, pUpd: 0, pDel: 0, pKept: 0, pGrid: 0, fAdd: 0, fDel: 0, cells: 0, cellsSkip: 0, cellsDel: 0 };
         if (o.mode === 'replace' && o.plan && o.grid) {
             const d = cp(imp);
-            if ((cur.baselines || []).length) d.baselines = cp(cur.baselines);
+            (d.projects || []).forEach(np => {   // giữ baseline đã chốt của dự án trùng WBS / tên
+                const ex = (cur.projects || []).find(x => (plain(np.wbs) && plain(x.wbs) === plain(np.wbs)) || plain(x.name) === plain(np.name));
+                if (ex && (ex.bl || []).length) np.bl = cp(ex.bl);
+            });
             if ((cur.subcons || []).length) d.subcons = cp(cur.subcons);
             d.fitters.forEach(f => { const ex = (cur.fitters || []).find(x => x.sub && plain(x.name) === plain(f.name)); if (ex) { f.sub = true; if (ex.company) f.company = ex.company; } });
             return { data: d, summary: Object.assign(S, { all: true, pAdd: d.projects.length, fAdd: d.fitters.length, cells: Object.values(d.alloc).reduce((n, m) => n + Object.keys(m).length, 0) }) };
@@ -494,7 +509,7 @@
         const findP = (ip, list) => (W(ip) && list.find(p => W(p) === W(ip))) ||
             list.find(p => plain(p.name) === plain(ip.name) || (p.aliases || []).some(a => plain(a) === plain(ip.name))) ||
             (ip.fromGrid ? matchProject(ip.name, list).project : null);
-        const SKIP = new Set(['id', 'color', 'fromGrid', 'aliases']);
+        const SKIP = new Set(['id', 'color', 'fromGrid', 'aliases', 'bl']);
         const pmap = {}, seen = new Set();
         // ---- Plan ----
         if (o.plan) {
@@ -569,27 +584,28 @@
         }));
         return out;
     }
-    function snapshotBaseline(data, info) {
+    // Baseline của MỘT dự án (mỗi dự án chốt riêng, vào lúc kế hoạch của dự án đó được duyệt; chốt lại → thêm bản mới BL1, BL2…)
+    //   { id, name: 'BL0', at (ISO), by, note, ms: { mốc: 'YYYY-MM-DD' }, al: { from, to, days } | null }
+    function snapshotProject(data, p, info) {
         const i = info || {}, ms = {};
-        (data.projects || []).forEach(p => {
-            const o = {}; MILESTONES.forEach(m => { const v = p[m.key]; if (v && v.date) o[m.key] = v.date; });
-            if (Object.keys(o).length) ms[p.id] = o;
-        });
-        return { id: uid('b'), name: i.name || '', at: i.at || new Date().toISOString(), by: i.by || '', note: i.note || '', ms, al: allocByProject(data) };
+        MILESTONES.forEach(m => { const v = p[m.key]; if (v && v.date) ms[m.key] = v.date; });
+        return { id: uid('b'), name: i.name || 'BL' + ((p.bl || []).length), at: i.at || new Date().toISOString(), by: i.by || '', note: i.note || '', ms, al: allocByProject(data)[p.id] || null };
     }
     const dayDiff = (a, b) => Math.round((isoToUTCDate(b) - isoToUTCDate(a)) / 864e5);
-    // So kế hoạch hiện tại với baseline. Mỗi dự án: { p, inBase, ms: { mốc: { base, cur, done, diff } }, al: { base, cur }, slip }
+    // baseline dùng để so của một dự án: which = 'last' (bản mới nhất, mặc định) | 'first' (bản đầu tiên — kế hoạch gốc)
+    const baselineOf = (p, which) => { const l = (p.bl || []); return l.length ? (which === 'first' ? l[0] : l[l.length - 1]) : null; };
+    // So kế hoạch hiện tại với baseline của TỪNG dự án. Mỗi dự án: { p, bl, inBase, ms: { mốc: { base, cur, done, diff } }, al: { base, cur }, slip, slipKey }
     //   diff = số ngày lệch (dương = trễ hơn baseline); slip = lệch của mốc quan trọng nhất còn so được (bàn giao → sẵn sàng test → xong cơ khí → nhận hố)
-    function variance(data, bl) {
+    function variance(data, which) {
         const cur = allocByProject(data), SLIP = ['handover', 'testReady', 'mechDone', 'teamStart'];
         return (data.projects || []).map(p => {
-            const b = (bl && bl.ms && bl.ms[p.id]) || null, ms = {};
+            const bl = baselineOf(p, which), b = bl ? bl.ms || {} : null, ms = {};
             MILESTONES.forEach(m => {
                 const c = p[m.key] || {}, base = b ? b[m.key] || '' : '';
                 ms[m.key] = { base, cur: c.date || '', done: !!c.done, diff: base && c.date ? dayDiff(base, c.date) : null };
             });
             const k = SLIP.find(x => ms[x].diff != null);
-            return { p, inBase: !!b, ms, al: { base: (bl && bl.al && bl.al[p.id]) || null, cur: cur[p.id] || null }, slip: k ? ms[k].diff : null, slipKey: k || '' };
+            return { p, bl, inBase: !!bl, ms, al: { base: bl ? bl.al || null : null, cur: cur[p.id] || null }, slip: k ? ms[k].diff : null, slipKey: k || '' };
         });
     }
     // Tên công ty subcon từ sheet "Subcon" của file HRMS: cột Position Title dạng "Sub_<Tên công ty>_Fitter"
@@ -604,7 +620,7 @@
         return out.sort((a, b) => a.localeCompare(b, 'vi'));
     }
 
-    const api = { merge, same, applyImport, fix, MODES, parseMode, snapshotBaseline, variance, allocByProject, subconNames, dayDiff, assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
+    const api = { merge, same, applyImport, fix, MODES, parseMode, snapshotProject, baselineOf, variance, allocByProject, subconNames, dayDiff, assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
         parseMilestone, plain, uid, iso, isISO, addDays, daysBetween, fmtVN, serialToISO, isoToUTCDate, allocRange, isGray };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.PMIO = api;

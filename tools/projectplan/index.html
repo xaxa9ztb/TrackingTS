@@ -18,7 +18,7 @@
 <script src="../../js/db.js?v=37"></script>
 <script src="../../js/cloud.js?v=43"></script>
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="projectplan" data-tool="Quản lý dự án" data-help="#ql-dieuphoi"></script>
@@ -111,9 +111,8 @@
       <button type="button" class="btn btn-primary" id="addProject">+ Dự án</button>
     </div>
     <div class="pp-toolbar bl-bar" id="blBar">
-      <label class="pp-field-inline">Baseline <select id="blSel" aria-label="Chọn baseline để so sánh"></select></label>
-      <button type="button" class="btn" id="blNew" title="Lưu lại ngày các mốc và phân công hiện tại làm kế hoạch gốc để so sánh về sau">📌 Chốt baseline</button>
-      <button type="button" class="btn" id="blDel" hidden>Xoá baseline này</button>
+      <label class="pp-field-inline">So với <select id="blWhich" aria-label="So với baseline nào của từng dự án"><option value="last">Baseline mới nhất của từng dự án</option><option value="first">Baseline đầu tiên (kế hoạch gốc)</option></select></label>
+      <button type="button" class="btn" id="blNew" title="Chốt baseline cho các dự án đang hiện trong danh sách (chọn chỉ dự án chưa có, hoặc tất cả)">📌 Chốt baseline…</button>
       <span class="hint" id="blInfo"></span>
     </div>
     <div class="pp-upcoming" id="upcoming"></div>
@@ -263,6 +262,10 @@
         <label class="chk"><input type="checkbox" id="pj_done"> Đã hoàn thành</label>
       </fieldset>
     </div>
+    <div class="pj-bl" id="pjBlWrap">
+      <b>Baseline của dự án này</b> <button type="button" class="btn" id="pjBlNew" title="Lưu thay đổi rồi chốt ngày các mốc + phân công hiện tại của dự án làm baseline">📌 Lưu &amp; chốt baseline</button>
+      <div id="pjBlList"></div>
+    </div>
     <div class="pj-merge" id="pjMergeWrap">
       <label class="fld">Gộp vào dự án khác (chuyển toàn bộ phân công sang dự án được chọn)
         <span class="fld-row"><select id="pjMergeTo"><option value="">— chọn dự án —</option></select>
@@ -291,13 +294,17 @@
   </form>
 </dialog>
 
-<!-- chốt baseline -->
+<!-- chốt baseline (theo từng dự án) -->
 <dialog class="dlg" id="dlgBaseline" aria-labelledby="blTitle">
   <form method="dialog" id="formBaseline">
     <h2 id="blTitle">Chốt baseline</h2>
-    <p class="hint">Lưu lại <b>ngày các mốc</b> và <b>phân công chính thức</b> hiện tại làm kế hoạch gốc. Sau này sửa kế hoạch, mục <b>Sai lệch</b> sẽ so với bản đã chốt. Có thể chốt nhiều lần (vd. khi chủ đầu tư đổi tiến độ).</p>
-    <label class="fld">Tên baseline <input id="blName" type="text" required maxlength="60"></label>
-    <label class="fld">Ghi chú / lý do <input id="blNote" type="text" maxlength="200" placeholder="vd. Kế hoạch đầu tháng 11 đã duyệt"></label>
+    <p class="hint">Baseline được chốt <b>riêng cho từng dự án</b>: lưu <b>ngày các mốc</b> và <b>phân công chính thức</b> của dự án lúc này làm kế hoạch gốc. Chốt lại sau này (vd. chủ đầu tư đổi tiến độ) sẽ thêm bản mới BL1, BL2… — bản cũ vẫn giữ.</p>
+    <fieldset class="im-opt" id="blScopeWrap"><legend>Chốt cho</legend>
+      <label class="rad"><input type="radio" name="blScope" value="new" checked> <span id="blScopeNew"></span></label>
+      <label class="rad"><input type="radio" name="blScope" value="all"> <span id="blScopeAll"></span></label>
+    </fieldset>
+    <p id="blOne" hidden></p>
+    <label class="fld">Ghi chú / lý do <input id="blNote" type="text" maxlength="200" placeholder="vd. Kế hoạch đã duyệt với CĐT ngày 15/11"></label>
     <p class="hint" id="blCount"></p>
     <div class="dlg-btns"><span class="sp"></span>
       <button type="button" class="btn" id="blCancel">Hủy</button>
@@ -323,9 +330,9 @@
 
 <script src="../../js/xlsx.full.min.js?v=36"></script>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="pmio.js?v=4"></script>
+<script src="pmio.js?v=5"></script>
 <script src="actual.js?v=2"></script>
 <script src="../../js/rangecal.js?v=2"></script>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

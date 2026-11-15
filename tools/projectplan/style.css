@@ -307,3 +307,11 @@ main.pp-wrap { padding-block: 16px 40px; }
 #planVar .gt-scroll { overflow-x: auto; border-radius: 10px; }
 #scList .ee-row { display: flex; align-items: center; gap: 8px; }
 #scList .ee-row span:first-child { flex: 1; }
+
+/* baseline theo từng dự án */
+.pj-bl { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; font-size: 13.5px; }
+.pj-bl > .btn { margin-left: 8px; }
+.pj-bl .blv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.pj-bl .blv .sub { flex: 1; min-width: 140px; }
+.pl.var .blrow .lnk { border: 0; background: none; padding: 0 2px; color: var(--blue); font-weight: 600; cursor: pointer; font-size: 12px; }
+.pl.var .blrow .lnk:hover { text-decoration: underline; }
