@@ -433,8 +433,51 @@
       try { await hoursFor(list.map(p => p.wbs)); } catch (e) { toast(e.message); }
       list.forEach(p => { if (!p.fitters || (!p.fitters.length && !p.imported)) initPeople(p); recompute(p); });
     }
-    $('splits').innerHTML = list.map((p, i) => splitCard(p, i)).join('') || '<p class="ac-note">Chưa chọn dự án.</p>';
+    drawSplits();
     renderBar();
+  }
+  // ----- bước 4: danh sách dự án bên trái (lọc theo tên / WBS / tên người, chỉ dự án có cảnh báo) -----
+  let spSel = null;                    // WBS đang xem; '*' = hiện mọi dự án đang lọc; null = chưa chọn (lấy dự án đầu)
+  const spHasWarn = (p, i) => splitCard(p, i).includes('class="in-warn"');
+  function spShown() {
+    const q = fold(($('spQ') || {}).value || '').trim().split(/\s+/).filter(Boolean), onlyWarn = $('spWarn') && $('spWarn').checked;
+    return items().map((p, i) => [p, i]).filter(([p, i]) => {
+      if (q.length) {
+        const hay = fold([p.name, p.wbs, (p.sup || {}).name, ...(p.fitters || []).map(f => f.name)].join(' '));
+        if (!q.every(w => hay.includes(w))) return false;
+      }
+      return !onlyWarn || spHasWarn(p, i);
+    });
+  }
+  function renderSpList() {
+    const all = items(), shown = spShown();
+    const filtered = shown.length !== all.length;
+    $('spCount').textContent = filtered ? `${shown.length} / ${all.length} dự án` : `${all.length} dự án`;
+    const n = shown.length, scope = filtered ? `${n} dự án đang lọc` : `tất cả ${n} dự án`;
+    $('hoursReload').textContent = `↻ Lấy lại giờ công (${scope})`; $('fundReload').textContent = `↺ Quỹ theo Scorecard (${scope})`;
+    $('hoursReload').hidden = $('fundReload').hidden = readOnly();
+    $('hoursReload').disabled = $('fundReload').disabled = !n;
+    if (!n) { $('spList').innerHTML = `<li class="in-empty">${all.length ? 'Không có dự án nào khớp bộ lọc.' : 'Chưa chọn dự án.'}</li>`; return shown; }
+    $('spList').innerHTML = `<li><button type="button" data-sp="*" class="${spSel === '*' ? 'on' : ''}">Hiện tất cả${filtered ? ' dự án đang lọc' : ''} (${n})<small>Tổng ${money(shown.reduce((a, [p]) => a + (Number(p.total) || 0), 0))} đ</small></button></li>` +
+      shown.map(([p, i]) => `<li><button type="button" data-sp="${esc(p.wbs)}" class="${spSel === String(p.wbs) ? 'on' : ''}">${spHasWarn(p, i) ? '⚠ ' : ''}${esc(p.name || p.wbs)}<small>${esc(p.wbs)} · ${KINDS[p.kind].short} · ${(p.fitters || []).length} fitter · <b>${money(p.total)} đ</b></small></button></li>`).join('');
+    return shown;
+  }
+  function drawSplits() {
+    let shown = spShown();
+    if (spSel !== '*' && !shown.some(([p]) => String(p.wbs) === spSel)) spSel = shown.length ? String(shown[0][0].wbs) : null;
+    shown = renderSpList();
+    const vis = spSel === '*' ? shown : shown.filter(([p]) => String(p.wbs) === spSel);
+    $('splits').innerHTML = vis.map(([p, i]) => splitCard(p, i)).join('') || `<p class="ac-note">${items().length ? 'Không có dự án nào khớp bộ lọc.' : 'Chưa chọn dự án.'}</p>`;
+  }
+  // lấy lại giờ công / quỹ theo Scorecard cho một nhóm dự án
+  async function reloadHours(list) {
+    await hoursFor(list.map(p => p.wbs), true);
+    list.forEach(p => { p.fitters = null; initPeople(p); p.imported = false; recompute(p); });
+  }
+  function resetFunds(list) {
+    let n = 0;
+    list.forEach(p => { const sc = p.swat && p.swat.sc; if (!sc) return; p.fundManual = false; p.fundF = Math.round((sc.pf || 0) * (p.units || 1)); p.fundS = Math.round((sc.ps || 0) * (p.units || 1)); recompute(p); n++; });
+    return n;
   }
   function initPeople(p) {
     const h = hoursBy.get(p.wbs) || { people: [] };
@@ -483,7 +526,8 @@
     const supLine = p.lines.find(l => l.role === 'sup');
     const fitLines = p.lines.filter(l => l.role === 'fitter');
     return `<div class="in-split" data-i="${i}">
-      <h3>${esc(p.name || p.wbs)} <span class="mono ac-note">${esc(p.wbs)}</span> <span class="pill info">${esc(k.short)}</span>${p.imported ? ' <span class="pill">từ Excel</span>' : ''}</h3>
+      <h3>${esc(p.name || p.wbs)} <span class="mono ac-note">${esc(p.wbs)}</span> <span class="pill info">${esc(k.short)}</span>${p.imported ? ' <span class="pill">từ Excel</span>' : ''}
+        ${ro ? '' : `<span class="in-cardacts"><button class="btn small" type="button" data-f="reloadHours" title="Lấy lại fitter và giờ công của riêng dự án này từ Theo dõi giờ công">↻ Giờ công</button>${sc ? '<button class="btn small" type="button" data-f="resetFund" title="Đặt lại quỹ của riêng dự án này theo Scorecard đã duyệt">↺ Quỹ theo Scorecard</button>' : ''}</span>`}</h3>
       ${ro ? '' : `<div class="in-funds"><label>Mã WBS <input type="text" value="${esc(p.wbs)}" data-f="wbs" list="dlProjWbs" autocomplete="off" aria-label="Mã WBS"></label>
         <label class="in-grow">Tên dự án <input type="text" value="${esc(p.name || '')}" data-f="pname" maxlength="300" aria-label="Tên dự án"></label>
         <span class="ac-note">Sửa khi mã / tên bị nhầm (vd. từ file Excel cũ). WBS đúng ở nhiều đợt → dùng <b>✎ Đổi mã WBS</b> ở danh sách đợt.</span></div>`}
@@ -492,7 +536,7 @@
         <label>Đợt này trả <select data-f="kind" ${dis}>${kinds.map(x => `<option value="${x}" ${x === p.kind ? 'selected' : ''}>${esc(KINDS[x].label)}</option>`).join('')}</select></label>
         <label>Quỹ Fitter (đ) <input class="num" type="number" step="1" min="0" value="${Math.round(Number(p.fundF) || 0)}" data-f="fundF" ${dis}></label>
         <label>Quỹ Site-sup (đ) <input class="num" type="number" step="1" min="0" value="${Math.round(Number(p.fundS) || 0)}" data-f="fundS" ${dis}></label>
-        ${sc ? `<span class="ac-note">Theo Scorecard: Fitter ${money(sc.pf * (p.units || 1))} · Site-sup ${money(sc.ps * (p.units || 1))}${p.fundManual && !ro ? ` <button class="btn small" type="button" data-f="resetFund">↺ Lấy theo Scorecard</button>` : ''}</span>` : ''}
+        ${sc ? `<span class="ac-note">Theo Scorecard: Fitter ${money(sc.pf * (p.units || 1))} · Site-sup ${money(sc.ps * (p.units || 1))}${p.fundManual ? ' <b class="in-manual">· quỹ đang sửa tay</b>' : ''}</span>` : ''}
         <span class="ac-note">Tỉ lệ ${final ? 'final' : 'trả'}: <b>${Math.round(k.rate * 100)}%</b></span>
       </div>
       ${p.kind === 'final30' ? `<div class="in-funds">
@@ -534,6 +578,8 @@
     recompute(p);
     onSplitChange.busy = true;
     try { card.outerHTML = splitCard(p, +card.dataset.i); } finally { onSplitChange.busy = false; }
+    if (f === 'wbs' && spSel !== '*') spSel = String(p.wbs);
+    renderSpList();
     changed();
   }
   function onSplitClick(ev) {
@@ -543,10 +589,17 @@
     if (b.dataset.del != null) { if (b.dataset.del === 's') p.sup = null; else p.fitters.splice(+b.dataset.del, 1); }
     else if (b.dataset.f === 'addFit') p.fitters.push({ empId: '', name: '', hours: 0 });
     else if (b.dataset.f === 'addSup') p.sup = { empId: '', name: '' };
-    else if (b.dataset.f === 'resetFund') { const sc = p.swat.sc; p.fundManual = false; p.fundF = Math.round(sc.pf * (p.units || 1)); p.fundS = Math.round(sc.ps * (p.units || 1)); }
+    else if (b.dataset.f === 'resetFund') { if (p.fundManual && !confirm(`Đặt lại quỹ của “${p.name || p.wbs}” theo Scorecard? Số quỹ sửa tay sẽ bị thay.`)) return; resetFunds([p]); toast('✓ Đã lấy quỹ theo Scorecard cho dự án này.'); }
+    else if (b.dataset.f === 'reloadHours') {
+      if (!confirm(`Lấy lại fitter và giờ công của “${p.name || p.wbs}” từ Theo dõi giờ công? Chỉnh sửa tay (tên, giờ, số tiền) của dự án này sẽ bị thay; các dự án khác giữ nguyên.`)) return;
+      b.disabled = true;
+      reloadHours([p]).then(() => { drawSplits(); renderBar(); changed(); toast(`✓ Đã lấy lại giờ công: ${(p.fitters || []).length} fitter.`); }).catch(e => { b.disabled = false; toast(e.message); });
+      return;
+    }
     else return;
     recompute(p);
     card.outerHTML = splitCard(p, +card.dataset.i);
+    renderSpList();
     changed();
   }
 
@@ -893,13 +946,25 @@
       } catch (e) { /* bỏ qua */ }
       renderRevSum();
     });
+    const spScope = () => { const l = spShown().map(([p]) => p); return { l, txt: l.length === items().length ? `TẤT CẢ ${l.length} dự án trong đợt` : `${l.length} dự án đang lọc (${l.slice(0, 4).map(p => p.name || p.wbs).join(', ')}${l.length > 4 ? '…' : ''})` }; };
     $('hoursReload').onclick = async () => {
       if (readOnly()) return;
-      if (!confirm('Lấy lại danh sách fitter và giờ công từ bảng Theo dõi giờ công cho mọi dự án trong đợt? Các chỉnh sửa tay ở bước 4 (tên, giờ, số tiền) sẽ bị thay.')) return;
-      try { await hoursFor(items().map(p => p.wbs), true); } catch (e) { toast(e.message); return; }
-      items().forEach(p => { p.fitters = null; initPeople(p); p.imported = false; recompute(p); });
-      renderSplits(false); changed();
+      const { l, txt } = spScope(); if (!l.length) return;
+      if (!confirm(`Lấy lại danh sách fitter và giờ công từ bảng Theo dõi giờ công cho ${txt}? Các chỉnh sửa tay ở bước 4 (tên, giờ, số tiền) của các dự án này sẽ bị thay.`)) return;
+      try { await reloadHours(l); } catch (e) { toast(e.message); return; }
+      renderSplits(false); changed(); toast(`✓ Đã lấy lại giờ công cho ${l.length} dự án.`);
     };
+    $('fundReload').onclick = () => {
+      if (readOnly()) return;
+      const { l, txt } = spScope(); if (!l.length) return;
+      const man = l.filter(p => p.fundManual && p.swat && p.swat.sc).length;
+      if (!confirm(`Đặt lại Quỹ Fitter / Site-sup theo Scorecard đã duyệt cho ${txt}?${man ? ` ${man} dự án đang có quỹ sửa tay sẽ bị thay.` : ''} Dự án chưa duyệt Scorecard được giữ nguyên.`)) return;
+      const n = resetFunds(l);
+      renderSplits(false); changed(); toast(`✓ Đã lấy quỹ theo Scorecard cho ${n} dự án${n < l.length ? ` (${l.length - n} dự án chưa duyệt Scorecard — giữ nguyên)` : ''}.`);
+    };
+    $('spQ').addEventListener('input', () => { clearTimeout(drawSplits.t); drawSplits.t = setTimeout(drawSplits, 150); });
+    $('spWarn').addEventListener('change', drawSplits);
+    $('spList').addEventListener('click', (ev) => { const b = ev.target.closest('[data-sp]'); if (!b) return; spSel = b.dataset.sp; drawSplits(); if (window.innerWidth < 900) $('splits').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
     $('splits').addEventListener('change', onSplitChange);
     $('splits').addEventListener('click', onSplitClick);
     document.querySelectorAll('[data-sg]').forEach(i => i.addEventListener('change', () => { cur.data.signers = cur.data.signers || {}; cur.data.signers[i.dataset.sg] = i.value.trim(); changed(); }));

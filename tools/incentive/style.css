@@ -108,3 +108,13 @@ tr.dim td { color: var(--muted); }
 .in-publish { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; padding: 12px 14px; border: 1px solid #bfd3fe; background: #eef4ff; border-radius: 10px; }
 .in-publish > div { flex: 1 1 320px; } .in-publish p { margin: 4px 0 0; }
 .in-ana input.from-prev { background: #eef6ff; color: #1d4ed8; }
+
+/* bước 4: danh sách lọc dự án + nút theo từng dự án */
+.in-acts4 { display: flex; gap: 8px; flex-wrap: wrap; }
+#st4 .in-pside { position: sticky; top: 8px; }
+#st4 .in-plist { max-height: calc(100vh - 140px); }
+#st4 .in-plist li button small b { color: var(--ink); }
+.in-split h3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.in-cardacts { margin-left: auto; display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.in-manual { color: #b45309; font-weight: 600; }
+@media (max-width: 900px) { #st4 .in-pside { position: static; } #st4 .in-plist { max-height: 240px; } }
