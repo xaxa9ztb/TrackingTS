@@ -285,14 +285,14 @@
     </table></div>
     <ol class="legend">
       <li>Thẻ <b>Phụ cấp xe</b> (dưới Lịch kỳ lương) → <span class="btnlike">Thêm phụ cấp</span>.</li>
-      <li>Chọn <b>loại</b>. Mỗi <b>dòng</b> là một dự án / WBS trong một khoảng ngày: gõ <b>mã WBS</b> (có gợi ý từ dự án bạn đã chấm trong kỳ và danh sách dự án chung — chọn gợi ý thì tên dự án tự điền), chọn <b>từ ngày – đến ngày</b>, ghi địa điểm (tỉnh), ghi chú nếu cần.</li>
+      <li>Chọn <b>loại</b>. Mỗi <b>dòng</b> là một dự án / WBS trong một khoảng ngày: gõ <b>mã WBS</b> (có gợi ý từ dự án bạn đã chấm trong kỳ và danh sách dự án chung — chọn gợi ý thì tên dự án tự điền), trên <b>lịch</b> chạm <b>ngày bắt đầu</b> rồi chạm <b>ngày kết thúc</b> (khoảng ngày tô xanh; ngày đã khai ở dòng trước và ngày ngoài kỳ bị gạch), ghi địa điểm (tỉnh), ghi chú nếu cần.</li>
       <li><b>Số ngày tự tính = đến ngày − từ ngày + 1</b>; số tiền hiện ngay ở đầu dòng. Phụ cấp <b>độc lập với chấm công</b>: không cần chấm công trước, không phụ thuộc mã công việc.</li>
       <li>Khai dự án / giai đoạn tiếp theo: bấm <span class="btnlike">Thêm dòng</span> — dòng mới tự bắt đầu sau ngày cuối của dòng trước. <b>Các dòng (cả xăng xe và xe đi tỉnh) không được trùng ngày nhau</b>. Xe đi tỉnh: tick <b>Tôi tự mang xe máy</b>; tổng các dòng phải trên 20 ngày, 1.000.000 đ được chia cho các dòng theo số ngày.</li>
       <li><span class="btnlike pri">Lưu phụ cấp</span>. Sửa: bấm vào dòng trong thẻ Phụ cấp xe; xoá nhầm thì bấm <b>Hoàn tác</b>.</li>
       <li>Bấm <span class="btnlike pri">Nộp bảng công</span>: bảng xác nhận hiện cả phụ cấp. Dòng có <b>⚠</b> (chưa đủ 20 ngày, chưa tick tự mang xe…) thì phải sửa / xoá mới nộp được.</li>
       <li><span class="btnlike">Gửi mail</span> tự đính kèm thêm file <b>Bảng phụ cấp xe</b> (đúng mẫu Excel 2 sheet); cũng tải riêng được bằng <span class="btnlike">Tải form phụ cấp (Excel)</span>.</li>
     </ol>
-    <figure class="shot"><img src="docs/huong-dan/ts-allow.jpg" alt="Thêm phụ cấp xe" loading="lazy" width="1366" height="900"><figcaption>Bảng phụ cấp xe: mỗi dòng một WBS + khoảng ngày — số ngày và số tiền tự tính; Thêm dòng cho giai đoạn tiếp theo</figcaption></figure>
+    <figure class="shot"><img src="docs/huong-dan/ts-allow.jpg" alt="Thêm phụ cấp xe" loading="lazy" width="1366" height="900"><figcaption>Phụ cấp xe: mỗi dòng một WBS — chạm ngày đầu rồi ngày cuối trên lịch, số ngày và số tiền tự tính; Thêm dòng cho giai đoạn tiếp theo</figcaption></figure>
       <h3 id="tai-file">Tải file Excel: bảng công và phụ cấp</h3>
     <ul>
       <li>Chọn đúng kỳ lương (‹ ›) rồi bấm <b>Xuất Excel</b> (biểu tượng ⬇) ở đầu trang → menu chọn <b>Bảng chấm công</b>, <b>Phụ cấp xe</b> hoặc <b>Cả hai</b> (tải 2 file). Mục nào chưa có dữ liệu thì bị mờ.</li>
@@ -362,7 +362,9 @@
   <section class="part" id="ot-nghi" style="--c: var(--c-fitter)">
     <h2><span class="no">7</span>Fitter: nhiều ngày · OT · nghỉ phép · thu nhập</h2>
     <h3>Chấm một dự án cho nhiều ngày liên tiếp</h3>
-    <p>Trong cửa sổ <b>Thêm chấm công</b>, tick <b>Chấm nhiều ngày liên tiếp</b> rồi chọn <b>đến ngày</b>. App tạo mỗi ngày một dòng (cùng giờ, cùng dự án, cùng mã công việc) và báo trước sẽ tạo bao nhiêu dòng; tick <b>bỏ qua Chủ nhật và ngày lễ</b> nếu cần.</p>
+    <p>Trong cửa sổ <b>Thêm chấm công</b>, tick <b>Chấm nhiều ngày liên tiếp</b>: ô Ngày đổi thành <b>một bảng lịch</b> — chạm <b>ngày bắt đầu</b> rồi chạm <b>ngày kết thúc</b> (chạm nhầm ngày trước đó thì app tự đảo). App tạo mỗi ngày một dòng (cùng giờ, cùng dự án, cùng mã công việc) và báo trước sẽ tạo bao nhiêu dòng; tick <b>bỏ qua Chủ nhật và ngày lễ</b> nếu cần.</p>
+    <figure class="shot"><img src="docs/huong-dan/ts-range.jpg" alt="Chấm nhiều ngày liên tiếp trên một bảng lịch" loading="lazy" width="1366" height="900"><figcaption>Chấm nhiều ngày: chạm ngày bắt đầu (3) rồi ngày kết thúc (7) — CN và ngày lễ màu đỏ, dòng dưới báo số dòng sẽ tạo</figcaption></figure>
+    <div class="note tip"><p><b>Lịch chọn khoảng ngày</b> dùng chung ở mọi chỗ có <i>từ ngày – đến ngày</i> (chấm nhiều ngày, phụ cấp xe, đơn nghỉ, admin thêm nhiều ngày, Thống kê, Phân công): <b>chạm 1 = ngày bắt đầu, chạm 2 = ngày kết thúc</b>. Muốn chọn lại thì chạm tiếp — lần chạm mới là ngày bắt đầu mới. Bấm ‹ › để sang tháng.</p></div>
     <h3>Dự án chưa có trong danh sách</h3>
     <p>Ô <b>Tên dự án</b> và <b>WBS</b> gõ tay được. Dự án / WBS bạn tự gõ được <b>nhớ riêng cho bạn</b> (trên máy bạn dùng, không ai khác thấy): lần sau gõ vài chữ sẽ hiện gợi ý có nhãn <i>của tôi</i>, chọn WBS thì tên dự án tự điền. Nếu dự án / WBS <b>chưa có trong danh sách dự án chung</b>, app báo vàng; bảng công vẫn nộp được và phần đó do <b>Admin dự án</b> duyệt (không qua Site Sup / Quản lý dự án).</p>
     <h3>Tăng ca (OT)</h3>
@@ -372,8 +374,8 @@
       <li>Quên chấm công: cuối ngày bạn nhận <b>email nhắc</b>. Chấm bù nhiều ngày một lúc thì giám sát chỉ nhận <b>1 email tổng hợp</b>.</li>
     </ul>
     <h3>Nghỉ phép · nghỉ ốm</h3>
-    <p>Xin ở trang riêng <b>Nghỉ phép / ốm</b> (thẻ trên trang chủ), không phải trong Timesheet. Nộp đơn đúng hạn: nghỉ ốm trước <b>2 giờ</b>; nghỉ phép 1 ngày trước <b>24 giờ</b>; 1–3 ngày trước <b>3 ngày</b>; dài hơn trước <b>1 tuần</b>. <b>Quản lý trực tiếp</b> duyệt; duyệt xong ngày nghỉ <b>tự ghi vào bảng công</b>.</p>
-    <figure class="shot"><img src="docs/huong-dan/leave-page.jpg" alt="Trang Nghỉ phép / ốm" loading="lazy" width="1280" height="1011"><figcaption>Trang Nghỉ phép / ốm: chọn loại, ngày, lý do — hạn nộp hiện ngay</figcaption></figure>
+    <p>Xin ở trang riêng <b>Nghỉ phép / ốm</b> (thẻ trên trang chủ), không phải trong Timesheet. Nộp đơn đúng hạn: nghỉ ốm trước <b>2 giờ</b>; nghỉ phép 1 ngày trước <b>24 giờ</b>; 1–3 ngày trước <b>3 ngày</b>; dài hơn trước <b>1 tuần</b>. <b>Quản lý trực tiếp</b> duyệt; duyệt xong ngày nghỉ <b>tự ghi vào bảng công</b>. Trên đơn, lịch mở sẵn: chạm <b>ngày bắt đầu nghỉ</b> rồi <b>ngày nghỉ cuối cùng</b>; ngày đã quá hạn nộp bị gạch, không chọn được.</p>
+    <figure class="shot"><img src="docs/huong-dan/leave-page.jpg" alt="Trang Nghỉ phép / ốm" loading="lazy" width="1280" height="1011"><figcaption>Trang Nghỉ phép / ốm: chọn loại, chạm ngày đầu – ngày cuối trên lịch, ghi lý do — hạn nộp hiện ngay</figcaption></figure>
     <h3>Thu nhập dự kiến (riêng tư)</h3>
     <p>Nhập <b>lương cơ bản</b> một lần trong Timesheet; app cộng thêm <b>OT</b> và <b>phụ cấp xăng xe</b> thành thu nhập dự kiến của kỳ (không gồm các khoản khác). Thông tin này chỉ lưu <b>trên máy của bạn</b>: không gửi lên máy chủ, không có trong email hay bản sao lưu.</p>
     <p><b>Giám sát</b> theo quy định chỉ chấm <b>OT</b>: xin OT <b>trước khi làm</b>, gửi thẳng Quản lý dự án duyệt; cuối kỳ bảng công nộp lên Quản lý dự án chỉ gồm giờ OT, không cần chấm công hằng ngày.</p>
@@ -403,6 +405,8 @@
     <h3>Xem / sửa mọi bảng công — “Quản trị viên đã sửa”</h3>
     <p>Trang <b>Quản lý bảng công</b> liệt kê bảng công mọi nhân viên (cả người không có tài khoản). Mỗi lần sửa <b>bắt buộc ghi chú</b>; người chủ thấy dòng <b>“Quản trị viên đã sửa”</b> kèm ghi chú trong Timesheet và nhận email.</p>
     <figure class="shot"><img src="docs/huong-dan/admin-ts.jpg" alt="Quản lý bảng công và Xuất cho HR" loading="lazy" width="1280" height="900"><figcaption>Quản lý bảng công theo kỳ lương + mục Xuất cho HR</figcaption></figure>
+    <p><b>Thêm nhiều ngày</b> khi sửa bảng công: bấm <span class="btnlike">＋ Thêm nhiều ngày…</span> → chạm ngày đầu rồi ngày cuối trên lịch (chỉ chọn được ngày trong kỳ) → <span class="btnlike pri">Thêm các ngày</span>; mỗi ngày một dòng giống dòng cuối bảng.</p>
+    <figure class="shot"><img src="docs/huong-dan/tsadmin-range.jpg" alt="Thêm nhiều ngày bằng lịch" loading="lazy" width="1280" height="800"><figcaption>Quản lý bảng công → Thêm nhiều ngày: chọn khoảng ngày trên một bảng lịch</figcaption></figure>
     <figure class="shot"><img src="docs/huong-dan/ts-adminnote.jpg" alt="Người chủ thấy ghi chú Quản trị viên đã sửa" loading="lazy" width="1280" height="800"><figcaption>Người chủ bảng công thấy ghi chú của quản trị viên</figcaption></figure>
     <h3>Nhập dữ liệu và nhập hộ</h3>
     <ul>

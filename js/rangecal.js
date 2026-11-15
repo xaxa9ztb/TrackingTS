@@ -59,6 +59,9 @@
 .rcx-lbl{display:block;font-size:13px;font-weight:600;margin:0 0 4px;color:var(--ni-ink-2,#344054)}
 .rcx-wrap{margin:0 0 10px}
 .rcx-pop{margin-top:6px}
+.rcx-wrap.float{position:relative}
+.rcx-wrap.float .rcx-pop{position:absolute;z-index:60;top:100%;left:0;width:min(340px,92vw)}
+.rcx-wrap.float .rcx-pop{box-shadow:0 12px 32px rgba(17,24,39,.18)}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .rcx-d.out{color:#5b6472}}
 `;
   function injectCSS() {
@@ -135,7 +138,7 @@
     opts = opts || {};
     const hide = opts.hide || [fromInput, toInput];
     (Array.isArray(hide) ? hide : [hide]).forEach(h => { h.hidden = true; h.style.display = 'none'; });
-    const wrap = document.createElement('div'); wrap.className = 'rcx-wrap' + (opts.className ? ' ' + opts.className : '');
+    const wrap = document.createElement('div'); wrap.className = 'rcx-wrap' + (opts.float ? ' float' : '') + (opts.className ? ' ' + opts.className : '');
     const id = (fromInput.id || 'rc') + 'Range';
     wrap.innerHTML = (opts.label ? `<span class="rcx-lbl" id="${id}Lbl">${esc(opts.label)}</span>` : '') +
       `<button type="button" class="rcx-btn" id="${id}" aria-expanded="false"${opts.label ? ` aria-labelledby="${id}Lbl ${id}"` : ''}><span class="ic" aria-hidden="true">📅</span><span class="tx"></span><span class="n"></span></button><div class="rcx-pop" hidden></div>`;
@@ -170,6 +173,10 @@
       if (!cal) cal = create(pop, cfg); else cal.update(cfg);
     }
     btn.addEventListener('click', () => open(pop.hidden));
+    if (opts.float) {   // lịch nổi: bấm ra ngoài hoặc Esc thì đóng
+      document.addEventListener('click', (e) => { if (!pop.hidden && !e.composedPath().includes(wrap)) open(false); });
+      wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pop.hidden) { open(false); btn.focus(); } });
+    }
     label();
     if (opts.open) open(true);
     return { refresh: label, open, el: wrap, button: btn };
