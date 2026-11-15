@@ -104,6 +104,8 @@
     $('lvFrom').min = $('lvTo').min = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10); $('lvFrom').value = $('lvTo').value = tomorrow;
     $('lvFrom').addEventListener('change', () => { if (!$('lvTo').value || $('lvTo').value < $('lvFrom').value) $('lvTo').value = $('lvFrom').value; preview(); });
     ['lvTo'].forEach(id => $(id).addEventListener('change', preview));
+    // chọn ngày bắt đầu + kết thúc trên một bảng lịch (js/rangecal.js)
+    if (window.RangeCal) RangeCal.pair($('lvFrom'), $('lvTo'), { hide: document.querySelector('#lvForm .lv-row'), label: 'Thời gian nghỉ — chạm ngày bắt đầu rồi ngày kết thúc', open: true, autoClose: false });
     $('lvTypes').addEventListener('change', preview);
     $('lvForm').addEventListener('submit', send);
     $('lvMine').tBodies[0].addEventListener('click', async (ev) => {

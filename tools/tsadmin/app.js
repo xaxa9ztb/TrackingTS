@@ -225,6 +225,7 @@
       const from = /^\d{4}-\d{2}-\d{2}$/.test(t.date) && addDay(t.date, 1) <= r.end ? addDay(t.date, 1) : r.start;
       $('mFrom').value = from; $('mTo').value = r.end;
     });
+    if (window.RangeCal) RangeCal.pair($('mFrom'), $('mTo'), { hide: [$('mFrom').closest('label'), $('mTo').closest('label')], label: 'Khoảng ngày — chạm ngày bắt đầu rồi ngày kết thúc', open: true, autoClose: false, className: 'ta-range' });
     $('mGo').addEventListener('click', () => {
       const r = rangeOf(period), a = $('mFrom').value, b = $('mTo').value || a, msg = $('mMsg');
       if (!a || b < a) { msg.className = 'ac-note err'; msg.textContent = 'Chọn từ ngày ≤ đến ngày.'; return; }
