@@ -10,7 +10,7 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
 <link rel="stylesheet" href="../accounts/style.css?v=8">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 <script src="../../js/demo.js?v=3"></script>
 <script src="../../js/session.js?v=50"></script>
 <script>Session.guard('incentive');</script>
@@ -20,7 +20,7 @@
 <script src="incexcel.js?v=3"></script>
 <script src="analysis.js?v=3"></script>
 <script src="../../js/htmlxlsx.js?v=1"></script>
-<script src="app.js?v=15" defer></script>
+<script src="app.js?v=16" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="incentive" data-tool="Incentive — Thưởng lắp đặt" data-help="huong-dan.html#incentive"></script>
@@ -167,11 +167,26 @@
 
     <!-- bước 4 -->
     <div class="ac-card" id="st4" hidden>
-      <div class="in-head"><h2>4. Chia thưởng theo % giờ công</h2><button class="btn small" type="button" id="hoursReload">↻ Lấy lại giờ công từ Theo dõi giờ công</button></div>
+      <div class="in-head"><h2>4. Chia thưởng theo % giờ công</h2>
+        <div class="in-acts4">
+          <button class="btn small" type="button" id="hoursReload" title="Lấy lại danh sách fitter và giờ công từ bảng Theo dõi giờ công">↻ Lấy lại giờ công</button>
+          <button class="btn small" type="button" id="fundReload" title="Đặt lại Quỹ Fitter / Site-sup theo Scorecard đã duyệt (bỏ số quỹ sửa tay)">↺ Quỹ theo Scorecard</button>
+        </div></div>
       <p class="ac-help">Quỹ thưởng lấy từ Scorecard (thưởng / unit × số unit) — sửa được. Fitter chia theo % giờ công trên dự án; Site-sup nhận quỹ Site-sup.
-        Đợt cuối: số tiền = quỹ × (100% hoặc 90%) × % giờ công − số người đó đã nhận đợt trước. Ô <b>Kỳ này</b> sửa tay được (tô cam); xoá trống để tính lại.</p>
+        Đợt cuối: số tiền = quỹ × (100% hoặc 90%) × % giờ công − số người đó đã nhận đợt trước. Ô <b>Kỳ này</b> sửa tay được (tô cam); xoá trống để tính lại.
+        Hai nút <b>↻ Lấy lại giờ công</b> / <b>↺ Quỹ theo Scorecard</b> ở trên áp dụng cho <b>mọi dự án đang hiện trong danh sách lọc</b>; nút cùng tên trong từng thẻ chỉ áp dụng cho dự án đó.</p>
       <datalist id="dlEmp"></datalist>
-      <div id="splits"></div>
+      <div class="in-review">
+        <div class="in-pside">
+          <div class="in-pfilter">
+            <input type="search" id="spQ" placeholder="🔍 Lọc: tên dự án / WBS / tên người…" aria-label="Lọc dự án theo tên, WBS hoặc tên người nhận" autocomplete="off">
+            <label><input type="checkbox" id="spWarn"> Chỉ dự án có cảnh báo ⚠</label>
+            <span class="ac-note" id="spCount" aria-live="polite"></span>
+          </div>
+          <ul class="in-plist" id="spList" aria-label="Dự án trong đợt"></ul>
+        </div>
+        <div class="in-revmain"><div id="splits"></div></div>
+      </div>
     </div>
 
     <!-- bước 5 -->

@@ -279,3 +279,31 @@ main.pp-wrap { padding-block: 16px 40px; }
 .im-opt .rad input { margin-top: 3px; flex: none; }
 .im-preview { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px; background: var(--blue-bg); color: var(--ink-2); font-size: 13.5px; }
 .im-preview:empty { display: none; }
+
+/* ---------- đội subcon trên lưới điều phối ---------- */
+.al tr.grp-sub td { background: #f8fafc; color: var(--muted); font-size: 12px; font-weight: 600; padding: 4px 8px; border-top: 2px solid var(--line-strong); text-align: left; }
+.al tr.grp-sub td.name { color: var(--ink-2); }
+.al tr.sub-row td.name .nm::before { content: "SC"; display: inline-block; font-size: 10px; font-weight: 700; color: #7c3aed; background: #f3e8ff; border-radius: 4px; padding: 0 4px; margin-right: 5px; vertical-align: 1px; }
+.badge.mode-in { background: var(--blue-bg); color: var(--blue); }
+.badge.mode-sub { background: #f3e8ff; color: #7c3aed; }
+.badge.mode-mix { background: #e0f2fe; color: #0369a1; }
+
+/* ---------- baseline & sai lệch ---------- */
+.bl-bar { margin: 0 0 10px; }
+.bl-bar .hint { margin: 0; }
+.gt .tl .seg.base { background: repeating-linear-gradient(90deg, #64748b 0 6px, transparent 6px 9px); height: 4px; top: 4px; opacity: .85; border-radius: 0; }
+.lg-base { background: repeating-linear-gradient(90deg, #64748b 0 4px, transparent 4px 6px) !important; }
+.pl.var { display: table; min-width: 1060px; }
+.pl.var th { white-space: nowrap; vertical-align: bottom; }
+.pl.var th small { font-weight: 400; }
+.pl.var td.vc { white-space: nowrap; }
+.pl.var td:first-child { min-width: 200px; max-width: 280px; }
+.pl.var .vdone { color: var(--green); font-weight: 600; }
+.pl.var .vlate { color: var(--red); font-weight: 600; }
+.dv { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 6px; }
+.dv.late { background: var(--red-bg); color: var(--red); }
+.dv.early { background: var(--green-bg); color: var(--green); }
+.dv.ok { background: #f3f4f6; color: var(--ink-2); }
+#planVar .gt-scroll { overflow-x: auto; border-radius: 10px; }
+#scList .ee-row { display: flex; align-items: center; gap: 8px; }
+#scList .ee-row span:first-child { flex: 1; }

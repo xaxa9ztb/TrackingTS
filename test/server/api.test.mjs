@@ -483,11 +483,13 @@ test('kho Quản lý dự án: tải lần đầu rỗng, lưu v1, lưu v2, đ�
   assert.deepEqual([load0.data.ok, load0.data.version, load0.data.data], [true, 0, null]);
   const s1 = await call('POST', '/api/pm-store', { email: 'pm@example.com', body: { action: 'save', baseVersion: 0, data: PM_DATA(2) } });
   assert.deepEqual([s1.data.ok, s1.data.version], [true, 1], JSON.stringify(s1.data));
-  const s2 = await call('POST', '/api/pm-store', { email: 'sv01@example.com', body: { action: 'save', baseVersion: 1, data: PM_DATA(3) } });
+  const s2 = await call('POST', '/api/pm-store', { email: 'sv01@example.com', body: { action: 'save', baseVersion: 1, data: { ...PM_DATA(3), baselines: [{ id: 'b1', name: 'BL0', ms: {}, al: {} }], subcons: [{ id: 's1', name: 'Subcon A' }] } } });
   assert.deepEqual([s2.data.ok, s2.data.version], [true, 2], JSON.stringify(s2.data));
   const load = await call('POST', '/api/pm-store', { email: 'boss@example.com', body: { action: 'load' } });
   assert.equal(load.data.version, 2);
   assert.equal(load.data.data.fitters.length, 3);
+  assert.deepEqual(load.data.data.baselines.map(b => b.name), ['BL0']);          // baseline + danh sách subcon được lưu cùng kho
+  assert.deepEqual(load.data.data.subcons.map(x => x.name), ['Subcon A']);
   assert.ok(load.data.updatedBy && load.data.updatedAt);
 });
 

@@ -110,6 +110,25 @@
     return runs;
   }
 
-  const api = { norm, rowHours, hoursByDay, compare, actualRuns };
+
+  // Thực tế của từng dự án theo CHẤM CÔNG (gom theo WBS): ngày đầu / ngày cuối có giờ công, tổng giờ, số người,
+  // tách riêng giờ của TESTER (testerIds: tập mã NV là tester). Dự án giao subcon chỉ có giờ tester.
+  //   → { WBS: { first, last, hours, people, inst: { first, last, hours }, test: { first, last, hours } } }
+  function projectActuals(rows, testerIds) {
+    const T = new Set([...(testerIds || [])].map(norm)), out = {}, ppl = {};
+    const add = (o, d, h) => { if (!o.first || d < o.first) o.first = d; if (!o.last || d > o.last) o.last = d; o.hours += h; };
+    (rows || []).forEach((r) => {
+      if (!r || !r.wbs || !r.date) return;
+      const h = rowHours(r); if (!(h > 0)) return;
+      const w = norm(r.wbs), e = norm(r.empId);
+      const o = out[w] || (out[w] = { first: '', last: '', hours: 0, people: 0, inst: { first: '', last: '', hours: 0 }, test: { first: '', last: '', hours: 0 } });
+      add(o, r.date, h); add(T.has(e) ? o.test : o.inst, r.date, h);
+      (ppl[w] || (ppl[w] = new Set())).add(e);
+    });
+    Object.keys(out).forEach((w) => { out[w].people = ppl[w].size; });
+    return out;
+  }
+
+  const api = { norm, rowHours, hoursByDay, compare, actualRuns, projectActuals };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.PlanActual = api;
 })(typeof window !== 'undefined' ? window : globalThis);
