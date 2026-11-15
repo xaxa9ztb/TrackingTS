@@ -1173,7 +1173,15 @@
     commit('Đã xóa dữ liệu.', () => { data = P.emptyData(); });
   });
   const closeMenu = () => { $('moreMenu').hidden = true; $('btnMore').setAttribute('aria-expanded', 'false'); };
-  $('btnMore').addEventListener('click', (e) => { e.stopPropagation(); const o = $('moreMenu').hidden; $('moreMenu').hidden = !o; $('btnMore').setAttribute('aria-expanded', String(o)); });
+  // menu ⋯ luôn nằm trọn trong màn hình (trên điện thoại nút nằm bên trái → menu mở sang phải)
+  function placeMenu() {
+    const m = $('moreMenu'); m.style.left = ''; m.style.right = '';
+    const r = m.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+    if (r.left < 8) { m.style.left = '0'; m.style.right = 'auto'; }
+    const r2 = m.getBoundingClientRect();
+    if (r2.right > vw - 8) { m.style.left = 'auto'; m.style.right = '0'; }
+  }
+  $('btnMore').addEventListener('click', (e) => { e.stopPropagation(); const o = $('moreMenu').hidden; $('moreMenu').hidden = !o; $('btnMore').setAttribute('aria-expanded', String(o)); if (o) placeMenu(); });
   document.addEventListener('click', (e) => { if (!e.target.closest('#moreMenu')) closeMenu(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
   // bấm ra ngoài hộp thoại để đóng
