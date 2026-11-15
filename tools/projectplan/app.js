@@ -33,7 +33,7 @@
   ui.weeks = ui.weeks || (window.innerWidth < 700 ? 2 : 4);
   ui.tab = ui.tab || 'alloc';
   let viewStart = mondayOf(today());
-  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, actMode: ui.actMode, bl: ui.bl })); } catch (e) { /* bỏ qua */ } };
+  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, actMode: ui.actMode, blWhich: ui.blWhich })); } catch (e) { /* bỏ qua */ } };
   function save() {
     data.updatedAt = new Date().toISOString();
     try { localStorage.setItem(KEY, JSON.stringify(data)); }
@@ -731,6 +731,7 @@
     const liftInfo = (p) => [p.travel, p.load !== '' && p.load != null ? (typeof p.load === 'number' ? p.load + 'kg' : p.load) : '', p.stops ? p.stops + ' điểm dừng' : ''].filter(Boolean).join(' · ');
     const badges = (p) => modeBadge(p) + (p.province ? '<span class="badge">Tỉnh</span>' : '') + (p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : '') + (p.done ? '<span class="badge ok">Hoàn thành</span>' : '');
     const alertHtml = (p) => alertsOf(p, t).map(a => `<span class="badge ${a.c}">${esc(a.s)}</span>`).join('');
+    planShown = list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date));
     const gv = ui.planView === 'gantt', vv = ui.planView === 'var';
     $('planViewList').setAttribute('aria-pressed', String(!gv && !vv)); $('planViewGantt').setAttribute('aria-pressed', String(gv)); $('planViewVar').setAttribute('aria-pressed', String(vv));
     $('planList').hidden = gv || vv; $('planGantt').hidden = !gv; $('planVar').hidden = !vv; $('upcoming').hidden = gv || vv;
@@ -774,7 +775,7 @@
     const months = []; days.forEach(d => { const k = d.slice(0, 7), l = months[months.length - 1]; if (l && l.k === k) l.n++; else months.push({ k, n: 1 }); });
     const pmv = (p, k) => (p[k] && p[k].date) || '';
     const clip = (a, b) => (!a || !b || b < sp.from || a > sp.to) ? null : { a: a > sp.from ? a : sp.from, b: b < sp.to ? b : sp.to };
-    let h = `<div class="gt-legend"><span><i style="background:#94a3b8"></i>Hàng (xuất xưởng → hàng về)</span><span><i style="background:var(--blue)"></i>Lắp đặt (nhận hố → bàn giao)</span><span><i style="background:#059669"></i>Fitter được phân công</span>${curBl() ? '<span><i class="lg-base"></i>Baseline (lắp đặt theo kế hoạch gốc)</span>' : ''}<span>◇ mốc (đặc = đã xong, đỏ = quá hạn chưa xác nhận)</span><span style="color:var(--red)">| hôm nay</span></div>`;
+    let h = `<div class="gt-legend"><span><i style="background:#94a3b8"></i>Hàng (xuất xưởng → hàng về)</span><span><i style="background:var(--blue)"></i>Lắp đặt (nhận hố → bàn giao)</span><span><i style="background:#059669"></i>Fitter được phân công</span>${list.some(p => (p.bl || []).length) ? '<span><i class="lg-base"></i>Baseline của dự án (lắp đặt theo kế hoạch đã chốt)</span>' : ''}<span>◇ mốc (đặc = đã xong, đỏ = quá hạn chưa xác nhận)</span><span style="color:var(--red)">| hôm nay</span></div>`;
     h += `<div class="gt-scroll"><table class="gt" style="width:${nameW + W}px"><colgroup><col style="width:${nameW}px"><col style="width:${W}px"></colgroup><thead><tr><th class="name">Dự án (${list.length})</th><th><div style="display:flex">${months.map(m => `<span style="width:${m.n * PX}px;overflow:hidden;white-space:nowrap;border-left:1px solid #e5e7eb;padding-left:3px">${Number(m.k.slice(5))}/${m.k.slice(2, 4)}</span>`).join('')}</div></th></tr></thead><tbody>`;
     list.forEach(p => {
       const goodsA = pmv(p, 'factory') || pmv(p, 'port') || pmv(p, 'arrival'), goodsB = pmv(p, 'arrival') || pmv(p, 'port') || pmv(p, 'factory');
@@ -783,11 +784,11 @@
       const g = clip(goodsA, goodsB < goodsA ? goodsA : goodsB), ins = clip(instA, instB < instA ? instA : instB);
       if (g) segs.push(`<span class="seg goods" style="left:${idx(g.a)}px;width:${Math.max(PX, idx(g.b) - idx(g.a) + PX)}px"></span>`);
       if (ins) segs.push(`<span class="seg inst" style="left:${idx(ins.a)}px;width:${Math.max(PX, idx(ins.b) - idx(ins.a) + PX)}px;background:${safeColor(p.color)}"></span>`);
-      const bm = curBl() && curBl().ms[p.id];
+      const pbl = P.baselineOf(p, ui.blWhich), bm = pbl && pbl.ms;
       if (bm) {
         const bA = bm.teamStart || bm.ownerStart || bm.shaftReady || '', bB = bm.handover || (bA ? P.addDays(bA, 30) : '');
         const bc = clip(bA, bB < bA ? bA : bB);
-        if (bc) segs.push(`<span class="seg base" style="left:${idx(bc.a)}px;width:${Math.max(PX, idx(bc.b) - idx(bc.a) + PX)}px" title="${esc(`Baseline ${curBl().name}: lắp đặt ${P.fmtVN(bA)} – ${P.fmtVN(bB)}`)}"></span>`);
+        if (bc) segs.push(`<span class="seg base" style="left:${idx(bc.a)}px;width:${Math.max(PX, idx(bc.b) - idx(bc.a) + PX)}px" title="${esc(`Baseline ${pbl.name}: lắp đặt ${P.fmtVN(bA)} – ${P.fmtVN(bB)}`)}"></span>`);
       }
       const runs = projectRuns(p.id, sp.from, sp.to);
       if (runs.length) { const a = runs.reduce((m, r) => (r.from < m ? r.from : m), runs[0].from), b = runs.reduce((m, r) => (r.to > m ? r.to : m), runs[0].to); segs.push(`<span class="seg crew" style="left:${idx(a)}px;width:${idx(b) - idx(a) + PX}px" title="Fitter: ${esc([...new Set(runs.map(r => r.f.name))].join(', '))}"></span>`); }
@@ -809,7 +810,11 @@
   $('planViewList').addEventListener('click', () => setPlanView('list'));
   $('planViewGantt').addEventListener('click', () => setPlanView('gantt'));
   $('planViewVar').addEventListener('click', () => setPlanView('var'));
-  $('planVar').addEventListener('click', (e) => { const r = e.target.closest('[data-p]'); if (r) openProject(r.dataset.p); });
+  $('planVar').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-bl]');
+    if (b) { const p = byId()[b.dataset.bl]; if (p) openBaseline({ one: p }); return; }
+    const r = e.target.closest('[data-p]'); if (r) openProject(r.dataset.p);
+  });
   $('planGantt').addEventListener('click', (e) => { const r = e.target.closest('td.name[data-p]'); if (r) openProject(r.dataset.p); });
   // Site Sup: mặc định xem dự án mình giám sát
   const myName = () => { const s = typeof Session !== 'undefined' ? Session.current() : null; return s && s.name ? P.plain(s.name) : ''; };
@@ -924,6 +929,22 @@
 
   // ---------- hộp thoại dự án ----------
   let pjId = null;
+  function renderPjBl(p) {
+    const l = (p && p.bl) || [];
+    $('pjBlList').innerHTML = l.length ? l.map((b, i) => `<div class="blv"><b>${esc(b.name)}</b> · chốt ${dmy(b.at)}${b.by ? ' · ' + esc(b.by) : ''}${b.note ? ' — ' + esc(b.note) : ''}
+      <span class="sub">${['teamStart', 'handover'].filter(k => b.ms && b.ms[k]).map(k => `${P.MILESTONES.find(m => m.key === k).short} ${dm(b.ms[k])}`).join(' · ')}${b.al ? ` · ${b.al.days} ngày công` : ''}</span>
+      <button type="button" class="lnk" data-blx="${i}" aria-label="${esc('Xoá baseline ' + b.name)}">Xoá</button></div>`).join('')
+      : '<p class="hint">Chưa chốt. Khi kế hoạch của dự án đã được duyệt, bấm <b>Lưu &amp; chốt baseline</b> — sau này mục Sai lệch sẽ so với bản đã chốt.</p>';
+  }
+  let pjThenBl = false;
+  $('pjBlNew').addEventListener('click', () => { pjThenBl = true; $('formProject').requestSubmit(); });
+  $('pjBlList').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-blx]'); if (!b) return;
+    const p = data.projects.find(x => x.id === pjId); if (!p) return;
+    const x = p.bl[+b.dataset.blx]; if (!x || !confirm(`Xoá baseline ${x.name} của dự án này? (Kế hoạch hiện tại không đổi.)`)) return;
+    commit(null, () => { p.bl.splice(+b.dataset.blx, 1); });
+    renderPjBl(data.projects.find(q => q.id === pjId));
+  });
   const pjModeUI = () => { $('pjSubconWrap').hidden = $('pj_mode').value === 'in'; };
   $('pj_mode').addEventListener('change', pjModeUI);
   const PJ_TEXT = ['name', 'address', 'wbs', 'liftType', 'travel', 'transport', 'teamPlan', 'supervisor', 'note'];
@@ -950,6 +971,7 @@
     const runs = id ? projectRuns(id) : [];
     $('pjAllocated').textContent = runs.length ? 'Đã phân công: ' + runs.map(r => `${r.f.name} ${dm(r.from)}–${dm(r.to)}${r.t ? ' (dự kiến)' : ''}`).join(', ') : 'Chưa phân công fitter (phân công ở tab Điều phối nhân sự).';
     $('pjDelete').hidden = !id;
+    $('pjBlWrap').hidden = !id; renderPjBl(p);
     $('pjMergeWrap').hidden = !id;
     $('pjMergeTo').innerHTML = '<option value="">— chọn dự án —</option>' + data.projects.filter(x => x.id !== id).sort((a, b) => a.name.localeCompare(b.name, 'vi')).map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
     const sups = [...new Set(data.projects.map(x => x.supervisor).filter(Boolean))];
@@ -1044,6 +1066,7 @@
   $('pjCancel').addEventListener('click', () => $('dlgProject').close());
   $('formProject').addEventListener('submit', (e) => {
     e.preventDefault();
+    const thenBl = pjThenBl; pjThenBl = false;
     const name = $('pj_name').value.trim(); if (!name) { $('pj_name').focus(); return; }
     commit(pjId ? `Đã lưu dự án ${name}.` : `Đã thêm dự án ${name}.`, () => {
       let p = data.projects.find(x => x.id === pjId);
@@ -1065,6 +1088,7 @@
       if (p.fromGrid && (p.address || p.liftType || P.MILESTONES.some(m => p[m.key].date))) delete p.fromGrid;
     });
     $('dlgProject').close();
+    if (thenBl && pjId) { const bp = data.projects.find(x => x.id === pjId); if (bp) openBaseline({ one: bp }); }
   });
   $('pjDelete').addEventListener('click', () => {
     const p = data.projects.find(x => x.id === pjId); if (!p) return;
@@ -1091,37 +1115,52 @@
   });
 
   // ================= BASELINE & SAI LỆCH =================
-  const blList = () => (data.baselines || []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
-  function curBl() { const l = blList(); return l.find(b => b.id === ui.bl) || l[0] || null; }
+  // Baseline chốt RIÊNG cho từng dự án (p.bl = [BL0, BL1…]); so sánh với bản mới nhất hoặc bản đầu tiên
+  ui.blWhich = ui.blWhich === 'first' ? 'first' : 'last';
   const dmy = (iso) => (iso ? P.fmtVN(String(iso).slice(0, 10)) : '');
+  let planShown = [];                 // các dự án đang hiện ở tab Lịch trình (sau khi lọc) — phạm vi cho nút "Chốt baseline…"
   function renderBlBar() {
-    const l = blList(), c = curBl();
-    $('blSel').innerHTML = l.length ? l.map(b => `<option value="${esc(b.id)}">${esc(b.name || 'Baseline')} · ${dmy(b.at)}</option>`).join('') : '<option value="">(chưa chốt baseline)</option>';
-    $('blSel').value = c ? c.id : ''; $('blSel').disabled = !l.length;
-    $('blDel').hidden = !c;
-    $('blInfo').textContent = c ? `Chốt ${dmy(c.at)}${c.by ? ' bởi ' + c.by : ''}${c.note ? ' — ' + c.note : ''}` : 'Chốt baseline để lưu kế hoạch gốc, sau đó so sánh sai lệch.';
+    $('blWhich').value = ui.blWhich;
+    const has = planShown.filter(p => (p.bl || []).length).length;
+    $('blInfo').textContent = planShown.length ? `${has}/${planShown.length} dự án đang hiện đã có baseline.` : '';
+    $('blNew').disabled = !planShown.length;
   }
-  $('blSel').addEventListener('change', () => { ui.bl = $('blSel').value; render(); });
-  $('blNew').addEventListener('click', () => {
-    const n = (data.baselines || []).length, snap = P.snapshotBaseline(data, {});
-    $('blName').value = `BL${n} – ${P.fmtVN(today())}`; $('blNote').value = '';
-    $('blCount').textContent = `Sẽ lưu: ${Object.keys(snap.ms).length} dự án có ngày mốc · ${Object.keys(snap.al).length} dự án có phân công chính thức.`;
-    $('dlgBaseline').showModal(); $('blName').select();
-  });
+  $('blWhich').addEventListener('change', () => { ui.blWhich = $('blWhich').value; saveUI(); render(); });
+  let blCtx = null;                   // { one: project } | { list: [projects] }
+  function openBaseline(ctx) {
+    blCtx = ctx; $('blNote').value = '';
+    const one = ctx.one;
+    $('blScopeWrap').hidden = !!one; $('blOne').hidden = !one;
+    if (one) {
+      $('blTitle').textContent = 'Chốt baseline dự án';
+      $('blOne').innerHTML = `Dự án <b>${esc(one.name)}</b> — sẽ lưu bản <b>BL${(one.bl || []).length}</b>${(one.bl || []).length ? ` (đã có ${one.bl.length} bản trước, vẫn giữ)` : ''}.`;
+      const ms = P.MILESTONES.filter(m => one[m.key].date).length;
+      $('blCount').textContent = ms ? `${ms} mốc có ngày sẽ được lưu.` : '⚠ Dự án chưa có mốc nào có ngày — nên nhập ngày các mốc trước khi chốt.';
+    } else {
+      const l = ctx.list, fresh = l.filter(p => !(p.bl || []).length);
+      $('blTitle').textContent = 'Chốt baseline cho nhiều dự án';
+      $('blScopeNew').innerHTML = `<b>Chỉ ${fresh.length} dự án chưa có baseline</b> (trong ${l.length} dự án đang hiện)`;
+      $('blScopeAll').innerHTML = `<b>Tất cả ${l.length} dự án đang hiện</b> — dự án đã có baseline sẽ thêm bản mới (BL1, BL2…)`;
+      document.querySelector('input[name=blScope][value=new]').disabled = !fresh.length;
+      document.querySelector(`input[name=blScope][value=${fresh.length ? 'new' : 'all'}]`).checked = true;
+      $('blCount').textContent = 'Muốn chốt cho một dự án: bấm 📌 ở dòng dự án đó trong bảng Sai lệch, hoặc mở dự án.';
+    }
+    $('dlgBaseline').showModal(); $('blNote').focus();
+  }
+  $('blNew').addEventListener('click', () => { if (planShown.length) openBaseline({ list: planShown.slice() }); });
   $('blCancel').addEventListener('click', () => $('dlgBaseline').close());
   $('formBaseline').addEventListener('submit', (e) => {
     e.preventDefault();
-    const name = $('blName').value.trim(); if (!name) return;
-    const s = typeof Session !== 'undefined' ? Session.current() : null;
-    const b = P.snapshotBaseline(data, { name, note: $('blNote').value.trim(), by: s && s.name ? s.name : '' });
-    ui.bl = b.id;
-    commit(`Đã chốt baseline “${name}”.`, () => { data.baselines.push(b); });
+    if (!blCtx) return;
+    const s = typeof Session !== 'undefined' ? Session.current() : null, by = s && s.name ? s.name : '', note = $('blNote').value.trim();
+    const scope = (document.querySelector('input[name=blScope]:checked') || {}).value;
+    const ids = blCtx.one ? [blCtx.one.id] : blCtx.list.filter(p => scope === 'all' || !(p.bl || []).length).map(p => p.id);
+    if (!ids.length) { $('dlgBaseline').close(); return; }
+    const at = new Date().toISOString();
+    commit(ids.length === 1 ? `Đã chốt baseline cho ${byId()[ids[0]].name}.` : `Đã chốt baseline cho ${ids.length} dự án.`, () => {
+      ids.forEach(id => { const p = data.projects.find(x => x.id === id); if (p) { p.bl = p.bl || []; p.bl.push(P.snapshotProject(data, p, { by, note, at })); } });
+    });
     $('dlgBaseline').close();
-  });
-  $('blDel').addEventListener('click', () => {
-    const c = curBl(); if (!c || !confirm(`Xoá baseline “${c.name}”? (Kế hoạch hiện tại không đổi.)`)) return;
-    ui.bl = '';
-    commit(`Đã xoá baseline ${c.name}.`, () => { data.baselines = data.baselines.filter(b => b.id !== c.id); });
   });
 
   const TESTER_RE = /(^| )t c( |$)|test|commission/;        // T&C Technician, Testing & Commissioning…
@@ -1131,9 +1170,10 @@
   async function renderVar(list) {
     const box = $('planVar');
     if (act.rows === null) { box.innerHTML = '<p class="pp-empty">Đang đọc bảng công trên máy…</p>'; await loadActualRows(false); if (ui.planView !== 'var' || ui.tab !== 'plan') return; }
-    const bl = curBl(), t = today();
+    const t = today();
     const ids = new Set(list.map(p => p.id));
-    const rows = P.variance(data, bl).filter(r => ids.has(r.p.id));
+    const rows = P.variance(data, ui.blWhich).filter(r => ids.has(r.p.id));
+    const anyBl = rows.some(r => r.inBase);
     const actual = A.projectActuals(act.rows, testerIds());
     // ngày công kế hoạch của fitter inhouse (phân công chính thức) theo dự án
     const inDays = {}; inhouse().forEach(f => Object.values(data.alloc[f.id] || {}).forEach(v => { if (!v.t) inDays[v.p] = (inDays[v.p] || 0) + 1; }));
@@ -1145,13 +1185,13 @@
       r.used = r.target && r.act ? Math.round(r.act.hours / r.target * 100) : null;
     });
     rows.sort((a, b) => ((b.slip == null ? -1e9 : b.slip) - (a.slip == null ? -1e9 : a.slip)) || a.p.name.localeCompare(b.p.name, 'vi'));
-    const late = rows.filter(r => r.slip > 0), okN = rows.filter(r => r.slip != null && r.slip <= 0).length, noBase = rows.filter(r => bl && !r.inBase).length;
+    const late = rows.filter(r => r.slip > 0), okN = rows.filter(r => r.slip != null && r.slip <= 0).length, noBase = rows.filter(r => !r.inBase).length;
     const over = rows.filter(r => r.used != null && r.used >= 100).length, near = rows.filter(r => r.used != null && r.used >= 75 && r.used < 100).length;
     const avg = late.length ? Math.round(late.reduce((s, r) => s + r.slip, 0) / late.length) : 0;
-    let h = '<div class="pp-today">' + (bl
+    let h = '<div class="pp-today">' + (anyBl
       ? `<span class="chip ${late.length ? 'warn' : ''}">Trễ so với baseline: <b>${late.length}</b> dự án${late.length ? ` (trung bình +${avg} ngày)` : ''}</span><span class="chip">Đúng / sớm: <b>${okN}</b></span>` +
-        (noBase ? `<span class="chip" title="Dự án thêm sau khi chốt, hoặc lúc chốt chưa có ngày mốc">Chưa có trong baseline: <b>${noBase}</b></span>` : '')
-      : '<span class="chip warn">Chưa chốt baseline — bấm “📌 Chốt baseline” để lưu kế hoạch gốc. Bảng dưới vẫn hiện thực tế theo chấm công và giờ công.</span>') +
+        (noBase ? `<span class="chip warn" title="Bấm 📌 ở dòng dự án, hoặc “Chốt baseline…” để chốt cho các dự án chưa có">Chưa chốt baseline: <b>${noBase}</b> dự án</span>` : '')
+      : '<span class="chip warn">Chưa dự án nào chốt baseline — bấm 📌 ở từng dòng, hoặc “📌 Chốt baseline…” để chốt cho nhiều dự án. Bảng dưới vẫn hiện thực tế theo chấm công và giờ công.</span>') +
       (over ? `<span class="chip warn">Vượt định mức giờ: <b>${over}</b> dự án</span>` : '') + (near ? `<span class="chip">Đã dùng ≥ 75% định mức: <b>${near}</b></span>` : '') + '</div>';
     if (!rows.length) { box.innerHTML = h + '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
     const KEYS = ['arrival', 'teamStart', 'mechDone', 'testReady', 'handover'];
@@ -1174,10 +1214,11 @@
       const hTd = `<div>${r.target ? `ĐM <b>${hrs(r.target)}</b>` : '<span class="sub">chưa có định mức</span>'}${sub ? '' : ` · KH ${hrs(r.planH)}`}</div>` +
         `<div>TT <b>${hrs(a ? a.hours : 0)}</b>h${a && a.test.hours ? ` <span class="sub">(tester ${hrs(a.test.hours)}h)</span>` : ''}${r.used != null ? ` <b class="pct ${uc}">${r.used}%</b>` : ''}</div>`;
       h += `<tr class="row" data-p="${esc(p.id)}" tabindex="0"><td><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i>${esc(p.name)}</div><div class="sub">${modeBadge(p)}${p.wbs ? esc(p.wbs) : ''}${p.supervisor ? ' · GS: ' + esc(p.supervisor) : ''}</div>` +
-        `${r.slip != null ? `<div class="sub">So với baseline (${P.MILESTONES.find(m => m.key === r.slipKey).short}): ${diffChip(r.slip)}</div>` : ''}</td>` +
+        `<div class="sub blrow">${r.bl ? `<b>${esc(r.bl.name)}</b> · chốt ${dmy(r.bl.at)}${r.bl.by ? ' · ' + esc(r.bl.by) : ''}${(p.bl || []).length > 1 ? ` · ${p.bl.length} bản` : ''}` : '<span class="vlate">Chưa chốt baseline</span>'} <button type="button" class="lnk" data-bl="${esc(p.id)}" title="${r.bl ? 'Chốt lại: thêm bản baseline mới cho dự án này' : 'Chốt baseline cho dự án này'}">📌 ${r.bl ? 'Chốt lại' : 'Chốt'}</button></div>` +
+        `${r.slip != null ? `<div class="sub">So với ${esc(r.bl.name)} (${P.MILESTONES.find(m => m.key === r.slipKey).short}): ${diffChip(r.slip)}</div>` : ''}</td>` +
         KEYS.map(k => msTd(r, k)).join('') + `<td class="vc">${al}${alB}</td><td class="vc">${actTd}</td><td class="vc">${hTd}</td></tr>`;
     });
-    h += '</tbody></table></div><p class="pp-hint">BL = ngày trong baseline đã chọn · <span class="dv late">+n ngày</span> trễ hơn baseline · <span class="dv early">−n ngày</span> sớm hơn · ✓ mốc đã xác nhận xong · ĐM = Target hour của dự án (dữ liệu dự án chung) · KH = ngày công fitter inhouse đã phân công × 8 · TT = giờ đã chấm công theo WBS. Dự án <b>Subcon</b> chỉ có giờ của tester.</p>';
+    h += '</tbody></table></div><p class="pp-hint">BL = ngày trong baseline của dự án (chốt riêng từng dự án) · <span class="dv late">+n ngày</span> trễ hơn baseline · <span class="dv early">−n ngày</span> sớm hơn · ✓ mốc đã xác nhận xong · ĐM = Target hour của dự án (dữ liệu dự án chung) · KH = ngày công fitter inhouse đã phân công × 8 · TT = giờ đã chấm công theo WBS. Dự án <b>Subcon</b> chỉ có giờ của tester.</p>';
     box.innerHTML = h;
   }
   const diffChipN = (d) => d === 0 ? '' : `<span class="dv ${d > 0 ? 'late' : 'early'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>`;

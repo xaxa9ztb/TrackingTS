@@ -26,32 +26,49 @@ test('fix: dữ liệu cũ thiếu mốc mới / baseline / subcon được bổ
   assert.equal(d.projects[0].mode, '');
 });
 
-test('snapshotBaseline: lưu ngày mốc + khoảng phân công chính thức (bỏ dự kiến)', () => {
-  const b = P.snapshotBaseline(sample(), { name: 'BL0', by: 'QLDA', note: 'duyệt' });
-  assert.equal(b.name, 'BL0'); assert.equal(b.by, 'QLDA');
-  assert.deepEqual(b.ms.pA, { teamStart: '2026-11-02', handover: '2026-12-10' });
-  assert.deepEqual(b.al.pA, { from: '2026-11-02', to: '2026-11-03', days: 2 });   // ngày 04/11 dự kiến không tính
-  assert.deepEqual(b.al.pB, { from: '2026-11-05', to: '2026-11-06', days: 2 });
+test('snapshotProject: baseline của MỘT dự án — ngày mốc + khoảng phân công chính thức (bỏ dự kiến); tên tự đánh BL0, BL1', () => {
+  const d = sample(), a = d.projects[0];
+  const b0 = P.snapshotProject(d, a, { by: 'QLDA', note: 'duyệt' });
+  assert.equal(b0.name, 'BL0'); assert.equal(b0.by, 'QLDA');
+  assert.deepEqual(b0.ms, { teamStart: '2026-11-02', handover: '2026-12-10' });
+  assert.deepEqual(b0.al, { from: '2026-11-02', to: '2026-11-03', days: 2 });   // ngày 04/11 dự kiến không tính
+  a.bl.push(b0);
+  assert.equal(P.snapshotProject(d, a, {}).name, 'BL1');
+  assert.equal(d.projects[1].bl.length, 0);                                      // dự án khác không bị chốt theo
 });
 
-test('variance: lệch ngày từng mốc so với baseline; slip lấy mốc bàn giao trước', () => {
-  const d = sample(), b = P.snapshotBaseline(d, { name: 'BL0' });
-  d.projects[0].handover.date = '2026-12-16'; d.projects[0].teamStart.date = '2026-10-30';
-  d.projects.push(P.newProject({ id: 'pC', name: 'Thêm sau' }));
-  const v = P.variance(d, b), A1 = v.find(x => x.p.id === 'pA'), B1 = v.find(x => x.p.id === 'pB'), C1 = v.find(x => x.p.id === 'pC');
+test('variance: mỗi dự án so với baseline CỦA RIÊNG NÓ; chọn bản mới nhất hoặc bản đầu tiên', () => {
+  const d = sample(), a = d.projects[0], b = d.projects[1];
+  a.bl.push(P.snapshotProject(d, a, {}));                      // BL0: bàn giao 10/12
+  a.handover.date = '2026-12-16'; a.teamStart.date = '2026-10-30';
+  let v = P.variance(d, 'last'), A1 = v.find(x => x.p.id === 'pA'), B1 = v.find(x => x.p.id === 'pB');
   assert.equal(A1.ms.handover.diff, 6); assert.equal(A1.ms.teamStart.diff, -3);
-  assert.equal(A1.slip, 6); assert.equal(A1.slipKey, 'handover');
-  assert.equal(B1.slip, 0); assert.equal(B1.slipKey, 'teamStart');
-  assert.equal(C1.inBase, false); assert.equal(C1.slip, null);
-  assert.equal(P.variance(d, null)[0].slip, null);   // chưa có baseline
+  assert.equal(A1.slip, 6); assert.equal(A1.slipKey, 'handover'); assert.equal(A1.bl.name, 'BL0');
+  assert.equal(B1.inBase, false); assert.equal(B1.slip, null);   // Beta chưa chốt → không có sai lệch
+  a.bl.push(P.snapshotProject(d, a, {}));                      // BL1: chốt lại theo kế hoạch mới (16/12)
+  a.handover.date = '2026-12-18';
+  assert.equal(P.variance(d, 'last').find(x => x.p.id === 'pA').slip, 2);     // so với BL1
+  assert.equal(P.variance(d, 'first').find(x => x.p.id === 'pA').slip, 8);    // so với kế hoạch gốc BL0
+  b.bl.push(P.snapshotProject(d, b, {}));
+  assert.equal(P.variance(d, 'last').find(x => x.p.id === 'pB').slip, 0);
 });
 
-test('merge: baseline + danh sách subcon của hai máy được gộp theo id', () => {
+test('fix: baseline CHUNG (bản đầu) được chuyển thành baseline của từng dự án, không nhân đôi khi chạy lại', () => {
+  const d = sample();
+  d.baselines = [{ id: 'g1', name: 'BL chung', at: '2026-11-01T00:00:00Z', by: 'QLDA', note: 'cũ', ms: { pA: { handover: '2026-12-10' } }, al: { pA: { from: '2026-11-02', to: '2026-11-03', days: 2 }, pB: { from: '2026-11-05', to: '2026-11-06', days: 2 } } }];
+  P.fix(d);
+  assert.deepEqual(d.baselines, []);
+  assert.equal(d.projects[0].bl.length, 1); assert.equal(d.projects[0].bl[0].name, 'BL chung'); assert.deepEqual(d.projects[0].bl[0].ms, { handover: '2026-12-10' });
+  assert.equal(d.projects[1].bl.length, 1); assert.deepEqual(d.projects[1].bl[0].al, { from: '2026-11-05', to: '2026-11-06', days: 2 });
+  P.fix(d); assert.equal(d.projects[0].bl.length, 1);
+});
+
+test('merge: baseline chốt ở máy này (trong dự án) + danh sách subcon ở máy kia được gộp', () => {
   const base = sample(), local = JSON.parse(JSON.stringify(base)), remote = JSON.parse(JSON.stringify(base));
-  local.baselines.push({ id: 'b1', name: 'BL máy tôi', at: '2026-11-01', ms: {}, al: {} });
+  local.projects[0].bl.push({ id: 'b1', name: 'BL0', at: '2026-11-01', ms: {}, al: null });
   remote.subcons.push({ id: 's9', name: 'Minh Loi' });
   const m = P.merge(base, local, remote).data;
-  assert.deepEqual(m.baselines.map(x => x.id), ['b1']);
+  assert.deepEqual(m.projects[0].bl.map(x => x.id), ['b1']);
   assert.deepEqual(m.subcons.map(x => x.name), ['Minh Loi']);
   assert.equal(m.fitters.find(f => f.id === 's1').sub, true);
 });
@@ -67,11 +84,14 @@ test('Excel: cột Hình thức thi công / mốc mới có trong PLAN_COLUMNS; 
   assert.equal(P.parseMode('Subcon'), 'sub'); assert.equal(P.parseMode('Inhouse'), 'in'); assert.equal(P.parseMode('Kết hợp'), 'mix'); assert.equal(P.parseMode(''), '');
 });
 
-test('applyImport thay toàn bộ: giữ baseline, danh sách subcon và cờ đội subcon', () => {
-  const cur = sample(); cur.baselines.push({ id: 'b1', name: 'BL0', ms: {}, al: {} }); cur.subcons.push({ id: 's9', name: 'Gia Khang' });
+test('applyImport: giữ baseline của dự án, danh sách subcon và cờ đội subcon', () => {
+  const cur = sample(); cur.projects[0].bl.push({ id: 'b1', name: 'BL0', ms: {}, al: null }); cur.subcons.push({ id: 's9', name: 'Gia Khang' });
   const imp = P.emptyData(); imp.fitters = [{ id: 'x1', name: 'Gia Khang', empId: '' }, { id: 'x2', name: 'Thợ Hai', empId: '' }]; imp.alloc = { x1: {}, x2: {} };
+  imp.projects = [P.newProject({ id: 'y1', name: 'Alpha đổi tên', wbs: 'E-1', address: 'mới' })];
   const all = P.applyImport(cur, imp, { plan: true, grid: true, mode: 'replace' }).data;
-  assert.equal(all.baselines.length, 1); assert.equal(all.subcons.length, 1);
+  assert.equal(all.projects[0].bl.length, 1); assert.equal(all.subcons.length, 1);          // thay toàn bộ: dự án trùng WBS giữ baseline
+  const ow = P.applyImport(cur, imp, { plan: true, grid: false, mode: 'overwrite' }).data;
+  assert.equal(ow.projects.find(p => p.id === 'pA').bl.length, 1); assert.equal(ow.projects.find(p => p.id === 'pA').address, 'mới');   // ghi đè thông tin, không mất baseline
   assert.equal(all.fitters.find(f => f.name === 'Gia Khang').sub, true);
   const grid = P.applyImport(cur, imp, { plan: false, grid: true, mode: 'replace' }).data;
   assert.equal(grid.fitters.find(f => f.name === 'Gia Khang').sub, true);
