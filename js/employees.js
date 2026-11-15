@@ -3,6 +3,8 @@ const EmployeesPage = (() => {
   let colFilters = [];
   let selected = new Set();
   let lastFilteredIds = [];
+  let onlyShifted = false;
+  const isShifted = (e) => typeof EEMap !== 'undefined' && EEMap.suspect ? EEMap.suspect(e) : false;
 
   // EE Data dates arrive either as Excel serials ("39760") or "m.d.yyyy" strings -> dd/mm/yyyy
   function fmtShortDate(v) {
@@ -29,7 +31,11 @@ const EmployeesPage = (() => {
 
   function render() {
     const q = (document.getElementById('employeeSearch').value || '').toLowerCase();
+    const shifted = employees.filter(isShifted);
+    if (!shifted.length) onlyShifted = false;
+    renderShiftWarn(shifted.length);
     const disp = employees
+      .filter(e => !onlyShifted || isShifted(e))
       .filter(e => String(e.fullName || '').toLowerCase().includes(q) || String(e.empId || '').toLowerCase().includes(q))
       .map(e => ({
         e,
@@ -40,7 +46,7 @@ const EmployeesPage = (() => {
     lastFilteredIds = disp.map(d => d.e.empId);
 
     document.querySelector('#employeesTable tbody').innerHTML = disp.map(d => `
-      <tr>
+      <tr${isShifted(d.e) ? ' class="row-shifted" title="Nghi lệch cột: Quản lý trực tiếp / Ngày bắt đầu không đúng dạng"' : ''}>
         <td class="chk-col"><input type="checkbox" class="row-chk" data-id="${d.e.empId}" ${selected.has(d.e.empId) ? 'checked' : ''}></td>
         ${d.cells.map(c => `<td>${c}</td>`).join('')}
         <td>
@@ -57,6 +63,19 @@ const EmployeesPage = (() => {
 
     document.querySelectorAll('#employeesTable [data-edit]').forEach(b => b.addEventListener('click', () => openForm(b.dataset.edit)));
     document.querySelectorAll('#employeesTable [data-del]').forEach(b => b.addEventListener('click', () => remove(b.dataset.del)));
+  }
+
+  // cảnh báo dữ liệu nhân viên bị lệch cột (nạp từ file bằng cách đọc theo vị trí cũ)
+  function renderShiftWarn(n) {
+    const box = document.getElementById('empShiftWarn');
+    if (!box) return;
+    box.hidden = !n;
+    if (!n) { box.innerHTML = ''; return; }
+    box.innerHTML = `<b>⚠ ${n} nhân viên nghi bị lệch cột</b> — "Quản lý trực tiếp" đang là mã phòng ban, "Ngày bắt đầu" là tên người (chức danh cũng có thể sai).
+      <br>Cách sửa: <b>Cập nhật Data → File nhân viên</b>, tích <b>Ghi đè</b>, chọn file HRMS mới nhất của HR — app đọc theo tên cột và tự lưu lên máy chủ.
+      Người không còn trong file thì sửa tay bằng nút ✏️.
+      <button type="button" class="btn btn-secondary" id="empShiftToggle">${onlyShifted ? 'Hiện tất cả' : `Chỉ xem ${n} dòng lệch`}</button>`;
+    document.getElementById('empShiftToggle').addEventListener('click', () => { onlyShifted = !onlyShifted; render(); });
   }
 
   function openForm(empId) {
