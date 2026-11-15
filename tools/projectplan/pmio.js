@@ -37,6 +37,8 @@
         { key: 'shaftReady', label: 'Thời gian XD bàn giao hố', short: 'XD giao hố' },
         { key: 'ownerStart', label: 'Thời gian Chủ nhà yêu cầu lắp đặt', short: 'CĐT yêu cầu lắp' },
         { key: 'teamStart', label: 'Kế hoạch Team nhận hố', short: 'Team nhận hố' },
+        { key: 'mechDone', label: 'Xong lắp cơ khí', short: 'Xong cơ khí' },
+        { key: 'testReady', label: 'Sẵn sàng test', short: 'Sẵn sàng test' },
         { key: 'handover', label: 'Kế hoạch bàn giao (nếu có)', short: 'Bàn giao' },
     ];
     // Cột sheet "Plan" theo đúng thứ tự file gốc (khớp theo tên cột khi nhập, nên đổi thứ tự cột vẫn đọc được)
@@ -62,15 +64,31 @@
         { h: 'Ghi chú', k: 'note', w: 28 },
         { h: 'Giám sát', k: 'supervisor', w: 13 },
         { h: 'Đã hoàn thành', k: 'done', t: 'yesno', w: 12 },
+        { h: 'Xong lắp cơ khí', k: 'mechDone', t: 'ms', w: 13 },
+        { h: 'Sẵn sàng test', k: 'testReady', t: 'ms', w: 13 },
+        { h: 'Hình thức thi công', k: 'mode', t: 'mode', w: 12 },
+        { h: 'Subcon', k: 'subcon', w: 18 },
+        { h: 'WBS', k: 'wbs', w: 14 },
     ];
     const emptyMs = () => ({ date: '', done: false, note: '' });
     function newProject(over) {
         const p = { id: uid('p'), name: '', address: '', province: null, liftCount: '', liftType: '', travel: '', load: '', stops: '',
-            transport: '', teamPlan: '', note: '', supervisor: '', done: false, color: '', wbs: '' };
+            transport: '', teamPlan: '', note: '', supervisor: '', done: false, color: '', wbs: '', mode: '', subcon: '' };
         MILESTONES.forEach(m => { p[m.key] = emptyMs(); });
         return Object.assign(p, over || {});
     }
-    const emptyData = () => ({ version: 1, updatedAt: '', fitters: [], projects: [], alloc: {} });
+    const emptyData = () => ({ version: 1, updatedAt: '', fitters: [], projects: [], alloc: {}, baselines: [], subcons: [] });
+    // Hình thức thi công: 'in' fitter inhouse · 'sub' giao subcon · 'mix' kết hợp · '' chưa ghi
+    const MODES = { in: 'Inhouse', sub: 'Subcon', mix: 'Kết hợp' };
+    const parseMode = (v) => { const t = plain(v); return !t ? '' : /ket hop|mix/.test(t) ? 'mix' : /sub|thau phu|s c/.test(t) ? 'sub' : /in ?house|noi bo|fitter/.test(t) ? 'in' : ''; };
+    // dữ liệu cũ / bản chung do máy khác lưu: bổ sung trường còn thiếu (mốc mới, baseline, subcon)
+    function fix(d) {
+        if (!d) return d;
+        ['fitters', 'projects', 'baselines', 'subcons'].forEach(k => { if (!Array.isArray(d[k])) d[k] = []; });
+        if (!d.alloc || typeof d.alloc !== 'object') d.alloc = {};
+        d.projects.forEach(p => { MILESTONES.forEach(m => { if (!p[m.key] || typeof p[m.key] !== 'object') p[m.key] = emptyMs(); }); if (p.mode == null) p.mode = ''; if (p.subcon == null) p.subcon = ''; });
+        return d;
+    }
 
     // ---------------- đọc giá trị ô ----------------
     const DONE_WORDS = /^(xong|da xong|da ve|roi|da roi|ok|done|hoan thanh|da hoan thanh|co|da)\b/;
@@ -181,6 +199,7 @@
                         const { c, col } = cols[k], cell = ws[enc(r, c)];
                         const ctx = `Plan ${enc(r, c)} (${name} · ${col.h})`;
                         if (col.t === 'ms') p[k] = parseMilestone(cell, ctx, warnings);
+                        else if (col.t === 'mode') p[k] = parseMode(cellText(cell));
                         else if (col.t === 'yesno') p[k] = yesNo(cellText(cell)) ?? (k === 'done' ? false : null);
                         else if (col.t === 'num') { const v = cell && cell.v; p[k] = typeof v === 'number' ? v : (cellText(cell).match(/\d+/) ? Number(cellText(cell).match(/\d+/)[0]) : ''); }
                         else if (k === 'load') { const t = cellText(cell), m = t.match(/[\d.,]+/); p[k] = m ? Number(m[0].replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.')) : t; }
@@ -367,6 +386,7 @@
                 let v;
                 if (!c.k) v = pi + 1;
                 else if (c.t === 'ms') v = msOut(p[c.k]);
+                else if (c.t === 'mode') v = MODES[p[c.k]] || null;
                 else if (c.t === 'yesno') v = p[c.k] === true ? (c.k === 'done' ? 'Rồi' : 'có') : p[c.k] === false ? (c.k === 'done' ? 'Chưa' : 'không') : null;
                 else if (c.k === 'load') v = p.load === '' || p.load == null ? null : (typeof p.load === 'number' ? `${p.load}kg` : p.load);
                 else v = p[c.k] === '' || p[c.k] == null ? null : p[c.k];
@@ -440,6 +460,11 @@
             const i = k.indexOf('|'), f = k.slice(0, i), d = k.slice(i + 1);
             if (out.alloc[f] && pm[am[k].p]) out.alloc[f][d] = am[k]; // bỏ ô của fitter / dự án đã bị xoá
         });
+        // baseline + danh sách subcon: gộp theo id (bên nào thêm / sửa / xoá thì lấy bên đó)
+        ['baselines', 'subcons'].forEach(k => {
+            const m = threeWay(byIdMap(base[k]), byIdMap(local[k]), byIdMap(remote[k]), prefer, stat);
+            out[k] = order(k, m);
+        });
         out.updatedAt = new Date().toISOString();
         return { data: out, conflicts: stat.conflicts };
     }
@@ -458,6 +483,9 @@
         const S = { pAdd: 0, pUpd: 0, pDel: 0, pKept: 0, pGrid: 0, fAdd: 0, fDel: 0, cells: 0, cellsSkip: 0, cellsDel: 0 };
         if (o.mode === 'replace' && o.plan && o.grid) {
             const d = cp(imp);
+            if ((cur.baselines || []).length) d.baselines = cp(cur.baselines);
+            if ((cur.subcons || []).length) d.subcons = cp(cur.subcons);
+            d.fitters.forEach(f => { const ex = (cur.fitters || []).find(x => x.sub && plain(x.name) === plain(f.name)); if (ex) { f.sub = true; if (ex.company) f.company = ex.company; } });
             return { data: d, summary: Object.assign(S, { all: true, pAdd: d.projects.length, fAdd: d.fitters.length, cells: Object.values(d.alloc).reduce((n, m) => n + Object.keys(m).length, 0) }) };
         }
         const out = cp(cur);
@@ -496,11 +524,12 @@
                 const np = cp(ip); out.projects.push(np); S.pGrid++; seen.add(np.id);
                 return (pmap[ipid] = np.id);
             };
+            const wasSub = {}; out.fitters.forEach(f => { if (f.sub) wasSub[plain(f.name)] = f; });
             if (o.mode === 'replace') { S.fDel = out.fitters.length; out.fitters = []; out.alloc = {}; }
             const r = allocRange(imp);
             imp.fitters.forEach(f => {
                 let ex = out.fitters.find(x => (f.empId && x.empId && plain(x.empId) === plain(f.empId)) || plain(x.name) === plain(f.name));
-                if (!ex) { ex = cp(f); out.fitters.push(ex); S.fAdd++; }
+                if (!ex) { ex = cp(f); const w = wasSub[plain(f.name)]; if (w) { ex.sub = true; if (w.company) ex.company = w.company; } out.fitters.push(ex); S.fAdd++; }
                 else if (!ex.empId && f.empId) ex.empId = f.empId;
                 const dst = out.alloc[ex.id] || (out.alloc[ex.id] = {}), src = imp.alloc[f.id] || {};
                 if (o.mode === 'overwrite' && r) Object.keys(dst).forEach(d => { if (d >= r.from && d <= r.to && !src[d]) { delete dst[d]; S.cellsDel++; } });
@@ -527,7 +556,55 @@
         return { data: out, summary: S };
     }
 
-    const api = { merge, same, applyImport, assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
+
+    // ---------------- BASELINE & SAI LỆCH ----------------
+    // Baseline = ảnh chụp kế hoạch lúc chốt: ngày các mốc của từng dự án + khoảng phân công (ngày đầu, ngày cuối, số ngày công).
+    //   { id, name, at (ISO), by, note, ms: { projectId: { mốc: 'YYYY-MM-DD' } }, al: { projectId: { from, to, days } } }
+    function allocByProject(data) {
+        const out = {};
+        Object.keys(data.alloc || {}).forEach(f => Object.keys(data.alloc[f] || {}).forEach(d => {
+            const v = data.alloc[f][d]; if (!v || v.t) return;                 // chỉ tính phân công chính thức
+            const o = out[v.p] || (out[v.p] = { from: d, to: d, days: 0 });
+            if (d < o.from) o.from = d; if (d > o.to) o.to = d; o.days++;
+        }));
+        return out;
+    }
+    function snapshotBaseline(data, info) {
+        const i = info || {}, ms = {};
+        (data.projects || []).forEach(p => {
+            const o = {}; MILESTONES.forEach(m => { const v = p[m.key]; if (v && v.date) o[m.key] = v.date; });
+            if (Object.keys(o).length) ms[p.id] = o;
+        });
+        return { id: uid('b'), name: i.name || '', at: i.at || new Date().toISOString(), by: i.by || '', note: i.note || '', ms, al: allocByProject(data) };
+    }
+    const dayDiff = (a, b) => Math.round((isoToUTCDate(b) - isoToUTCDate(a)) / 864e5);
+    // So kế hoạch hiện tại với baseline. Mỗi dự án: { p, inBase, ms: { mốc: { base, cur, done, diff } }, al: { base, cur }, slip }
+    //   diff = số ngày lệch (dương = trễ hơn baseline); slip = lệch của mốc quan trọng nhất còn so được (bàn giao → sẵn sàng test → xong cơ khí → nhận hố)
+    function variance(data, bl) {
+        const cur = allocByProject(data), SLIP = ['handover', 'testReady', 'mechDone', 'teamStart'];
+        return (data.projects || []).map(p => {
+            const b = (bl && bl.ms && bl.ms[p.id]) || null, ms = {};
+            MILESTONES.forEach(m => {
+                const c = p[m.key] || {}, base = b ? b[m.key] || '' : '';
+                ms[m.key] = { base, cur: c.date || '', done: !!c.done, diff: base && c.date ? dayDiff(base, c.date) : null };
+            });
+            const k = SLIP.find(x => ms[x].diff != null);
+            return { p, inBase: !!b, ms, al: { base: (bl && bl.al && bl.al[p.id]) || null, cur: cur[p.id] || null }, slip: k ? ms[k].diff : null, slipKey: k || '' };
+        });
+    }
+    // Tên công ty subcon từ sheet "Subcon" của file HRMS: cột Position Title dạng "Sub_<Tên công ty>_Fitter"
+    function subconNames(rows) {
+        const seen = {}, out = [];
+        (rows || []).forEach(r => (r || []).forEach(v => {
+            const m = /^\s*Sub_(.+?)_Fitter\s*$/i.exec(String(v == null ? '' : v));
+            if (!m) return;
+            const name = m[1].replace(/\s+/g, ' ').trim(), k = plain(name);
+            if (name && !seen[k]) { seen[k] = 1; out.push(name); }
+        }));
+        return out.sort((a, b) => a.localeCompare(b, 'vi'));
+    }
+
+    const api = { merge, same, applyImport, fix, MODES, parseMode, snapshotBaseline, variance, allocByProject, subconNames, dayDiff, assignColors, MILESTONES, PLAN_COLUMNS, TENTATIVE_FILL, PALETTE, newProject, emptyData, emptyMs, parseWorkbook, buildWorkbook, matchProject,
         parseMilestone, plain, uid, iso, isISO, addDays, daysBetween, fmtVN, serialToISO, isoToUTCDate, allocRange, isGray };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.PMIO = api;

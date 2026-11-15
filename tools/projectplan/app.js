@@ -28,12 +28,12 @@
     try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.version === 1) return d; } catch (e) { /* hỏng → bắt đầu lại */ }
     return P.emptyData();
   }
-  let data = load();
+  let data = P.fix(load());
   let ui = (() => { try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { return {}; } })();
   ui.weeks = ui.weeks || (window.innerWidth < 700 ? 2 : 4);
   ui.tab = ui.tab || 'alloc';
   let viewStart = mondayOf(today());
-  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, actMode: ui.actMode })); } catch (e) { /* bỏ qua */ } };
+  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, actMode: ui.actMode, bl: ui.bl })); } catch (e) { /* bỏ qua */ } };
   function save() {
     data.updatedAt = new Date().toISOString();
     try { localStorage.setItem(KEY, JSON.stringify(data)); }
@@ -52,7 +52,7 @@
   let meta = readJSON(META_KEY) || { version: null, updatedAt: '', updatedBy: '' };
   let st = { phase: 'idle', msg: '' };
   let saving = false, saveTimer = null, lastPull = 0;
-  const core = (d) => ({ fitters: d.fitters || [], projects: d.projects || [], alloc: d.alloc || {} });
+  const core = (d) => ({ fitters: d.fitters || [], projects: d.projects || [], alloc: d.alloc || {}, baselines: d.baselines || [], subcons: d.subcons || [] });
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const dirty = () => !!STORE_URL && (!base ? !!(data.fitters.length || data.projects.length) : !P.same(core(data), core(base)));
   const keepMeta = () => { try { localStorage.setItem(BASE_KEY, JSON.stringify(base)); localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* bỏ qua */ } };
@@ -225,8 +225,11 @@
   }
 
   // ---------------- khung chung ----------------
+  const inhouse = () => data.fitters.filter(f => !f.sub);          // fitter công ty (điều phối từng người, có chấm công)
+  const subTeams = () => data.fitters.filter(f => f.sub);          // dòng "đội subcon" (theo công ty, không chấm công)
   function render() {
-    renderStore(); renderShared();
+    P.fix(data);
+    renderStore(); renderShared(); fillSubconList();
     const empty = !data.fitters.length && !data.projects.length && !ui.started;
     $('viewEmpty').hidden = !empty;
     const firstLoad = STORE_URL && meta.version === null && st.phase === 'loading';
@@ -266,18 +269,20 @@
     $('alTable').style.width = (nameW + days.length * 36) + 'px';
     alGeo = { nameW, start: days[0], n: days.length };
     let h = `<colgroup><col style="width:${nameW}px">${days.map(() => '<col style="width:36px">').join('')}</colgroup><thead><tr><th class="name"></th>${months.map(m => `<th colspan="${m.n}">Tháng ${Number(m.k.slice(5))}/${m.k.slice(0, 4)}</th>`).join('')}</tr>`;
-    h += `<tr><th class="name" scope="col">Fitter (${data.fitters.length})</th>${days.map(d => {
+    h += `<tr><th class="name" scope="col">Fitter (${inhouse().length})</th>${days.map(d => {
       const hol = holiday(d);
       return `<th class="day ${dayCls(d)}" scope="col" title="${esc(`${WD[wd(d)]} ${P.fmtVN(d)}${hol ? ' — ' + hol.name : ''}`)}"><span class="dw">${WD[wd(d)]}</span><span class="dd">${Number(d.slice(8))}</span></th>`;
     }).join('')}</tr></thead><tbody>`;
 
     const idle = days.map(() => 0);
-    data.fitters.forEach(f => {
+    const subs = subTeams();
+    [...inhouse(), ...subs].forEach(f => {
       const m = data.alloc[f.id] || {};
       let work = 0, tent = 0;
-      days.forEach((d, i) => { if (m[d] && pm[m[d].p]) { work++; if (m[d].t) tent++; } else if (!offDay(d)) idle[i]++; });
+      if (f.sub && f === subs[0]) h += `<tr class="grp-sub"><td class="name">Subcon (${subs.length} đội)</td><td colspan="${days.length}">Điều phối theo đội — không theo từng người, không chấm công lắp đặt</td></tr>`;
+      days.forEach((d, i) => { if (m[d] && pm[m[d].p]) { work++; if (m[d].t) tent++; } else if (!offDay(d) && !f.sub) idle[i]++; });
       const link = !f.empId ? '' : (EE.length && !eeById(f.empId) ? ` · <span class="warn" title="Mã NV không còn trong dữ liệu nhân sự">${esc(f.empId)} ⚠</span>` : ` · ${esc(f.empId)}`);
-      h += `<tr><td class="name" data-f="${esc(f.id)}" tabindex="0" role="button" aria-label="${esc('Sửa fitter ' + f.name)}"><span class="nm">${esc(f.name)}</span><span class="nd">${work} ngày có việc${tent ? ` · ${tent} dự kiến` : ''}${link}</span></td>`;
+      h += `<tr${f.sub ? ' class="sub-row"' : ''}><td class="name" data-f="${esc(f.id)}" tabindex="0" role="button" aria-label="${esc('Sửa ' + (f.sub ? 'đội subcon ' : 'fitter ') + f.name)}"><span class="nm">${esc(f.name)}</span><span class="nd">${f.sub ? 'đội subcon · ' : ''}${work} ngày có việc${tent ? ` · ${tent} dự kiến` : ''}${link}</span></td>`;
       for (let i = 0; i < days.length;) {
         const d = days[i], v = m[d];
         if (!v || !pm[v.p]) { h += `<td class="cell ${dayCls(d)}" data-f="${esc(f.id)}" data-d="${d}"></td>`; i++; continue; }
@@ -293,11 +298,14 @@
     $('alTable').innerHTML = h;
 
     // hôm nay
-    const on = data.fitters.filter(f => (data.alloc[f.id] || {})[t] && pm[data.alloc[f.id][t].p]);
-    const free = data.fitters.filter(f => !on.includes(f));
+    const working = (f) => (data.alloc[f.id] || {})[t] && pm[data.alloc[f.id][t].p];
+    const on = inhouse().filter(working);
+    const free = inhouse().filter(f => !on.includes(f));
+    const subOn = subs.filter(working);
     const tentT = on.filter(f => data.alloc[f.id][t].t).length;
     const projT = new Set(on.map(f => data.alloc[f.id][t].p)).size;
-    $('todayStats').innerHTML = `<span class="chip">Hôm nay ${P.fmtVN(t)}: <b>${on.length}/${data.fitters.length}</b> fitter có việc · <b>${projT}</b> dự án</span>` +
+    $('todayStats').innerHTML = `<span class="chip">Hôm nay ${P.fmtVN(t)}: <b>${on.length}/${inhouse().length}</b> fitter có việc · <b>${projT}</b> dự án</span>` +
+      (subs.length ? `<span class="chip">Subcon đang thi công: <b>${subOn.length}/${subs.length}</b> đội</span>` : '') +
       (tentT ? `<span class="chip">${tentT} phân công dự kiến</span>` : '') +
       (free.length && !offDay(t) ? `<span class="chip warn">Chưa có việc hôm nay: ${free.map(f => esc(f.name)).join(', ')}</span>` : '');
   }
@@ -529,6 +537,12 @@
       const m = data.alloc[fid] || (data.alloc[fid] = {});
       if (asCtx.edit) { const om = data.alloc[asCtx.f] || {}; P.daysBetween(asCtx.edit.from, asCtx.edit.to).forEach(d => { delete om[d]; }); }
       P.daysBetween(a, b).forEach(d => { if (skip && offDay(d)) { delete m[d]; return; } m[d] = t ? { p: pid, t: 1 } : { p: pid }; });
+      const ff = data.fitters.find(f => f.id === fid), pp = data.projects.find(p => p.id === pid);
+      if (ff && pp) {   // tự ghi hình thức thi công theo loại nguồn lực được phân công (chỉ khi chưa ghi / cần đổi sang Kết hợp)
+        const hasIn = inhouse().some(f => Object.values(data.alloc[f.id] || {}).some(v => v.p === pid && !v.t));   // đã có fitter công ty được phân công chính thức
+        if (ff.sub) { if (!pp.mode) pp.mode = hasIn ? 'mix' : 'sub'; else if (pp.mode === 'in') pp.mode = 'mix'; if (!pp.subcon && ff.company) pp.subcon = ff.company; }
+        else if (pp.mode === 'sub' && !t) pp.mode = 'mix';
+      }
     });
     ui.lastProject = pid;
     $('dlgAssign').close();
@@ -571,10 +585,16 @@
       $('ftLink').innerHTML = `Có thể là <b>${esc(e.fullName)}</b> (${esc(e.empId)}) — <button type="button" class="lnk" id="ftUse">Liên kết</button>`;
     } else $('ftLink').textContent = t;
   }
-  function openFitter(id) {
+  let ftSub = false;
+  function openFitter(id, sub) {
     ftId = id;
     const f = data.fitters.find(x => x.id === id);
-    $('ftTitle').textContent = f ? 'Sửa fitter' : 'Thêm fitter';
+    ftSub = f ? !!f.sub : !!sub;
+    $('ftTitle').textContent = ftSub ? (f ? 'Sửa đội subcon' : 'Thêm đội subcon') : (f ? 'Sửa fitter' : 'Thêm fitter');
+    $('ftNameLbl').textContent = ftSub ? 'Tên dòng trên lưới (vd. Gia Khang – tổ 1)' : 'Tên hiển thị';
+    $('ftCompanyWrap').hidden = !ftSub; $('ftEEWrap').hidden = ftSub; $('ftLink').hidden = ftSub;
+    $('ftCompany').value = f && f.company ? f.company : '';
+    $('ftDelete').textContent = ftSub ? 'Xóa đội' : 'Xóa fitter';
     $('ftName').value = f ? f.name : ''; $('ftEmp').value = f ? f.empId || '' : '';
     const e = f && f.empId ? eeById(f.empId) : null;
     $('ftEE').value = e ? `${e.fullName} · ${e.empId}` : (f && f.empId ? f.empId : '');
@@ -582,8 +602,10 @@
     const n = f ? Object.keys(data.alloc[f.id] || {}).length : 0;
     $('ftStats').textContent = f ? `${n} ngày đã phân công.` : '';
     showLink();
-    $('dlgFitter').showModal(); $('ftName').focus();
+    $('dlgFitter').showModal(); (ftSub && !f ? $('ftCompany') : $('ftName')).focus();
   }
+  $('ftCompany').addEventListener('change', () => { if (!$('ftName').value.trim()) $('ftName').value = $('ftCompany').value.trim(); });
+  $('addSubTeam').addEventListener('click', () => openFitter(null, true));
   $('ftEE').addEventListener('input', () => {
     const v = $('ftEE').value.trim(), m = v.match(/·\s*([^·]+)$/);
     const e = m ? eeById(m[1].trim()) : (eeById(v) || null);
@@ -625,10 +647,13 @@
   $('formFitter').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('ftName').value.trim(); if (!name) return;
-    const emp = $('ftEE').value.trim() ? $('ftEmp').value.trim() : '';
-    commit(ftId ? 'Đã lưu fitter.' : `Đã thêm fitter ${name}.`, () => {
+    const emp = !ftSub && $('ftEE').value.trim() ? $('ftEmp').value.trim() : '';
+    const company = ftSub ? $('ftCompany').value.replace(/\s+/g, ' ').trim() : '';
+    commit(ftSub ? (ftId ? 'Đã lưu đội subcon.' : `Đã thêm đội subcon ${name}.`) : (ftId ? 'Đã lưu fitter.' : `Đã thêm fitter ${name}.`), () => {
       const f = data.fitters.find(x => x.id === ftId);
-      if (f) { f.name = name; f.empId = emp; } else { const nf = { id: P.uid('f'), name, empId: emp }; data.fitters.push(nf); data.alloc[nf.id] = {}; }
+      if (f) { f.name = name; f.empId = emp; if (ftSub) f.company = company; }
+      else { const nf = { id: P.uid('f'), name, empId: emp }; if (ftSub) { nf.sub = true; nf.company = company; } data.fitters.push(nf); data.alloc[nf.id] = {}; }
+      if (company) addSubcon(company);
     });
     $('dlgFitter').close();
   });
@@ -678,6 +703,7 @@
     return Object.values(by).map(x => `<span class="fit" title="${esc(`${P.fmtVN(x.from)} – ${P.fmtVN(x.to)}`)}">${esc(x.f.name)} ${dm(x.from)}–${dm(x.to)}${x.t ? ' (dk)' : ''}</span>`).join('');
   }
 
+  const modeBadge = (p) => !p.mode ? '' : `<span class="badge mode-${p.mode}">${P.MODES[p.mode]}${p.mode !== 'in' && p.subcon ? ': ' + esc(p.subcon) : ''}</span>`;
   function renderPlan() {
     const t = today(), q = P.plain($('planSearch').value), st = $('planStatus').value, sup = $('planSup').value;
     const sups = [...new Set(data.projects.map(p => (p.supervisor || '').trim()).filter(Boolean).map(s => s.replace(/\s+/g, ' ')))];
@@ -703,11 +729,13 @@
         (ev.length > 16 ? `<p class="sub">… và ${ev.length - 16} mốc khác</p>` : '') : '<p class="sub">Không có mốc nào trong 14 ngày tới.</p>');
 
     const liftInfo = (p) => [p.travel, p.load !== '' && p.load != null ? (typeof p.load === 'number' ? p.load + 'kg' : p.load) : '', p.stops ? p.stops + ' điểm dừng' : ''].filter(Boolean).join(' · ');
-    const badges = (p) => (p.province ? '<span class="badge">Tỉnh</span>' : '') + (p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : '') + (p.done ? '<span class="badge ok">Hoàn thành</span>' : '');
+    const badges = (p) => modeBadge(p) + (p.province ? '<span class="badge">Tỉnh</span>' : '') + (p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : '') + (p.done ? '<span class="badge ok">Hoàn thành</span>' : '');
     const alertHtml = (p) => alertsOf(p, t).map(a => `<span class="badge ${a.c}">${esc(a.s)}</span>`).join('');
-    const gv = ui.planView === 'gantt';
-    $('planViewList').setAttribute('aria-pressed', String(!gv)); $('planViewGantt').setAttribute('aria-pressed', String(gv));
-    $('planList').hidden = gv; $('planGantt').hidden = !gv; $('upcoming').hidden = gv;
+    const gv = ui.planView === 'gantt', vv = ui.planView === 'var';
+    $('planViewList').setAttribute('aria-pressed', String(!gv && !vv)); $('planViewGantt').setAttribute('aria-pressed', String(gv)); $('planViewVar').setAttribute('aria-pressed', String(vv));
+    $('planList').hidden = gv || vv; $('planGantt').hidden = !gv; $('planVar').hidden = !vv; $('upcoming').hidden = gv || vv;
+    $('blBar').hidden = !gv && !vv; renderBlBar();
+    if (vv) { renderVar(list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date))); return; }
     $('planMine').hidden = !data.projects.some(isMine);
     if (gv) { if (list.length) renderGantt(list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date))); else $('planGantt').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
     if (!list.length) { $('planList').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
@@ -720,8 +748,8 @@
         <td><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i>${esc(p.name)}</div><div class="sub">${esc(p.address)}${p.wbs ? ` · <span class="${SHARED.length && !sharedByWbs(p.wbs) ? 'badge warn' : ''}" title="${SHARED.length && !sharedByWbs(p.wbs) ? 'WBS không có trong danh sách dự án chung' : 'WBS'}">${esc(p.wbs)}</span>` : ''}</div>${badges(p)}</td>
         <td>${p.liftCount ? `<b>${esc(p.liftCount)} × ${esc(p.liftType)}</b>` : esc(p.liftType)}<div class="sub">${esc(liftInfo(p))}</div></td>
         <td>${msDl(p, ['factory', 'port', 'arrival'], t)}${p.transport ? `<div class="sub">${esc(p.transport)}</div>` : ''}</td>
-        <td>${msDl(p, ['shaftReady', 'ownerStart', 'teamStart', 'handover'], t)}</td>
-        <td>${p.teamPlan ? `<div>${esc(p.teamPlan)}</div>` : ''}${fittersOf(p, t)}</td>
+        <td>${msDl(p, ['shaftReady', 'ownerStart', 'teamStart', 'mechDone', 'testReady', 'handover'].filter(k => !['mechDone', 'testReady'].includes(k) || p[k].date || p[k].done), t)}</td>
+        <td>${modeBadge(p)}${p.teamPlan ? `<div>${esc(p.teamPlan)}</div>` : ''}${fittersOf(p, t)}</td>
         <td>${esc(p.supervisor)}<div class="alerts">${alertHtml(p)}</div></td></tr>`;
     });
     h += '</tbody></table><div class="pl-cards">';
@@ -746,7 +774,7 @@
     const months = []; days.forEach(d => { const k = d.slice(0, 7), l = months[months.length - 1]; if (l && l.k === k) l.n++; else months.push({ k, n: 1 }); });
     const pmv = (p, k) => (p[k] && p[k].date) || '';
     const clip = (a, b) => (!a || !b || b < sp.from || a > sp.to) ? null : { a: a > sp.from ? a : sp.from, b: b < sp.to ? b : sp.to };
-    let h = `<div class="gt-legend"><span><i style="background:#94a3b8"></i>Hàng (xuất xưởng → hàng về)</span><span><i style="background:var(--blue)"></i>Lắp đặt (nhận hố → bàn giao)</span><span><i style="background:#059669"></i>Fitter được phân công</span><span>◇ mốc (đặc = đã xong, đỏ = quá hạn chưa xác nhận)</span><span style="color:var(--red)">| hôm nay</span></div>`;
+    let h = `<div class="gt-legend"><span><i style="background:#94a3b8"></i>Hàng (xuất xưởng → hàng về)</span><span><i style="background:var(--blue)"></i>Lắp đặt (nhận hố → bàn giao)</span><span><i style="background:#059669"></i>Fitter được phân công</span>${curBl() ? '<span><i class="lg-base"></i>Baseline (lắp đặt theo kế hoạch gốc)</span>' : ''}<span>◇ mốc (đặc = đã xong, đỏ = quá hạn chưa xác nhận)</span><span style="color:var(--red)">| hôm nay</span></div>`;
     h += `<div class="gt-scroll"><table class="gt" style="width:${nameW + W}px"><colgroup><col style="width:${nameW}px"><col style="width:${W}px"></colgroup><thead><tr><th class="name">Dự án (${list.length})</th><th><div style="display:flex">${months.map(m => `<span style="width:${m.n * PX}px;overflow:hidden;white-space:nowrap;border-left:1px solid #e5e7eb;padding-left:3px">${Number(m.k.slice(5))}/${m.k.slice(2, 4)}</span>`).join('')}</div></th></tr></thead><tbody>`;
     list.forEach(p => {
       const goodsA = pmv(p, 'factory') || pmv(p, 'port') || pmv(p, 'arrival'), goodsB = pmv(p, 'arrival') || pmv(p, 'port') || pmv(p, 'factory');
@@ -755,6 +783,12 @@
       const g = clip(goodsA, goodsB < goodsA ? goodsA : goodsB), ins = clip(instA, instB < instA ? instA : instB);
       if (g) segs.push(`<span class="seg goods" style="left:${idx(g.a)}px;width:${Math.max(PX, idx(g.b) - idx(g.a) + PX)}px"></span>`);
       if (ins) segs.push(`<span class="seg inst" style="left:${idx(ins.a)}px;width:${Math.max(PX, idx(ins.b) - idx(ins.a) + PX)}px;background:${safeColor(p.color)}"></span>`);
+      const bm = curBl() && curBl().ms[p.id];
+      if (bm) {
+        const bA = bm.teamStart || bm.ownerStart || bm.shaftReady || '', bB = bm.handover || (bA ? P.addDays(bA, 30) : '');
+        const bc = clip(bA, bB < bA ? bA : bB);
+        if (bc) segs.push(`<span class="seg base" style="left:${idx(bc.a)}px;width:${Math.max(PX, idx(bc.b) - idx(bc.a) + PX)}px" title="${esc(`Baseline ${curBl().name}: lắp đặt ${P.fmtVN(bA)} – ${P.fmtVN(bB)}`)}"></span>`);
+      }
       const runs = projectRuns(p.id, sp.from, sp.to);
       if (runs.length) { const a = runs.reduce((m, r) => (r.from < m ? r.from : m), runs[0].from), b = runs.reduce((m, r) => (r.to > m ? r.to : m), runs[0].to); segs.push(`<span class="seg crew" style="left:${idx(a)}px;width:${idx(b) - idx(a) + PX}px" title="Fitter: ${esc([...new Set(runs.map(r => r.f.name))].join(', '))}"></span>`); }
       P.MILESTONES.forEach(m => {
@@ -774,6 +808,8 @@
   function setPlanView(v) { ui.planView = v; saveUI(); render(); }
   $('planViewList').addEventListener('click', () => setPlanView('list'));
   $('planViewGantt').addEventListener('click', () => setPlanView('gantt'));
+  $('planViewVar').addEventListener('click', () => setPlanView('var'));
+  $('planVar').addEventListener('click', (e) => { const r = e.target.closest('[data-p]'); if (r) openProject(r.dataset.p); });
   $('planGantt').addEventListener('click', (e) => { const r = e.target.closest('td.name[data-p]'); if (r) openProject(r.dataset.p); });
   // Site Sup: mặc định xem dự án mình giám sát
   const myName = () => { const s = typeof Session !== 'undefined' ? Session.current() : null; return s && s.name ? P.plain(s.name) : ''; };
@@ -816,12 +852,12 @@
     $('actMode').value = ui.actMode;
     $('actLabel').textContent = `Tháng ${Number(act.month.slice(5))}/${act.month.slice(0, 4)}`;
     const inMonth = act.rows.filter(r => r.date >= from && r.date <= to).length;
-    const linked = data.fitters.filter(f => f.empId).length;
+    const linked = inhouse().filter(f => f.empId).length;
     const hours = A.hoursByDay(act.rows, from, to);
-    const res = A.compare({ data, hours, days, offDay });
+    const res = A.compare({ data: Object.assign({}, data, { fitters: inhouse() }), hours, days, offDay });   // đội subcon không chấm công → không đối chiếu
     const T = res.totals, t = today();
     $('actInfo').innerHTML = `<span class="dot ${inMonth ? 'ok' : 'warn'}"></span><span>Bảng công trên máy: <b>${act.rows.length.toLocaleString('vi-VN')}</b> dòng · tháng này <b>${inMonth.toLocaleString('vi-VN')}</b> dòng · fitter đã liên kết mã NV: <b>${linked}/${data.fitters.length}</b></span>`;
-    if (!data.fitters.length) { $('actSummary').innerHTML = ''; $('actTable').innerHTML = ''; $('actTables').innerHTML = '<p class="pp-empty">Chưa có fitter nào.</p>'; return; }
+    if (!inhouse().length) { $('actSummary').innerHTML = ''; $('actTable').innerHTML = ''; $('actTables').innerHTML = '<p class="pp-empty">Chưa có fitter nào.</p>'; return; }
     $('actSummary').innerHTML = (T.n
       ? `<span class="chip">Bám kế hoạch: <b class="pct ${pctCls(T.pct)}">${pctTxt(T.pct)}</b> (${T.ok}/${T.n} ngày công theo kế hoạch)</span>` +
         `<span class="chip">Làm đúng dự án: <b>${T.ok}</b></span><span class="chip">Làm dự án khác: <b>${T.diff}</b></span><span class="chip ${T.miss ? 'warn' : ''}">Không chấm công: <b>${T.miss}</b></span>` +
@@ -831,7 +867,7 @@
     const wm = wbsMap(), nameW = window.innerWidth < 600 ? 112 : 170, CW = 30;
     $('actTable').style.width = (nameW + days.length * CW) + 'px';
     const dcls = (d) => [wd(d) === 0 ? 'sun' : '', holiday(d) ? 'hol' : '', d === t ? 'today' : ''].filter(Boolean).join(' ');
-    let h = `<colgroup><col style="width:${nameW}px">${days.map(() => `<col style="width:${CW}px">`).join('')}</colgroup><thead><tr><th class="name" scope="col">Fitter (${data.fitters.length})</th>${days.map(d => {
+    let h = `<colgroup><col style="width:${nameW}px">${days.map(() => `<col style="width:${CW}px">`).join('')}</colgroup><thead><tr><th class="name" scope="col">Fitter (${inhouse().length})</th>${days.map(d => {
       const hol = holiday(d);
       return `<th class="day ${dcls(d)}" scope="col" title="${esc(`${WD[wd(d)]} ${P.fmtVN(d)}${hol ? ' — ' + hol.name : ''}`)}"><span class="dw">${WD[wd(d)]}</span><span class="dd">${Number(d.slice(8))}</span></th>`;
     }).join('')}</tr></thead><tbody>`;
@@ -888,6 +924,8 @@
 
   // ---------- hộp thoại dự án ----------
   let pjId = null;
+  const pjModeUI = () => { $('pjSubconWrap').hidden = $('pj_mode').value === 'in'; };
+  $('pj_mode').addEventListener('change', pjModeUI);
   const PJ_TEXT = ['name', 'address', 'wbs', 'liftType', 'travel', 'transport', 'teamPlan', 'supervisor', 'note'];
   function openProject(id) {
     pjId = id;
@@ -900,6 +938,7 @@
     $('pj_province').value = p.province === true ? '1' : p.province === false ? '0' : '';
     $('pj_color').value = safeColor(p.color || '#66ccff');
     $('pj_done').checked = !!p.done;
+    $('pj_mode').value = p.mode || ''; $('pj_subcon').value = p.subcon || ''; pjModeUI();
     $('pjMilestones').innerHTML = P.MILESTONES.map(m => {
       const v = p[m.key] || P.emptyMs();
       return `<div class="msr" data-k="${m.key}"><span class="msl">${m.label}</span>
@@ -1015,6 +1054,8 @@
       const ld = $('pj_load').value.trim(); p.load = /^\d+([.,]\d+)?$/.test(ld) ? Number(ld.replace(',', '.')) : ld;
       p.province = $('pj_province').value === '' ? null : $('pj_province').value === '1';
       p.color = $('pj_color').value; p.done = $('pj_done').checked;
+      p.mode = $('pj_mode').value; p.subcon = p.mode === 'in' ? '' : $('pj_subcon').value.replace(/\s+/g, ' ').trim();
+      if (p.subcon) addSubcon(p.subcon);
       document.querySelectorAll('#pjMilestones .msr').forEach(r => {
         const old = p[r.dataset.k] || {};
         const v = { date: r.querySelector('.msd').value, done: r.querySelector('.msx').checked, note: r.querySelector('.msn').value.trim() };
@@ -1047,6 +1088,143 @@
       data.projects = data.projects.filter(x => x.id !== src.id);
     });
     $('dlgProject').close();
+  });
+
+  // ================= BASELINE & SAI LỆCH =================
+  const blList = () => (data.baselines || []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  function curBl() { const l = blList(); return l.find(b => b.id === ui.bl) || l[0] || null; }
+  const dmy = (iso) => (iso ? P.fmtVN(String(iso).slice(0, 10)) : '');
+  function renderBlBar() {
+    const l = blList(), c = curBl();
+    $('blSel').innerHTML = l.length ? l.map(b => `<option value="${esc(b.id)}">${esc(b.name || 'Baseline')} · ${dmy(b.at)}</option>`).join('') : '<option value="">(chưa chốt baseline)</option>';
+    $('blSel').value = c ? c.id : ''; $('blSel').disabled = !l.length;
+    $('blDel').hidden = !c;
+    $('blInfo').textContent = c ? `Chốt ${dmy(c.at)}${c.by ? ' bởi ' + c.by : ''}${c.note ? ' — ' + c.note : ''}` : 'Chốt baseline để lưu kế hoạch gốc, sau đó so sánh sai lệch.';
+  }
+  $('blSel').addEventListener('change', () => { ui.bl = $('blSel').value; render(); });
+  $('blNew').addEventListener('click', () => {
+    const n = (data.baselines || []).length, snap = P.snapshotBaseline(data, {});
+    $('blName').value = `BL${n} – ${P.fmtVN(today())}`; $('blNote').value = '';
+    $('blCount').textContent = `Sẽ lưu: ${Object.keys(snap.ms).length} dự án có ngày mốc · ${Object.keys(snap.al).length} dự án có phân công chính thức.`;
+    $('dlgBaseline').showModal(); $('blName').select();
+  });
+  $('blCancel').addEventListener('click', () => $('dlgBaseline').close());
+  $('formBaseline').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = $('blName').value.trim(); if (!name) return;
+    const s = typeof Session !== 'undefined' ? Session.current() : null;
+    const b = P.snapshotBaseline(data, { name, note: $('blNote').value.trim(), by: s && s.name ? s.name : '' });
+    ui.bl = b.id;
+    commit(`Đã chốt baseline “${name}”.`, () => { data.baselines.push(b); });
+    $('dlgBaseline').close();
+  });
+  $('blDel').addEventListener('click', () => {
+    const c = curBl(); if (!c || !confirm(`Xoá baseline “${c.name}”? (Kế hoạch hiện tại không đổi.)`)) return;
+    ui.bl = '';
+    commit(`Đã xoá baseline ${c.name}.`, () => { data.baselines = data.baselines.filter(b => b.id !== c.id); });
+  });
+
+  const TESTER_RE = /(^| )t c( |$)|test|commission/;        // T&C Technician, Testing & Commissioning…
+  const testerIds = () => EE.filter(e => TESTER_RE.test(P.plain(e.position))).map(e => e.empId);
+  const hrs = (v) => (v ? Math.round(v).toLocaleString('vi-VN') : '0');
+  const diffChip = (d) => d == null ? '' : d === 0 ? '<span class="dv ok">đúng</span>' : `<span class="dv ${d > 0 ? 'late' : 'early'}">${d > 0 ? '+' : '−'}${Math.abs(d)} ngày</span>`;
+  async function renderVar(list) {
+    const box = $('planVar');
+    if (act.rows === null) { box.innerHTML = '<p class="pp-empty">Đang đọc bảng công trên máy…</p>'; await loadActualRows(false); if (ui.planView !== 'var' || ui.tab !== 'plan') return; }
+    const bl = curBl(), t = today();
+    const ids = new Set(list.map(p => p.id));
+    const rows = P.variance(data, bl).filter(r => ids.has(r.p.id));
+    const actual = A.projectActuals(act.rows, testerIds());
+    // ngày công kế hoạch của fitter inhouse (phân công chính thức) theo dự án
+    const inDays = {}; inhouse().forEach(f => Object.values(data.alloc[f.id] || {}).forEach(v => { if (!v.t) inDays[v.p] = (inDays[v.p] || 0) + 1; }));
+    rows.forEach(r => {
+      const p = r.p, sh = p.wbs ? sharedByWbs(p.wbs) : null;
+      r.act = p.wbs ? actual[A.norm(p.wbs)] || null : null;
+      r.target = sh && Number(sh.targetHour) > 0 ? Number(sh.targetHour) : 0;
+      r.planH = (inDays[p.id] || 0) * 8;
+      r.used = r.target && r.act ? Math.round(r.act.hours / r.target * 100) : null;
+    });
+    rows.sort((a, b) => ((b.slip == null ? -1e9 : b.slip) - (a.slip == null ? -1e9 : a.slip)) || a.p.name.localeCompare(b.p.name, 'vi'));
+    const late = rows.filter(r => r.slip > 0), okN = rows.filter(r => r.slip != null && r.slip <= 0).length, noBase = rows.filter(r => bl && !r.inBase).length;
+    const over = rows.filter(r => r.used != null && r.used >= 100).length, near = rows.filter(r => r.used != null && r.used >= 75 && r.used < 100).length;
+    const avg = late.length ? Math.round(late.reduce((s, r) => s + r.slip, 0) / late.length) : 0;
+    let h = '<div class="pp-today">' + (bl
+      ? `<span class="chip ${late.length ? 'warn' : ''}">Trễ so với baseline: <b>${late.length}</b> dự án${late.length ? ` (trung bình +${avg} ngày)` : ''}</span><span class="chip">Đúng / sớm: <b>${okN}</b></span>` +
+        (noBase ? `<span class="chip" title="Dự án thêm sau khi chốt, hoặc lúc chốt chưa có ngày mốc">Chưa có trong baseline: <b>${noBase}</b></span>` : '')
+      : '<span class="chip warn">Chưa chốt baseline — bấm “📌 Chốt baseline” để lưu kế hoạch gốc. Bảng dưới vẫn hiện thực tế theo chấm công và giờ công.</span>') +
+      (over ? `<span class="chip warn">Vượt định mức giờ: <b>${over}</b> dự án</span>` : '') + (near ? `<span class="chip">Đã dùng ≥ 75% định mức: <b>${near}</b></span>` : '') + '</div>';
+    if (!rows.length) { box.innerHTML = h + '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
+    const KEYS = ['arrival', 'teamStart', 'mechDone', 'testReady', 'handover'];
+    const msTd = (r, k) => {
+      const m = r.ms[k];
+      if (!m.cur && !m.base) return '<td class="vc">—</td>';
+      const lateNow = m.cur && !m.done && m.cur < t;
+      return `<td class="vc"><div class="${m.done ? 'vdone' : lateNow ? 'vlate' : ''}">${m.done ? '✓ ' : ''}${m.cur ? P.fmtVN(m.cur) : '<span class="sub">chưa có ngày</span>'}</div>` +
+        (m.base ? `<div class="sub">BL ${dm(m.base)} ${diffChip(m.diff)}</div>` : '') + '</td>';
+    };
+    const rng = (o) => (o && o.first ? `${dm(o.first)} – ${dm(o.last)}` : '');
+    h += `<div class="gt-scroll"><table class="pl var"><thead><tr><th>Dự án</th>${KEYS.map(k => `<th>${P.MILESTONES.find(m => m.key === k).short}</th>`).join('')}<th>Phân công<br><small>ngày công</small></th><th>Thực tế<br><small>theo chấm công</small></th><th>Giờ công<br><small>định mức · kế hoạch · thực tế</small></th></tr></thead><tbody>`;
+    rows.forEach(r => {
+      const p = r.p, a = r.act, sub = p.mode === 'sub';
+      const al = r.al.cur ? `<div><b>${r.al.cur.days}</b> <span class="sub">${dm(r.al.cur.from)}–${dm(r.al.cur.to)}</span></div>` : '<div class="sub">chưa phân công</div>';
+      const alB = r.al.base ? `<div class="sub">BL ${r.al.base.days} ${r.al.cur ? diffChipN(r.al.cur.days - r.al.base.days) : ''}</div>` : '';
+      const actTd = !p.wbs ? '<span class="sub">chưa có WBS</span>' : !a ? `<span class="sub">${sub ? 'chưa có chấm công tester' : 'chưa có chấm công'}</span>`
+        : (a.inst.hours ? `<div>Lắp: ${rng(a.inst)}</div>` : (sub ? '<div class="sub">Subcon — không chấm công lắp đặt</div>' : '')) + (a.test.hours ? `<div>Test: ${rng(a.test)}</div>` : '') + `<div class="sub">${a.people} người</div>`;
+      const uc = r.used == null ? '' : r.used >= 100 ? 'r' : r.used >= 90 ? 'a' : r.used >= 75 ? 'a' : 'g';
+      const hTd = `<div>${r.target ? `ĐM <b>${hrs(r.target)}</b>` : '<span class="sub">chưa có định mức</span>'}${sub ? '' : ` · KH ${hrs(r.planH)}`}</div>` +
+        `<div>TT <b>${hrs(a ? a.hours : 0)}</b>h${a && a.test.hours ? ` <span class="sub">(tester ${hrs(a.test.hours)}h)</span>` : ''}${r.used != null ? ` <b class="pct ${uc}">${r.used}%</b>` : ''}</div>`;
+      h += `<tr class="row" data-p="${esc(p.id)}" tabindex="0"><td><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i>${esc(p.name)}</div><div class="sub">${modeBadge(p)}${p.wbs ? esc(p.wbs) : ''}${p.supervisor ? ' · GS: ' + esc(p.supervisor) : ''}</div>` +
+        `${r.slip != null ? `<div class="sub">So với baseline (${P.MILESTONES.find(m => m.key === r.slipKey).short}): ${diffChip(r.slip)}</div>` : ''}</td>` +
+        KEYS.map(k => msTd(r, k)).join('') + `<td class="vc">${al}${alB}</td><td class="vc">${actTd}</td><td class="vc">${hTd}</td></tr>`;
+    });
+    h += '</tbody></table></div><p class="pp-hint">BL = ngày trong baseline đã chọn · <span class="dv late">+n ngày</span> trễ hơn baseline · <span class="dv early">−n ngày</span> sớm hơn · ✓ mốc đã xác nhận xong · ĐM = Target hour của dự án (dữ liệu dự án chung) · KH = ngày công fitter inhouse đã phân công × 8 · TT = giờ đã chấm công theo WBS. Dự án <b>Subcon</b> chỉ có giờ của tester.</p>';
+    box.innerHTML = h;
+  }
+  const diffChipN = (d) => d === 0 ? '' : `<span class="dv ${d > 0 ? 'late' : 'early'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>`;
+
+  // ================= CÔNG TY SUBCON =================
+  function addSubcon(name) {   // gọi bên trong commit()
+    const n = String(name || '').replace(/\s+/g, ' ').trim(); if (!n) return false;
+    if ((data.subcons || []).some(x => P.plain(x.name) === P.plain(n))) return false;
+    data.subcons.push({ id: P.uid('s'), name: n }); return true;
+  }
+  function fillSubconList() {
+    const el = $('subconList'); if (!el) return;
+    el.innerHTML = (data.subcons || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'vi')).map(x => `<option value="${esc(x.name)}">`).join('');
+  }
+  function renderSubcons() {
+    const use = (n) => data.projects.filter(p => P.plain(p.subcon) === P.plain(n)).length + subTeams().filter(f => P.plain(f.company) === P.plain(n)).length;
+    const l = (data.subcons || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    $('scList').innerHTML = l.length ? l.map(x => { const u = use(x.name); return `<div class="ee-row"><span>${esc(x.name)}</span><span class="sub">${u ? `đang dùng ở ${u} dự án / đội` : 'chưa dùng'}</span><button type="button" class="lnk" data-del="${esc(x.id)}" aria-label="${esc('Xoá ' + x.name)}">Xoá</button></div>`; }).join('')
+      : '<p class="hint" style="padding:10px">Chưa có công ty nào — gõ tên để thêm, hoặc lấy từ file HR.</p>';
+  }
+  $('miSubcons').addEventListener('click', () => { closeMenu(); $('scNew').value = ''; $('scMsg').textContent = ''; renderSubcons(); $('dlgSubcons').showModal(); $('scNew').focus(); });
+  $('scClose').addEventListener('click', () => $('dlgSubcons').close());
+  const scAddNow = () => {
+    const n = $('scNew').value.trim(); if (!n) return;
+    let ok = false; commit(null, () => { ok = addSubcon(n); });
+    $('scMsg').textContent = ok ? `Đã thêm ${n}.` : `${n} đã có trong danh sách.`; $('scNew').value = ''; renderSubcons(); $('scNew').focus();
+  };
+  $('scAdd').addEventListener('click', scAddNow);
+  $('scNew').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); scAddNow(); } });
+  $('scList').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    const x = data.subcons.find(z => z.id === b.dataset.del); if (!x) return;
+    commit(null, () => { data.subcons = data.subcons.filter(z => z.id !== x.id); });
+    $('scMsg').textContent = `Đã xoá ${x.name} khỏi danh sách (dự án / đội đang ghi tên này không đổi).`; renderSubcons();
+  });
+  $('scFromHR').addEventListener('click', () => $('scFile').click());
+  $('scFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+    try {
+      const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+      const sheets = wb.SheetNames.filter(n => /subcon|sub con|thau phu/i.test(n));
+      const names = P.subconNames((sheets.length ? sheets : wb.SheetNames).flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '' })));
+      if (!names.length) { $('scMsg').textContent = 'Không thấy chức danh dạng “Sub_<Tên công ty>_Fitter” trong file.'; return; }
+      let added = 0; commit(null, () => { names.forEach(n => { if (addSubcon(n)) added++; }); });
+      $('scMsg').textContent = `Đọc được ${names.length} công ty — thêm mới ${added}. Chỉ lấy tên công ty, không lấy danh sách người.`;
+      renderSubcons();
+    } catch (err) { $('scMsg').textContent = 'Không đọc được file: ' + err.message; }
   });
 
   // ================= NHẬP / XUẤT EXCEL =================

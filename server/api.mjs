@@ -540,7 +540,9 @@ async function pmStore(env, me, request) {
   if (!d || !Array.isArray(d.fitters) || !Array.isArray(d.projects) || typeof d.alloc !== 'object' || d.alloc === null || Array.isArray(d.alloc)) {
     return json({ ok: false, error: 'Dữ liệu không hợp lệ' });
   }
-  const text = JSON.stringify({ fitters: d.fitters, projects: d.projects, alloc: d.alloc });
+  // baselines (kế hoạch gốc đã chốt) + subcons (danh sách công ty subcon): tuỳ chọn — bản app cũ không gửi thì giữ mảng rỗng
+  const text = JSON.stringify({ fitters: d.fitters, projects: d.projects, alloc: d.alloc,
+    baselines: Array.isArray(d.baselines) ? d.baselines : [], subcons: Array.isArray(d.subcons) ? d.subcons : [] });
   if (text.length > PM_MAX_BYTES) return json({ ok: false, error: 'Dữ liệu quá lớn để lưu một lần' });
   const base = Number(body.baseVersion) || 0;
   const t = now();

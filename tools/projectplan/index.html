@@ -18,7 +18,7 @@
 <script src="../../js/db.js?v=37"></script>
 <script src="../../js/cloud.js?v=43"></script>
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="projectplan" data-tool="Quản lý dự án" data-help="#ql-dieuphoi"></script>
@@ -39,6 +39,7 @@
         <button type="button" role="menuitem" id="miReload" hidden>Tải lại dữ liệu chung từ Drive</button>
         <button type="button" role="menuitem" id="miImport">Nhập Excel (Nhân sự + Plan)…</button>
         <button type="button" role="menuitem" id="btnExport">Xuất Excel (dự phòng / gửi người ngoài)</button>
+        <button type="button" role="menuitem" id="miSubcons">Danh sách công ty subcon…</button>
         <button type="button" role="menuitem" id="miAutofill">Điền thông số thang từ dữ liệu dự án chung</button>
         <button type="button" role="menuitem" id="miSample">Tạo dữ liệu mẫu</button>
         <button type="button" role="menuitem" id="miClear" class="danger">Xóa toàn bộ dữ liệu trên máy</button>
@@ -86,6 +87,7 @@
         <select id="hiProject"><option value="">Tất cả dự án</option></select>
       </label>
       <button type="button" class="btn" id="addFromEE" title="Thêm fitter có trong dữ liệu nhân sự (EE Data)">+ Từ dữ liệu nhân sự</button>
+      <button type="button" class="btn" id="addSubTeam" title="Thêm một dòng điều phối cho đội subcon (theo công ty, không theo từng người)">+ Đội subcon</button>
       <button type="button" class="btn btn-primary" id="addFitter">+ Fitter</button>
     </div>
     <div class="pp-today" id="todayStats" aria-live="polite"></div>
@@ -104,13 +106,20 @@
       <label class="pp-field-inline">Giám sát <select id="planSup"><option value="">Tất cả</option></select></label>
       <button type="button" class="btn" id="planMine" title="Chỉ các dự án do tôi giám sát" hidden>Dự án của tôi</button>
       <div class="seg-btns" role="group" aria-label="Cách xem lịch trình">
-        <button type="button" id="planViewList" aria-pressed="true">Danh sách</button><button type="button" id="planViewGantt" aria-pressed="false">Lịch trình (Gantt)</button>
+        <button type="button" id="planViewList" aria-pressed="true">Danh sách</button><button type="button" id="planViewGantt" aria-pressed="false">Lịch trình (Gantt)</button><button type="button" id="planViewVar" aria-pressed="false">Sai lệch</button>
       </div>
       <button type="button" class="btn btn-primary" id="addProject">+ Dự án</button>
+    </div>
+    <div class="pp-toolbar bl-bar" id="blBar">
+      <label class="pp-field-inline">Baseline <select id="blSel" aria-label="Chọn baseline để so sánh"></select></label>
+      <button type="button" class="btn" id="blNew" title="Lưu lại ngày các mốc và phân công hiện tại làm kế hoạch gốc để so sánh về sau">📌 Chốt baseline</button>
+      <button type="button" class="btn" id="blDel" hidden>Xoá baseline này</button>
+      <span class="hint" id="blInfo"></span>
     </div>
     <div class="pp-upcoming" id="upcoming"></div>
     <div id="planList"></div>
     <div id="planGantt" hidden></div>
+    <div id="planVar" hidden></div>
   </section>
 
   <!-- ===== Thực tế & bám kế hoạch ===== -->
@@ -171,8 +180,9 @@
 <dialog class="dlg" id="dlgFitter" aria-labelledby="ftTitle">
   <form method="dialog" id="formFitter">
     <h2 id="ftTitle">Fitter</h2>
-    <label class="fld">Tên hiển thị <input id="ftName" type="text" required autocomplete="off"></label>
-    <label class="fld">Nhân viên trong dữ liệu nhân sự (EE Data) <input id="ftEE" type="text" autocomplete="off" list="eeNames" placeholder="Gõ tên hoặc mã NV để liên kết"></label>
+    <label class="fld"><span id="ftNameLbl">Tên hiển thị</span> <input id="ftName" type="text" required autocomplete="off"></label>
+    <label class="fld" id="ftCompanyWrap" hidden>Công ty subcon <input id="ftCompany" type="text" autocomplete="off" list="subconList" placeholder="Gõ để chọn trong danh sách"></label>
+    <label class="fld" id="ftEEWrap">Nhân viên trong dữ liệu nhân sự (EE Data) <input id="ftEE" type="text" autocomplete="off" list="eeNames" placeholder="Gõ tên hoặc mã NV để liên kết"></label>
     <input id="ftEmp" type="hidden">
     <datalist id="eeNames"></datalist>
     <p class="hint" id="ftLink"></p>
@@ -240,6 +250,11 @@
         <div id="pjMilestones"></div>
       </fieldset>
       <fieldset class="pj-sec"><legend>Nhân sự &amp; giám sát</legend>
+        <div class="fld-row">
+          <label class="fld">Hình thức thi công <select id="pj_mode"><option value="">— chưa ghi —</option><option value="in">Inhouse (fitter công ty)</option><option value="sub">Subcon</option><option value="mix">Kết hợp</option></select></label>
+          <label class="fld" id="pjSubconWrap">Công ty subcon <input id="pj_subcon" type="text" autocomplete="off" list="subconList" placeholder="Chọn trong danh sách"></label>
+        </div>
+        <datalist id="subconList"></datalist>
         <label class="fld">Nhân sự (kế hoạch) <input id="pj_teamPlan" type="text" placeholder="vd. 2 fitter / Subcon"></label>
         <p class="hint" id="pjAllocated"></p>
         <label class="fld">Giám sát <input id="pj_supervisor" type="text" list="supList"></label>
@@ -276,13 +291,41 @@
   </form>
 </dialog>
 
+<!-- chốt baseline -->
+<dialog class="dlg" id="dlgBaseline" aria-labelledby="blTitle">
+  <form method="dialog" id="formBaseline">
+    <h2 id="blTitle">Chốt baseline</h2>
+    <p class="hint">Lưu lại <b>ngày các mốc</b> và <b>phân công chính thức</b> hiện tại làm kế hoạch gốc. Sau này sửa kế hoạch, mục <b>Sai lệch</b> sẽ so với bản đã chốt. Có thể chốt nhiều lần (vd. khi chủ đầu tư đổi tiến độ).</p>
+    <label class="fld">Tên baseline <input id="blName" type="text" required maxlength="60"></label>
+    <label class="fld">Ghi chú / lý do <input id="blNote" type="text" maxlength="200" placeholder="vd. Kế hoạch đầu tháng 11 đã duyệt"></label>
+    <p class="hint" id="blCount"></p>
+    <div class="dlg-btns"><span class="sp"></span>
+      <button type="button" class="btn" id="blCancel">Hủy</button>
+      <button type="submit" class="btn btn-primary" id="blSave">Chốt</button></div>
+  </form>
+</dialog>
+
+<!-- danh sách công ty subcon -->
+<dialog class="dlg" id="dlgSubcons" aria-labelledby="scTitle">
+  <form method="dialog" id="formSubcons">
+    <h2 id="scTitle">Công ty subcon</h2>
+    <p class="hint">Chỉ lưu <b>tên công ty</b> (không lưu từng người). Dùng để chọn khi ghi hình thức thi công của dự án và khi thêm dòng “Đội subcon” ở lưới điều phối.</p>
+    <div class="fld-row"><label class="fld" style="flex:1">Thêm công ty <input id="scNew" type="text" maxlength="80" autocomplete="off"></label>
+      <button type="button" class="btn" id="scAdd" style="align-self:flex-end;margin-bottom:10px">Thêm</button></div>
+    <p class="hint"><button type="button" class="lnk" id="scFromHR">⬆ Lấy tên từ file HR (sheet “Subcon”)…</button> <span id="scMsg"></span></p>
+    <input type="file" id="scFile" accept=".xlsx,.xls" hidden>
+    <div class="ee-list" id="scList"></div>
+    <div class="dlg-btns"><span class="sp"></span><button type="button" class="btn btn-primary" id="scClose">Xong</button></div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span><button type="button" id="toastAct" hidden></button><button type="button" id="toastX" aria-label="Đóng thông báo">✕</button></div>
 
 <script src="../../js/xlsx.full.min.js?v=36"></script>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="pmio.js?v=3"></script>
-<script src="actual.js?v=1"></script>
+<script src="pmio.js?v=4"></script>
+<script src="actual.js?v=2"></script>
 <script src="../../js/rangecal.js?v=2"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
