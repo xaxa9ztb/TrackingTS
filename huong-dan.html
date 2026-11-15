@@ -449,10 +449,10 @@
     </ol>
       <h3 id="ts-ot">2.7. Chấm nhiều ngày, OT, nghỉ phép, thu nhập dự kiến</h3>
     <ol class="steps">
-      <li><b>Nhiều ngày liên tiếp:</b> trong cửa sổ Thêm chấm công, tick <b>Chấm nhiều ngày liên tiếp</b> và chọn <b>đến ngày</b> — app tạo mỗi ngày một dòng (có tuỳ chọn bỏ qua Chủ nhật, ngày lễ).</li>
+      <li><b>Nhiều ngày liên tiếp:</b> trong cửa sổ Thêm chấm công, tick <b>Chấm nhiều ngày liên tiếp</b> rồi trên <b>lịch</b> chạm <b>ngày bắt đầu</b> và <b>ngày kết thúc</b> — app tạo mỗi ngày một dòng (có tuỳ chọn bỏ qua Chủ nhật, ngày lễ).</li>
       <li><b>Dự án chưa có trong danh sách:</b> tự gõ tên dự án / WBS được; app nhớ riêng cho bạn để chọn lại. Dự án / WBS ngoài danh sách chung do Admin dự án duyệt.</li>
       <li><b>OT:</b> dòng có tăng ca hiện huy hiệu chờ duyệt. OT chưa duyệt <b>không chặn nộp</b> bảng công, chỉ có email nhắc. Quên chấm công thì cuối ngày có email nhắc.</li>
-      <li><b>Nghỉ phép / ốm:</b> xin ở trang <b>Nghỉ phép / ốm</b> (thẻ trên trang chủ). Hạn nộp: ốm trước 2 giờ; nghỉ 1 ngày trước 24 giờ; 1–3 ngày trước 3 ngày; dài hơn trước 1 tuần. Quản lý trực tiếp duyệt, duyệt xong tự ghi vào bảng công.</li>
+      <li><b>Nghỉ phép / ốm:</b> xin ở trang <b>Nghỉ phép / ốm</b> (thẻ trên trang chủ). Hạn nộp: ốm trước 2 giờ; nghỉ 1 ngày trước 24 giờ; 1–3 ngày trước 3 ngày; dài hơn trước 1 tuần. Trên đơn chạm ngày bắt đầu rồi ngày kết thúc trên lịch. Quản lý trực tiếp duyệt, duyệt xong tự ghi vào bảng công.</li>
       <li><b>Thu nhập dự kiến:</b> nhập lương cơ bản một lần; app cộng OT + phụ cấp xăng xe. Chỉ lưu trên máy của bạn, <b>không</b> gửi lên máy chủ hay email.</li>
     </ol>
     <p>Chi tiết có hình: <a href="huong-dan-timesheet.html#ot-nghi">Hướng dẫn Timesheet — mục 7</a>. Giám sát chỉ chấm OT (xin trước khi làm, gửi thẳng Quản lý dự án).</p>
@@ -579,11 +579,12 @@
     <ol class="legend">
       <li><b>Dự án</b> — gõ tên hoặc WBS để chọn.</li>
       <li>Lọc theo <b>Site Sup / Fitter</b>.</li>
-      <li><b>Khoảng ngày</b> — chọn từ ngày – đến ngày hoặc kéo thanh trượt.</li>
+      <li><b>Khoảng thời gian</b> — bấm nút 📅 mở lịch, chạm ngày bắt đầu rồi ngày kết thúc (« » chuyển năm, ‹ › chuyển tháng), hoặc kéo thanh trượt.</li>
       <li>Tab <b>Dự án theo tháng</b> — chọn kỳ chấm công (16 → 15): tổng giờ công đã charge vào từng dự án; bấm dự án để xem nhân sự và số giờ của từng người, bấm <b>+</b> để xem chính xác các ngày. Ô tìm kiếm nhận tên / mã nhân viên, tên dự án, WBS.</li>
       <li>Tab <b>Bảng công</b> — xem từng dòng giờ công (gồm cả Excel nạp hằng tháng và bảng công đã duyệt).</li>
       <li>Tab <b>SWAT</b> — tính SWAT Hour, so sánh với giờ thực tế, xuất báo cáo.</li>
     </ol>
+    <figure class="shot"><img src="docs/huong-dan/tracking-range.jpg" alt="Chọn khoảng thời gian trên lịch" loading="lazy" width="1280" height="800"><figcaption>Khoảng thời gian: bấm nút lịch, chạm ngày đầu rồi ngày cuối — chỉ chọn được ngày có dữ liệu của dự án</figcaption></figure>
     <p>Hướng dẫn chi tiết các biểu đồ, báo cáo PDF / Excel: <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn Thống kê giờ công (PDF)</a>.</p>
   </section>
 
@@ -612,7 +613,7 @@
       <li><b>Hôm nay</b>: số fitter có việc và tên người đang rảnh.</li>
     </ol>
     <ol class="steps">
-      <li><b>Phân công mới</b>: bấm ô trống (hoặc kéo chuột qua nhiều ô trống) → chọn dự án, từ – đến ngày, <b>Chính thức</b> hay <b>Dự kiến</b> (dải sọc) → Lưu.</li>
+      <li><b>Phân công mới</b>: bấm ô trống (hoặc kéo chuột qua nhiều ô trống) → chọn dự án (có sẵn hoặc <b>🔎 Chọn từ dữ liệu dự án chung</b> — gõ WBS / tên), chạm <b>ngày bắt đầu</b> rồi <b>ngày kết thúc</b> trên lịch (chấm cam = fitter đã có việc ngày đó), <b>Chính thức</b> hay <b>Dự kiến</b> (dải sọc) → Lưu.</li>
       <li><b>Sửa</b>: bấm (không kéo) vào dải màu → đổi dự án / ngày / fitter, hoặc <b>Bỏ trống</b>.</li>
       <li>Mọi thay đổi có <b>Hoàn tác</b> trên thông báo hiện ra.</li>
     </ol>
