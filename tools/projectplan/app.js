@@ -451,13 +451,24 @@
     $('asNewWrap').hidden = true; $('asNewName').value = '';
     $('asSharedWrap').hidden = true; $('asShared').value = ''; $('asSharedHint').textContent = '';
     $('asFrom').value = ctx.from; $('asTo').value = ctx.to;
+    renderCal();
     document.querySelector(`input[name=asStatus][value="${ctx.edit && ctx.edit.t ? 1 : 0}"]`).checked = true;
     $('asSkipSun').checked = false;
     $('asClear').hidden = !ctx.edit && !rangeHasAlloc();
     assignWarn();
     $('dlgAssign').showModal();
-    (ctx.edit ? $('asFrom') : $('asProject')).focus();
+    (ctx.edit ? $('asCal').querySelector('.rcx-d.a') || $('asProject') : $('asProject')).focus();
   }
+  // ---------- lịch chọn khoảng ngày (1 bảng: chạm ngày bắt đầu, chạm ngày kết thúc) — js/rangecal.js ----------
+  let cal = null;
+  function renderCal() {
+    const busy = data.alloc[$('asFitter').value] || {}, own = asCtx && asCtx.edit ? new Set(P.daysBetween(asCtx.edit.from, asCtx.edit.to)) : new Set();
+    const cfg = { from: $('asFrom').value, to: $('asTo').value, reset: true, off: (d) => wd(d) === 0 ? 'Chủ nhật' : (holiday(d) ? (holiday(d).name || 'Ngày lễ') : false),
+      mark: (d) => busy[d] && !own.has(d) ? 'đã có phân công' : null,
+      onChange: (a, b) => { $('asFrom').value = a; $('asTo').value = b; assignWarn(); } };
+    if (!cal) cal = RangeCal.create($('asCal'), cfg); else cal.update(cfg);
+  }
+  $('asFitter').addEventListener('change', () => { if (cal) renderCal(); });
   function rangeHasAlloc() {
     const m = data.alloc[$('asFitter').value] || {};
     const a = $('asFrom').value, b = $('asTo').value; if (!a || !b) return false;

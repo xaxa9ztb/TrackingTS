@@ -341,6 +341,8 @@ const Dashboard = (() => {
     chkFitter.addEventListener('change', refresh);
     dateFrom.addEventListener('change', () => { syncSlidersFromDates(); refresh(); });
     dateTo.addEventListener('change', () => { syncSlidersFromDates(); refresh(); });
+    // chọn từ ngày – đến ngày trên một bảng lịch (js/rangecal.js); 2 ô ngày cũ vẫn giữ giá trị
+    if (window.RangeCal) RangeCal.pair(dateFrom, dateTo, { hide: dateFrom.closest('.date-range'), years: true, off: () => false, placeholder: 'Chọn khoảng thời gian' });
     sliderFrom.addEventListener('input', () => {
       if (+sliderFrom.value > +sliderTo.value) sliderFrom.value = sliderTo.value;
       dateFrom.value = pctToDate(+sliderFrom.value);

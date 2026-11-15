@@ -2444,28 +2444,22 @@ function AllowanceForm({
       value: l.project,
       maxLength: 200,
       onChange: e => setLine(l.id, 'project', e.target.value)
-    })), /*#__PURE__*/React.createElement(Field, {
-      label: "T\u1EEB ng\xE0y",
-      htmlFor: `${idp}From`
-    }, /*#__PURE__*/React.createElement("input", {
-      id: `${idp}From`,
-      type: "date",
-      className: inputCls,
-      value: l.from,
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "col-span-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "block text-sm font-medium text-slate-700 mb-1"
+    }, "T\u1EEB ng\xE0y \u2192 \u0111\u1EBFn ng\xE0y ", /*#__PURE__*/React.createElement("span", {
+      className: "font-normal text-slate-500"
+    }, "(ch\u1EA1m ng\xE0y b\u1EAFt \u0111\u1EA7u r\u1ED3i ng\xE0y k\u1EBFt th\xFAc)")), /*#__PURE__*/React.createElement(RangePicker, {
+      id: `${idp}Range`,
+      from: l.from,
+      to: l.to,
       min: minFrom,
       max: period.end,
-      onChange: e => setLine(l.id, 'from', e.target.value)
-    })), /*#__PURE__*/React.createElement(Field, {
-      label: "\u0110\u1EBFn ng\xE0y",
-      htmlFor: `${idp}To`
-    }, /*#__PURE__*/React.createElement("input", {
-      id: `${idp}To`,
-      type: "date",
-      className: inputCls,
-      value: l.to,
-      min: l.from || period.start,
-      max: period.end,
-      onChange: e => setLine(l.id, 'to', e.target.value)
+      onChange: (a, b) => {
+        setLine(l.id, 'from', a);
+        setLine(l.id, 'to', b);
+      }
     })), /*#__PURE__*/React.createElement(Field, {
       label: "S\u1ED1 ng\xE0y",
       htmlFor: `${idp}Days`,
@@ -4725,6 +4719,52 @@ function Toast({
     className: "w-8 h-8 grid place-items-center rounded-lg text-slate-400 hover:bg-white/10"
   }, /*#__PURE__*/React.createElement(Icons.X, null)));
 }
+
+// Lịch chọn khoảng ngày trên MỘT bảng (js/rangecal.js): chạm ngày bắt đầu rồi ngày kết thúc
+function RangePicker({
+  id,
+  from,
+  to,
+  min,
+  max,
+  sch,
+  onChange
+}) {
+  const ref = useRef(null),
+    cal = useRef(null),
+    cb = useRef(onChange);
+  cb.current = onChange;
+  const off = d => {
+    const h = LaborVN.holidayInfo(d, sch);
+    return h ? h.name || 'Ngày lễ' : LaborVN.isRestDay(d, sch) ? 'Ngày nghỉ hằng tuần' : false;
+  };
+  useEffect(() => {
+    if (!window.RangeCal || !ref.current) return;
+    cal.current = RangeCal.create(ref.current, {
+      from,
+      to,
+      min,
+      max,
+      off,
+      onChange: (a, b, done) => cb.current(a, b, done)
+    });
+  }, []);
+  useEffect(() => {
+    if (cal.current) cal.current.update({
+      from,
+      to,
+      min,
+      max,
+      off,
+      keepMonth: true
+    });
+  }, [from, to, min, max, sch]);
+  return /*#__PURE__*/React.createElement("div", {
+    id: id,
+    ref: ref,
+    className: "max-w-md"
+  });
+}
 function Field({
   label,
   htmlFor,
@@ -5203,7 +5243,7 @@ function EntryForm({
     className: "space-y-3"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "font-semibold text-slate-900"
-  }, "Th\u1EDDi gian"), /*#__PURE__*/React.createElement(Field, {
+  }, "Th\u1EDDi gian"), !(multi && !initialData) && /*#__PURE__*/React.createElement(Field, {
     label: "Ng\xE0y",
     htmlFor: "tsDate",
     hint: dayNote
@@ -5232,17 +5272,22 @@ function EntryForm({
     className: "text-slate-500"
   }, "(c\xF9ng ho\u1EA1t \u0111\u1ED9ng, d\u1EF1 \xE1n, gi\u1EDD)"))), multi && /*#__PURE__*/React.createElement("div", {
     className: "mt-2 space-y-2"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "\u0110\u1EBFn h\u1EBFt ng\xE0y",
-    htmlFor: "tsRangeTo"
-  }, /*#__PURE__*/React.createElement("input", {
-    id: "tsRangeTo",
-    type: "date",
-    min: formData.date,
-    value: rangeTo,
-    onChange: e => setRangeTo(e.target.value),
-    className: inputCls
-  })), /*#__PURE__*/React.createElement("label", {
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-slate-600"
+  }, "Ch\u1EA1m ", /*#__PURE__*/React.createElement("b", null, "ng\xE0y b\u1EAFt \u0111\u1EA7u"), " r\u1ED3i ", /*#__PURE__*/React.createElement("b", null, "ng\xE0y k\u1EBFt th\xFAc"), " tr\xEAn l\u1ECBch."), /*#__PURE__*/React.createElement(RangePicker, {
+    id: "tsRangeCal",
+    from: formData.date,
+    to: rangeTo || formData.date,
+    sch: sch,
+    onChange: (a, b) => {
+      if (a !== formData.date) handleDateChange({
+        target: {
+          value: a
+        }
+      });
+      setRangeTo(b);
+    }
+  }), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
   }, /*#__PURE__*/React.createElement("input", {
     id: "tsSkipOff",

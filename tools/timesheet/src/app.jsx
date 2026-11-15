@@ -1161,8 +1161,11 @@
                                             <input id={`${idp}Wbs`} data-autofocus={(focusId ? l.id === focusId : i === shown.length - 1) ? true : undefined} className={inputCls} value={l.wbs} maxLength={100} list="tsAllowWbsList" autoComplete="off" onChange={e => setWbs(l.id, e.target.value)}/>
                                         </Field>
                                         <Field label="Tên dự án" htmlFor={`${idp}Name`}><input id={`${idp}Name`} className={inputCls} value={l.project} maxLength={200} onChange={e => setLine(l.id, 'project', e.target.value)}/></Field>
-                                        <Field label="Từ ngày" htmlFor={`${idp}From`}><input id={`${idp}From`} type="date" className={inputCls} value={l.from} min={minFrom} max={period.end} onChange={e => setLine(l.id, 'from', e.target.value)}/></Field>
-                                        <Field label="Đến ngày" htmlFor={`${idp}To`}><input id={`${idp}To`} type="date" className={inputCls} value={l.to} min={l.from || period.start} max={period.end} onChange={e => setLine(l.id, 'to', e.target.value)}/></Field>
+                                        <div className="col-span-2">
+                                            <span className="block text-sm font-medium text-slate-700 mb-1">Từ ngày → đến ngày <span className="font-normal text-slate-500">(chạm ngày bắt đầu rồi ngày kết thúc)</span></span>
+                                            <RangePicker id={`${idp}Range`} from={l.from} to={l.to} min={minFrom} max={period.end}
+                                                onChange={(a, b) => { setLine(l.id, 'from', a); setLine(l.id, 'to', b); }}/>
+                                        </div>
                                         <Field label="Số ngày" htmlFor={`${idp}Days`} hint="Tự tính: đến ngày − từ ngày + 1">
                                             <output id={`${idp}Days`} className={`${inputCls} flex items-center bg-slate-50 font-semibold tabular-nums`}>{span || '—'}</output>
                                         </Field>
@@ -2369,6 +2372,19 @@
             );
         }
 
+        // Lịch chọn khoảng ngày trên MỘT bảng (js/rangecal.js): chạm ngày bắt đầu rồi ngày kết thúc
+        function RangePicker({ id, from, to, min, max, sch, onChange }) {
+            const ref = useRef(null), cal = useRef(null), cb = useRef(onChange);
+            cb.current = onChange;
+            const off = (d) => { const h = LaborVN.holidayInfo(d, sch); return h ? (h.name || 'Ngày lễ') : (LaborVN.isRestDay(d, sch) ? 'Ngày nghỉ hằng tuần' : false); };
+            useEffect(() => {
+                if (!window.RangeCal || !ref.current) return;
+                cal.current = RangeCal.create(ref.current, { from, to, min, max, off, onChange: (a, b, done) => cb.current(a, b, done) });
+            }, []);
+            useEffect(() => { if (cal.current) cal.current.update({ from, to, min, max, off, keepMonth: true }); }, [from, to, min, max, sch]);
+            return <div id={id} ref={ref} className="max-w-md"/>;
+        }
+
         function Field({ label, htmlFor, hint, children, className }) {
             return (
                 <div className={className}>
@@ -2665,9 +2681,11 @@
                         {/* Thời gian */}
                         <section className="space-y-3">
                             <h3 className="font-semibold text-slate-900">Thời gian</h3>
-                            <Field label="Ngày" htmlFor="tsDate" hint={dayNote}>
-                                <input id="tsDate" data-autofocus type="date" value={formData.date} onChange={handleDateChange} className={inputCls} required/>
-                            </Field>
+                            {!(multi && !initialData) && (
+                                <Field label="Ngày" htmlFor="tsDate" hint={dayNote}>
+                                    <input id="tsDate" data-autofocus type="date" value={formData.date} onChange={handleDateChange} className={inputCls} required/>
+                                </Field>
+                            )}
                             {!initialData && (
                                 <div className="rounded-lg border border-slate-200 px-3 py-2">
                                     <label className="flex items-center gap-2 min-h-9 text-sm text-slate-800 cursor-pointer">
@@ -2676,7 +2694,9 @@
                                     </label>
                                     {multi && (
                                         <div className="mt-2 space-y-2">
-                                            <Field label="Đến hết ngày" htmlFor="tsRangeTo"><input id="tsRangeTo" type="date" min={formData.date} value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className={inputCls}/></Field>
+                                            <p className="text-sm text-slate-600">Chạm <b>ngày bắt đầu</b> rồi <b>ngày kết thúc</b> trên lịch.</p>
+                                            <RangePicker id="tsRangeCal" from={formData.date} to={rangeTo || formData.date} sch={sch}
+                                                onChange={(a, b) => { if (a !== formData.date) handleDateChange({ target: { value: a } }); setRangeTo(b); }}/>
                                             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input id="tsSkipOff" type="checkbox" checked={skipOff} onChange={(e) => setSkipOff(e.target.checked)} className="w-4 h-4 accent-blue-700"/> Bỏ ngày nghỉ hằng tuần và ngày lễ</label>
                                             <p id="tsRangeInfo" className="text-sm font-medium text-blue-800" aria-live="polite">{rangeDays.length ? `Sẽ tạo ${rangeDays.length} dòng: ${fmtDM(rangeDays[0])} → ${fmtDM(rangeDays[rangeDays.length - 1])} (mỗi ngày ${fmtH(hours)} giờ)` : 'Chọn ngày kết thúc để xem số ngày.'}</p>
                                         </div>

@@ -7,14 +7,14 @@
 //  - Google Drive / đăng nhập Google: KHÔNG lưu đệm (dữ liệu đã có IndexedDB lo).
 //
 // Khi đổi danh sách file bên dưới hoặc cách lưu đệm: tăng VERSION.
-const VERSION = 'v135';
+const VERSION = 'v137';
 const SHELL = `toolset-shell-${VERSION}`;
 const CDN = 'toolset-cdn-v1';
 const HTML_TIMEOUT = 4000;
 
 const SHELL_FILES = [
   './', './index.html', './tracking.html', './admin.html', './huong-dan.html', './huong-dan-timesheet.html', './huong-dan-ho-so-du-an.html', './manifest.webmanifest',
-  './css/style.css', './css/ni.css', './js/status.js', './js/cards.js',
+  './css/style.css', './css/ni.css', './js/status.js', './js/cards.js', './js/rangecal.js',
   './css/fonts/be-vietnam-pro-vietnamese-400-normal.woff2', './css/fonts/be-vietnam-pro-vietnamese-500-normal.woff2', './css/fonts/be-vietnam-pro-vietnamese-600-normal.woff2', './css/fonts/be-vietnam-pro-vietnamese-700-normal.woff2', './css/fonts/be-vietnam-pro-latin-400-normal.woff2', './css/fonts/be-vietnam-pro-latin-500-normal.woff2', './css/fonts/be-vietnam-pro-latin-600-normal.woff2', './css/fonts/be-vietnam-pro-latin-700-normal.woff2',
   './js/demo.js', './js/config.js', './js/db.js', './js/cloud.js', './js/session.js', './js/pwa.js', './js/backup.js',
   './js/eemap.js', './js/importer.js', './js/charts.js', './js/combo.js', './js/tablefilter.js', './js/dashboard.js',
