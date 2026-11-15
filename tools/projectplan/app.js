@@ -1061,26 +1061,62 @@
     const s = pending.stats, w = pending.warnings;
     if (!s.fitters && !s.projects) { toast('File không có sheet “Nhân sự” / “Plan” theo mẫu.'); pending = null; return; }
     const has = data.fitters.length || data.projects.length;
+    const nPlan = s.projects - s.fromGrid, hasPlan = nPlan > 0, hasGrid = s.fitters > 0;
+    const rangeTxt = s.from ? `${dm(s.from)}–${dm(s.to)}` : '';
     $('imBody').innerHTML = `<p>File <b>${esc(file.name)}</b></p>
       <div class="im-stats">
         <div><b>${s.fitters}</b>fitter</div>
         <div><b>${s.cells}</b>ngày phân công${s.tentative ? ` (${s.tentative} dự kiến)` : ''}</div>
-        <div><b>${s.projects - s.fromGrid}</b>dự án trong Plan</div>
+        <div><b>${nPlan}</b>dự án trong Plan</div>
         <div><b>${s.fromGrid}</b>tên chỉ có trong lưới nhân sự</div>
-        ${s.from ? `<div><b>${dm(s.from)}–${dm(s.to)}</b>khoảng ngày</div>` : ''}
+        ${s.from ? `<div><b>${rangeTxt}</b>khoảng ngày</div>` : ''}
       </div>
-      ${w.length ? `<p><b>${w.length} điểm cần kiểm tra</b> (đã nhập, có thể sửa trong ứng dụng):</p><ul class="im-warn">${w.map(x => `<li>${esc(x.msg)}</li>`).join('')}</ul>` : '<p>Không có cảnh báo.</p>'}
-      <p class="sub">Ô màu xám trong sheet Nhân sự được hiểu là <b>dự kiến</b>. Tên ngắn trong lưới được khớp với dự án trong Plan khi chắc chắn.</p>
-      ${has ? `<p class="im-replace">${STORE_URL ? `Dữ liệu <b>chung của cả nhóm trên ${STORE_NAME}</b>` : 'Dữ liệu hiện có trên máy'} sẽ được <b>thay toàn bộ</b> bằng dữ liệu trong file (có thể Hoàn tác ngay sau khi nhập).</p>` : ''}`;
+      <fieldset class="im-opt"><legend>Nhập phần nào</legend>
+        <label class="chk"><input type="checkbox" id="imPlan" ${hasPlan ? 'checked' : 'disabled'}> <span><b>Dự án</b> — sheet Plan (${nPlan} dự án)${hasPlan ? '' : ' · không có trong file'}</span></label>
+        <label class="chk"><input type="checkbox" id="imGrid" ${hasGrid ? 'checked' : 'disabled'}> <span><b>Nhân sự</b> — fitter + phân công (${s.fitters} fitter${rangeTxt ? ', ' + rangeTxt : ''})${hasGrid ? '' : ' · không có trong file'}</span></label>
+      </fieldset>
+      ${has ? `<fieldset class="im-opt"><legend>Cách nhập (đang có ${data.projects.length} dự án, ${data.fitters.length} fitter)</legend>
+        <label class="rad"><input type="radio" name="imMode" value="merge" checked> <span><b>Bổ sung</b> — thêm dự án / fitter mới, chỉ điền ô còn trống; <i>không đổi</i> dữ liệu đã có</span></label>
+        <label class="rad"><input type="radio" name="imMode" value="overwrite"> <span><b>Ghi đè dữ liệu trùng</b> — dự án trùng WBS / tên lấy thông tin theo file; lịch của fitter có trong file thay đúng như file${rangeTxt ? ` trong ${rangeTxt}` : ''}. Phần không có trong file giữ nguyên</span></label>
+        <label class="rad"><input type="radio" name="imMode" value="replace"> <span><b>Thay toàn bộ</b> phần đã chọn bằng dữ liệu file</span></label>
+      </fieldset>` : ''}
+      <p class="im-preview" id="imPreview" aria-live="polite"></p>
+      ${w.length ? `<details><summary><b>${w.length} điểm cần kiểm tra</b> (đã nhập, có thể sửa trong ứng dụng)</summary><ul class="im-warn">${w.map(x => `<li>${esc(x.msg)}</li>`).join('')}</ul></details>` : '<p class="sub">Không có cảnh báo.</p>'}
+      <p class="sub">Ô màu xám trong sheet Nhân sự được hiểu là <b>dự kiến</b>. Dự án khớp theo <b>WBS</b>, rồi theo <b>tên</b>; fitter khớp theo mã NV / tên. Nhập xong vẫn bấm <b>Hoàn tác</b> được.</p>`;
+    imPreview();
     $('dlgImport').showModal();
   });
+  const imOpts = () => ({ plan: !!($('imPlan') && $('imPlan').checked), grid: !!($('imGrid') && $('imGrid').checked),
+    mode: (document.querySelector('input[name=imMode]:checked') || { value: 'replace' }).value });
+  function imPreview() {
+    if (!pending) return;
+    const o = imOpts(), el = $('imPreview');
+    $('imApply').disabled = !o.plan && !o.grid;
+    if (!o.plan && !o.grid) { el.textContent = 'Chọn ít nhất một phần để nhập.'; return; }
+    const has = data.fitters.length || data.projects.length;
+    if (!has) o.mode = 'replace';
+    const x = P.applyImport(data, pending.data, o).summary, parts = [];
+    if (x.all) parts.push(`thay toàn bộ bằng ${x.pAdd} dự án, ${x.fAdd} fitter, ${x.cells} ngày phân công`);
+    else {
+      if (o.plan) parts.push(`dự án: +${x.pAdd} mới, ${x.pUpd} cập nhật${x.pDel ? `, xoá ${x.pDel}` : ''}${x.pKept ? `, giữ ${x.pKept} (còn phân công)` : ''}`);
+      if (o.grid) parts.push(`nhân sự: +${x.fAdd} fitter${x.fDel ? ` (thay ${x.fDel} cũ)` : ''}, ${x.cells} ngày phân công ghi vào${x.cellsDel ? `, ${x.cellsDel} ngày bỏ trống theo file` : ''}${x.cellsSkip ? `, ${x.cellsSkip} ngày giữ nguyên vì đã có phân công khác` : ''}${x.pGrid ? `; thêm ${x.pGrid} dự án có trong lưới mà chưa có trong danh sách` : ''}`);
+    }
+    el.innerHTML = '<b>Sẽ nhập:</b> ' + esc(parts.join(' · ')) + '.';
+    pending.last = { o, x };
+  }
+  $('imBody').addEventListener('change', imPreview);
   $('imCancel').addEventListener('click', () => { pending = null; $('dlgImport').close(); });
   $('imApply').addEventListener('click', () => {
     if (!pending) return;
-    const nd = pending.data, s = pending.stats; pending = null;
+    const o = imOpts(); if (!o.plan && !o.grid) return;
+    if (!(data.fitters.length || data.projects.length)) o.mode = 'replace';
+    const s = pending.stats, imp = pending.data; pending = null;
     $('dlgImport').close();
-    if (s.from) viewStart = mondayOf(today() >= s.from && today() <= s.to ? today() : s.from);
-    commit(`Đã nhập ${s.fitters} fitter, ${s.projects} dự án.`, () => { data = nd; });
+    const r = P.applyImport(data, imp, o), x = r.summary;
+    if (o.grid && s.from) viewStart = mondayOf(today() >= s.from && today() <= s.to ? today() : s.from);
+    const msg = x.all ? `Đã nhập (thay toàn bộ): ${s.fitters} fitter, ${s.projects} dự án.`
+      : `Đã nhập${o.plan ? ` dự án (+${x.pAdd} mới, ${x.pUpd} cập nhật${x.pDel ? `, xoá ${x.pDel}` : ''})` : ''}${o.plan && o.grid ? ' và' : ''}${o.grid ? ` nhân sự (+${x.fAdd} fitter, ${x.cells} ngày phân công${x.cellsSkip ? `, giữ ${x.cellsSkip} ngày đã có` : ''})` : ''}.`;
+    commit(msg, () => { data = r.data; });
   });
 
   let excelLoading = null;

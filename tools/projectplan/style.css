@@ -269,3 +269,13 @@ main.pp-wrap { padding-block: 16px 40px; }
 /* ---------- lịch chọn khoảng ngày trong hộp Phân công (js/rangecal.js tự chèn CSS) ---------- */
 .rc-help { font-weight: 400; color: var(--muted); font-size: 12px; }
 #asCal { margin-top: 4px; max-width: none; }
+
+/* nhập Excel có chọn lọc */
+.im-opt { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 4px; margin: 0 0 10px; }
+.im-opt legend { font-weight: 700; font-size: 13.5px; padding: 0 4px; }
+.im-opt .chk { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; line-height: 1.4; }
+.im-opt .chk input { margin-top: 3px; flex: none; }
+.im-opt .rad { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; padding: 6px 0; cursor: pointer; line-height: 1.4; }
+.im-opt .rad input { margin-top: 3px; flex: none; }
+.im-preview { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px; background: var(--blue-bg); color: var(--ink-2); font-size: 13.5px; }
+.im-preview:empty { display: none; }
