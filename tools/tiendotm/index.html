@@ -28,6 +28,7 @@
 <script src="chungtu.js?v=1"></script>
 <script src="docxkit.js?v=1"></script>
 <script src="docread.js?v=1"></script>
+<script src="parties.js?v=1"></script>
 <script src="hsletters.js?v=1"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=2"></script>
@@ -497,9 +498,9 @@ table.edit td.c{text-align:center}
       <div class="f"><label>Ngày ký hợp đồng <span class="det hide" id="d_cdate">●OCR</span></label><input id="p_cdate" value="" placeholder="dd/mm/yyyy"></div>
       <div class="f"><label>Tên dự án <span class="det hide" id="d_project">●OCR</span></label><input id="p_name" value=""></div>
       <div class="f"><label>Địa chỉ / địa điểm dự án <span class="det hide" id="d_paddr">●OCR</span></label><input id="p_addr" value=""></div>
-      <div class="f"><label>Bên Mua / Chủ đầu tư <span class="det hide" id="d_buyer">●OCR</span></label><input id="p_buyer" value=""></div>
-      <div class="f"><label>Người đại diện Bên Mua <span class="det hide" id="d_rep">●OCR</span></label><input id="p_rep" value=""></div>
-      <div class="f"><label>Địa chỉ Bên Mua <span class="det hide" id="d_baddr">●OCR</span></label><input id="p_baddr" value=""></div>
+      <div class="f"><label>Chủ đầu tư (Bên Mua / Bên Giao thầu / Bên A) <span class="det hide" id="d_buyer">●OCR</span></label><input id="p_buyer" value=""></div>
+      <div class="f"><label>Người đại diện Chủ đầu tư <span class="det hide" id="d_rep">●OCR</span></label><input id="p_rep" value=""></div>
+      <div class="f"><label>Địa chỉ Chủ đầu tư <span class="det hide" id="d_baddr">●OCR</span></label><input id="p_baddr" value=""></div>
       <div class="f"><label>Bên Bán / Nhà thầu <span class="det hide" id="d_seller">●OCR</span></label><input id="p_seller" value=""></div>
       <div class="f"><label>Thiết bị (thang máy) <span class="det hide" id="d_equip">●OCR</span></label><input id="p_equip" value=""></div>
       <div class="f"><label>Căn cứ lập tiến độ</label><input id="p_basis" value=""></div>
@@ -1410,54 +1411,12 @@ function extract(raw){
         ||new RegExp(`\\bngay\\s*${D}`,"d").exec(P);
   if(dm){S.project.cdate=`${pad2(dm[1])}/${pad2(dm[2])}/${dm[3]}`;det("d_cdate");hits++;}
 
-  /* ---- Khối Bên Mua / Bên Bán ----
-     Hỗ trợ 2 kiểu bố cục hợp đồng VN:
-       A) Nhãn tiêu đề ĐẦU khối:  "BÊN MUA (BÊN A): …"
-       B) Chi tiết đứng TRƯỚC, cuối khối mới ghi:  … (dưới đây gọi là "Bên Mua")
-  */
-  function idxFirst(res){for(const re of res){const m=re.exec(P);if(m)return m.index;}return -1;}
-  const callBuyer=/(?:duoi\s*day\s*|sau\s*day\s*)?(?:duoc\s*)?goi\s*(?:tat\s*)?la[\s"'“”)(]*ben\s*mua/.exec(P);
-  const callSeller=/(?:duoi\s*day\s*|sau\s*day\s*)?(?:duoc\s*)?goi\s*(?:tat\s*)?la[\s"'“”)(]*ben\s*ban/.exec(P);
-  const mk=(s,e)=>({text:R.slice(s,e),p:P.slice(s,e)});
-  let bBuyer=null,bSeller=null;
-  if(callBuyer||callSeller){                       // kiểu B — nhãn ở cuối khối
-    if(callBuyer){
-      const giua=/\b(?:giua|gom)\s*:?/g;let g,gs=-1;
-      while((g=giua.exec(P))){if(g.index<callBuyer.index)gs=g.index+g[0].length;else break;}
-      bBuyer=mk(gs>=0?gs:Math.max(0,callBuyer.index-750),callBuyer.index);
-    }
-    if(callSeller)bSeller=mk(callBuyer?callBuyer.index+callBuyer[0].length:Math.max(0,callSeller.index-750),callSeller.index);
-  }else{                                           // kiểu A — nhãn tiêu đề ở đầu khối
-    const ib=idxFirst([/(?:^|\n)\s*ben\s*mua\b\s*(?:\([^)]*\))?\s*[:\-]/,/(?:^|\n)\s*ben\s*a\b\s*[:\-]/,/chu\s*dau\s*tu/,/khach\s*hang/]);
-    const is=idxFirst([/(?:^|\n)\s*ben\s*ban\b\s*(?:\([^)]*\))?\s*[:\-]/,/(?:^|\n)\s*ben\s*b\b\s*[:\-]/,/nha\s*cung\s*cap/,/nha\s*thau/]);
-    if(ib>=0)bBuyer=mk(ib,is>ib?is:ib+900);
-    if(is>=0)bSeller=mk(is,ib>is?ib:is+900);
-  }
-  function inBlock(blk,re,g=1){if(!blk)return null;re.lastIndex=0;const m=re.exec(blk.p);if(!m||!m.indices||!m.indices[g])return null;const val=clean(blk.text.slice(m.indices[g][0],m.indices[g][1]));return val||null;}
-  // dòng "nội dung" đầu tiên của khối (bỏ qua các dòng nhãn: địa chỉ, điện thoại, MST…)
-  function firstContentLine(blk){if(!blk)return null;
-    for(const ln of blk.text.split(/\n/).map(s=>s.trim()).filter(Boolean)){
-      if(ln.length<5)continue;
-      const d=deacc(ln);
-      if(/^(dia\s*chi|dien\s*thoai|so\s*dien|ma\s*so|masothue|email|fax|tai\s*khoan|so\s*tai|dai\s*dien|chuc\s*vu|va$|so\s*[:\-])/.test(d))continue;
-      if(/^["'“”(]/.test(ln))continue;
-      return clean(ln);
-    }return null;}
-
-  let buyerName=inBlock(bBuyer,/(?:ten(?:\s*(?:cong\s*ty|khach\s*hang|don\s*vi|to\s*chuc))?|don\s*vi(?:\s*mua)?)\s*[:\-]\s*([^\n]{3,90})/d)
-    ||inBlock(bBuyer,/(?:ben\s*mua|ben\s*a|chu\s*dau\s*tu)\s*(?:\([^)]*\))?\s*[:\-]\s*([^\n]{4,90})/d)
-    ||inBlock(bBuyer,/(?:^|\n)\s*((?:chi\s*nhanh\s*)?(?:cong\s*ty|tong\s*cong\s*ty|ban\s*quan\s*ly|ban\s*qlda|uy\s*ban|trung\s*tam|doanh\s*nghiep|hop\s*tac\s*xa)[^\n]{2,80})/d)
-    ||firstContentLine(bBuyer);
-  if(buyerName){S.project.buyer=buyerName;det("d_buyer");hits++;}
-  let rep=inBlock(bBuyer,/(?:nguoi\s*)?dai\s*dien(?:\s*(?:theo\s*phap\s*luat|boi|la))?\s*[:\-]?\s*(?:ong|ba|mr|ms|mrs)?\.?\s*([a-z][^\n,;(]{2,45})/d);
-  if(rep){rep=rep.replace(/\s*[-–].*$/,"").replace(/\s*(?:chuc\s*vu|chức\s*vụ).*$/i,"").trim();S.project.rep=rep;det("d_rep");hits++;}
-  let baddr=inBlock(bBuyer,/(?:dia\s*chi|tru\s*so(?:\s*chinh)?)\s*[:\-]?\s*([^\n]{5,120})/d);
-  if(baddr){S.project.baddr=baddr;det("d_baddr");hits++;}
-  let sellerName=inBlock(bSeller,/(?:ten(?:\s*(?:cong\s*ty|don\s*vi))?|nha\s*cung\s*cap|nha\s*thau|don\s*vi\s*ban)\s*[:\-]\s*([^\n]{3,90})/d)
-    ||inBlock(bSeller,/(?:ben\s*ban|ben\s*b)\s*(?:\([^)]*\))?\s*[:\-]\s*([^\n]{4,90})/d)
-    ||inBlock(bSeller,/(?:^|\n)\s*((?:chi\s*nhanh\s*)?(?:cong\s*ty|tong\s*cong\s*ty|cong\s*ty\s*tnhh|cong\s*ty\s*co\s*phan)[^\n]{2,80})/d)
-    ||firstContentLine(bSeller);
-  if(sellerName){S.project.seller=sellerName;det("d_seller");hits++;}
+  /* ---- Các bên: Chủ đầu tư = Bên Mua / Bên Giao thầu / Bên A; Nhà thầu = Bên Bán / Bên Nhận thầu / Bên B (parties.js) ---- */
+  const PT=HsParties.parse(R);
+  if(PT.owner.name){S.project.buyer=PT.owner.name;det("d_buyer");hits++;}
+  if(PT.owner.rep){S.project.rep=PT.owner.rep;det("d_rep");hits++;}
+  if(PT.owner.addr){S.project.baddr=PT.owner.addr;det("d_baddr");hits++;}
+  if(PT.contractor.name){S.project.seller=PT.contractor.name;det("d_seller");hits++;}
   if(!S.project.seller&&/schindler/.test(P)){S.project.seller="Schindler Vietnam Ltd.";det("d_seller");hits++;}
 
   /* ---- Dự án ---- */
