@@ -208,8 +208,15 @@
     <li><b>Bản vẽ hoàn công (As-built)</b> — số hiệu HC-01…, trang ký “Xác nhận bản vẽ hoàn công” (Chủ đầu tư · TVGS · Nhà thầu lập bản vẽ).</li>
   </ul>
   <ol class="steps">
-    <li>Chọn loại bản vẽ, rồi tải bản vẽ <b>PDF</b> lên — mỗi trang là 1 bản vẽ, khổ giấy tự nhận.</li>
-    <li>Sửa <b>số hiệu, tên bản vẽ</b> trong bảng; kiểm tra <b>3 cột ký</b>.</li>
+    <li>Chọn loại bản vẽ, rồi tải bản vẽ <b>PDF</b> lên — được chọn <b>nhiều file</b> (vd. mỗi thang 1 file). App đọc <b>khung tên</b> từng trang: <b>số bản vẽ</b>, <b>tờ</b> (01/04…), <b>tên bản vẽ</b> (cả tên 2 dòng), hiệu chỉnh, tỉ lệ; nhận ra trang <b>bìa</b> và trang <b>danh mục</b> riêng của từng bộ (không đưa vào danh mục). File không đọc được khung tên (bản scan) thì tên lấy theo tên file.</li>
+    <li>Bảng <b>Các bộ bản vẽ</b>: mỗi file 1 dòng — ký hiệu thang (tự lấy từ số bản vẽ, vd. …_PL1 → PL1; sửa được), dòng thang, số tờ, khổ gốc, có danh mục riêng hay không.</li>
+    <li>Tuỳ chọn:
+      <ul>
+        <li><b>Đưa mọi trang về khổ A3</b> — bản vẽ A1/A2/A4… được co giữ tỉ lệ, căn giữa trên A3 (ngang hoặc dọc theo bản gốc), vẫn là nét vector nên phóng to không vỡ; file ghép không phình dung lượng.</li>
+        <li><b>Trang ngăn cách</b> trước mỗi bộ (khi có từ 2 file): chữ lớn <i>THANG PL1</i>, “Bộ 1/3”, số hiệu bộ, dòng thang, số tờ và tên các bản vẽ trong bộ; có <b>tab màu ở mép phải lệch dần theo thứ tự thang</b> — in ra xếp chồng vẫn thấy từng thang.</li>
+        <li><b>Danh mục bản vẽ trên trang ký</b>: <i>Tự động</i> — nếu <b>mọi bộ đã có danh mục riêng</b> thì <b>không lập danh mục chi tiết</b>, trang ký chỉ liệt kê các bộ (thang, số hiệu bộ, số tờ); ngược lại lập danh mục theo khung tên. Có thể chọn <i>Luôn lập</i> / <i>Không lập</i>.</li>
+      </ul></li>
+    <li>Sửa <b>số hiệu, tên bản vẽ</b> trong bảng danh mục nếu cần; kiểm tra <b>3 cột ký</b>.</li>
     <li><span class="btn">⬇ Bìa + trang ký (PDF A3)</span> hoặc <span class="btn">⬇ Bộ bản vẽ đã ghép</span>.</li>
   </ol>
   <div class="pair"><figure class="shot"><img src="docs/huong-dan/hsda-out-bia.jpg" alt="Trang bìa" loading="lazy" width="827" height="585"><figcaption>Trang bìa</figcaption></figure><figure class="shot"><img src="docs/huong-dan/hsda-out-ky.jpg" alt="Trang duyệt bản vẽ thi công" loading="lazy" width="827" height="585"><figcaption>Trang duyệt bản vẽ thi công</figcaption></figure></div>

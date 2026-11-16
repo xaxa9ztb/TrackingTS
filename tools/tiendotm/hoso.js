@@ -70,7 +70,7 @@
     shop: { label: 'Bản vẽ thi công (Shop drawing)', short: 'Bản vẽ thi công', tieuDe: 'BẢN VẼ THI CÔNG', phuDe: '(SHOP DRAWING)', kyTitle: 'DUYỆT BẢN VẼ THI CÔNG', prefix: 'TM', file: 'Ban ve thi cong' },
     asbuilt: { label: 'Bản vẽ hoàn công (As-built)', short: 'Bản vẽ hoàn công', tieuDe: 'BẢN VẼ HOÀN CÔNG', phuDe: '(AS-BUILT DRAWING)', kyTitle: 'XÁC NHẬN BẢN VẼ HOÀN CÔNG', prefix: 'HC', file: 'Ban ve hoan cong' },
   };
-  const blankDW = (k) => ({ kind: k, tieuDe: DWK[k].tieuDe, phuDe: DWK[k].phuDe, kyTitle: DWK[k].kyTitle, heThong: 'HỆ THỐNG THANG MÁY', thietBi: '', prefix: DWK[k].prefix, ngay: '', soBanVe: '', list: [], ky: [] });
+  const blankDW = (k) => ({ kind: k, tieuDe: DWK[k].tieuDe, phuDe: DWK[k].phuDe, kyTitle: DWK[k].kyTitle, heThong: 'HỆ THỐNG THANG MÁY', thietBi: '', prefix: DWK[k].prefix, ngay: '', soBanVe: '', list: [], ky: [], sets: [], opt: { a3: true, sep: true, idx: 'auto' } });
   const DWS = { shop: blankDW('shop'), asbuilt: blankDW('asbuilt') };
   let dwKind = 'shop', DW = DWS.shop;
   const dwFilesBy = { shop: [], asbuilt: [] };
@@ -426,7 +426,23 @@
       <div class="f"><label>Chức vụ</label><input data-kk="chucVu" value="${esc(c.chucVu)}"></div></div>`).join('');
     paintDwList();
   }
+  const dwOpt = () => (DW.opt = Object.assign({ a3: true, sep: true, idx: 'auto' }, DW.opt || {}));
+  // có lập danh mục bản vẽ trên trang ký không: tự động = không lập khi MỌI bộ đã có danh mục riêng
+  const useIndex = () => { const o = dwOpt(), sets = DW.sets || []; return o.idx === 'yes' ? true : o.idx === 'no' ? !sets.length : !(sets.length && sets.every(x => x.hasIndex)); };
+  function paintDwSets() {
+    const o = dwOpt(), sets = DW.sets || [];
+    $('hsDwA3').checked = !!o.a3; $('hsDwSep').checked = !!o.sep;
+    document.querySelectorAll('input[name=hsDwIdx]').forEach(r => { r.checked = r.value === o.idx; });
+    $('hsDwSetsWrap').hidden = !sets.length;
+    $('hsDwSets').tBodies[0].innerHTML = sets.map((x, i) => `<tr data-i="${i}"><td>${i + 1}</td><td><input data-sk="label" value="${esc(x.label)}" style="width:110px" aria-label="Ký hiệu thang"></td><td class="hs-mini">${esc(x.no || '—')}</td><td class="hs-mini">${esc(x.line || '')}</td>
+      <td class="hs-mini">${x.drawings} bản vẽ / ${x.pages} trang</td><td class="hs-mini">${esc(x.kho)}${o.a3 && x.kho !== 'A3' ? ' → A3' : ''}</td><td>${x.hasIndex ? '✓ có' : '—'}</td><td class="hs-mini">${esc(x.file)}</td></tr>`).join('');
+    const ui = useIndex();
+    $('hsDwIdxNote').textContent = !sets.length ? '' : ui ? `Trang ký sẽ có danh mục ${DW.list.length} bản vẽ (tên lấy theo khung tên từng trang).`
+      : `Mọi bộ đã có danh mục riêng → trang ký không lập danh mục chi tiết, chỉ liệt kê ${sets.length} bộ bản vẽ.`;
+    $('hsDwListWrap').hidden = !ui && sets.length > 0;
+  }
   function paintDwList() {
+    paintDwSets();
     $('hsDwTable').tBodies[0].innerHTML = DW.list.length ? DW.list.map((x, i) => `<tr data-i="${i}"><td>${i + 1}</td><td><input data-dk="so" value="${esc(x.so)}"></td><td><input data-dk="ten" value="${esc(x.ten)}"></td><td><input data-dk="kho" value="${esc(x.kho)}" style="width:70px"></td><td class="hs-mini">${esc(x.file || '')}</td><td><button class="icb" data-ddel="${i}" title="Xoá dòng">×</button></td></tr>`).join('')
       : '<tr><td colspan="6" class="hs-empty">Tải bản vẽ PDF lên để tự lập danh mục (mỗi trang = 1 bản vẽ), hoặc thêm dòng tay.</td></tr>';
     $('hsDwFilesNote').textContent = dwFiles.length ? `${dwFiles.length} file bản vẽ đang mở (${dwFiles.map(f => f.name).join(', ')}) — chỉ xử lý trên máy, không tải lên máy chủ.` : 'Chưa có file bản vẽ trong phiên này (danh mục đã lưu vẫn còn; muốn ghép bìa vào bản vẽ thì tải file lên lại).';
@@ -441,11 +457,22 @@
       if (!add.length) { stEl.textContent = 'Chỉ nhận file PDF'; return; }
       const fresh = !dwFiles.length;
       dwFiles = dwFiles.concat(add); dwFilesBy[dwKind] = dwFiles;
-      const rows = await HsDrawing.listDrawings(PDFLib, add, DW.prefix || 'TM');
-      // bắt đầu phiên mới → danh mục theo file mới; đã có file → nối tiếp và đánh lại số hiệu
-      if (fresh) DW.list = rows; else DW.list = DW.list.concat(rows);
+      // đọc khung tên từng trang (pdf.js): số bản vẽ, tờ, tên bản vẽ, trang bìa / danh mục của từng bộ
+      let sets = null;
+      try {
+        if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; stEl.textContent = 'Đang đọc khung tên bản vẽ…'; sets = await HsDrawing.analyze(pdfjsLib, add); }
+      } catch (e) { console.warn(e); sets = null; }
+      if (sets) add.forEach((f, i) => { f.set = sets[i]; });
+      const all = fresh ? add : dwFiles;
+      if (fresh) DW.sets = [];
+      DW.sets = DW.sets.concat(add.map(f => f.set ? (({ pageInfo, ...x }) => x)(f.set) : { file: f.name, label: HsDrawing.liftLabel('', f.name), no: '', line: '', pages: 0, drawings: 0, hasIndex: false, kho: '' }));
+      const rows = all.every(f => f.set) ? HsDrawing.rowsFromSets(all.map((f, i) => Object.assign({}, f.set, { label: (DW.sets[i] || {}).label })), { a3: dwOpt().a3, prefix: DW.prefix || 'TM' })
+        : await HsDrawing.listDrawings(PDFLib, add, DW.prefix || 'TM');
+      // bắt đầu phiên mới / đọc được khung tên → danh mục theo file; không đọc được → nối tiếp và đánh lại số hiệu
+      if (fresh || all.every(f => f.set)) DW.list = rows; else DW.list = DW.list.concat(rows);
       DW.list.forEach((x, i) => { if (/^[A-Z]{1,4}-\d+$/.test(x.so || '')) x.so = `${DW.prefix || 'TM'}-${String(i + 1).padStart(2, '0')}`; });
-      paintDwList(); stEl.textContent = `✓ Đã đọc ${rows.length} trang bản vẽ`; onEdit();
+      const named = DW.list.filter(x => x.rev !== undefined && x.so && !/^[A-Z]{1,4}-\d+$/.test(x.so)).length;
+      paintDwList(); stEl.textContent = `✓ Đã đọc ${add.length} file · ${rows.length} bản vẽ${named ? ` · ${named} bản vẽ lấy được số hiệu + tên theo khung tên` : ''}`; onEdit();
     } catch (e) { console.error(e); stEl.textContent = '⚠ ' + e.message; }
   }
   async function exportDrawing(withFiles) {
@@ -454,9 +481,12 @@
       await pdfLibs();
       const I = info();
       const D = { ...DW, chuDauTu: I.chuDauTu, banQLDA: I.banQLDA || I.tvgs, congTrinh: I.congTrinh, diaDiem: I.diaDiem, hangMuc: I.hangMuc,
-        hopDong: [I.soHD, I.ngayHD ? 'ngày ' + I.ngayHD.split('-').reverse().join('/') : ''].filter(Boolean).join(' '), nhaThau: I.nhaThau, nhaThauDiaChi: I.nhaThauDiaChi, noiLap: I.noiLap, drawings: DW.list, ky: DW.ky };
-      const cover = await HsDrawing.buildCover(PDFLib, fontkit, await fonts(), D);
-      const out = withFiles ? await HsDrawing.merge(PDFLib, cover, dwFiles) : cover;
+        hopDong: [I.soHD, I.ngayHD ? 'ngày ' + I.ngayHD.split('-').reverse().join('/') : ''].filter(Boolean).join(' '), nhaThau: I.nhaThau, nhaThauDiaChi: I.nhaThauDiaChi, noiLap: I.noiLap, drawings: DW.list, ky: DW.ky, sets: DW.sets || [], useIndex: useIndex() };
+      const o = dwOpt(), F = await fonts();
+      const cover = await HsDrawing.buildCover(PDFLib, fontkit, F, D);
+      if (withFiles) stEl.textContent = o.a3 ? 'Đang ghép và đưa bản vẽ về khổ A3…' : 'Đang ghép bản vẽ…';
+      const sets = dwFiles.map((f, i) => Object.assign({}, f.set || {}, DW.sets[i] || {}, { pageInfo: f.set ? f.set.pageInfo : [] }));
+      const out = withFiles ? await HsDrawing.assemble(PDFLib, cover, dwFiles, { a3: o.a3, sep: o.sep && dwFiles.length > 1, sets, D, fonts: F, fontkit }) : cover;
       const nm = (I.congTrinh || 'du an').replace(/[\\/:*?"<>|]/g, '');
       saveAs(new Blob([out], { type: 'application/pdf' }), withFiles ? `${DWK[dwKind].file} (kem bia va trang ky) - ${nm}.pdf` : `Bia va trang ky - ${DWK[dwKind].file} - ${nm}.pdf`);
       DW._last = new Date().toISOString();
@@ -519,7 +549,11 @@
     $('hsDwTable').addEventListener('click', (e) => { const b = e.target.closest('[data-ddel]'); if (b) { DW.list.splice(+b.dataset.ddel, 1); paintDwList(); onEdit(); } });
     $('hsDwAdd').onclick = () => { DW.list.push({ so: `${DW.prefix || 'TM'}-${String(DW.list.length + 1).padStart(2, '0')}`, ten: '', kho: 'A3' }); paintDwList(); };
     $('hsDwFiles').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; addDwFiles(fs); });
-    $('hsDwClear').onclick = () => { dwFiles = []; dwFilesBy[dwKind] = dwFiles; DW.list = []; paintDwList(); onEdit(); };
+    $('hsDwClear').onclick = () => { dwFiles = []; dwFilesBy[dwKind] = dwFiles; DW.list = []; DW.sets = []; paintDwList(); onEdit(); };
+    $('hsDwA3').addEventListener('change', (e) => { dwOpt().a3 = e.target.checked; DW.list.forEach(x => { if (x.goc) x.kho = e.target.checked ? 'A3' : x.goc; }); paintDwList(); onEdit(); });
+    $('hsDwSep').addEventListener('change', (e) => { dwOpt().sep = e.target.checked; onEdit(); });
+    document.querySelectorAll('input[name=hsDwIdx]').forEach(r => r.addEventListener('change', () => { dwOpt().idx = r.value; paintDwList(); onEdit(); }));
+    $('hsDwSets').addEventListener('input', (e) => { const tr = e.target.closest('tr[data-i]'); if (tr && e.target.dataset.sk) { DW.sets[+tr.dataset.i][e.target.dataset.sk] = e.target.value; } });
     $('hsDwCover').onclick = () => exportDrawing(false);
     $('hsDwMerge').onclick = () => exportDrawing(true);
     window.addEventListener('beforeunload', (e) => {
