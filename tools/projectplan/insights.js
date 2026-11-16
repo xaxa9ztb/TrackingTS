@@ -213,7 +213,7 @@
   }
 
   // ---------- (7) kế hoạch 3 tuần + cam kết tuần (PPC) ----------
-  const LOOK_KEYS = ['arrival', 'shaftReady', 'teamStart', 'mechDone', 'testReady', 'handover'];
+  const LOOK_KEYS = ['arrival', 'shaftReady', 'teamStart', 'mechDone', 'testReady', 'sais', 'inspect', 'handover'];
   // việc đến hạn trong `weeks` tuần tới (tính từ thứ Hai tuần này), kèm điều kiện cần
   function lookahead(data, today, weeks) {
     const w0 = mondayOf(today), end = addDays(w0, (weeks || 3) * 7 - 1), out = [];

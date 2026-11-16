@@ -712,6 +712,9 @@
       out.push({ c: 'bad', s: `Chưa phân công fitter cho ngày nhận hố ${dm(ts)}` });
     if (ts && sr && ts < sr) out.push({ c: 'warn', s: `Nhận hố (${dm(ts)}) trước khi XD giao hố (${dm(sr)})` });
     if (ts && ar && !p.arrival.done && ar > ts) out.push({ c: 'warn', s: `Hàng về (${dm(ar)}) sau ngày nhận hố (${dm(ts)})` });
+    const sa = p.sais.date, ki = p.inspect.date, hv = p.handover.date;
+    if (sa && ki && !p.inspect.done && sa > ki) out.push({ c: 'warn', s: `SAIS (${dm(sa)}) sau ngày kiểm định (${dm(ki)})` });
+    if (ki && hv && !p.handover.done && ki > hv) out.push({ c: 'warn', s: `Kiểm định (${dm(ki)}) sau ngày bàn giao (${dm(hv)})` });
     return out;
   }
   function msCell(m, t) {
@@ -778,7 +781,7 @@
         <td><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i>${esc(p.name)}</div><div class="sub">${esc(p.address)}${p.wbs ? ` · <span class="${SHARED.length && !sharedByWbs(p.wbs) ? 'badge warn' : ''}" title="${SHARED.length && !sharedByWbs(p.wbs) ? 'WBS không có trong danh sách dự án chung' : 'WBS'}">${esc(p.wbs)}</span>` : ''}</div>${badges(p)}</td>
         <td>${p.liftCount ? `<b>${esc(p.liftCount)} × ${esc(p.liftType)}</b>` : esc(p.liftType)}<div class="sub">${esc(liftInfo(p))}</div></td>
         <td>${msDl(p, ['factory', 'port', 'arrival'], t)}${p.transport ? `<div class="sub">${esc(p.transport)}</div>` : ''}</td>
-        <td>${msDl(p, ['shaftReady', 'ownerStart', 'teamStart', 'mechDone', 'testReady', 'handover'].filter(k => !['mechDone', 'testReady'].includes(k) || p[k].date || p[k].done), t)}</td>
+        <td>${msDl(p, ['shaftReady', 'ownerStart', 'teamStart', 'mechDone', 'testReady', 'sais', 'inspect', 'handover'].filter(k => !['mechDone', 'testReady', 'sais', 'inspect'].includes(k) || p[k].date || p[k].done), t)}</td>
         <td>${modeBadge(p)}${p.teamPlan ? `<div>${esc(p.teamPlan)}</div>` : ''}${fittersOf(p, t)}</td>
         <td>${esc(p.supervisor)}<div class="alerts">${alertHtml(p)}</div></td></tr>`;
     });
@@ -806,7 +809,7 @@
   }
   function renderSheet(list, t) {
     const I = window.PMInsights, ms = (k) => P.MILESTONES.find(m => m.key === k);
-    const msKeys = ['factory', 'port', 'arrival', 'shaftReady', 'ownerStart', 'teamStart', 'mechDone', 'testReady', 'handover'];
+    const msKeys = ['factory', 'port', 'arrival', 'shaftReady', 'ownerStart', 'teamStart', 'mechDone', 'testReady', 'sais', 'inspect', 'handover'];
     const cols = [['STT', 'c-no'], ['Tên dự án', 'c-name'], ['Địa chỉ', 'c-addr'], ['Tỉnh', 'c-s'], ['SL', 'c-s'], ['Loại thang', 'c-m'], ['Hành trình', 'c-m'], ['Tải trọng', 'c-m'], ['Điểm dừng', 'c-s']];
     const head = cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('') +
       msKeys.map((k, i) => `<th class="c-ms" title="${esc(ms(k).label)}">${esc(ms(k).short)}</th>${i === 0 ? '<th class="c-m">PT vận chuyển</th>' : ''}`).join('') +
@@ -1307,7 +1310,7 @@
       : '<span class="chip warn">Chưa dự án nào chốt baseline — bấm 📌 ở từng dòng, hoặc “📌 Chốt baseline…” để chốt cho nhiều dự án. Bảng dưới vẫn hiện thực tế theo chấm công và giờ công.</span>') +
       (over ? `<span class="chip warn">Vượt định mức giờ: <b>${over}</b> dự án</span>` : '') + (near ? `<span class="chip">Đã dùng ≥ 75% định mức: <b>${near}</b></span>` : '') + '</div>';
     if (!rows.length) { box.innerHTML = h + '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
-    const KEYS = ['arrival', 'teamStart', 'mechDone', 'testReady', 'handover'];
+    const KEYS = ['arrival', 'teamStart', 'mechDone', 'testReady', 'sais', 'inspect', 'handover'];
     const msTd = (r, k) => {
       const m = r.ms[k];
       if (!m.cur && !m.base) return '<td class="vc">—</td>';
