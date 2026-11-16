@@ -56,6 +56,7 @@
       <button type="button" role="tab" id="tabAlloc" aria-controls="viewAlloc" aria-selected="true">Điều phối nhân sự</button>
       <button type="button" role="tab" id="tabPlan" aria-controls="viewPlan" aria-selected="false">Lịch trình dự án</button>
       <button type="button" role="tab" id="tabActual" aria-controls="viewActual" aria-selected="false">Thực tế &amp; bám kế hoạch</button>
+      <button type="button" role="tab" id="tabInsight" aria-controls="viewInsight" aria-selected="false">Phân tích</button>
     </nav>
   </div>
 </header>
@@ -141,6 +142,17 @@
     <p class="pp-hint" id="actLegend"></p>
     <div id="actTables"></div>
   </section>
+
+  <!-- ===== Phân tích: nguồn lực, cảnh báo, 3 tuần + PPC, subcon, báo cáo tuần ===== -->
+  <section id="viewInsight" role="tabpanel" aria-labelledby="tabInsight" hidden>
+    <div class="pp-toolbar ins-bar">
+      <div class="seg-btns" role="group" aria-label="Nội dung phân tích">
+        <button type="button" data-ins="load" aria-pressed="true">Tải nguồn lực</button><button type="button" data-ins="warn" aria-pressed="false">Cảnh báo</button><button type="button" data-ins="look" aria-pressed="false">3 tuần tới &amp; PPC</button><button type="button" data-ins="sub" aria-pressed="false">Subcon &amp; lý do trễ</button><button type="button" data-ins="report" aria-pressed="false">Báo cáo tuần</button>
+      </div>
+      <span class="hint" id="insInfo"></span>
+    </div>
+    <div id="insBody"></div>
+  </section>
 </main>
 
 <!-- phân công -->
@@ -160,6 +172,7 @@
       <div id="asCal" aria-label="Chọn khoảng ngày"></div>
       <input type="hidden" id="asFrom"><input type="hidden" id="asTo">
     </div>
+    <div class="as-sug" id="asSuggest" hidden></div>
     <fieldset class="fld seg"><legend>Trạng thái</legend>
       <label><input type="radio" name="asStatus" value="0" checked> Chính thức</label>
       <label><input type="radio" name="asStatus" value="1"> Dự kiến</label>
@@ -247,6 +260,12 @@
       </fieldset>
       <fieldset class="pj-sec pj-ms"><legend>Tiến độ hàng &amp; lắp đặt</legend>
         <div id="pjMilestones"></div>
+        <p class="hint">Đổi ngày một mốc đã có → chọn <b>lý do dời mốc</b> (dùng cho thống kê lý do trễ, đánh giá subcon).</p>
+      </fieldset>
+      <fieldset class="pj-sec pj-prog"><legend>% hoàn thành &amp; điều kiện cần</legend>
+        <div id="pjProg"></div>
+        <div id="pjPre"></div>
+        <div id="pjLog"></div>
       </fieldset>
       <fieldset class="pj-sec"><legend>Nhân sự &amp; giám sát</legend>
         <div class="fld-row">
