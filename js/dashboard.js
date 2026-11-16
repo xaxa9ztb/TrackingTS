@@ -226,13 +226,16 @@ const Dashboard = (() => {
       swatWrap.style.display = '';
       // giờ tính SWAT: bỏ mã 1194 (NI Quality Hour — lỗi chất lượng, không phải lỗi lắp đặt)
       const counts = (typeof SwatItem !== 'undefined' && SwatItem.countsForSwat) ? SwatItem.countsForSwat : () => true;
-      const swatHours = mainRows.filter(counts).reduce((s, r) => s + (+r.total || 0), 0);
+      // và chỉ tính NI Technician: giờ của giám sát (Site Sup / PE / QLDA) không tính vào SWAT
+      const supQ = (typeof SwatItem !== 'undefined' && SwatItem.isSupPosition) ? (r) => SwatItem.isSupPosition((employeesById[r.empId] || {}).position || '') : (r) => isSupRole(r.empId);
+      const swatHours = mainRows.filter(r => counts(r) && !supQ(r)).reduce((s, r) => s + (+r.total || 0), 0);
+      const supH = mainRows.filter(r => counts(r) && supQ(r)).reduce((s, r) => s + (+r.total || 0), 0);
       Charts.renderGauge(document.getElementById('gaugeSwatSvg'), swatHours, swatTarget);
       document.getElementById('gaugeSwatValue').textContent = fmtVN(swatHours);
       document.getElementById('gaugeSwatMax').textContent = fmtVN(swatTarget);
       remainLabel(document.getElementById('gaugeSwatRemain'), swatHours, swatTarget);
-      const q = grand - swatHours;
-      document.getElementById('gaugeSwatValue').title = q > 0 ? `Không tính ${fmtVN(q)} giờ mã 1194 (NI Quality Hour)` : '';
+      const q = grand - swatHours - supH;
+      document.getElementById('gaugeSwatValue').title = [q > 0 ? `Không tính ${fmtVN(q)} giờ mã 1194 (NI Quality Hour)` : '', supH > 0 ? `Không tính ${fmtVN(supH)} giờ của giám sát (chỉ tính NI Technician)` : ''].filter(Boolean).join(' · ');
     } else {
       swatWrap.style.display = 'none';
     }

@@ -16,3 +16,9 @@ test('toToolItem: truyền Swat Hour Target đã xác nhận để công cụ c�
   assert.equal(S.toToolItem({ ...base, targetSwat: false, swatTargetHour: 256.1 }, 0).target, null, 'chưa xác nhận → không so');
   assert.equal(S.toToolItem({ ...base, targetSwat: true }, 0).target, null);
 });
+
+test('isSupPosition: giờ SWAT chỉ tính NI Technician — nhận diện chức danh giám sát (cùng quy tắc máy chủ)', () => {
+  const S = require('../../js/swatitem.js');
+  for (const pos of ['Site Supervisor', 'Site Sup', 'Project Engineer', 'Project Manager', 'Giám sát công trình', 'Quản lý dự án']) assert.equal(S.isSupPosition(pos), true, pos);
+  for (const pos of ['NI Technician', 'Fitter', 'T&C Technician', '', null]) assert.equal(S.isSupPosition(pos), false, String(pos));
+});

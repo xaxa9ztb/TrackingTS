@@ -10,7 +10,7 @@ const SwatPage = (() => {
   let lastResult = null;
   let currentWbs = '';
 
-  const SUP_TITLES = /superv|project\s*engineer|project\s*manager/i;
+  const isSup = (empId) => !!(employeesById[empId] && SwatItem.isSupPosition(employeesById[empId].position || ''));
 
   function frame() { return document.getElementById('swatFrame'); }
   function swatWin() { const f = frame(); return f && f.contentWindow; }
@@ -28,7 +28,8 @@ const SwatPage = (() => {
   }
 
   function usedHoursFor(wbs) {
-    return Math.round(timesheets.filter(t => t.wbs === wbs && SwatItem.countsForSwat(t))      // bỏ mã 1194 (lỗi chất lượng)
+    // bỏ mã 1194 (lỗi chất lượng) và giờ của giám sát: giờ SWAT chỉ tính NI Technician
+    return Math.round(timesheets.filter(t => t.wbs === wbs && SwatItem.countsForSwat(t) && !isSup(t.empId))
       .reduce((s, t) => s + (+t.total || 0), 0) * 10) / 10;
   }
 
@@ -46,7 +47,7 @@ const SwatPage = (() => {
     });
     return Object.values(byEmp).map(e => ({
       empId: e.empId, name: e.name, hours: Math.round(e.hours * 10) / 10,
-      role: (employeesById[e.empId] && SUP_TITLES.test(employeesById[e.empId].position || '')) ? 'sup' : 'fitter',
+      role: isSup(e.empId) ? 'sup' : 'fitter',
     }));
   }
 

@@ -315,3 +315,39 @@ main.pp-wrap { padding-block: 16px 40px; }
 .pj-bl .blv .sub { flex: 1; min-width: 140px; }
 .pl.var .blrow .lnk { border: 0; background: none; padding: 0 2px; color: var(--blue); font-weight: 600; cursor: pointer; font-size: 12px; }
 .pl.var .blrow .lnk:hover { text-decoration: underline; }
+
+/* Lịch trình dạng bảng Excel (giống sheet Plan): cuộn ngang, tiêu đề + cột tên dự án cố định */
+.xs-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin: 0 0 6px; align-items: center; }
+.xs-legend .lg { font-weight: 600; }
+.xs-legend .lg.done { color: var(--green); } .xs-legend .lg.late { color: var(--red); } .xs-legend .lg.soon { color: var(--amber); } .xs-legend .lg.xchk { color: var(--amber); }
+.xs-wrap { overflow: auto; max-height: calc(100vh - 230px); min-height: 240px; border: 1px solid var(--line-strong, #cbd5e1); border-radius: 8px; background: #fff; }
+.xs { border-collapse: separate; border-spacing: 0; font-size: 12.5px; min-width: 100%; }
+.xs th, .xs td { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 4px 6px; white-space: nowrap; vertical-align: top; }
+.xs thead th { position: sticky; top: 0; z-index: 2; background: #eef2f7; color: #1f2937; font-weight: 700; font-size: 11.5px; text-align: center; white-space: normal; line-height: 1.25; min-width: 0; border-bottom: 2px solid #94a3b8; }
+.xs .c-no { position: sticky; left: 0; z-index: 1; background: #f8fafc; text-align: center; color: var(--muted); width: 34px; min-width: 34px; }
+.xs .c-name { position: sticky; left: 34px; z-index: 1; background: #fff; min-width: 190px; max-width: 240px; white-space: normal; box-shadow: 2px 0 0 #cbd5e1; }
+.xs thead .c-no, .xs thead .c-name { z-index: 3; background: #e2e8f0; }
+.xs .c-name .pn { font-weight: 700; display: flex; gap: 6px; align-items: flex-start; }
+.xs .c-name .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; margin-top: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.xs .sub { color: var(--muted); font-size: 11px; }
+.xs .c-addr { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.xs .c-note { max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
+.xs .c-s { text-align: center; }
+.xs .c-ms { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; min-width: 64px; }
+.xs .c-ms.done { color: var(--green); background: #f0fdf4; }
+.xs .c-ms.late { color: var(--red); background: #fef2f2; }
+.xs .c-ms.soon { color: var(--amber); background: #fffbeb; }
+.xs .c-ms.xchk { color: var(--amber); background: #fff7ed; }
+.xs .c-ms.note { font-weight: 400; font-style: italic; color: var(--ink-2); max-width: 110px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.xs .c-ms .nt { font-style: normal; color: var(--blue); margin-left: 2px; }
+.xs .c-team { white-space: normal; min-width: 210px; max-width: 280px; }
+.xs .c-alert { white-space: normal; min-width: 260px; max-width: 340px; }
+.xs .c-alert .badge, .xs .c-team .fit { white-space: nowrap; }
+.xs tbody tr.row { cursor: pointer; }
+.xs tbody tr.row:nth-child(even) td:not(.c-ms) { background-color: #fbfcfe; }
+.xs tbody tr.row:hover td { filter: brightness(.97); }
+.xs tbody tr.row:focus-visible td { outline: 2px solid var(--blue); outline-offset: -2px; }
+.xs tbody tr.is-done td { color: var(--muted); }
+.xs tr.grp td { background: #f1f5f9; white-space: normal; position: sticky; left: 0; }
+.pctbar { display: inline-block; min-width: 44px; padding: 0 4px; border-radius: 4px; font-weight: 700; font-size: 11.5px; background: linear-gradient(90deg, #bbf7d0 var(--v), #f1f5f9 var(--v)); }
+@media (max-width: 860px) { .xs-wrap { max-height: calc(100vh - 180px); } .xs .c-name { min-width: 120px; max-width: 150px; } }

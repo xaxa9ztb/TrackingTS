@@ -219,7 +219,9 @@ async function hours(h, env, me, url) {
       return { empId: r.emp_id, name: e.full_name || r.name || r.emp_id, position: e.position || '', hours: Math.round((Number(r.hours) || 0) * 100) / 100,
         role: roles.includes('sitesup') || roles.includes('pm') ? 'sup' : 'fitter' };
     }).sort((a, b) => b.hours - a.hours);
-    return { wbs: w, total: Math.round(people.reduce((s, p) => s + p.hours, 0) * 100) / 100, people, excluded1194: ex.get(w) || 0 };
+    // giờ SWAT (total) chỉ tính NI Technician — giờ giám sát trả riêng (supHours), không cộng vào
+    const sumOf = (role) => Math.round(people.filter(p => p.role === role).reduce((s, p) => s + p.hours, 0) * 100) / 100;
+    return { wbs: w, total: sumOf('fitter'), supHours: sumOf('sup'), people, excluded1194: ex.get(w) || 0 };
   }) });
 }
 

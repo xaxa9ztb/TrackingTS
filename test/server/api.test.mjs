@@ -1341,6 +1341,17 @@ test('đơn nghỉ: chỉ Quản lý trực tiếp (và admin) nhận thư + duy
   assert.equal((await leaveCall('POST', `/api/ts/leave/${id}/cancel`, { email: 'ts3@example.com', body: {} })).status, 409, 'đã duyệt thì không tự huỷ');
 });
 
+test('lịch nghỉ cho Quản lý dự án: đơn đã duyệt + chờ duyệt trong khoảng ngày, không lộ lý do; fitter không xem được', async () => {
+  const cal = await leaveCall('GET', '/api/ts/leave/calendar?from=2027-08-01&to=2027-08-31', { email: 'ap3@example.com' });
+  assert.equal(cal.status, 200, JSON.stringify(cal.data));
+  const it = cal.data.items.find(x => x.empId === 'TS3');
+  assert.ok(it, 'có đơn đã duyệt của TS3'); assert.equal(it.status, 'approved'); assert.deepEqual([it.from, it.to], ['2027-08-18', '2027-08-20']);
+  assert.ok(it.days.includes('2027-08-18')); assert.equal(it.reason, undefined, 'không trả lý do nghỉ');
+  assert.equal((await leaveCall('GET', '/api/ts/leave/calendar?from=2027-09-01&to=2027-09-30', { email: 'ap3@example.com' })).data.items.filter(x => x.empId === 'TS3').length, 0);
+  assert.equal((await leaveCall('GET', '/api/ts/leave/calendar?from=2027-08-01&to=2027-08-31', { email: 'ts3@example.com' })).status, 403);
+  assert.equal((await leaveCall('GET', '/api/ts/leave/calendar?from=x&to=2027-08-31', { email: 'ap3@example.com' })).status, 400);
+});
+
 test('đơn nghỉ: nghỉ phép phải duyệt TRƯỚC giờ bắt đầu; không duyệt kèm lý do; huỷ đơn chờ; người xin nghỉ không có quản lý trực tiếp → admin; kỳ đã nộp không ghi', async () => {
   await env.DB.prepare("DELETE FROM ts_leave").run();
   let r = await leaveReq('ts3@example.com', { type: '6010', from: '2027-08-25', to: '2027-08-25' });
@@ -2167,6 +2178,20 @@ test('Incentive: giờ công tính thưởng SWAT không gồm mã 1194 (NI Qual
   const p = (await call('GET', '/api/incentive/hours?wbs=Q-1194', { email: A })).data.projects[0];
   assert.deepEqual([p.total, p.excluded1194], [16, 12]);
   assert.deepEqual(p.people.map(x => [x.empId, x.hours]).sort(), [['TS1', 8], ['TS2', 8]]);
+});
+
+test('Incentive: giờ SWAT chỉ tính NI Technician — giờ giám sát không cộng vào tổng (trả riêng supHours)', async () => {
+  const A = 'boss@example.com';
+  await call('POST', '/api/admin/import', { email: A, body: { employees: [{ empId: 'GS9', fullName: 'Giám Sát Chín', position: 'Site Supervisor' }, { empId: 'NT9', fullName: 'Thợ Chín', position: 'NI Technician' }] } });
+  const meta = (await call('GET', '/api/timesheets/meta', { email: A })).data;
+  const keep = [];
+  for (let after = 0; ;) { const p = (await call('GET', '/api/timesheets?after=' + after, { email: A })).data; keep.push(...p.rows); if (p.next == null) break; after = p.next; }
+  const row = (emp, date, total) => ({ empId: emp, empName: 'x', date, timeFrom: '08:00', timeTo: '17:00', normal: total, total, activities: '1110', wbs: 'SUP-9' });
+  const up = await uploadTs(A, [...keep, row('NT9', '2032-02-02', 8), row('NT9', '2032-02-03', 6), row('GS9', '2032-02-02', 8)], { baseVersion: meta.version });
+  assert.equal(up.commit.status, 200, JSON.stringify(up.commit.data));
+  const p = (await call('GET', '/api/incentive/hours?wbs=SUP-9', { email: A })).data.projects[0];
+  assert.deepEqual([p.total, p.supHours], [14, 8]);
+  assert.deepEqual(p.people.map(x => [x.empId, x.role]).sort(), [['GS9', 'sup'], ['NT9', 'fitter']]);
 });
 
 test('Incentive: gộp tên không dấu / đảo thứ tự ("SUU TRI NGO") vào nhân viên có Mã NV — tự gắn khi lưu + nút gộp các đợt cũ', async () => {

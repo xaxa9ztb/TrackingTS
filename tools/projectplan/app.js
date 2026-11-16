@@ -33,7 +33,7 @@
   ui.weeks = ui.weeks || (window.innerWidth < 700 ? 2 : 4);
   ui.tab = ui.tab || 'alloc';
   let viewStart = mondayOf(today());
-  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, actMode: ui.actMode, blWhich: ui.blWhich })); } catch (e) { /* bỏ qua */ } };
+  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, sheet1: ui.sheet1, insView: ui.insView, actMode: ui.actMode, blWhich: ui.blWhich })); } catch (e) { /* bỏ qua */ } };
   function save() {
     data.updatedAt = new Date().toISOString();
     try { localStorage.setItem(KEY, JSON.stringify(data)); }
@@ -732,14 +732,16 @@
     const badges = (p) => modeBadge(p) + (p.province ? '<span class="badge">Tỉnh</span>' : '') + (p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : '') + (p.done ? '<span class="badge ok">Hoàn thành</span>' : '');
     const alertHtml = (p) => alertsOf(p, t).map(a => `<span class="badge ${a.c}">${esc(a.s)}</span>`).join('');
     planShown = list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date));
-    const gv = ui.planView === 'gantt', vv = ui.planView === 'var';
-    $('planViewList').setAttribute('aria-pressed', String(!gv && !vv)); $('planViewGantt').setAttribute('aria-pressed', String(gv)); $('planViewVar').setAttribute('aria-pressed', String(vv));
-    $('planList').hidden = gv || vv; $('planGantt').hidden = !gv; $('planVar').hidden = !vv; $('upcoming').hidden = gv || vv;
+    const gv = ui.planView === 'gantt', vv = ui.planView === 'var', sv = ui.planView === 'sheet';
+    $('planViewSheet').setAttribute('aria-pressed', String(sv));
+    $('planViewList').setAttribute('aria-pressed', String(!gv && !vv && !sv)); $('planViewGantt').setAttribute('aria-pressed', String(gv)); $('planViewVar').setAttribute('aria-pressed', String(vv));
+    $('planList').hidden = gv || vv; $('planGantt').hidden = !gv; $('planVar').hidden = !vv; $('upcoming').hidden = gv || vv || sv;
     $('blBar').hidden = !gv && !vv; renderBlBar();
     if (vv) { renderVar(list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date))); return; }
     $('planMine').hidden = !data.projects.some(isMine);
     if (gv) { if (list.length) renderGantt(list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date))); else $('planGantt').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
     if (!list.length) { $('planList').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
+    if (ui.planView === 'sheet') { renderSheet(list, t); return; }
     let h = `<table class="pl"><thead><tr><th>Dự án</th><th>Thang</th><th>Hàng</th><th>Lắp đặt</th><th>Nhân sự</th><th>Giám sát · cảnh báo</th></tr></thead><tbody>`;
     const gridOnly = list.filter(p => p.fromGrid).length;
     const grpRow = `<tr class="grp"><td colspan="6"><b>Tên chỉ có trong lưới nhân sự (${gridOnly})</b> — chưa có trong sheet Plan: bấm để bổ sung thông tin, hoặc gộp vào dự án đúng.</td></tr>`;
@@ -765,8 +767,54 @@
     $('planList').innerHTML = h + '</div>';
   }
 
+  // ---------- lịch trình dạng bảng Excel: đúng thứ tự cột sheet "Plan", mỗi mốc 1 cột ----------
+  const dmy2 = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : '');
+  function sheetMs(m, t) {
+    if (!m) return '<td class="c-ms"></td>';
+    if (m.check) return `<td class="c-ms xchk" title="Ngày có thể nhập nhầm định dạng — mở dự án để kiểm tra">⚠ ${dmy2(m.date)}</td>`;
+    if (m.done) return `<td class="c-ms done" title="${esc(m.note || 'Đã xong')}">✓ ${m.date ? dmy2(m.date) : 'xong'}</td>`;
+    if (m.date) { const c = m.date < t ? 'late' : m.date <= P.addDays(t, 7) ? 'soon' : ''; return `<td class="c-ms ${c}"${m.note ? ` title="${esc(m.note)}"` : ''}>${dmy2(m.date)}${m.note ? '<i class="nt">•</i>' : ''}</td>`; }
+    if (m.note) return `<td class="c-ms note" title="${esc(m.note)}">${esc(m.note)}</td>`;
+    return '<td class="c-ms"></td>';
+  }
+  function renderSheet(list, t) {
+    const I = window.PMInsights, ms = (k) => P.MILESTONES.find(m => m.key === k);
+    const msKeys = ['factory', 'port', 'arrival', 'shaftReady', 'ownerStart', 'teamStart', 'mechDone', 'testReady', 'handover'];
+    const cols = [['STT', 'c-no'], ['Tên dự án', 'c-name'], ['Địa chỉ', 'c-addr'], ['Tỉnh', 'c-s'], ['SL', 'c-s'], ['Loại thang', 'c-m'], ['Hành trình', 'c-m'], ['Tải trọng', 'c-m'], ['Điểm dừng', 'c-s']];
+    const head = cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('') +
+      msKeys.map((k, i) => `<th class="c-ms" title="${esc(ms(k).label)}">${esc(ms(k).short)}</th>${i === 0 ? '<th class="c-m">PT vận chuyển</th>' : ''}`).join('') +
+      `<th class="c-m">Hình thức</th><th class="c-team">Nhân sự</th>${I ? '<th class="c-s" title="% hoàn thành theo công đoạn">% HT</th>' : ''}<th class="c-note">Ghi chú</th><th class="c-m">Giám sát</th><th class="c-s">Xong</th><th class="c-alert">Cảnh báo</th>`;
+    const ncol = cols.length + msKeys.length + 7 + (I ? 1 : 0);
+    const gridOnly = list.filter(p => p.fromGrid).length;
+    let n = 0;
+    const body = list.map((p, i) => {
+      const grp = p.fromGrid && (i === 0 || !list[i - 1].fromGrid) ? `<tr class="grp"><td colspan="${ncol}"><b>Tên chỉ có trong lưới nhân sự (${gridOnly})</b> — chưa có trong sheet Plan: bấm để bổ sung thông tin, hoặc gộp vào dự án đúng.</td></tr>` : '';
+      const load = p.load !== '' && p.load != null ? (typeof p.load === 'number' ? p.load + 'kg' : p.load) : '';
+      const pct = I ? I.progressPct(p) : null;
+      const alerts = alertsOf(p, t);
+      const team = [p.teamPlan ? esc(p.teamPlan) : '', fittersOf(p, t)].filter(Boolean).join(' ');
+      return grp + `<tr class="row${p.done ? ' is-done' : ''}" data-p="${esc(p.id)}" tabindex="0">
+        <td class="c-no">${++n}</td>
+        <td class="c-name"><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i><span>${esc(p.name)}</span></div>${p.wbs ? `<div class="sub">${esc(p.wbs)}</div>` : ''}${p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : ''}</td>
+        <td class="c-addr" title="${esc(p.address)}">${esc(p.address)}</td>
+        <td class="c-s">${p.province === true ? 'Có' : p.province === false ? 'Không' : ''}</td>
+        <td class="c-s">${esc(p.liftCount)}</td><td class="c-m">${esc(p.liftType)}</td><td class="c-m">${esc(p.travel)}</td><td class="c-m">${esc(load)}</td><td class="c-s">${esc(p.stops)}</td>
+        ${msKeys.map((k, j) => sheetMs(p[k], t) + (j === 0 ? `<td class="c-m">${esc(p.transport)}</td>` : '')).join('')}
+        <td class="c-m">${p.mode ? esc(P.MODES[p.mode]) + (p.mode !== 'in' && p.subcon ? `<div class="sub">${esc(p.subcon)}</div>` : '') : ''}</td>
+        <td class="c-team">${team}</td>
+        ${I ? `<td class="c-s">${pct == null ? '' : `<span class="pctbar" style="--v:${pct}%">${pct}%</span>`}</td>` : ''}
+        <td class="c-note" title="${esc(p.note)}">${esc(p.note)}</td>
+        <td class="c-m">${esc(p.supervisor)}</td>
+        <td class="c-s">${p.done ? '<span class="badge ok">Xong</span>' : ''}</td>
+        <td class="c-alert">${alerts.map(a => `<span class="badge ${a.c}">${esc(a.s)}</span>`).join('')}</td></tr>`;
+    }).join('');
+    $('planList').innerHTML = `<div class="xs-legend"><span class="lg done">✓ đã xong</span><span class="lg late">quá hạn</span><span class="lg soon">trong 7 ngày</span><span class="lg xchk">⚠ cần kiểm tra ngày</span><span>• có ghi chú (rê chuột / mở dự án)</span><span class="hint">Bấm một dòng để sửa dự án.</span></div>
+      <div class="xs-wrap"><table class="xs"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
   // ---------- lịch trình dạng Gantt (giám sát xem lại nhanh) ----------
-  ui.planView = ui.planView || 'list';
+  if (!ui.sheet1) { ui.sheet1 = 1; if (!ui.planView || ui.planView === 'list') ui.planView = 'sheet'; }
+  ui.planView = ui.planView || 'sheet';
   const ganttSpan = () => ({ from: P.addDays(today(), -30), to: P.addDays(today(), 150) });
   function renderGantt(list) {
     const t = today(), sp = ganttSpan(), days = P.daysBetween(sp.from, sp.to), PX = 6;      // 6 px / ngày
@@ -807,6 +855,7 @@
     const sc = $('planGantt').querySelector('.gt-scroll'); sc.scrollLeft = Math.max(0, idx(t) - 160);
   }
   function setPlanView(v) { ui.planView = v; saveUI(); render(); }
+  $('planViewSheet').addEventListener('click', () => setPlanView('sheet'));
   $('planViewList').addEventListener('click', () => setPlanView('list'));
   $('planViewGantt').addEventListener('click', () => setPlanView('gantt'));
   $('planViewVar').addEventListener('click', () => setPlanView('var'));

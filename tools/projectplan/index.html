@@ -18,7 +18,7 @@
 <script src="../../js/db.js?v=37"></script>
 <script src="../../js/cloud.js?v=43"></script>
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="projectplan" data-tool="Quản lý dự án" data-help="#ql-dieuphoi"></script>
@@ -106,7 +106,7 @@
       <label class="pp-field-inline">Giám sát <select id="planSup"><option value="">Tất cả</option></select></label>
       <button type="button" class="btn" id="planMine" title="Chỉ các dự án do tôi giám sát" hidden>Dự án của tôi</button>
       <div class="seg-btns" role="group" aria-label="Cách xem lịch trình">
-        <button type="button" id="planViewList" aria-pressed="true">Danh sách</button><button type="button" id="planViewGantt" aria-pressed="false">Lịch trình (Gantt)</button><button type="button" id="planViewVar" aria-pressed="false">Sai lệch</button>
+        <button type="button" id="planViewSheet" aria-pressed="true" title="Bảng giống sheet Plan trong Excel: mỗi mốc một cột">Bảng</button><button type="button" id="planViewList" aria-pressed="false">Thẻ</button><button type="button" id="planViewGantt" aria-pressed="false">Lịch trình (Gantt)</button><button type="button" id="planViewVar" aria-pressed="false">Sai lệch</button>
       </div>
       <button type="button" class="btn btn-primary" id="addProject">+ Dự án</button>
     </div>
@@ -330,9 +330,10 @@
 
 <script src="../../js/xlsx.full.min.js?v=36"></script>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="pmio.js?v=5"></script>
+<script src="pmio.js?v=6"></script>
+<script src="insights.js?v=1"></script>
 <script src="actual.js?v=2"></script>
 <script src="../../js/rangecal.js?v=2"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
