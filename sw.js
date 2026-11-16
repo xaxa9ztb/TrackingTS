@@ -7,7 +7,7 @@
 //  - Google Drive / đăng nhập Google: KHÔNG lưu đệm (dữ liệu đã có IndexedDB lo).
 //
 // Khi đổi danh sách file bên dưới hoặc cách lưu đệm: tăng VERSION.
-const VERSION = 'v143';
+const VERSION = 'v144';
 const SHELL = `toolset-shell-${VERSION}`;
 const CDN = 'toolset-cdn-v1';
 const HTML_TIMEOUT = 4000;
@@ -24,7 +24,7 @@ const SHELL_FILES = [
   './tools/timesheet/tailwind.css', './tools/timesheet/ts-template.xlsx', './tools/timesheet/phucap-xe-template.xlsx',
   './tools/tiendotm/', './tools/tiendotm/index.html',
   './tools/bracket/', './tools/bracket/index.html', './tools/bracket/bracket.js', './tools/bracket/app.js', './tools/bracket/style.css', './tools/bracket/report.js', './tools/bracket/report.css', './tools/bracket/bracket-template.xlsx',
-  './tools/projectplan/', './tools/projectplan/index.html', './tools/projectplan/app.js', './tools/projectplan/pmio.js', './tools/projectplan/actual.js', './tools/projectplan/style.css',
+  './tools/projectplan/', './tools/projectplan/index.html', './tools/projectplan/app.js', './tools/projectplan/pmio.js', './tools/projectplan/insights.js', './tools/projectplan/actual.js', './tools/projectplan/style.css',
   './tools/tiendotm/hoso_chatluong_template.docx', './tools/tiendotm/thu_hangve_template.docx', './tools/tiendotm/chungtu.js',
   './tools/tiendotm/docxkit.js', './tools/tiendotm/hsletters.js', './tools/tiendotm/hslegal.js', './tools/tiendotm/hsdrawing.js', './tools/tiendotm/hoso.js',
   './tools/tiendotm/nhatky_template.docx', './tools/tiendotm/bbxn_hangve_template.docx', './tools/tiendotm/bangiao_template.docx',

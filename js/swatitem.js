@@ -58,6 +58,11 @@
   const SWAT_EXCLUDE = ['1194'];
   const actCode = (a) => String(a == null ? '' : a).replace(/\s+/g, '').slice(0, 4);
   const countsForSwat = (row) => !SWAT_EXCLUDE.includes(actCode(row && row.activities));
-  const api = { detectProduct, isSwatProject, spec, numTok, toToolItem, SWAT_EXCLUDE, countsForSwat };
+  // Giờ công SWAT chỉ tính NI Technician: KHÔNG tính giờ giám sát (Site Sup / Supervisor / Project Engineer / QLDA)
+  // — cùng quy tắc chức danh với server/roles.mjs (sitesup, pm)
+  const plainPos = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, ' ').trim();
+  const SUP_RE = /superv|site ?sup|project ?engineer|giam sat|project ?manager|quan ly du an/;
+  const isSupPosition = (pos) => SUP_RE.test(plainPos(pos));
+  const api = { detectProduct, isSwatProject, spec, numTok, toToolItem, SWAT_EXCLUDE, countsForSwat, isSupPosition };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SwatItem = api;
 })(typeof window !== 'undefined' ? window : globalThis);

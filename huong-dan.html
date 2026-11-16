@@ -245,6 +245,7 @@
             <li><a href="#ql-dieuphoi">Điều phối nhân sự</a></li>
             <li><a href="#ql-lichtrinh">Lịch trình dự án</a></li>
             <li><a href="#ql-thucte">Thực tế &amp; bám kế hoạch</a></li>
+            <li><a href="#ql-phantich">Phân tích (nguồn lực, cảnh báo, PPC, báo cáo tuần)</a></li>
             <li><a href="#ql-tiendo">Bảng tiến độ thi công</a></li>
           </ol></li>
         <li class="grp"><a href="#quantri"><span class="sw" style="--c: var(--c-admin)"></span>5. Quản trị viên</a></li>
@@ -582,7 +583,7 @@
       <li><b>Khoảng thời gian</b> — bấm nút 📅 mở lịch, chạm ngày bắt đầu rồi ngày kết thúc (« » chuyển năm, ‹ › chuyển tháng), hoặc kéo thanh trượt.</li>
       <li>Tab <b>Dự án theo tháng</b> — chọn kỳ chấm công (16 → 15): tổng giờ công đã charge vào từng dự án; bấm dự án để xem nhân sự và số giờ của từng người, bấm <b>+</b> để xem chính xác các ngày. Ô tìm kiếm nhận tên / mã nhân viên, tên dự án, WBS.</li>
       <li>Tab <b>Bảng công</b> — xem từng dòng giờ công (gồm cả Excel nạp hằng tháng và bảng công đã duyệt).</li>
-      <li>Tab <b>SWAT</b> — tính SWAT Hour, so sánh với giờ thực tế, xuất báo cáo.</li>
+      <li>Tab <b>SWAT</b> — tính SWAT Hour, so sánh với giờ thực tế (chỉ tính giờ NI Technician, không tính giờ giám sát và mã 1194), xuất báo cáo.</li>
     </ol>
     <figure class="shot"><img src="docs/huong-dan/tracking-range.jpg" alt="Chọn khoảng thời gian trên lịch" loading="lazy" width="1280" height="800"><figcaption>Khoảng thời gian: bấm nút lịch, chạm ngày đầu rồi ngày cuối — chỉ chọn được ngày có dữ liệu của dự án</figcaption></figure>
     <p>Hướng dẫn chi tiết các biểu đồ, báo cáo PDF / Excel: <a href="docs/Huong-dan-su-dung-nguoi-dung.pdf" target="_blank" rel="noopener">Hướng dẫn Thống kê giờ công (PDF)</a>.</p>
@@ -632,9 +633,10 @@
       <b>Thay toàn bộ</b> phần đã chọn. Hộp thoại báo trước sẽ thêm / cập nhật / xoá bao nhiêu; nhập xong vẫn <b>Hoàn tác</b> được.</p></div>
 
     <h3 id="ql-lichtrinh">4.3. Lịch trình dự án</h3>
-    <figure class="shot"><img src="docs/huong-dan/pp-list.jpg" alt="Lịch trình dự án dạng danh sách" loading="lazy" width="1280" height="800"><figcaption>Dạng danh sách</figcaption></figure>
+    <figure class="shot"><img src="docs/huong-dan/pp-sheet.jpg" alt="Lịch trình dự án dạng bảng Excel" loading="lazy" width="1366" height="860"><figcaption>Dạng <b>Bảng</b> (mặc định) — giống sheet Plan trong file Excel: mỗi mốc một cột</figcaption></figure>
     <ol class="legend">
-      <li><b>Sắp tới 14 ngày</b> — các mốc sắp đến và mốc <b>đã qua chưa xác nhận</b> (đỏ).</li>
+      <li><b>Bảng</b> — cột theo đúng thứ tự sheet <i>Plan</i> (STT, tên, địa chỉ, tỉnh, số lượng, loại thang, hành trình, tải trọng, điểm dừng, xuất xưởng, PT vận chuyển, về cảng, hàng về, XD giao hố, CĐT yêu cầu, nhận hố, xong cơ khí, sẵn sàng test, bàn giao, hình thức, nhân sự, % hoàn thành, ghi chú, giám sát). Ô mốc tô màu: <b style="color:#15803d">✓ xanh</b> đã xong, <b style="color:#b91c1c">đỏ</b> quá hạn, <b style="color:#b45309">vàng</b> trong 7 ngày tới, ⚠ cần kiểm tra ngày. Dòng tiêu đề và cột tên dự án <b>đứng yên</b> khi cuộn ngang / dọc. Bấm một dòng để sửa dự án.</li>
+      <li><b>Thẻ</b> — cách xem cũ (mỗi dự án một khối, có khung <b>Sắp tới 14 ngày</b>: các mốc sắp đến và mốc <b>đã qua chưa xác nhận</b>).</li>
       <li>Mỗi dự án: thông số thang, mốc hàng (xuất xưởng, về cảng, hàng về), mốc lắp đặt (giao hố, CĐT yêu cầu, nhận hố, bàn giao), fitter đang phân công, giám sát và cảnh báo.</li>
     </ol>
     <figure class="shot"><img src="docs/huong-dan/pp-gantt.jpg" alt="Lịch trình dạng Gantt" loading="lazy" width="1280" height="800"><figcaption>Dạng Gantt — xem nhanh toàn cảnh</figcaption></figure>
@@ -658,6 +660,16 @@
     <figure class="shot"><img src="docs/huong-dan/pp-variance.jpg" alt="Bảng sai lệch so với baseline" loading="lazy" width="1366" height="840"><figcaption>Sai lệch: mỗi dự án so với baseline của riêng nó (📌 Chốt / Chốt lại ở từng dòng), thực tế theo chấm công, giờ công so với định mức</figcaption></figure>
     <p>Ở chế độ <b>Lịch trình (Gantt)</b>, dự án đã chốt baseline có thêm một <b>vạch đứt xám</b> là thời gian lắp đặt theo baseline của dự án đó — nhìn là thấy thanh màu hiện tại đã trượt bao xa.</p>
 
+    <h4>% hoàn thành, điều kiện cần, lý do dời mốc</h4>
+    <ul>
+      <li>Trong hộp thoại dự án, mục <b>% hoàn thành &amp; điều kiện cần</b>: nhập % từng công đoạn (Ray &amp; giá đỡ 25%, Cửa tầng 20%, Cabin &amp; đối trọng 20%, Máy &amp; tủ điện 15%, Đấu điện &amp; cáp 10%, Chạy thử &amp; test 10%) → app tính <b>% hoàn thành</b> có trọng số, hiện ở cột <b>% HT</b> của Bảng.</li>
+      <li><b>Điều kiện cần trước khi lắp</b>: hố / mặt bằng, hàng về, điện thi công, giàn giáo / an toàn — tick khi đã sẵn sàng (hố, hàng về tự tick khi mốc đã xác nhận xong). Dùng cho kế hoạch 3 tuần.</li>
+      <li><b>Đổi ngày một mốc đã có</b> → hiện ô <b>lý do dời mốc</b> (hố chưa giao, hàng về trễ, thiếu nhân lực, CĐT yêu cầu, thiết kế, chưa có điện, thời tiết, subcon chậm, lỗi chất lượng, khác). App ghi lịch sử dời mốc (ai, ngày cũ → ngày mới, lý do) để thống kê lý do trễ và đánh giá subcon.</li>
+    </ul>
+    <h4>Gợi ý fitter khi phân công</h4>
+    <figure class="shot"><img src="docs/huong-dan/pp-suggest.jpg" alt="Gợi ý fitter trong hộp phân công" loading="lazy" width="1366" height="900"><figcaption>Hộp phân công: chọn dự án + khoảng ngày → app gợi ý fitter</figcaption></figure>
+    <p>Chọn dự án và khoảng ngày, app gợi ý tối đa 4 fitter công ty: ưu tiên người <b>trống nhiều ngày</b> trong khoảng đó, <b>đã lắp cùng loại thang</b> (theo chấm công + dòng sản phẩm của dự án chung), có kinh nghiệm <b>dự án tỉnh</b>, đã làm chính dự án này; trừ ngày <b>nghỉ phép</b> (bản máy chủ). Bấm tên để chọn.</p>
+
     <h3 id="ql-thucte">4.4. Thực tế &amp; bám kế hoạch</h3>
     <p>So <b>kế hoạch điều phối</b> với <b>chấm công thực tế</b> (bảng Theo dõi giờ công) để biết fitter có làm đúng dự án như kế hoạch không và đánh giá chất lượng lên kế hoạch của giám sát.</p>
     <figure class="shot"><img src="docs/huong-dan/pp-actual.jpg" alt="So sánh kế hoạch với thực tế" loading="lazy" width="1280" height="800"><figcaption>So sánh với kế hoạch (theo tháng)</figcaption></figure>
@@ -672,6 +684,18 @@
       <figure class="shot"><img src="docs/huong-dan/pp-actual-gantt.jpg" alt="Gantt nhân sự thực tế" loading="lazy" width="1280" height="800"><figcaption>Gantt thực tế: fitter thật sự làm dự án nào trong tháng</figcaption></figure>
     </div>
     <div class="note warn"><p>Muốn đối chiếu được: fitter trong lưới phải <b>liên kết mã NV</b> (thêm bằng “+ Từ dữ liệu nhân sự” hoặc bấm tên fitter để liên kết) và dự án phải có <b>WBS</b>. Phân công <b>dự kiến</b> và ngày nghỉ không có người đi làm không bị tính.</p></div>
+
+    <h3 id="ql-phantich">4.4b. Phân tích: nguồn lực, cảnh báo, 3 tuần tới &amp; PPC, subcon, báo cáo tuần</h3>
+    <p>Tab <b>Phân tích</b> của Quản lý dự án tự tổng hợp từ lịch trình, phân công, baseline, chấm công và <b>nghỉ phép</b> (đơn đã duyệt + đang chờ duyệt, chỉ ở bản máy chủ).</p>
+    <figure class="shot"><img src="docs/huong-dan/pp-ins-load.jpg" alt="Tải nguồn lực theo tuần" loading="lazy" width="1366" height="900"><figcaption>Tải nguồn lực theo tuần</figcaption></figure>
+    <ul>
+      <li><b>Tải nguồn lực</b> — mỗi tuần: công suất (số fitter công ty × ngày làm việc), đã phân công, dự kiến, nghỉ phép, còn trống, <b>% tải</b> (xanh bình thường, vàng ≥ 85%, đỏ quá tải, xanh dương &lt; 50% còn nhiều người trống); dự án đang trong thời gian lắp mà <b>chưa có người</b> (dự án subcon: chưa có đội); số dự án <b>cần test</b> so với số tester (chức danh T&amp;C).</li>
+      <li><b>Cảnh báo</b> (6 tuần tới) — fitter nghỉ phép trùng ngày phân công, xếp người trước khi hàng về / giao hố, giờ đã chấm + phân công tới vượt định mức, thiếu tester, một công ty subcon nhận quá nhiều dự án cùng lúc, sắp nhận hố mà chưa có người. Bấm cảnh báo để mở dự án.</li>
+      <li><b>3 tuần tới &amp; PPC</b> — các mốc đến hạn trong 3 tuần kèm điều kiện cần (✓ / ✗, bấm ✗ để đánh dấu đã sẵn sàng). Đầu tuần bấm <span class="btnlike pri">✔ Cam kết tuần này</span>; cuối tuần đánh dấu <b>Đạt / Không đạt</b> + lý do (mốc đã xác nhận xong tự thành Đạt). <b>PPC</b> = tỉ lệ việc cam kết hoàn thành theo tuần.</li>
+      <li><b>Subcon &amp; lý do trễ</b> — mỗi công ty subcon: số dự án, tỉ lệ bàn giao đúng hạn so với baseline, trễ trung bình, lý do hay gặp; thống kê lý do dời mốc của tất cả dự án.</li>
+      <li><b>Báo cáo tuần</b> — dự án trễ, mốc tuần này + tuần sau, mốc quá hạn, nguồn lực, cảnh báo, lý do trễ, subcon. Bấm <span class="btnlike">🖨 In / Lưu PDF</span> để gửi.</li>
+    </ul>
+    <figure class="shot"><img src="docs/huong-dan/pp-ins-look.jpg" alt="Kế hoạch 3 tuần và PPC" loading="lazy" width="1366" height="1082"><figcaption>Kế hoạch 3 tuần tới, cam kết tuần và PPC</figcaption></figure>
 
     <h3 id="ql-tiendo">4.5. Bảng tiến độ thi công</h3>
     <figure class="shot"><img src="docs/huong-dan/hs-schedule.jpg" alt="Lập bảng tiến độ" loading="lazy" width="1280" height="860"><figcaption>Hồ sơ chất lượng → <b>Lập bảng tiến độ thi công</b></figcaption></figure>
@@ -739,7 +763,7 @@
           <li>Dự án <b>đã trả 70%</b>: đợt cuối <b>30%</b> khi đã final bàn giao, hoặc <b>20%</b> khi quá 6 tháng mà chưa final bàn giao. App nhắc số tháng kể từ đợt trả đầu.</li>
           <li><b>Site-sup ở đợt cuối:</b> đợt 30% — nhập <b>Ngày bàn giao khách hàng</b> và <b>Ngày final bàn giao</b> (bước 4); final quá <b>60 ngày</b> kể từ ngày bàn giao khách hàng thì Site-sup = 0. Đợt 20% (firstpass quá 6 tháng chưa final): Site-sup luôn = 0. Fitter vẫn chia theo giờ công.</li>
         </ul></li>
-      <li><b>2. Standard Hour</b> và <b>3. Scorecard</b>: bảng SWAT của từng dự án mở ngay trong trang (thông số lấy từ <i>Thống kê giờ công dự án</i>, giờ đã dùng lấy từ <i>Theo dõi giờ công</i>).
+      <li><b>2. Standard Hour</b> và <b>3. Scorecard</b>: bảng SWAT của từng dự án mở ngay trong trang (thông số lấy từ <i>Thống kê giờ công dự án</i>, giờ đã dùng lấy từ <i>Theo dõi giờ công</i> — <b>chỉ tính giờ NI Technician</b>: giờ của giám sát (Site Sup / Supervisor / Project Engineer / QLDA) và mã 1194 không cộng vào giờ SWAT).
         <ul>
           <li>Xem, sửa, rồi bấm <span class="btnlike pri">Duyệt</span>. Thông số được lưu vào dự án để lần sau dùng lại.</li>
           <li>Duyệt Scorecard thì quỹ thưởng Fitter / Site-sup của dự án lấy theo Scorecard (thưởng / unit × số unit).</li>

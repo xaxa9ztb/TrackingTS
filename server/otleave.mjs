@@ -290,6 +290,18 @@ async function leaveInboxRows(env, me) {
   return results.filter(r => canLeave(me, r));
 }
 
+// Lịch nghỉ (đã duyệt + đang chờ duyệt) của mọi nhân viên trong khoảng ngày — cho Quản lý dự án kiểm tra xung đột
+// phân công và tính nguồn lực. Chỉ trả mã NV, ngày, loại, trạng thái (không có lý do nghỉ).
+async function leaveCalendar(h, env, me, url) {
+  h.need(me, 'sitesup', 'pm', 'projadmin');
+  const from = url.searchParams.get('from') || '', to = url.searchParams.get('to') || '';
+  if (!DATE_RE.test(from) || !DATE_RE.test(to) || to < from || daysBetween(from, to) > 400) return h.json({ error: 'Khoảng ngày không hợp lệ (tối đa 400 ngày)' }, 400);
+  const { results } = await env.DB.prepare(`SELECT emp_id, type, date_from, date_to, days, status FROM ts_leave
+    WHERE status IN ('approved', 'pending') AND date_to >= ? AND date_from <= ? ORDER BY date_from LIMIT 2000`).bind(from, to).all();
+  return h.json({ from, to, items: results.map(r => ({ empId: r.emp_id, type: r.type, from: r.date_from, to: r.date_to, status: r.status,
+    days: parse(r.days, []).map(d => d.date).filter(Boolean) })) });
+}
+
 async function leaveInbox(h, env, me) {
   h.need(me, 'sitesup', 'pm');
   const now = nowMs(env);
@@ -376,6 +388,7 @@ export async function routeOtLeave(h, env, me, path, method, url, request) {
   if (path === '/api/ts/leave' && method === 'POST') return createLeave(h, env, me, request);
   if (path === '/api/ts/leave/mine' && method === 'GET') return myLeaves(h, env, me);
   if (path === '/api/ts/leave/inbox' && method === 'GET') return leaveInbox(h, env, me);
+  if (path === '/api/ts/leave/calendar' && method === 'GET') return leaveCalendar(h, env, me, url);
   if ((m = path.match(/^\/api\/ts\/leave\/(\d{1,9})\/cancel$/)) && method === 'POST') return cancelLeave(h, env, me, +m[1]);
   if ((m = path.match(/^\/api\/ts\/leave\/(\d{1,9})\/(approve|reject)$/)) && method === 'POST') return decideLeave(h, env, me, +m[1], m[2], request);
   return null;

@@ -29,11 +29,12 @@
     return P.emptyData();
   }
   let data = P.fix(load());
+  const IN = window.PMInsights;      // Đợt 2 + 3: tải nguồn lực, cảnh báo, 3 tuần + PPC, subcon, báo cáo tuần (insights.js)
   let ui = (() => { try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { return {}; } })();
   ui.weeks = ui.weeks || (window.innerWidth < 700 ? 2 : 4);
   ui.tab = ui.tab || 'alloc';
   let viewStart = mondayOf(today());
-  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, actMode: ui.actMode, blWhich: ui.blWhich })); } catch (e) { /* bỏ qua */ } };
+  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab, weeks: ui.weeks, started: ui.started, planView: ui.planView, sheet1: ui.sheet1, insView: ui.insView, actMode: ui.actMode, blWhich: ui.blWhich })); } catch (e) { /* bỏ qua */ } };
   function save() {
     data.updatedAt = new Date().toISOString();
     try { localStorage.setItem(KEY, JSON.stringify(data)); }
@@ -239,12 +240,14 @@
     $('viewAlloc').hidden = empty || ui.tab !== 'alloc';
     $('viewPlan').hidden = empty || ui.tab !== 'plan';
     $('viewActual').hidden = empty || ui.tab !== 'actual';
+    $('viewInsight').hidden = empty || ui.tab !== 'insight';
+    $('tabInsight').setAttribute('aria-selected', String(ui.tab === 'insight'));
     $('tabAlloc').setAttribute('aria-selected', String(ui.tab === 'alloc'));
     $('tabPlan').setAttribute('aria-selected', String(ui.tab === 'plan'));
     $('tabActual').setAttribute('aria-selected', String(ui.tab === 'actual'));
     $('btnExport').disabled = empty;
     if (empty) return;
-    if (ui.tab === 'alloc') renderAlloc(); else if (ui.tab === 'plan') renderPlan(); else renderActual();
+    if (ui.tab === 'alloc') renderAlloc(); else if (ui.tab === 'plan') renderPlan(); else if (ui.tab === 'insight') renderInsight(); else renderActual();
   }
   function setTab(t) { ui.tab = t; saveUI(); render(); }
 
@@ -463,7 +466,8 @@
     document.querySelector(`input[name=asStatus][value="${ctx.edit && ctx.edit.t ? 1 : 0}"]`).checked = true;
     $('asSkipSun').checked = false;
     $('asClear').hidden = !ctx.edit && !rangeHasAlloc();
-    assignWarn();
+    assignWarn(); renderSuggest();
+    if (leaves === null) loadLeaves(false).then(() => { if ($('dlgAssign').open) renderSuggest(); });
     $('dlgAssign').showModal();
     (ctx.edit ? $('asCal').querySelector('.rcx-d.a') || $('asProject') : $('asProject')).focus();
   }
@@ -473,7 +477,7 @@
     const busy = data.alloc[$('asFitter').value] || {}, own = asCtx && asCtx.edit ? new Set(P.daysBetween(asCtx.edit.from, asCtx.edit.to)) : new Set();
     const cfg = { from: $('asFrom').value, to: $('asTo').value, reset: true, off: (d) => wd(d) === 0 ? 'Chủ nhật' : (holiday(d) ? (holiday(d).name || 'Ngày lễ') : false),
       mark: (d) => busy[d] && !own.has(d) ? 'đã có phân công' : null,
-      onChange: (a, b) => { $('asFrom').value = a; $('asTo').value = b; assignWarn(); } };
+      onChange: (a, b) => { $('asFrom').value = a; $('asTo').value = b; assignWarn(); renderSuggest(); } };
     if (!cal) cal = RangeCal.create($('asCal'), cfg); else cal.update(cfg);
   }
   $('asFitter').addEventListener('change', () => { if (cal) renderCal(); });
@@ -510,6 +514,29 @@
     if (sh) { asSharedHint(); $('asShared').focus(); }
   });
   $('asShared').addEventListener('input', asSharedHint);
+  // ---------- gợi ý fitter: người rảnh trong khoảng ngày, kinh nghiệm cùng loại thang / dự án tỉnh (theo chấm công), trừ ngày nghỉ phép ----------
+  let expCache = { rows: null, v: {} };
+  function experienceNow() {
+    if (!act.rows || !act.rows.length) return {};
+    if (expCache.rows !== act.rows) {
+      const prov = new Set(data.projects.filter(p => p.province && p.wbs).map(p => P.plain(p.wbs)));
+      expCache = { rows: act.rows, v: IN.experience(act.rows, (w) => sharedByWbs(w), (w) => prov.has(P.plain(w))) };
+    }
+    return expCache.v;
+  }
+  function renderSuggest() {
+    const box = $('asSuggest'), pid = $('asProject').value, p = byId()[pid];
+    let a = $('asFrom').value, b = $('asTo').value;
+    const fCur = data.fitters.find(f => f.id === $('asFitter').value);
+    if (!p || !a || !b || (fCur && fCur.sub) || !inhouse().length) { box.hidden = true; return; }
+    if (a > b) [a, b] = [b, a];
+    if (P.daysBetween(a, b).length > 120) { box.hidden = true; return; }
+    const list = IN.suggestFitters({ data, project: p, from: a, to: b, offDay, leaves: leaves || [], exp: experienceNow() }).slice(0, 4);
+    box.hidden = !list.length;
+    box.innerHTML = `<span class="hint">💡 Gợi ý fitter cho ${esc(p.name)}:</span>` + list.map(x => `<button type="button" class="sug${x.f.id === $('asFitter').value ? ' on' : ''}" data-f="${esc(x.f.id)}" title="${esc(x.why.join(' · '))}"><b>${esc(x.f.name)}</b> <small>trống ${x.free}/${x.total} ngày${x.why.length ? ' · ' + esc(x.why.filter(w => !/^bận|^nghỉ/.test(w)).join(' · ')) : ''}${x.leave ? ' · nghỉ phép ' + x.leave + ' ngày' : ''}</small></button>`).join('');
+  }
+  $('asSuggest').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; $('asFitter').value = b.dataset.f; renderCal(); assignWarn(); renderSuggest(); });
+  ['asFitter', 'asProject'].forEach(id => $(id).addEventListener('change', renderSuggest));
   $('asCancel').addEventListener('click', () => $('dlgAssign').close());
   $('formAssign').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -732,14 +759,16 @@
     const badges = (p) => modeBadge(p) + (p.province ? '<span class="badge">Tỉnh</span>' : '') + (p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : '') + (p.done ? '<span class="badge ok">Hoàn thành</span>' : '');
     const alertHtml = (p) => alertsOf(p, t).map(a => `<span class="badge ${a.c}">${esc(a.s)}</span>`).join('');
     planShown = list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date));
-    const gv = ui.planView === 'gantt', vv = ui.planView === 'var';
-    $('planViewList').setAttribute('aria-pressed', String(!gv && !vv)); $('planViewGantt').setAttribute('aria-pressed', String(gv)); $('planViewVar').setAttribute('aria-pressed', String(vv));
-    $('planList').hidden = gv || vv; $('planGantt').hidden = !gv; $('planVar').hidden = !vv; $('upcoming').hidden = gv || vv;
+    const gv = ui.planView === 'gantt', vv = ui.planView === 'var', sv = ui.planView === 'sheet';
+    $('planViewSheet').setAttribute('aria-pressed', String(sv));
+    $('planViewList').setAttribute('aria-pressed', String(!gv && !vv && !sv)); $('planViewGantt').setAttribute('aria-pressed', String(gv)); $('planViewVar').setAttribute('aria-pressed', String(vv));
+    $('planList').hidden = gv || vv; $('planGantt').hidden = !gv; $('planVar').hidden = !vv; $('upcoming').hidden = gv || vv || sv;
     $('blBar').hidden = !gv && !vv; renderBlBar();
     if (vv) { renderVar(list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date))); return; }
     $('planMine').hidden = !data.projects.some(isMine);
     if (gv) { if (list.length) renderGantt(list.filter(p => !p.fromGrid || p.wbs || P.MILESTONES.some(m => p[m.key].date))); else $('planGantt').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
     if (!list.length) { $('planList').innerHTML = '<p class="pp-empty">Không có dự án phù hợp.</p>'; return; }
+    if (ui.planView === 'sheet') { renderSheet(list, t); return; }
     let h = `<table class="pl"><thead><tr><th>Dự án</th><th>Thang</th><th>Hàng</th><th>Lắp đặt</th><th>Nhân sự</th><th>Giám sát · cảnh báo</th></tr></thead><tbody>`;
     const gridOnly = list.filter(p => p.fromGrid).length;
     const grpRow = `<tr class="grp"><td colspan="6"><b>Tên chỉ có trong lưới nhân sự (${gridOnly})</b> — chưa có trong sheet Plan: bấm để bổ sung thông tin, hoặc gộp vào dự án đúng.</td></tr>`;
@@ -765,8 +794,54 @@
     $('planList').innerHTML = h + '</div>';
   }
 
+  // ---------- lịch trình dạng bảng Excel: đúng thứ tự cột sheet "Plan", mỗi mốc 1 cột ----------
+  const dmy2 = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : '');
+  function sheetMs(m, t) {
+    if (!m) return '<td class="c-ms"></td>';
+    if (m.check) return `<td class="c-ms xchk" title="Ngày có thể nhập nhầm định dạng — mở dự án để kiểm tra">⚠ ${dmy2(m.date)}</td>`;
+    if (m.done) return `<td class="c-ms done" title="${esc(m.note || 'Đã xong')}">✓ ${m.date ? dmy2(m.date) : 'xong'}</td>`;
+    if (m.date) { const c = m.date < t ? 'late' : m.date <= P.addDays(t, 7) ? 'soon' : ''; return `<td class="c-ms ${c}"${m.note ? ` title="${esc(m.note)}"` : ''}>${dmy2(m.date)}${m.note ? '<i class="nt">•</i>' : ''}</td>`; }
+    if (m.note) return `<td class="c-ms note" title="${esc(m.note)}">${esc(m.note)}</td>`;
+    return '<td class="c-ms"></td>';
+  }
+  function renderSheet(list, t) {
+    const I = window.PMInsights, ms = (k) => P.MILESTONES.find(m => m.key === k);
+    const msKeys = ['factory', 'port', 'arrival', 'shaftReady', 'ownerStart', 'teamStart', 'mechDone', 'testReady', 'handover'];
+    const cols = [['STT', 'c-no'], ['Tên dự án', 'c-name'], ['Địa chỉ', 'c-addr'], ['Tỉnh', 'c-s'], ['SL', 'c-s'], ['Loại thang', 'c-m'], ['Hành trình', 'c-m'], ['Tải trọng', 'c-m'], ['Điểm dừng', 'c-s']];
+    const head = cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('') +
+      msKeys.map((k, i) => `<th class="c-ms" title="${esc(ms(k).label)}">${esc(ms(k).short)}</th>${i === 0 ? '<th class="c-m">PT vận chuyển</th>' : ''}`).join('') +
+      `<th class="c-m">Hình thức</th><th class="c-team">Nhân sự</th>${I ? '<th class="c-s" title="% hoàn thành theo công đoạn">% HT</th>' : ''}<th class="c-note">Ghi chú</th><th class="c-m">Giám sát</th><th class="c-s">Xong</th><th class="c-alert">Cảnh báo</th>`;
+    const ncol = cols.length + msKeys.length + 7 + (I ? 1 : 0);
+    const gridOnly = list.filter(p => p.fromGrid).length;
+    let n = 0;
+    const body = list.map((p, i) => {
+      const grp = p.fromGrid && (i === 0 || !list[i - 1].fromGrid) ? `<tr class="grp"><td colspan="${ncol}"><b>Tên chỉ có trong lưới nhân sự (${gridOnly})</b> — chưa có trong sheet Plan: bấm để bổ sung thông tin, hoặc gộp vào dự án đúng.</td></tr>` : '';
+      const load = p.load !== '' && p.load != null ? (typeof p.load === 'number' ? p.load + 'kg' : p.load) : '';
+      const pct = I ? I.progressPct(p) : null;
+      const alerts = alertsOf(p, t);
+      const team = [p.teamPlan ? esc(p.teamPlan) : '', fittersOf(p, t)].filter(Boolean).join(' ');
+      return grp + `<tr class="row${p.done ? ' is-done' : ''}" data-p="${esc(p.id)}" tabindex="0">
+        <td class="c-no">${++n}</td>
+        <td class="c-name"><div class="pn"><i class="sw" style="background:${safeColor(p.color)}"></i><span>${esc(p.name)}</span></div>${p.wbs ? `<div class="sub">${esc(p.wbs)}</div>` : ''}${p.fromGrid ? '<span class="badge" title="Tên ngắn trong sheet Nhân sự, chưa có trong Plan">Chỉ có trong lưới nhân sự</span>' : ''}</td>
+        <td class="c-addr" title="${esc(p.address)}">${esc(p.address)}</td>
+        <td class="c-s">${p.province === true ? 'Có' : p.province === false ? 'Không' : ''}</td>
+        <td class="c-s">${esc(p.liftCount)}</td><td class="c-m">${esc(p.liftType)}</td><td class="c-m">${esc(p.travel)}</td><td class="c-m">${esc(load)}</td><td class="c-s">${esc(p.stops)}</td>
+        ${msKeys.map((k, j) => sheetMs(p[k], t) + (j === 0 ? `<td class="c-m">${esc(p.transport)}</td>` : '')).join('')}
+        <td class="c-m">${p.mode ? esc(P.MODES[p.mode]) + (p.mode !== 'in' && p.subcon ? `<div class="sub">${esc(p.subcon)}</div>` : '') : ''}</td>
+        <td class="c-team">${team}</td>
+        ${I ? `<td class="c-s">${pct == null ? '' : `<span class="pctbar" style="--v:${pct}%">${pct}%</span>`}</td>` : ''}
+        <td class="c-note" title="${esc(p.note)}">${esc(p.note)}</td>
+        <td class="c-m">${esc(p.supervisor)}</td>
+        <td class="c-s">${p.done ? '<span class="badge ok">Xong</span>' : ''}</td>
+        <td class="c-alert">${alerts.map(a => `<span class="badge ${a.c}">${esc(a.s)}</span>`).join('')}</td></tr>`;
+    }).join('');
+    $('planList').innerHTML = `<div class="xs-legend"><span class="lg done">✓ đã xong</span><span class="lg late">quá hạn</span><span class="lg soon">trong 7 ngày</span><span class="lg xchk">⚠ cần kiểm tra ngày</span><span>• có ghi chú (rê chuột / mở dự án)</span><span class="hint">Bấm một dòng để sửa dự án.</span></div>
+      <div class="xs-wrap"><table class="xs"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
   // ---------- lịch trình dạng Gantt (giám sát xem lại nhanh) ----------
-  ui.planView = ui.planView || 'list';
+  if (!ui.sheet1) { ui.sheet1 = 1; if (!ui.planView || ui.planView === 'list') ui.planView = 'sheet'; }
+  ui.planView = ui.planView || 'sheet';
   const ganttSpan = () => ({ from: P.addDays(today(), -30), to: P.addDays(today(), 150) });
   function renderGantt(list) {
     const t = today(), sp = ganttSpan(), days = P.daysBetween(sp.from, sp.to), PX = 6;      // 6 px / ngày
@@ -807,6 +882,7 @@
     const sc = $('planGantt').querySelector('.gt-scroll'); sc.scrollLeft = Math.max(0, idx(t) - 160);
   }
   function setPlanView(v) { ui.planView = v; saveUI(); render(); }
+  $('planViewSheet').addEventListener('click', () => setPlanView('sheet'));
   $('planViewList').addEventListener('click', () => setPlanView('list'));
   $('planViewGantt').addEventListener('click', () => setPlanView('gantt'));
   $('planViewVar').addEventListener('click', () => setPlanView('var'));
@@ -966,8 +1042,10 @@
         <input type="date" class="msd" value="${esc(v.date)}" aria-label="${esc(m.label + ' — ngày')}">
         <label class="chk"><input type="checkbox" class="msx"${v.done ? ' checked' : ''}> Đã xong</label>
         <input type="text" class="msn" value="${esc(v.note)}" placeholder="Ghi chú (vd. theo lịch hàng về)" aria-label="${esc(m.label + ' — ghi chú')}">
+        <select class="msr-r" data-old="${esc(v.date)}" hidden aria-label="${esc('Lý do dời ' + m.label)}"><option value="">— lý do dời mốc —</option>${IN.REASONS.map(r => `<option value="${r.k}">${esc(r.label)}</option>`).join('')}</select>
         ${v.check ? `<span class="msc">⚠ Excel hiển thị khác ngày đang lưu — có thể là ${P.fmtVN(v.check)}. <button type="button" data-use="${esc(v.check)}">Dùng ${P.fmtVN(v.check)}</button> · <button type="button" data-keep="1">Giữ ${P.fmtVN(v.date)}</button></span>` : ''}</div>`;
     }).join('');
+    renderPjProg(p);
     const runs = id ? projectRuns(id) : [];
     $('pjAllocated').textContent = runs.length ? 'Đã phân công: ' + runs.map(r => `${r.f.name} ${dm(r.from)}–${dm(r.to)}${r.t ? ' (dự kiến)' : ''}`).join(', ') : 'Chưa phân công fitter (phân công ở tab Điều phối nhân sự).';
     $('pjDelete').hidden = !id;
@@ -1063,6 +1141,31 @@
     row.dataset.checked = '1';
     e.target.closest('.msc').remove();
   });
+  // đổi ngày một mốc đã có → hiện ô chọn lý do dời mốc
+  $('pjMilestones').addEventListener('input', (e) => {
+    if (!e.target.matches('.msd')) return;
+    const r = e.target.closest('.msr'), sel = r.querySelector('.msr-r'), old = sel.dataset.old;
+    sel.hidden = !(old && e.target.value && e.target.value !== old);
+  });
+  function renderPjProg(p) {
+    const g = p.prog || {}, pre = p.pre || {};
+    $('pjProg').innerHTML = `<div class="prog-h"><b>% hoàn thành theo công đoạn</b> <span class="hint" id="pjProgPct">${IN.progressPct(p) == null ? 'chưa cập nhật' : 'tổng ' + IN.progressPct(p) + '%'}</span></div>
+      <div class="prog-grid">${IN.STAGES.map(st => `<label class="fld">${esc(st.label)} <small class="hint">(${st.w}%)</small><input type="number" min="0" max="100" step="5" inputmode="numeric" data-st="${st.k}" value="${g[st.k] == null || g[st.k] === '' ? '' : esc(g[st.k])}" placeholder="0–100"></label>`).join('')}</div>`;
+    $('pjPre').innerHTML = `<div class="prog-h"><b>Điều kiện cần trước khi lắp</b> <span class="hint">(dùng cho kế hoạch 3 tuần)</span></div><div class="pre-row">${IN.PREREQ.map(q => {
+      const auto = q.ms && p[q.ms] && p[q.ms].done;
+      return `<label class="chk"><input type="checkbox" data-pre="${q.k}"${pre[q.k] || auto ? ' checked' : ''}${auto ? ' disabled title="Mốc đã xác nhận xong"' : ''}> ${esc(q.label)}</label>`;
+    }).join('')}</div>`;
+    const lg = (p.log || []).slice(-6).reverse();
+    $('pjLog').innerHTML = lg.length ? `<div class="prog-h"><b>Lịch sử dời mốc</b></div><ul class="pj-log">${lg.map(x => {
+      const m = P.MILESTONES.find(y => y.key === x.k);
+      return `<li>${esc(P.fmtVN(String(x.at || '').slice(0, 10)))} · <b>${esc(m ? m.short : x.k)}</b> ${esc(P.fmtVN(x.from))} → ${esc(P.fmtVN(x.to))} · ${esc(IN.reasonLabel(x.r))}${x.by ? ' · ' + esc(x.by) : ''}</li>`;
+    }).join('')}</ul>` : '';
+  }
+  $('pjProg').addEventListener('input', () => {
+    const g = {}; $('pjProg').querySelectorAll('[data-st]').forEach(i => { if (i.value !== '') g[i.dataset.st] = Math.max(0, Math.min(100, Number(i.value) || 0)); });
+    const v = IN.progressPct({ prog: g }); $('pjProgPct').textContent = v == null ? 'chưa cập nhật' : 'tổng ' + v + '%';
+  });
+  const byName = () => { const w = who(); return w && w.name ? w.name : (w && w.admin ? 'Quản trị viên' : ''); };
   $('pjCancel').addEventListener('click', () => $('dlgProject').close());
   $('formProject').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1079,9 +1182,19 @@
       p.color = $('pj_color').value; p.done = $('pj_done').checked;
       p.mode = $('pj_mode').value; p.subcon = p.mode === 'in' ? '' : $('pj_subcon').value.replace(/\s+/g, ' ').trim();
       if (p.subcon) addSubcon(p.subcon);
+      const g = {}; $('pjProg').querySelectorAll('[data-st]').forEach(i => { if (i.value !== '') g[i.dataset.st] = Math.max(0, Math.min(100, Number(i.value) || 0)); });
+      p.prog = g;
+      const pre = {}; $('pjPre').querySelectorAll('[data-pre]').forEach(i => { if (i.checked && !i.disabled) pre[i.dataset.pre] = true; });
+      p.pre = pre;
+      const nowIso = new Date().toISOString();
       document.querySelectorAll('#pjMilestones .msr').forEach(r => {
         const old = p[r.dataset.k] || {};
         const v = { date: r.querySelector('.msd').value, done: r.querySelector('.msx').checked, note: r.querySelector('.msn').value.trim() };
+        if (pjId && old.date && v.date && v.date !== old.date) {   // dời mốc → ghi lịch sử + lý do
+          p.log = p.log || [];
+          p.log.push({ at: nowIso, by: byName(), k: r.dataset.k, from: old.date, to: v.date, r: r.querySelector('.msr-r').value || 'other' });
+          if (p.log.length > 200) p.log = p.log.slice(-200);
+        }
         if (old.check && !r.dataset.checked && v.date === old.date) v.check = old.check; // chưa xử lý cảnh báo → giữ
         p[r.dataset.k] = v;
       });
@@ -1383,6 +1496,147 @@
     return d;
   }
 
+  // ================= PHÂN TÍCH (Đợt 2 + 3) =================
+  // Nghỉ phép (bản máy chủ): đã duyệt + chờ duyệt, chỉ mã NV + ngày — dùng cho tải nguồn lực, cảnh báo xung đột, gợi ý fitter
+  let leaves = null, leavesAt = 0;
+  async function loadLeaves(force) {
+    if (!(window.CONFIG && CONFIG.SERVER)) { leaves = []; return leaves; }
+    if (leaves && !force && Date.now() - leavesAt < 10 * 60e3) return leaves;
+    const from = P.addDays(today(), -30), to = P.addDays(today(), 150);
+    try { const r = await fetch(`/api/ts/leave/calendar?from=${from}&to=${to}`, { credentials: 'same-origin' }); leaves = r.ok ? ((await r.json()).items || []) : []; }
+    catch (e) { leaves = []; }
+    leavesAt = Date.now(); return leaves;
+  }
+  ui.insView = ui.insView || 'load';
+  const targetOf = (w) => { const sh = w ? sharedByWbs(w) : null; return sh && Number(sh.targetHour) > 0 ? Number(sh.targetHour) : 0; };
+  const pName = (id) => (byId()[id] || {}).name || '';
+  const pLink = (id) => `<span class="up-p" data-p="${esc(id)}">${esc(pName(id))}</span>`;
+  const utilCls = (u) => u == null ? '' : u > 100 ? 'bad' : u >= 85 ? 'warn' : u < 50 ? 'low' : 'ok';
+  let insBusy = false;
+  async function renderInsight() {
+    const v = ui.insView;
+    document.querySelectorAll('[data-ins]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ins === v)));
+    const box = $('insBody');
+    if (act.rows === null || leaves === null) {
+      box.innerHTML = '<p class="pp-empty">Đang đọc bảng công và lịch nghỉ…</p>';
+      if (insBusy) return; insBusy = true;
+      try { await Promise.all([act.rows === null ? loadActualRows(false) : null, loadLeaves(false)]); } finally { insBusy = false; }
+      if (ui.tab !== 'insight') return;
+    }
+    const t = today(), tst = testerIds();
+    $('insInfo').textContent = `Bảng công: ${(act.rows || []).length.toLocaleString('vi-VN')} dòng · ${window.CONFIG && CONFIG.SERVER ? `nghỉ phép: ${(leaves || []).length} đơn (đã duyệt + chờ duyệt)` : 'nghỉ phép: chỉ có ở bản máy chủ'} · tester (T&C): ${tst.length}`;
+    if (v === 'load') return renderLoad(box, t, tst);
+    if (v === 'warn') return renderWarn(box, t, tst);
+    if (v === 'look') return renderLook(box, t);
+    if (v === 'sub') return renderSubIns(box);
+    return renderReport(box, t, tst);
+  }
+  function loadRows(t, tst, weeks) { return IN.resourceLoad({ data, from: t, weeks, offDay, leaves, testers: tst }); }
+  function conflictsNow(t, tst) {
+    const actual = A.projectActuals(act.rows || [], tst);
+    return IN.conflicts({ data, today: t, leaves, offDay, testers: tst, target: targetOf, actual: (w) => (actual[A.norm(w)] || {}).hours || 0 });
+  }
+  function renderLoad(box, t, tst) {
+    const wk = Number(ui.insWeeks) || 8, rows = loadRows(t, tst, wk);
+    const tr = rows.map(r => `<tr><td><b>${dm(r.w)}</b> – ${dm(P.addDays(r.w, 6))}</td><td class="n">${r.workdays}</td><td class="n">${r.cap}</td><td class="n">${r.booked}</td><td class="n">${r.tent || ''}</td><td class="n">${r.leave || ''}</td>
+      <td class="n ${r.free ? '' : 'bad'}">${r.free}</td>
+      <td><span class="ubar ${utilCls(r.util)}" style="--v:${Math.min(100, r.util || 0)}%">${r.util == null ? '—' : r.util + '%'}</span></td>
+      <td>${r.unstaffed.map(pLink).join(', ') || '<span class="hint">—</span>'}${r.subUnstaffed.length ? `<div class="hint">Subcon chưa có đội: ${r.subUnstaffed.map(pLink).join(', ')}</div>` : ''}</td>
+      <td>${r.testDemand.length ? `<b class="${r.testDemand.length > r.testers ? 'bad' : ''}">${r.testDemand.length}</b> dự án · ${r.testers} tester (${r.testerDays} ngày)<div class="hint">${r.testDemand.map(pLink).join(', ')}</div>` : '<span class="hint">—</span>'}</td></tr>`).join('');
+    box.innerHTML = `<div class="pp-toolbar"><label class="pp-field-inline">Số tuần <select id="insWeeks">${[4, 8, 12].map(n => `<option${n === wk ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <span class="hint">Công suất = số fitter công ty × ngày làm việc (bỏ Chủ nhật, ngày lễ). Đội subcon không tính công suất (theo công ty).</span></div>
+      <div class="ins-scroll"><table class="ins"><thead><tr><th>Tuần</th><th>Ngày LV</th><th title="ngày công">Công suất</th><th>Đã phân công</th><th>Dự kiến</th><th>Nghỉ phép</th><th>Còn trống</th><th>% tải</th><th>Dự án đang lắp chưa có người</th><th>Cần test / tester</th></tr></thead><tbody>${tr}</tbody></table></div>
+      <p class="pp-hint"><span class="ubar ok" style="--v:70%">70%</span> bình thường · <span class="ubar warn" style="--v:90%">≥ 85%</span> gần đầy · <span class="ubar bad" style="--v:100%">&gt; 100%</span> quá tải · <span class="ubar low" style="--v:30%">&lt; 50%</span> còn nhiều người trống</p>`;
+  }
+  const TYPE_VN = { leave: 'Nghỉ phép', early: 'Xếp sớm', hours: 'Giờ công', tester: 'Tester', subcon: 'Subcon', unstaffed: 'Chưa có người' };
+  function renderWarn(box, t, tst) {
+    const c = conflictsNow(t, tst), bad = c.filter(x => x.lvl === 'bad').length;
+    box.innerHTML = `<div class="pp-today"><span class="chip ${bad ? 'warn' : ''}">Nghiêm trọng: <b>${bad}</b></span><span class="chip">Cần chú ý: <b>${c.length - bad}</b></span><span class="hint">6 tuần tới · nghỉ phép trùng phân công, xếp người trước khi hàng về / giao hố, vượt định mức giờ, thiếu tester, subcon nhận quá nhiều dự án, sắp nhận hố chưa có người.</span></div>` +
+      (c.length ? `<ul class="ins-warn">${c.map(x => `<li class="${x.lvl}"${x.pid ? ` data-p="${esc(x.pid)}" tabindex="0"` : ''}><span class="badge ${x.lvl}">${TYPE_VN[x.type] || x.type}</span> ${esc(x.msg)}</li>`).join('')}</ul>` : '<p class="pp-empty">✓ Không có xung đột nào trong 6 tuần tới.</p>');
+  }
+  function renderLook(box, t) {
+    const w0 = IN.mondayOf(t), items = IN.lookahead(data, t, 3);
+    const pend = data.projects.some(p => (p.cm || []).some(c => c.ok == null && p[c.k] && p[c.k].done));
+    if (pend) setTimeout(() => commit(null, () => IN.autoClose(data, t)), 0);
+    const weeks = [0, 1, 2].map(i => P.addDays(w0, i * 7));
+    const preChips = (it) => it.pre.map(q => `<button type="button" class="pre ${q.ok ? 'ok' : 'no'}" data-pre="${esc(it.pid)}|${q.k}" title="${q.ok ? 'Đã sẵn sàng' : 'Chưa sẵn sàng — bấm để đánh dấu đã sẵn sàng'}">${q.ok ? '✓' : '✗'} ${esc(q.label)}</button>`).join('');
+    let h = `<p class="pp-hint">Kế hoạch 3 tuần (lookahead): các mốc đến hạn, kèm <b>điều kiện cần</b> trước khi lắp. Đầu tuần bấm <b>Cam kết tuần này</b>; cuối tuần đánh dấu đạt / không đạt + lý do → tính <b>PPC</b> (tỉ lệ việc cam kết hoàn thành).</p>`;
+    weeks.forEach((w, i) => {
+      const l = items.filter(x => x.week === w);
+      h += `<div class="lk-week"><div class="lk-h"><b>${i === 0 ? 'Tuần này' : i === 1 ? 'Tuần sau' : 'Tuần thứ 3'}</b> ${dm(w)} – ${dm(P.addDays(w, 6))} · ${l.length} việc${l.filter(x => !x.ready).length ? ` · <span class="bad">${l.filter(x => !x.ready).length} chưa đủ điều kiện</span>` : ''}
+        ${i === 0 && l.some(x => !x.committed) ? `<button type="button" class="btn btn-primary" id="lkCommit">✔ Cam kết tuần này (${l.filter(x => !x.committed).length})</button>` : ''}</div>` +
+        (l.length ? `<table class="ins lk"><tbody>${l.map(x => `<tr class="${x.ready ? '' : 'notready'}"><td class="n">${x.overdue ? `<span class="bad" title="Quá hạn">${dm(x.date)}</span>` : dm(x.date)}</td><td>${pLink(x.pid)}</td><td>${esc(x.label)}</td><td>${preChips(x) || '<span class="hint">—</span>'}</td><td>${x.committed ? '<span class="badge ok">đã cam kết</span>' : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="hint">Không có mốc nào.</p>') + '</div>';
+    });
+    // cam kết đang mở + PPC
+    const open = [];
+    data.projects.forEach(p => (p.cm || []).forEach((c, j) => { if (c.w <= w0 && c.w >= P.addDays(w0, -28)) open.push({ p, c, j }); }));
+    open.sort((a, b) => b.c.w.localeCompare(a.c.w) || a.c.d.localeCompare(b.c.d));
+    const rOpt = (v) => '<option value="">— lý do —</option>' + IN.REASONS.map(r => `<option value="${r.k}"${r.k === v ? ' selected' : ''}>${esc(r.label)}</option>`).join('');
+    h += `<h3 class="ins-h">Cam kết tuần (4 tuần gần nhất)</h3>` + (open.length ? `<table class="ins"><thead><tr><th>Tuần</th><th>Dự án</th><th>Việc</th><th>Hẹn</th><th>Kết quả</th><th>Lý do không đạt</th></tr></thead><tbody>${open.map(o => {
+      const m = P.MILESTONES.find(x => x.key === o.c.k), id = `${o.p.id}|${o.j}`;
+      return `<tr><td class="n">${dm(o.c.w)}</td><td>${pLink(o.p.id)}</td><td>${esc(m ? m.short : o.c.k)}</td><td class="n">${dm(o.c.d)}</td>
+        <td><span class="seg-mini"><button type="button" data-cm="${esc(id)}" data-ok="1" class="${o.c.ok === true ? 'on ok' : ''}">Đạt</button><button type="button" data-cm="${esc(id)}" data-ok="0" class="${o.c.ok === false ? 'on bad' : ''}">Không đạt</button></span></td>
+        <td>${o.c.ok === false ? `<select data-cmr="${esc(id)}">${rOpt(o.c.r)}</select>` : ''}</td></tr>`;
+    }).join('')}</tbody></table>` : '<p class="hint">Chưa có cam kết nào.</p>');
+    const pp = IN.ppc(data).slice(0, 8);
+    if (pp.length) h += `<h3 class="ins-h">PPC theo tuần</h3><table class="ins"><thead><tr><th>Tuần</th><th>Cam kết</th><th>Đạt</th><th>Không đạt</th><th>Chưa có kết quả</th><th>PPC</th><th>Lý do chính</th></tr></thead><tbody>${pp.map(x => `<tr><td class="n">${dm(x.w)}</td><td class="n">${x.total}</td><td class="n">${x.done}</td><td class="n">${x.failed}</td><td class="n">${x.open || ''}</td><td><span class="ubar ${x.pct == null ? '' : x.pct >= 80 ? 'ok' : x.pct >= 60 ? 'warn' : 'bad'}" style="--v:${x.pct || 0}%">${x.pct == null ? '—' : x.pct + '%'}</span></td><td>${x.reasons.map(r => `${esc(r.label)} (${r.n})`).join(', ')}</td></tr>`).join('')}</tbody></table>`;
+    box.innerHTML = h;
+  }
+  function renderSubIns(box) {
+    const sc = IN.subconScore(data, ui.blWhich || 'last'), rs = IN.reasonStats(data.projects);
+    box.innerHTML = `<h3 class="ins-h">Đánh giá subcon</h3><p class="pp-hint">Theo dự án Subcon / Kết hợp: tỉ lệ bàn giao đúng hạn so với baseline của từng dự án, số ngày trễ trung bình, lý do trễ hay gặp.</p>` +
+      (sc.length ? `<table class="ins"><thead><tr><th>Công ty</th><th>Dự án</th><th>Đang thi công</th><th>Đã xong</th><th>Đúng hạn</th><th>Trễ</th><th>Trễ TB</th><th>Lý do hay gặp</th></tr></thead><tbody>${sc.map(x => `<tr><td><b>${esc(x.name)}</b></td><td class="n">${x.projects}</td><td class="n">${x.active}</td><td class="n">${x.done}</td>
+        <td>${x.onTimePct == null ? '<span class="hint">chưa có baseline</span>' : `<span class="ubar ${x.onTimePct >= 80 ? 'ok' : x.onTimePct >= 60 ? 'warn' : 'bad'}" style="--v:${x.onTimePct}%">${x.onTimePct}%</span> <small class="hint">(${x.onTime}/${x.compared})</small>`}</td>
+        <td class="n">${x.late || ''}</td><td class="n">${x.avgLate ? '+' + x.avgLate + ' ngày' : ''}</td><td>${x.reasons.map(r => `${esc(r.label)} (${r.n})`).join(', ') || '<span class="hint">—</span>'}</td></tr>`).join('')}</tbody></table>` : '<p class="hint">Chưa có dự án nào ghi Hình thức Subcon / Kết hợp kèm công ty subcon.</p>') +
+      `<h3 class="ins-h">Lý do dời mốc (tất cả dự án)</h3><p class="pp-hint">Ghi khi đổi ngày một mốc trong hộp thoại dự án. Xếp theo tổng số ngày bị dời.</p>` +
+      (rs.length ? `<table class="ins"><thead><tr><th>Lý do</th><th>Số lần</th><th>Tổng số ngày dời</th></tr></thead><tbody>${rs.map(r => `<tr><td>${esc(r.label)}</td><td class="n">${r.n}</td><td><span class="ubar warn" style="--v:${Math.min(100, Math.round(r.days / Math.max(1, rs[0].days) * 100))}%">${r.days} ngày</span></td></tr>`).join('')}</tbody></table>` : '<p class="hint">Chưa có lần dời mốc nào được ghi lý do.</p>');
+  }
+  function renderReport(box, t, tst) {
+    const r = IN.weeklyReport({ data, today: t, which: ui.blWhich || 'last', load: loadRows(t, tst, 2), conflicts: conflictsNow(t, tst), subcons: IN.subconScore(data, ui.blWhich || 'last') });
+    const msRow = (x) => `<tr><td class="n">${dm(x.d)}</td><td>${esc(x.p.name)}</td><td>${esc(x.m.short)}</td></tr>`;
+    const L = r.load[0];
+    box.innerHTML = `<div class="pp-toolbar no-print"><button type="button" class="btn btn-primary" id="rpPrint">🖨 In / Lưu PDF</button><span class="hint">Báo cáo tự tổng hợp từ lịch trình, phân công, baseline, chấm công và nghỉ phép.</span></div>
+      <article class="rp" id="rpDoc">
+        <h2>Báo cáo tiến độ lắp đặt — tuần ${dm(r.week)} – ${dm(r.weekEnd)}/${r.week.slice(0, 4)}</h2>
+        <p class="hint">Lập ngày ${P.fmtVN(t)}${byName() ? ' · ' + esc(byName()) : ''}</p>
+        <div class="rp-kpi">
+          <div><b>${data.projects.filter(p => !p.done).length}</b><span>dự án đang theo dõi</span></div>
+          <div class="${r.late.length ? 'bad' : ''}"><b>${r.late.length}</b><span>trễ so với baseline</span></div>
+          <div><b>${r.overdue.length}</b><span>mốc quá hạn chưa xác nhận</span></div>
+          <div><b>${L ? (L.util == null ? '—' : L.util + '%') : '—'}</b><span>tải fitter tuần này</span></div>
+          <div><b>${r.ppcLast && r.ppcLast.pct != null ? r.ppcLast.pct + '%' : '—'}</b><span>PPC tuần trước</span></div>
+        </div>
+        <h3>1. Dự án trễ so với baseline</h3>${r.late.length ? `<table class="ins"><thead><tr><th>Dự án</th><th>Trễ</th><th>Giám sát</th><th>Lý do gần nhất</th></tr></thead><tbody>${r.late.slice(0, 15).map(x => { const lg = (x.p.log || []).slice(-1)[0]; return `<tr><td>${esc(x.p.name)}</td><td class="n bad">+${x.slip} ngày</td><td>${esc(x.p.supervisor)}</td><td>${lg ? esc(IN.reasonLabel(lg.r)) : ''}</td></tr>`; }).join('')}</tbody></table>` : '<p>Không có dự án trễ.</p>'}${r.notBl ? `<p class="hint">${r.notBl} dự án chưa chốt baseline.</p>` : ''}
+        <h3>2. Mốc tuần này và tuần sau</h3>${r.due.length ? `<table class="ins"><thead><tr><th>Ngày</th><th>Dự án</th><th>Mốc</th></tr></thead><tbody>${r.due.map(msRow).join('')}</tbody></table>` : '<p>Không có.</p>'}
+        <h3>3. Mốc đã qua chưa xác nhận</h3>${r.overdue.length ? `<table class="ins"><thead><tr><th>Ngày</th><th>Dự án</th><th>Mốc</th></tr></thead><tbody>${r.overdue.slice(0, 20).map(msRow).join('')}</tbody></table>` : '<p>Không có.</p>'}
+        <h3>4. Nguồn lực</h3>${r.load.map(x => `<p>Tuần ${dm(x.w)}: ${x.fitters} fitter · công suất ${x.cap} ngày công · đã phân công ${x.booked}${x.tent ? ` (+${x.tent} dự kiến)` : ''} · nghỉ phép ${x.leave} · còn trống <b>${x.free}</b>${x.unstaffed.length ? ` · chưa có người: ${x.unstaffed.map(pName).map(esc).join(', ')}` : ''}${x.testDemand.length ? ` · cần test ${x.testDemand.length} dự án / ${x.testers} tester` : ''}</p>`).join('')}
+        <h3>5. Cảnh báo</h3>${r.conflicts.length ? `<ul>${r.conflicts.slice(0, 15).map(x => `<li>${x.lvl === 'bad' ? '🔴' : '🟡'} ${esc(x.msg)}</li>`).join('')}</ul>` : '<p>Không có.</p>'}
+        <h3>6. Lý do trễ hay gặp</h3>${r.reasons.length ? `<p>${r.reasons.map(x => `${esc(x.label)}: ${x.n} lần, ${x.days} ngày`).join(' · ')}</p>` : '<p>Chưa ghi nhận.</p>'}
+        ${r.subcons.length ? `<h3>7. Subcon</h3><p>${r.subcons.map(x => `${esc(x.name)}: ${x.active} đang thi công${x.onTimePct != null ? `, đúng hạn ${x.onTimePct}%` : ''}`).join(' · ')}</p>` : ''}
+      </article>`;
+  }
+  document.querySelectorAll('[data-ins]').forEach(b => b.addEventListener('click', () => { ui.insView = b.dataset.ins; saveUI(); renderInsight(); }));
+  $('insBody').addEventListener('change', (e) => {
+    if (e.target.id === 'insWeeks') { ui.insWeeks = Number(e.target.value); saveUI(); renderInsight(); return; }
+    const r = e.target.closest('[data-cmr]');
+    if (r) { const [pid, j] = r.dataset.cmr.split('|'); commit(null, () => { const c = (byId()[pid].cm || [])[j]; if (c) c.r = r.value; }); }
+  });
+  $('insBody').addEventListener('click', (e) => {
+    if (e.target.id === 'rpPrint') { document.body.classList.add('print-rp'); window.print(); setTimeout(() => document.body.classList.remove('print-rp'), 500); return; }
+    if (e.target.id === 'lkCommit') {
+      const t = today(), w0 = IN.mondayOf(t), items = IN.lookahead(data, t, 1).filter(x => x.week === w0 && !x.committed);
+      commit(`Đã cam kết ${items.length} việc cho tuần ${dm(w0)}.`, () => IN.commitWeek(data, w0, items, { by: byName() }));
+      return;
+    }
+    const pre = e.target.closest('[data-pre]');
+    if (pre && pre.classList.contains('no')) { const [pid, k] = pre.dataset.pre.split('|'); commit(null, () => { const p = byId()[pid]; p.pre = Object.assign({}, p.pre, { [k]: true }); }); return; }
+    if (pre && pre.classList.contains('ok')) { const [pid, k] = pre.dataset.pre.split('|'); const p = byId()[pid]; if (p.pre && p.pre[k]) commit(null, () => { delete p.pre[k]; }); return; }
+    const cm = e.target.closest('[data-cm]');
+    if (cm) { const [pid, j] = cm.dataset.cm.split('|'), ok = cm.dataset.ok === '1'; commit(null, () => { const c = (byId()[pid].cm || [])[j]; if (c) { c.ok = c.ok === ok ? null : ok; if (c.ok !== false) c.r = ''; } }); return; }
+    const pl = e.target.closest('[data-p]'); if (pl) openProject(pl.dataset.p);
+  });
+  $('insBody').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('[data-p]')) openProject(e.target.dataset.p); });
+
   // ---------------- toast ----------------
   let toastTimer = null;
   function toast(msg, action) {
@@ -1398,6 +1652,7 @@
   $('tabAlloc').addEventListener('click', () => setTab('alloc'));
   $('tabPlan').addEventListener('click', () => setTab('plan'));
   $('tabActual').addEventListener('click', () => setTab('actual'));
+  $('tabInsight').addEventListener('click', () => setTab('insight'));
   $('prevWeek').addEventListener('click', () => { viewStart = P.addDays(viewStart, -7); renderAlloc(); });
   $('nextWeek').addEventListener('click', () => { viewStart = P.addDays(viewStart, 7); renderAlloc(); });
   $('thisWeek').addEventListener('click', () => { viewStart = mondayOf(today()); renderAlloc(); });

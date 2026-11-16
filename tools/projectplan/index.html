@@ -18,7 +18,7 @@
 <script src="../../js/db.js?v=37"></script>
 <script src="../../js/cloud.js?v=43"></script>
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="projectplan" data-tool="Quản lý dự án" data-help="#ql-dieuphoi"></script>
@@ -56,6 +56,7 @@
       <button type="button" role="tab" id="tabAlloc" aria-controls="viewAlloc" aria-selected="true">Điều phối nhân sự</button>
       <button type="button" role="tab" id="tabPlan" aria-controls="viewPlan" aria-selected="false">Lịch trình dự án</button>
       <button type="button" role="tab" id="tabActual" aria-controls="viewActual" aria-selected="false">Thực tế &amp; bám kế hoạch</button>
+      <button type="button" role="tab" id="tabInsight" aria-controls="viewInsight" aria-selected="false">Phân tích</button>
     </nav>
   </div>
 </header>
@@ -106,7 +107,7 @@
       <label class="pp-field-inline">Giám sát <select id="planSup"><option value="">Tất cả</option></select></label>
       <button type="button" class="btn" id="planMine" title="Chỉ các dự án do tôi giám sát" hidden>Dự án của tôi</button>
       <div class="seg-btns" role="group" aria-label="Cách xem lịch trình">
-        <button type="button" id="planViewList" aria-pressed="true">Danh sách</button><button type="button" id="planViewGantt" aria-pressed="false">Lịch trình (Gantt)</button><button type="button" id="planViewVar" aria-pressed="false">Sai lệch</button>
+        <button type="button" id="planViewSheet" aria-pressed="true" title="Bảng giống sheet Plan trong Excel: mỗi mốc một cột">Bảng</button><button type="button" id="planViewList" aria-pressed="false">Thẻ</button><button type="button" id="planViewGantt" aria-pressed="false">Lịch trình (Gantt)</button><button type="button" id="planViewVar" aria-pressed="false">Sai lệch</button>
       </div>
       <button type="button" class="btn btn-primary" id="addProject">+ Dự án</button>
     </div>
@@ -141,6 +142,17 @@
     <p class="pp-hint" id="actLegend"></p>
     <div id="actTables"></div>
   </section>
+
+  <!-- ===== Phân tích: nguồn lực, cảnh báo, 3 tuần + PPC, subcon, báo cáo tuần ===== -->
+  <section id="viewInsight" role="tabpanel" aria-labelledby="tabInsight" hidden>
+    <div class="pp-toolbar ins-bar">
+      <div class="seg-btns" role="group" aria-label="Nội dung phân tích">
+        <button type="button" data-ins="load" aria-pressed="true">Tải nguồn lực</button><button type="button" data-ins="warn" aria-pressed="false">Cảnh báo</button><button type="button" data-ins="look" aria-pressed="false">3 tuần tới &amp; PPC</button><button type="button" data-ins="sub" aria-pressed="false">Subcon &amp; lý do trễ</button><button type="button" data-ins="report" aria-pressed="false">Báo cáo tuần</button>
+      </div>
+      <span class="hint" id="insInfo"></span>
+    </div>
+    <div id="insBody"></div>
+  </section>
 </main>
 
 <!-- phân công -->
@@ -160,6 +172,7 @@
       <div id="asCal" aria-label="Chọn khoảng ngày"></div>
       <input type="hidden" id="asFrom"><input type="hidden" id="asTo">
     </div>
+    <div class="as-sug" id="asSuggest" hidden></div>
     <fieldset class="fld seg"><legend>Trạng thái</legend>
       <label><input type="radio" name="asStatus" value="0" checked> Chính thức</label>
       <label><input type="radio" name="asStatus" value="1"> Dự kiến</label>
@@ -247,6 +260,12 @@
       </fieldset>
       <fieldset class="pj-sec pj-ms"><legend>Tiến độ hàng &amp; lắp đặt</legend>
         <div id="pjMilestones"></div>
+        <p class="hint">Đổi ngày một mốc đã có → chọn <b>lý do dời mốc</b> (dùng cho thống kê lý do trễ, đánh giá subcon).</p>
+      </fieldset>
+      <fieldset class="pj-sec pj-prog"><legend>% hoàn thành &amp; điều kiện cần</legend>
+        <div id="pjProg"></div>
+        <div id="pjPre"></div>
+        <div id="pjLog"></div>
       </fieldset>
       <fieldset class="pj-sec"><legend>Nhân sự &amp; giám sát</legend>
         <div class="fld-row">
@@ -330,9 +349,10 @@
 
 <script src="../../js/xlsx.full.min.js?v=36"></script>
 <script src="../timesheet/labor.js?v=40"></script>
-<script src="pmio.js?v=5"></script>
+<script src="pmio.js?v=6"></script>
+<script src="insights.js?v=1"></script>
 <script src="actual.js?v=2"></script>
 <script src="../../js/rangecal.js?v=2"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

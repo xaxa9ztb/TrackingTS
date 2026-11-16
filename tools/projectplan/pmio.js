@@ -73,7 +73,7 @@
     const emptyMs = () => ({ date: '', done: false, note: '' });
     function newProject(over) {
         const p = { id: uid('p'), name: '', address: '', province: null, liftCount: '', liftType: '', travel: '', load: '', stops: '',
-            transport: '', teamPlan: '', note: '', supervisor: '', done: false, color: '', wbs: '', mode: '', subcon: '', bl: [] };
+            transport: '', teamPlan: '', note: '', supervisor: '', done: false, color: '', wbs: '', mode: '', subcon: '', bl: [], prog: {}, pre: {}, log: [], cm: [] };
         MILESTONES.forEach(m => { p[m.key] = emptyMs(); });
         return Object.assign(p, over || {});
     }
@@ -86,7 +86,7 @@
         if (!d) return d;
         ['fitters', 'projects', 'baselines', 'subcons'].forEach(k => { if (!Array.isArray(d[k])) d[k] = []; });
         if (!d.alloc || typeof d.alloc !== 'object') d.alloc = {};
-        d.projects.forEach(p => { MILESTONES.forEach(m => { if (!p[m.key] || typeof p[m.key] !== 'object') p[m.key] = emptyMs(); }); if (p.mode == null) p.mode = ''; if (p.subcon == null) p.subcon = ''; if (!Array.isArray(p.bl)) p.bl = []; });
+        d.projects.forEach(p => { MILESTONES.forEach(m => { if (!p[m.key] || typeof p[m.key] !== 'object') p[m.key] = emptyMs(); }); if (p.mode == null) p.mode = ''; if (p.subcon == null) p.subcon = ''; if (!Array.isArray(p.bl)) p.bl = []; ['log', 'cm'].forEach(k => { if (!Array.isArray(p[k])) p[k] = []; }); ['prog', 'pre'].forEach(k => { if (!p[k] || typeof p[k] !== 'object' || Array.isArray(p[k])) p[k] = {}; }); });
         // baseline CHUNG (bản đầu) → chuyển thành baseline của TỪNG dự án rồi bỏ danh sách chung
         if (d.baselines.length) {
             const byId = {}; d.projects.forEach(p => { byId[p.id] = p; });
@@ -497,7 +497,7 @@
             const d = cp(imp);
             (d.projects || []).forEach(np => {   // giữ baseline đã chốt của dự án trùng WBS / tên
                 const ex = (cur.projects || []).find(x => (plain(np.wbs) && plain(x.wbs) === plain(np.wbs)) || plain(x.name) === plain(np.name));
-                if (ex && (ex.bl || []).length) np.bl = cp(ex.bl);
+                if (ex) ['bl', 'prog', 'pre', 'log', 'cm'].forEach(k => { if (ex[k] && (Array.isArray(ex[k]) ? ex[k].length : Object.keys(ex[k]).length)) np[k] = cp(ex[k]); });
             });
             if ((cur.subcons || []).length) d.subcons = cp(cur.subcons);
             d.fitters.forEach(f => { const ex = (cur.fitters || []).find(x => x.sub && plain(x.name) === plain(f.name)); if (ex) { f.sub = true; if (ex.company) f.company = ex.company; } });
@@ -509,7 +509,7 @@
         const findP = (ip, list) => (W(ip) && list.find(p => W(p) === W(ip))) ||
             list.find(p => plain(p.name) === plain(ip.name) || (p.aliases || []).some(a => plain(a) === plain(ip.name))) ||
             (ip.fromGrid ? matchProject(ip.name, list).project : null);
-        const SKIP = new Set(['id', 'color', 'fromGrid', 'aliases', 'bl']);
+        const SKIP = new Set(['id', 'color', 'fromGrid', 'aliases', 'bl', 'prog', 'pre', 'log', 'cm']);   // dữ liệu chỉ có trong app — file Excel không ghi đè
         const pmap = {}, seen = new Set();
         // ---- Plan ----
         if (o.plan) {
