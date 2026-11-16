@@ -27,6 +27,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="chungtu.js?v=1"></script>
 <script src="docxkit.js?v=1"></script>
+<script src="docread.js?v=1"></script>
 <script src="hsletters.js?v=1"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=2"></script>
@@ -351,8 +352,8 @@ table.edit td.c{text-align:center}
 <!-- ===== BƯỚC 1 (DÙNG CHUNG): NHẬP HỢP ĐỒNG ===== -->
 <section id="screenContract">
   <div class="panel">
-    <h2><span class="no">01</span>Nhập hợp đồng &amp; quét thông tin (PDF hoặc ảnh)</h2>
-    <p class="hint">Phần mềm quét file bằng OCR ngay trên máy của bạn (không upload lên server), tự nhận diện: thông tin dự án, khách hàng, hợp đồng, thiết bị, thời gian thực hiện, điều kiện thi công. Dữ liệu này dùng cho cả hai chức năng. Có thể bỏ qua và nhập tay.</p>
+    <h2><span class="no">01</span>Nhập hợp đồng &amp; quét thông tin (PDF, Word, Excel hoặc ảnh)</h2>
+    <p class="hint">Phần mềm đọc file ngay trên máy của bạn (không upload lên server) — Word / Excel / PDF có chữ đọc trực tiếp, PDF scan và ảnh quét bằng OCR — tự nhận diện: thông tin dự án, khách hàng, hợp đồng, thiết bị, thời gian thực hiện, điều kiện thi công. Dữ liệu này dùng cho cả hai chức năng. Có thể bỏ qua và nhập tay.</p>
     <!-- Bộ công cụ: chọn dự án từ dữ liệu Dự án dùng chung (Yan_COM) để điền sẵn -->
     <div class="pp" id="projPick">
       <div class="f">
@@ -367,8 +368,8 @@ table.edit td.c{text-align:center}
     </div>
     <div class="drop" id="drop">
       <div class="big">Kéo thả file hợp đồng vào đây</div>
-      <div class="small">hoặc bấm để chọn file · PDF / JPG / PNG · quét tối đa 20 trang đầu</div>
-      <input type="file" id="file" accept=".pdf,image/*">
+      <div class="small">hoặc bấm để chọn file · PDF / Word (.docx, .doc) / Excel (.xlsx, .xls, .csv) / JPG / PNG · PDF quét tối đa 20 trang đầu</div>
+      <input type="file" id="file" accept=".pdf,image/*,.docx,.docm,.doc,.xlsx,.xlsm,.xls,.csv,.ods,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
     </div>
     <div class="bar" id="bar"><i id="barfill"></i></div>
     <div class="ocr-log" id="log"></div>
@@ -1266,7 +1267,18 @@ async function handleFile(f){
   logEl.textContent="";log("▸ Đang đọc file: "+f.name);
   try{
     let fullText="";
-    if(f.type==="application/pdf"||/\.pdf$/i.test(f.name)){
+    const kind=DocRead.KIND(f.name);
+    if(kind==="docx"||kind==="doc"||kind==="sheet"){
+      log(kind==="sheet"?"▸ File Excel — đọc chữ trong các sheet (không cần OCR)…":"▸ File Word — đọc chữ trực tiếp (không cần OCR)…");prog(.3);
+      const r=await DocRead.fileToText(f);
+      if(r.note)log("⚠ "+r.note);
+      if(r.sheets>1)log(`▸ ${r.sheets} sheet.`);
+      fullText=r.text;
+      if(fullText.replace(/\s/g,"").length<40)throw new Error("file không có chữ đọc được (Word/Excel chỉ chứa ảnh?) — hãy xuất ra PDF hoặc chụp ảnh rồi quét lại");
+      log(`▸ Đọc được ${fullText.length.toLocaleString("vi-VN")} ký tự.`);
+    }else if(!kind&&!/^image\//.test(f.type)&&f.type!=="application/pdf"){
+      throw new Error("định dạng chưa hỗ trợ — dùng PDF, Word (.docx/.doc), Excel (.xlsx/.xls/.csv) hoặc ảnh");
+    }else if(f.type==="application/pdf"||/\.pdf$/i.test(f.name)){
       pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
       const buf=await f.arrayBuffer();
       const pdf=await pdfjsLib.getDocument({data:buf}).promise;
@@ -1304,7 +1316,7 @@ async function handleFile(f){
       const {data}=await worker.recognize(cv);fullText=data.text;await worker.terminate();
     }
     prog(1);
-    log("▸ OCR hoàn tất. Đang trích xuất dữ liệu…");
+    log(kind==="docx"||kind==="doc"||kind==="sheet"?"▸ Đọc xong. Đang trích xuất dữ liệu…":"▸ OCR hoàn tất. Đang trích xuất dữ liệu…");
     const hits=extract(fullText);
     document.getElementById("ocrstat").textContent=`✓ Đã quét xong — nhận diện ${hits} nhóm thông tin. Chọn chức năng để tiếp tục.`;
     showScreen("screenChoose");
