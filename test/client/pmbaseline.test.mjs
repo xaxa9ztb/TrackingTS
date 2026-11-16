@@ -109,3 +109,18 @@ test('projectActuals: ngày đầu / cuối, giờ lắp và giờ tester theo W
   assert.equal(r['E-1'].hours, 24); assert.equal(r['E-1'].people, 2);
   assert.equal(r['E-2'].inst.hours, 0); assert.equal(r['E-2'].test.hours, 4);   // dự án subcon: chỉ có giờ tester
 });
+
+test('Mốc SAIS (nghiệm thu nội bộ) + Kiểm định: có trong mô hình, cột Excel, đọc được từ sheet Plan, dùng cho sai lệch', () => {
+  assert.deepEqual(P.MILESTONES.map(m => m.key).slice(-3), ['sais', 'inspect', 'handover']);
+  const d = P.fix({ version: 1, fitters: [], projects: [{ id: 'p', name: 'Cũ' }], alloc: {} });
+  assert.deepEqual([d.projects[0].sais, d.projects[0].inspect], [{ date: '', done: false, note: '' }, { date: '', done: false, note: '' }]);
+  const XLSX = require('../../js/xlsx.full.min.js');
+  const ws = XLSX.utils.aoa_to_sheet([['STT', 'Tên Dự án', 'SAIS', 'Kiểm định'], [1, 'Alpha', '05.12.2026', 'xong']]);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Plan');
+  const p = P.parseWorkbook(XLSX, wb).data.projects[0];
+  assert.equal(p.sais.date, '2026-12-05'); assert.equal(p.inspect.done, true);
+  // không có ngày bàn giao → sai lệch lấy theo mốc Kiểm định
+  const dd = P.emptyData(); const q = P.newProject({ id: 'q', name: 'Q' }); q.inspect.date = '2026-12-10'; dd.projects = [q];
+  q.bl.push(P.snapshotProject(dd, q, {})); q.inspect.date = '2026-12-13';
+  assert.equal(P.variance(dd, 'last')[0].slip, 3);
+});

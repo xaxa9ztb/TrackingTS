@@ -39,6 +39,8 @@
         { key: 'teamStart', label: 'Kế hoạch Team nhận hố', short: 'Team nhận hố' },
         { key: 'mechDone', label: 'Xong lắp cơ khí', short: 'Xong cơ khí' },
         { key: 'testReady', label: 'Sẵn sàng test', short: 'Sẵn sàng test' },
+        { key: 'sais', label: 'SAIS — nghiệm thu nội bộ', short: 'SAIS' },
+        { key: 'inspect', label: 'Kiểm định (trước khi bàn giao khách hàng)', short: 'Kiểm định' },
         { key: 'handover', label: 'Kế hoạch bàn giao (nếu có)', short: 'Bàn giao' },
     ];
     // Cột sheet "Plan" theo đúng thứ tự file gốc (khớp theo tên cột khi nhập, nên đổi thứ tự cột vẫn đọc được)
@@ -66,6 +68,8 @@
         { h: 'Đã hoàn thành', k: 'done', t: 'yesno', w: 12 },
         { h: 'Xong lắp cơ khí', k: 'mechDone', t: 'ms', w: 13 },
         { h: 'Sẵn sàng test', k: 'testReady', t: 'ms', w: 13 },
+        { h: 'SAIS nghiệm thu nội bộ', k: 'sais', t: 'ms', w: 13 },
+        { h: 'Kiểm định', k: 'inspect', t: 'ms', w: 13 },
         { h: 'Hình thức thi công', k: 'mode', t: 'mode', w: 12 },
         { h: 'Subcon', k: 'subcon', w: 18 },
         { h: 'WBS', k: 'wbs', w: 14 },
@@ -597,7 +601,7 @@
     // So kế hoạch hiện tại với baseline của TỪNG dự án. Mỗi dự án: { p, bl, inBase, ms: { mốc: { base, cur, done, diff } }, al: { base, cur }, slip, slipKey }
     //   diff = số ngày lệch (dương = trễ hơn baseline); slip = lệch của mốc quan trọng nhất còn so được (bàn giao → sẵn sàng test → xong cơ khí → nhận hố)
     function variance(data, which) {
-        const cur = allocByProject(data), SLIP = ['handover', 'testReady', 'mechDone', 'teamStart'];
+        const cur = allocByProject(data), SLIP = ['handover', 'inspect', 'sais', 'testReady', 'mechDone', 'teamStart'];
         return (data.projects || []).map(p => {
             const bl = baselineOf(p, which), b = bl ? bl.ms || {} : null, ms = {};
             MILESTONES.forEach(m => {
