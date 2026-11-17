@@ -88,7 +88,11 @@
           ws.getCell(`R${rr}`).value = i === 0 ? Number(p.fundS) || 0 : null;
           ws.getCell(`S${rr}`).value = i === 0 ? { formula: `R${rr}*$O$${h}` } : 0;
           ws.getCell(`Q${rr}`).value = Number(sup[i].before) || 0;
-          ws.getCell(`T${rr}`).value = { formula: `S${rr}-Q${rr}` };
+          // Site-sup không được nhận (final quá 60 ngày / đợt cuối 20%): tiền đợt này = 0 — KHÔNG để công thức S − Q
+          // (Excel sẽ tự tính lại ra số tiền dù app đã để 0). Cột S vẫn hiện mức lẽ ra được nhận để đối chiếu.
+          const zeroSup = !sup[i].manual && p.supRule && p.supRule.zero && !p.imported;
+          ws.getCell(`T${rr}`).value = zeroSup ? 0 : { formula: `S${rr}-Q${rr}` };
+          if (zeroSup) ws.getCell(`T${rr}`).note = 'Site-sup = 0: ' + (p.supRule.reason || 'không đủ điều kiện nhận thưởng đợt cuối');
           ws.getCell(`L${rr}`).value = sup[i].manual ? sup[i].amount : { formula: `T${rr}` };
         });
         fitRows.forEach((rr, i) => {

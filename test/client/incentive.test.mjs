@@ -148,3 +148,24 @@ test('Báo cáo tổng quan chi thưởng: ghi chú rõ dự án final quá 60 n
   assert.match(all, /2\. C — DA C/);
   assert.ok(!/\d\. B — DA B/.test(all), 'final trong 60 ngày không nằm trong danh sách');
 });
+
+test('Xuất file List: Site-sup không được nhận (final quá 60 ngày / đợt 20%) ghi 0 — không để công thức S − Q tự tính lại', async (t) => {
+  let ExcelJS; try { ExcelJS = require('exceljs'); } catch (e) { return t.skip('chưa cài exceljs'); }
+  const X = require('../../tools/incentive/incexcel.js');
+  const mk = (wbs, kind, extra) => { const p = { wbs, name: 'DA ' + wbs, kind, fundF: 1000, fundS: 500, sup: { empId: 'S1', name: 'Ngô Trí Sửu' }, fitters: [{ empId: 'F1', name: 'Thợ', hours: 10 }],
+    paid: { S1: 200, F1: 600 }, ...extra }; const r = Inc.compute(p); return { ...p, lines: r.lines, supRule: r.supRule }; };
+  const projects = [mk('A', 'final30', { handoverDate: '2026-06-01', finalDate: '2026-09-15' }), mk('B', 'final30', { handoverDate: '2026-07-01', finalDate: '2026-08-10' }), mk('C', 'final20', {})];
+  const wb = X.build(ExcelJS, { month: '2026-11', projects }, { Incentive: Inc });
+  const ws = wb.worksheets[0];
+  const supRow = (wbs) => { let h = 0; ws.eachRow((r, i) => { if (String(r.getCell('D').value) === wbs) h = i; }); return h + 1; };
+  const f = (c) => (c.value && c.value.formula) || c.value;
+  for (const w of ['A', 'C']) {
+    const rr = supRow(w);
+    assert.equal(ws.getCell(`I${rr}`).value, 'Ngô Trí Sửu', w);
+    assert.equal(ws.getCell(`T${rr}`).value, 0, w + ': tiền đợt này = 0');
+    assert.equal(f(ws.getCell(`L${rr}`)), `T${rr}`, w);
+    assert.match(String(ws.getCell(`T${rr}`).note && (ws.getCell(`T${rr}`).note.texts ? ws.getCell(`T${rr}`).note.texts.map(x => x.text).join('') : ws.getCell(`T${rr}`).note)), /Site-sup = 0/);
+  }
+  const rb = supRow('B');
+  assert.equal(f(ws.getCell(`T${rb}`)), `S${rb}-Q${rb}`, 'final trong 60 ngày: vẫn tính S − Q');
+});
