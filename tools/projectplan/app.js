@@ -1697,8 +1697,8 @@
   $('btnMore').addEventListener('click', (e) => { e.stopPropagation(); const o = $('moreMenu').hidden; $('moreMenu').hidden = !o; $('btnMore').setAttribute('aria-expanded', String(o)); if (o) placeMenu(); });
   document.addEventListener('click', (e) => { if (!e.target.closest('#moreMenu')) closeMenu(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
-  // bấm ra ngoài hộp thoại để đóng
-  document.querySelectorAll('dialog').forEach(d => d.addEventListener('click', (e) => { if (e.target === d) d.close(); }));
+  // hộp thoại nhập liệu chỉ đóng bằng nút Hủy / Lưu / Xong — bấm hay kéo chuột ra ngoài, phím Esc đều KHÔNG đóng (tránh mất dữ liệu đang nhập)
+  document.querySelectorAll('dialog').forEach(d => d.addEventListener('cancel', (e) => e.preventDefault()));
   // tab khác vừa sửa dữ liệu
   window.addEventListener('storage', (e) => {
     if (e.key === KEY) { data = load(); render(); }

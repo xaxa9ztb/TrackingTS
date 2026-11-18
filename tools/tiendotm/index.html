@@ -33,7 +33,7 @@
 <script src="hsletters.js?v=6"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=15"></script>
+<script src="hoso.js?v=16"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -1746,6 +1746,7 @@ function gxPlanDel(){
   S.gplans.list=S.gplans.list.filter(p=>p!==cur);S.gplans.active=S.gplans.list[0]?S.gplans.list[0].id:"";
   gxEnsure();renderPreview();document.getElementById("gxHost").dispatchEvent(new Event("change",{bubbles:true}));
 }
+document.getElementById("gxPlanDlg").addEventListener("cancel",e=>e.preventDefault()); // chỉ đóng bằng nút Huỷ / Lưu
 document.addEventListener("click",ev=>{
   const b=ev.target.closest("#gxPlans [data-plan],#gxPlans [data-plan-add],#gxPlans [data-plan-edit],#gxPlans [data-plan-del]");if(!b)return;
   if(b.dataset.plan)gxSwitch(b.dataset.plan);else if("planAdd" in b.dataset)gxPlanDlg(false);else if("planEdit" in b.dataset)gxPlanDlg(true);else gxPlanDel();

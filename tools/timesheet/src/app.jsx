@@ -1721,8 +1721,7 @@
             const panel = useRef(null);
             useEffect(() => {
                 const prevFocus = document.activeElement;
-                const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-                document.addEventListener('keydown', onKey);
+                // ngăn kéo nhập liệu chỉ đóng bằng nút ✕ / Hủy / Lưu — Esc hay bấm ra ngoài không đóng (tránh mất dữ liệu đang nhập)
                 const prevOverflow = document.body.style.overflow;
                 document.body.style.overflow = 'hidden';
                 if (panel.current) {
@@ -1730,14 +1729,13 @@
                     (first || panel.current).focus();
                 }
                 return () => {
-                    document.removeEventListener('keydown', onKey);
                     document.body.style.overflow = prevOverflow;
                     if (prevFocus && prevFocus.focus) prevFocus.focus();
                 };
             }, []);
             return (
                 <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="tsDrawerTitle">
-                    <div className="absolute inset-0 bg-slate-900/40 ts-fade" onClick={onClose}/>
+                    <div className="absolute inset-0 bg-slate-900/40 ts-fade"/>
                     <div ref={panel} tabIndex={-1} className="absolute inset-y-0 right-0 w-full md:max-w-xl bg-white shadow-2xl flex flex-col outline-none ts-drawer">
                         <div className="flex items-center justify-between px-5 h-14 border-b border-slate-200 shrink-0">
                             <h2 id="tsDrawerTitle" className="font-semibold text-lg">{title}</h2>

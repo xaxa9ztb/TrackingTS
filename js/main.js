@@ -76,7 +76,7 @@ const Modal = (() => {
       </div>`;
     const close = () => { root.innerHTML = ''; };
     root.querySelector('#modalCancel').addEventListener('click', close);
-    root.querySelector('.modal-overlay').addEventListener('click', (e) => { if (e.target.classList.contains('modal-overlay')) close(); });
+    // chỉ đóng bằng nút Huỷ / Lưu — bấm ra ngoài không đóng (tránh mất dữ liệu đang nhập)
     root.querySelector('#modalSave').addEventListener('click', async () => {
       const ok = await onSave();
       if (ok !== false) close();
@@ -232,9 +232,6 @@ function openUpdateModal() {
 
   const close = () => { root.innerHTML = ''; };
   root.querySelector('#updClose').addEventListener('click', close);
-  root.querySelector('.modal-overlay').addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal-overlay')) close();
-  });
 
   const statusEl = root.querySelector('#updStatus');
 

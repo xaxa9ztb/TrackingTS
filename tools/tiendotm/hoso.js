@@ -251,6 +251,7 @@
         <p id="hsGrantSt" class="hs-mini" style="min-height:1.2em"></p>
         <div class="row" style="justify-content:flex-end;gap:8px"><button value="cancel" class="btn gho sm">Đóng</button><button id="hsGrantSave" value="default" class="btn pri sm">Lưu quyền</button></div></form>`;
       document.body.appendChild(dlg);
+      dlg.addEventListener('cancel', (e) => e.preventDefault()); // chỉ đóng bằng nút Đóng / Lưu quyền
     }
     $('hsGrantName').textContent = x.name + (x.wbs ? ' · WBS ' + x.wbs : '');
     $('hsGrantSt').textContent = '';
