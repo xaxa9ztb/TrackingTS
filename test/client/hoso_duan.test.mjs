@@ -136,8 +136,13 @@ test('Báo giá phát sinh: thành tiền, VAT, tổng cộng, số tiền bằn
   const q = L.quoteCalc('Cửa tầng | bộ | 1 | 45.000.000\nNhân công | gói | 2,5 | 8,000,000', '8');
   assert.deepEqual([q.sub, q.vat, q.total], [65000000, 5200000, 70200000]);
   const d = L.LETTERS.find(x => x.id === 'bao_gia_ps');
-  const xml = d.body({ I, f: { so: '20/BG', ngay: '2026-11-18', tieuDe: 'Cửa tầng tum', hangMucBG: 'Cửa tầng | bộ | 1 | 45.000.000\nNhân công | gói | 2,5 | 8,000,000', vat: '8', lyDo: 'Theo yêu cầu của Chủ đầu tư' }, K });
+  const xml = d.body({ I, f: { so: '20/BG', ngay: '2026-11-18', tieuDe: 'Cửa tầng tum', hangMucBG: 'Cửa tầng | bộ | 1 | 45.000.000\nNhân công | gói | 2,5 | 8,000,000', vat: '8', lyDo: 'Theo yêu cầu của Chủ đầu tư',
+    thoiGian: '15 ngày', hieuLuc: '30', thanhToan: 'Đợt 1: Tạm ứng 30%\nĐợt 2: 70% sau nghiệm thu', hinhThucTT: 'Chuyển khoản', hoSoTT: 'Hoá đơn GTGT' }, K });
   balanced(xml); assert.doesNotMatch(xml, /undefined|NaN/);
   for (const re of [/Báo giá công việc phát sinh – Cửa tầng tum/, /45\.000\.000/, /20\.000\.000/, /65\.000\.000/, /Thuế GTGT 8%/, /5\.200\.000/, /70\.200\.000/,
-    /Bảy mươi triệu hai trăm nghìn đồng\./, /XÁC NHẬN CỦA CHỦ ĐẦU TƯ/, /Kính gửi:/, /Tham chiếu: /]) assert.match(xml, re);
+    /Bảy mươi triệu hai trăm nghìn đồng\./, /XÁC NHẬN CỦA CHỦ ĐẦU TƯ/, /Kính gửi:/, /Tham chiếu: /, /Điều khoản báo giá/, /1\. Thời gian thực hiện:/, / 15 ngày\./,
+    /đến hết ngày 18\/12\/2026/, /3\. Điều khoản thanh toán:/, /Tạm ứng 30% \(tương đương 21\.060\.000 đồng\)/, /70% sau nghiệm thu \(tương đương 49\.140\.000 đồng\)/,
+    /Hình thức: Chuyển khoản\./, /Hồ sơ thanh toán: Hoá đơn GTGT\./]) assert.match(xml, re);
+  assert.equal(L.validity('45 ngày', ''), '45 ngày kể từ ngày báo giá'); assert.equal(L.validity('đến hết năm 2026', '2026-11-18'), 'đến hết năm 2026');
+  assert.equal(L.payLine('Đợt 1: 500.000 đồng', 1e6), 'Đợt 1: 500.000 đồng.');
 });

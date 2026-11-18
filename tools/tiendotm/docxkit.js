@@ -63,7 +63,7 @@
           : String(cell.t == null ? '' : cell.t).split('\n\n').map(t => p(r(t, run), { align: al, after: 0 }));
         return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}<w:vAlign w:val="${cell.vAlign || 'center'}"/></w:tcPr>${paras.join('')}</w:tc>`;
       }).join('');
-      const trPr = (o.rowH ? `<w:trHeight w:val="${o.rowH}"/>` : '') + (head ? '<w:tblHeader/>' : '');
+      const trPr = (o.cantSplit ? '<w:cantSplit/>' : '') + (o.rowH ? `<w:trHeight w:val="${o.rowH}"/>` : '') + (head ? '<w:tblHeader/>' : '');
       return `<w:tr>${trPr ? `<w:trPr>${trPr}</w:trPr>` : ''}${cells}</w:tr>`;
     }).join('');
     return `<w:tbl><w:tblPr><w:tblW w:w="${total}" w:type="dxa"/>${o.center ? '<w:jc w:val="center"/>' : ''}${borders}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr>${grid}${body}</w:tbl>${p('', { after: 0 })}`;

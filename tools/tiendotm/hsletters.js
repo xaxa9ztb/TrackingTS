@@ -36,10 +36,10 @@
     const sign = table([[
       { runs: [r('Nơi nhận:', { b: true, i: true, sz: 11 }), r('\n- Như trên;' + (o.cc ? '\n- ' + o.cc + ';' : '') + '\n- Lưu VP.', { sz: 11 })], vAlign: 'top' },
       { runs: [r('TM. ' + CTY(I), { b: true, sz: 11 }), r('\n' + cv, { b: true, sz: 11 }), r('\n\n\n\n' + (ky || ''), { b: true })], align: 'center', vAlign: 'top' },
-    ]], { widths: [3700, 5326], border: false });
+    ]], { widths: [3700, 5326], border: false, cantSplit: true });
     const lh = [I.pmTen, I.pmDT, I.pmEmail].filter(Boolean).join(' – ');
     return p(r(o.thanks || 'Rất mong nhận được sự hợp tác của Quý Khách hàng.'), { align: 'both', before: 4 }) +
-      p(r('Trân trọng kính chào.'), { after: 8 }) + sign +
+      p(r('Trân trọng kính chào.'), { after: 8, keep: true }) + sign +
       (lh ? p(r('Người liên hệ: ' + lh, { i: true, sz: 10 }), { before: 6 }) : '');
   }
   const salute = () => p(r('Kính gửi Quý Khách hàng,'), { before: 4 });
@@ -108,6 +108,23 @@
     return Number(t.replace(/[.,]/g, '')) || 0;
   };
   // báo giá: dòng "nội dung | ĐVT | số lượng | đơn giá" → { rows, sub, vat, total }
+  // hiệu lực báo giá: "30" / "30 ngày" → "30 ngày kể từ ngày báo giá (đến hết ngày dd/mm/yyyy)"
+  function validity(v, iso) {
+    const t = String(v || '').trim(), m = /^(\d{1,3})(?:\s*ngày)?$/i.exec(t), d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if (!t) return '…… ngày kể từ ngày báo giá';
+    if (!m) return t;
+    const n = Number(m[1]);
+    if (!d) return `${n} ngày kể từ ngày báo giá`;
+    const e = new Date(Date.UTC(+d[1], +d[2] - 1, +d[3] + n));
+    return `${n} ngày kể từ ngày báo giá (đến hết ngày ${String(e.getUTCDate()).padStart(2, '0')}/${String(e.getUTCMonth() + 1).padStart(2, '0')}/${e.getUTCFullYear()})`;
+  }
+  // một đợt thanh toán có "x%" → thêm số tiền tương ứng của tổng cộng (đã gồm VAT)
+  function payLine(ln, total) {
+    const t = String(ln || '').trim().replace(/\.$/, ''), m = /(\d+(?:[.,]\d+)?)\s*%/.exec(t);
+    if (!m || !total || /\bđ(ồng)?\b|vnđ/i.test(t)) return t + '.';
+    const v = Math.round(total * Number(m[1].replace(',', '.')) / 100);
+    return `${t} (tương đương ${money(v)} đồng).`;
+  }
   function quoteCalc(text, vatPct) {
     const rows = lines(text).map(ln => { const c = ln.split('|').map(x => x.trim()); const q = numIn(c[2], true), u = numIn(c[3]); return { ten: c[0] || '', dvt: c[1] || '', q, u, tt: Math.round(q * u) }; });
     const sub = rows.reduce((a, x) => a + x.tt, 0), pct = numIn(vatPct, true), vat = Math.round(sub * pct / 100);
@@ -389,15 +406,20 @@
         { k: 'hangMucBG', label: 'Hạng mục báo giá — mỗi dòng: nội dung | ĐVT | số lượng | đơn giá (VNĐ)', type: 'textarea', rows: 5,
           def: 'Bổ sung cửa tầng thang máy (tầng tum) | bộ | 1 | 45.000.000\nNhân công lắp đặt, căn chỉnh bổ sung | gói | 1 | 8.000.000' },
         { k: 'vat', label: 'Thuế GTGT (%)', def: '8' },
-        { k: 'thoiGian', label: 'Thời gian thực hiện', def: '…… ngày kể từ khi được chấp thuận' },
-        { k: 'hieuLuc', label: 'Hiệu lực báo giá', def: '30 ngày' },
-        { k: 'thanhToan', label: 'Điều kiện thanh toán', def: '100% giá trị phát sinh sau khi hoàn thành và nghiệm thu công việc' },
+        { k: 'thoiGian', label: 'Thời gian thực hiện', def: '…… ngày kể từ ngày báo giá được chấp thuận và nhận tạm ứng (nếu có)', wide: true },
+        { k: 'hieuLuc', label: 'Hiệu lực báo giá (số ngày)', def: '30', ph: 'VD: 30 — tự ghi ngày hết hiệu lực' },
+        { k: 'thanhToan', label: 'Điều khoản thanh toán — mỗi dòng 1 đợt (ghi % để tự tính số tiền)', type: 'textarea', rows: 3,
+          def: 'Đợt 1: Tạm ứng 50% giá trị báo giá sau khi báo giá được chấp thuận\nĐợt 2: Thanh toán 50% còn lại sau khi hoàn thành và nghiệm thu công việc' },
+        { k: 'hinhThucTT', label: 'Hình thức thanh toán', def: 'Chuyển khoản vào tài khoản của Nhà thầu, trong vòng 15 ngày kể từ ngày nhận đủ hồ sơ thanh toán hợp lệ', wide: true },
+        { k: 'hoSoTT', label: 'Hồ sơ thanh toán', def: 'Đề nghị thanh toán, hoá đơn GTGT, biên bản nghiệm thu khối lượng phát sinh', wide: true },
         { k: 'ghiChu', label: 'Ghi chú (mỗi dòng 1 mục)', type: 'textarea', rows: 3, def: 'Đơn giá đã bao gồm vật tư, vận chuyển đến công trình và nhân công lắp đặt\nChưa bao gồm các công việc xây dựng, điện ngoài phạm vi thang máy' },
       ],
       body: ({ I, f }) => {
         const q = quoteCalc(f.hangMucBG, f.vat == null || f.vat === '' ? '0' : f.vat);
         const rows = (q.rows.length ? q.rows : [{ ten: '', dvt: '', q: 0, u: 0, tt: 0 }]).map((x, i) => [{ t: String(i + 1), align: 'center' }, x.ten, { t: x.dvt, align: 'center' },
           { t: x.q ? String(x.q).replace('.', ',') : '', align: 'center' }, { t: x.u ? money(x.u) : '', align: 'right' }, { t: x.tt ? money(x.tt) : '', align: 'right' }]);
+        const item = (lb, v) => p([r(lb, { b: true }), r(v ? ' ' + String(v).replace(/\.?$/, '.') : '')], { align: 'both', keep: !v });
+        const sub = (t) => p(r(t), { align: 'both', ind: 360 });
         const sum = (label, v, b) => [{ t: label, span: 5, align: 'right', b: !!b }, { runs: [r(money(v), { b: !!b })], align: 'right' }];
         return letter((ctx) => `Báo giá công việc phát sinh${ctx.f.tieuDe ? ' – ' + ctx.f.tieuDe : ''}`, () =>
           para(`${f.canCuYC ? 'Căn cứ ' + f.canCuYC + ', ' : ''}${f.lyDo ? (f.lyDo.charAt(0).toLowerCase() + f.lyDo.slice(1)) + ', ' : ''}chúng tôi trân trọng gửi đến Quý Công ty báo giá các công việc phát sinh ngoài phạm vi Hợp đồng như sau:`.replace(/^./, c => c.toUpperCase())) +
@@ -405,10 +427,15 @@
             sum('Cộng (chưa thuế GTGT)', q.sub), sum(`Thuế GTGT ${String(q.pct).replace('.', ',')}%`, q.vat), sum('TỔNG CỘNG', q.total, true)],
             { widths: [650, 4050, 700, 750, 1400, 1476], header: 1 }) +
           p([r('Bằng chữ: ', { b: true }), r(docSo(q.total) + '.', { i: true })], { before: 2 }) +
-          head2('Điều kiện báo giá') + list([`Thời gian thực hiện: ${f.thoiGian || '……'}. Hiệu lực báo giá: ${f.hieuLuc || '……'}.`, `Điều kiện thanh toán: ${f.thanhToan || '……'}.`, ...lines(f.ghiChu)]) +
+          head2('Điều khoản báo giá') +
+          item('1. Thời gian thực hiện:', f.thoiGian) +
+          item('2. Hiệu lực báo giá:', validity(f.hieuLuc, f.ngay)) +
+          item('3. Điều khoản thanh toán:', '') + lines(f.thanhToan).map(ln => sub('– ' + payLine(ln, q.total))).join('') +
+          (f.hinhThucTT ? sub('– Hình thức: ' + f.hinhThucTT.replace(/\.?$/, '.')) : '') + (f.hoSoTT ? sub('– Hồ sơ thanh toán: ' + f.hoSoTT.replace(/\.?$/, '.')) : '') +
+          (lines(f.ghiChu).length ? item('4. Ghi chú:', '') + lines(f.ghiChu).map(x => sub('– ' + x.replace(/\.?$/, '.'))).join('') : '') +
           closing(I, f, { thanks: 'Kính đề nghị Quý Công ty xem xét, ký xác nhận chấp thuận để chúng tôi triển khai. Giá trị phát sinh sẽ được ký phụ lục và thanh toán theo Hợp đồng.' }) +
           tail(table([[{ runs: [r('XÁC NHẬN CỦA CHỦ ĐẦU TƯ', { b: true }), r('\n'), ckbox(false), r('Đồng ý     '), ckbox(false), r('Không đồng ý\n'), ckbox(false), r('Đồng ý có điều chỉnh: ……………')], vAlign: 'top' },
-            { runs: [r('Đại diện Chủ đầu tư', { b: true }), r('\n(Ký, ghi rõ họ tên, đóng dấu)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }]], { widths: [4513, 4513] })))({ I, f });
+            { runs: [r('Đại diện Chủ đầu tư', { b: true }), r('\n(Ký, ghi rõ họ tên, đóng dấu)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }]], { widths: [4513, 4513], cantSplit: true })))({ I, f });
       },
     },
   ];
@@ -424,6 +451,6 @@
     return zip;
   }
   const fileName = (def, I, f) => `${def.kind === 'bb' ? 'BB' : def.kind === 'rfa' ? def.id.toUpperCase() + (f && f.so ? ' ' + String(f.so).replace(/[\\/:*?"<>|]/g, '-') : '') : 'CV'} - ${def.kind === 'rfa' ? (def.file || 'De xuat phe duyet') : def.name.replace(/[\\/:*?"<>|]/g, '')}${I.congTrinh ? ' - ' + String(I.congTrinh).replace(/[\\/:*?"<>|]/g, '').slice(0, 50) : ''}.docx`;
-  const api = { LETTERS, EXISTING, build, fileName, header, closing, docSo, quoteCalc, money };
+  const api = { LETTERS, EXISTING, build, fileName, header, closing, docSo, quoteCalc, money, validity, payLine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HsLetters = api;
 })(typeof window !== 'undefined' ? window : globalThis);
