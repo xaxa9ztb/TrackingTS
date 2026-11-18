@@ -267,28 +267,13 @@
           <th class="gx-h gx-dt">Bắt đầu</th><th class="gx-h gx-n">Số ngày</th><th class="gx-h gx-dt">Kết thúc</th><th class="gx-h gx-lk" title="Nối tiếp việc phía trên — tự dời theo">↳</th>
           <th class="gx-tl"><div class="gx-sc"><div class="gx-m">${top}</div><div class="gx-d">${bot}</div></div></th></tr>`;
         const unit = c.mode === 'work' ? 'ngày làm việc' : 'ngày lịch';
-        // thanh tiến độ: ngày nghỉ (T7, CN, lễ — hoặc chỉ lễ khi tính ngày lịch) để trống, chỉ còn vạch mảnh nối các đoạn
-        const segBg = (r, col, light) => {
-          const n = Math.round((r.e - r.s) / DAY) + 1; if (n < 2) return '';
-          const fill = light ? `color-mix(in srgb,${col} 78%,#fff)` : col, st2 = [];
-          let off = false, any = false;
-          for (let k = 0; k < n; k++) {
-            const w = Cl.isWork(new Date(r.s.getTime() + k * DAY)), x = (k * px).toFixed(1);
-            if (!w) any = true;
-            if (k === 0) { st2.push(`${w ? fill : 'transparent'} 0px`); off = !w; continue; }
-            if (w === off) { st2.push(`${off ? 'transparent' : fill} ${x}px`, `${w ? fill : 'transparent'} ${x}px`); off = !w; }
-          }
-          if (!any) return '';
-          st2.push(`${off ? 'transparent' : fill} 100%`);
-          return `background:linear-gradient(to right,${st2.join(',')}),linear-gradient(${col},${col}) center/100% 2px no-repeat;`;
-        };
         tbody.innerHTML = R.rows.map((r, i) => {
           const it = items[i], col = r.color || COLOR[r.ph] || COLOR.I;
           const L = Math.round((r.s - t0) / DAY * px), Wd = Math.max(px, Math.round(((r.e - r.s) / DAY + 1) * px));
           let bar;
           if (r.kind === 'base' || r.kind === 'ms') bar = `<div class="gx-ms${r.kind === 'base' ? ' fix' : ''}" data-drag="${r.kind === 'base' ? '' : 'move'}" style="left:${L + px / 2 - 8}px;--c:${col}" title="${e(r.name)} — ${dmy(r.s)}"></div><span class="gx-lb" style="left:${L + px / 2 + 12}px">${dmy(r.s)}</span>`;
-          else if (r.summary) bar = `<div class="gx-sum" style="left:${L}px;width:${Wd}px;--c:${col};${segBg(r, col)}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit})"></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày</span>`;
-          else { const sb = segBg(r, col, r.sec); bar = `<div class="gx-b${r.sec ? ' grp' : ''}${sb ? ' seg' : ''}" data-drag="move" style="left:${L}px;width:${Wd}px;--c:${col};${sb}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit}) — kéo để dời, kéo mép phải để đổi số ngày"><i class="gx-rz" data-drag="size"></i></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày${r.link && r.lag ? ` · ${r.lag > 0 ? '+' : ''}${r.lag}` : ''}</span>`; }
+          else if (r.summary) bar = `<div class="gx-sum" style="left:${L}px;width:${Wd}px;--c:${col}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit})"></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày</span>`;
+          else { bar = `<div class="gx-b${r.sec ? ' grp' : ''}" data-drag="move" style="left:${L}px;width:${Wd}px;--c:${col}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit}) — kéo để dời, kéo mép phải để đổi số ngày"><i class="gx-rz" data-drag="size"></i></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày${r.link && r.lag ? ` · ${r.lag > 0 ? '+' : ''}${r.lag}` : ''}</span>`; }
           const fixed = r.kind === 'base' || r.summary;
           const nm = r.kind === 'base' ? `<span class="gx-fix" title="Sửa ở bước 1 (Ngày ký phê duyệt bản vẽ)">${e(r.name)}</span>`
             : `<input class="gx-in" data-f="name" value="${e(it.name)}" aria-label="Tên công việc dòng ${r.id}">`;
