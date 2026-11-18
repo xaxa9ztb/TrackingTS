@@ -102,3 +102,29 @@ test('nhóm hết việc con trở lại thành 1 công việc; ngày lịch', (
   const C2 = G.compute(G.fromRows(rows0), { ...ctx, mode: 'cal' });
   assert.equal(I(C2.end), '2026-07-08');
 });
+
+test('màu theo loại: app tự gợi ý loại, việc cùng loại cùng màu; đổi màu loại / màu riêng từng dòng', () => {
+  assert.equal(G.classify('Lắp đặt ray dẫn hướng cabin và đối trọng', 'task', 'I'), 'ck');
+  assert.equal(G.classify('Kiểm định an toàn', 'task', 'H'), 'kd');
+  assert.equal(G.classify('Tháo dỡ giàn giáo, vệ sinh', 'task', 'I'), 'ht');
+  assert.equal(G.classify('Việc gì đó', 'task', 'P'), 'sx');          // không khớp từ khoá → theo nhóm
+  const items = [
+    { uid: 'b', kind: 'base', name: 'Mốc', ph: 'M' },
+    { uid: 'a', kind: 'task', name: 'Lắp đặt ray dẫn hướng', ph: 'I', days: 2 },
+    { uid: 'c', kind: 'task', name: 'Lắp đặt máy kéo', ph: 'I', days: 2 },
+    { uid: 'd', kind: 'task', name: 'Kiểm định an toàn', ph: 'H', days: 1, color: '#123456' },
+    { uid: 'e', kind: 'task', name: 'Đi dây điện', ph: 'I', days: 1, type: 'kd' },
+  ];
+  let R = G.compute(items, ctx);
+  const by = (rs) => Object.fromEntries(rs.map(r => [r.name, r]));
+  let m = by(R.rows);
+  assert.equal(m['Lắp đặt ray dẫn hướng'].type, 'ck');
+  assert.equal(m['Lắp đặt ray dẫn hướng'].color, m['Lắp đặt máy kéo'].color);   // cùng loại → cùng màu
+  assert.equal(m['Kiểm định an toàn'].color, '#123456'); assert.ok(m['Kiểm định an toàn'].ownColor);
+  assert.equal(m['Đi dây điện'].type, 'kd'); assert.equal(m['Đi dây điện'].autoType, false);
+  R = G.compute(items, { ...ctx, typeColors: { ck: '#00ff00', kd: '#abcdef' } });
+  m = by(R.rows);
+  assert.equal(m['Lắp đặt máy kéo'].color, '#00ff00');
+  assert.equal(m['Đi dây điện'].color, '#abcdef');
+  assert.equal(m['Kiểm định an toàn'].color, '#123456');                        // màu riêng thắng màu loại
+});
