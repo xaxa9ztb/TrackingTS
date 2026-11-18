@@ -13,6 +13,7 @@ import { routeTsAdmin } from './tsadmin.mjs';
 import { routeTsImport, backfillMine } from './tsimport.mjs';
 import { routeIncentive } from './incentive.mjs';
 import { routeHsProject } from './hsproject.mjs';
+import { routeBracket } from './bracket.mjs';
 import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs, projectWbsKnown } from './tsflow.mjs';
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
@@ -1180,6 +1181,10 @@ async function handleApi(request, env, opts = {}) {
     }
     if (path.startsWith('/api/hs/')) {
       const r = await routeHsProject(H, env, me, path, method, request);
+      if (r) return r;
+    }
+    if (path.startsWith('/api/bracket/')) {
+      const r = await routeBracket(H, env, me, path, method, request);
       if (r) return r;
     }
     if (path.startsWith('/api/incentive/')) {

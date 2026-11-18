@@ -1,5 +1,6 @@
 // Khảo sát Bracket hố thang — giao diện. Phần tính toán ở bracket.js (window.Bracket).
-// Phiếu lưu trên máy (localStorage) — xuất Excel theo mẫu bracket-template.xlsx để gửi / lưu trữ.
+// Bản máy chủ: phiếu lưu trên hệ thống (/api/bracket/surveys) — mọi người cùng xem, chỉ người tạo và Admin được sửa.
+// Bản không có máy chủ: phiếu lưu trên máy (localStorage). Xuất Excel theo mẫu bracket-template.xlsx / báo cáo PDF.
 (function () {
   'use strict';
   const B = window.Bracket;
@@ -11,22 +12,109 @@
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // ---------- lưu trữ ----------
-  function load() {
+  const SERVER = typeof Session !== 'undefined' && !!Session.SERVER;
+  function loadLocal() {
     try { const d = JSON.parse(localStorage.getItem(KEY) || '{}'); return Array.isArray(d.surveys) ? d.surveys : []; } catch (e) { return []; }
   }
-  let surveys = load();
+  let surveys = SERVER ? [] : loadLocal();
   let cur = null;               // phiếu đang mở
-  let saveTimer = 0;
+  let saveTimer = 0, retryTimer = 0;
+  const setSaved = (t) => { $('saved').textContent = t; };
+  const hhmm = (iso) => { const d = new Date(iso || Date.now()); return isNaN(d) ? '' : d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }); };
+  // dữ liệu phiếu gửi lên máy chủ (bỏ phần thông tin quản lý _m)
+  const strip = (x) => { const { _m, ...d } = x; return d; };
+  const fromServer = (it) => Object.assign({}, it.data, { id: it.data && it.data.id ? it.data.id : 'srv' + it.id,
+    _m: { sid: it.id, version: it.version, canEdit: !!it.canEdit, mine: !!it.mine, createdBy: it.createdBy, updatedBy: it.updatedBy, updatedAt: it.updatedAt, dirty: false } });
+  const editable = (x) => !SERVER || !!(x && x._m && x._m.canEdit);
+
+  async function api(method, path, body, keepalive) {
+    let resp;
+    try {
+      resp = await fetch(path, { method, credentials: 'same-origin', redirect: 'manual', cache: 'no-store', keepalive: !!keepalive,
+        headers: body === undefined ? {} : { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    } catch (e) { const err = new Error('Không kết nối được hệ thống'); err.status = 0; throw err; }
+    if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)) { const err = new Error('Phiên đăng nhập đã hết hạn — tải lại trang (F5)'); err.status = 401; throw err; }
+    let data = {}; try { data = await resp.json(); } catch (e) { /* không phải JSON */ }
+    if (!resp.ok) { const err = new Error(data.error || ('Lỗi hệ thống (HTTP ' + resp.status + ')')); err.status = resp.status; throw err; }
+    return data;
+  }
+  async function loadServer() {
+    $('listEmpty').hidden = true; $('list').innerHTML = '<li class="bk-loading ni-muted">Đang tải phiếu từ hệ thống…</li>';
+    try { const r = await api('GET', '/api/bracket/surveys'); surveys = (r.items || []).map(fromServer); }
+    catch (e) { $('list').innerHTML = `<li class="bk-loading bk-warn">⚠ Không tải được danh sách phiếu: ${esc(e.message)}. <button type="button" class="ni-btn small" id="btnReload">Thử lại</button></li>`; return false; }
+    renderList(); return true;
+  }
+  // lưu phiếu đang mở lên hệ thống (chỉ khi có thay đổi và được quyền sửa)
+  let saving = false, again = false;
+  async function saveServer(x) {
+    if (!x || !x._m || !x._m.canEdit || !x._m.dirty) return;
+    if (saving) { again = true; return; }
+    saving = true; clearTimeout(retryTimer); x._m.dirty = false;
+    if (cur === x) setSaved('Đang lưu lên hệ thống…');
+    try {
+      const r = await api('PUT', '/api/bracket/surveys/' + x._m.sid, { version: x._m.version, data: strip(x) });
+      Object.assign(x._m, { version: r.survey.version, updatedAt: r.survey.updatedAt, updatedBy: r.survey.updatedBy });
+      if (cur === x) setSaved('Đã lưu lên hệ thống lúc ' + hhmm(r.survey.updatedAt));
+    } catch (e) {
+      x._m.dirty = true;
+      if (e.status === 409) {
+        if (cur === x) setSaved('⚠ ' + e.message);
+        if (confirm('Phiếu này vừa được sửa ở nơi khác (máy khác hoặc Admin).\n\nBấm OK để tải bản mới nhất (thay đổi chưa lưu của bạn trên phiếu này sẽ bị bỏ).')) await reloadOne(x);
+      } else if (e.status === 403 || e.status === 404) {
+        x._m.dirty = false; if (cur === x) setSaved('⚠ ' + e.message);
+      } else {
+        if (cur === x) setSaved('⚠ Chưa lưu được (' + e.message + ') — tự thử lại sau 15 giây');
+        retryTimer = setTimeout(() => saveServer(x), 15000);
+      }
+    } finally {
+      saving = false;
+      if (again) { again = false; saveServer(x); }
+    }
+  }
+  async function reloadOne(x) {
+    try {
+      const r = await api('GET', '/api/bracket/surveys/' + x._m.sid);
+      const n = fromServer(r.survey), i = surveys.indexOf(x);
+      if (i >= 0) surveys[i] = n;
+      if (cur === x) open(n.id);
+    } catch (e) { toast('Không tải lại được phiếu: ' + e.message); }
+  }
   function persist() {
-    try { localStorage.setItem(KEY, JSON.stringify({ surveys })); $('saved').textContent = 'Đã lưu trên máy này'; }
-    catch (e) { $('saved').textContent = 'Không lưu được (bộ nhớ trình duyệt đầy)'; }
+    if (SERVER) { if (cur) saveServer(cur); return; }
+    try { localStorage.setItem(KEY, JSON.stringify({ surveys })); setSaved('Đã lưu trên máy này'); }
+    catch (e) { setSaved('Không lưu được (bộ nhớ trình duyệt đầy)'); }
   }
   function touch() {
-    if (!cur) return;
+    if (!cur || !editable(cur)) return;
     cur.updatedAt = new Date().toISOString();
-    $('saved').textContent = 'Đang lưu…';
+    if (cur._m) cur._m.dirty = true;
+    setSaved('Đang lưu…');
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(persist, 400);
+    saveTimer = setTimeout(persist, SERVER ? 1200 : 400);
+  }
+  // thêm phiếu mới (bản máy chủ: tạo trên hệ thống trước rồi mới mở)
+  async function addSurvey(x) {
+    if (!SERVER) { surveys.push(x); persist(); return x; }
+    try { const r = await api('POST', '/api/bracket/surveys', { data: strip(x) }); const n = fromServer(r.survey); surveys.push(n); return n; }
+    catch (e) { toast('Không tạo được phiếu trên hệ thống: ' + e.message); return null; }
+  }
+  // phiếu cũ còn lưu trên máy này (trước khi có hệ thống) → đưa lên
+  function renderLocalBanner() {
+    const box = $('localBanner'); if (!box) return;
+    const n = SERVER ? loadLocal().length : 0;
+    box.hidden = !n;
+    if (n) box.innerHTML = `<span>📤 Máy này còn <b>${n}</b> phiếu khảo sát lưu riêng trên trình duyệt (từ trước khi có hệ thống) — đưa lên để mọi người cùng xem.</span><button type="button" class="ni-btn primary small" id="btnUpload">Đưa ${n} phiếu lên hệ thống</button>`;
+  }
+  async function uploadLocal() {
+    const list = loadLocal(); if (!list.length) return;
+    const btn = $('btnUpload'); if (btn) { btn.disabled = true; btn.textContent = 'Đang đưa lên…'; }
+    const left = []; let ok = 0;
+    for (const x of list) {
+      try { await api('POST', '/api/bracket/surveys', { data: strip(x) }); ok++; } catch (e) { left.push(x); }
+    }
+    try { if (left.length) localStorage.setItem(KEY, JSON.stringify({ surveys: left })); else localStorage.removeItem(KEY); } catch (e) { /* bỏ qua */ }
+    toast(left.length ? `Đã đưa ${ok} phiếu lên; ${left.length} phiếu chưa được — thử lại sau.` : `Đã đưa ${ok} phiếu lên hệ thống.`);
+    await loadServer(); renderLocalBanner();
   }
   let toastTimer = 0;
   function toast(msg) {
@@ -42,14 +130,20 @@
   }
 
   // ---------- danh sách ----------
+  let lMine = false, lQ = '';
+  const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   function renderList() {
-    const list = surveys.slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    const q = fold(lQ).trim();
+    const all = surveys.slice().sort((a, b) => String((b._m && b._m.updatedAt) || b.updatedAt).localeCompare(String((a._m && a._m.updatedAt) || a.updatedAt)));
+    const list = all.filter((s) => (!lMine || !s._m || s._m.mine) && (!q || fold([s.project, s.liftId, s.location, s.contract, s.surveyor, s._m && s._m.createdBy].join(' ')).includes(q)));
     $('listEmpty').hidden = list.length > 0;
+    $('listEmpty').innerHTML = all.length ? 'Không có phiếu nào khớp bộ lọc.' : 'Chưa có phiếu nào. Bấm <b>+ Phiếu mới</b> để bắt đầu.';
     $('list').innerHTML = list.map((s) => {
       const c = B.compute(s);
       const title = [s.project || 'Phiếu chưa đặt tên', s.liftId].filter(Boolean).join(' · ');
       const meta = [fmtDate(s.date), c.summary.total ? `${c.summary.total} vị trí · ${c.summary.pass} đạt` : 'chưa có số đo', s.zBracket, s.oBracket].filter(Boolean).join(' · ');
-      return `<li><button type="button" class="bk-open" data-open="${esc(s.id)}"><b>${esc(title)}</b><span>${esc(meta)}</span></button>
+      const own = s._m ? `<span class="bk-own${s._m.mine ? ' me' : ''}">${s._m.mine ? '★ Phiếu của tôi' : '👤 ' + esc(s._m.createdBy || '')}${s._m.canEdit ? '' : ' · 🔒 chỉ xem'}</span>` : '';
+      return `<li><button type="button" class="bk-open" data-open="${esc(s.id)}"><b>${esc(title)}</b><span>${esc(meta)}</span>${own}</button>
         <button type="button" class="ni-btn small" data-xls="${esc(s.id)}" aria-haspopup="menu">Xuất ▾</button></li>`;
     }).join('');
   }
@@ -108,6 +202,9 @@
     $('rows').innerHTML = cur.rows.map(rowHtml).join('');
     $('btnAddRow').disabled = cur.rows.length >= B.MAX_ROWS;
     $('btnAddRow').textContent = cur.rows.length >= B.MAX_ROWS ? `Đủ ${B.MAX_ROWS} vị trí (tối đa của mẫu Excel)` : '+ Thêm vị trí';
+    const ro = !editable(cur);
+    $('btnAddRow').hidden = ro;
+    document.querySelectorAll('#editor input, #editor select').forEach((el) => { el.disabled = ro; });
     refresh();
   }
 
@@ -162,13 +259,18 @@
     if (!cur) return;
     $('secList').hidden = true; $('editor').hidden = false;
     document.querySelectorAll('#editor [data-k]').forEach((el) => { el.value = cur[el.dataset.k] == null ? '' : cur[el.dataset.k]; });
-    $('saved').textContent = 'Đã lưu trên máy này';
+    setSaved(SERVER ? (cur._m.updatedAt ? `Lưu trên hệ thống · sửa lần cuối ${hhmm(cur._m.updatedAt)} ${new Date(cur._m.updatedAt).toLocaleDateString('vi-VN')}${cur._m.updatedBy ? ' bởi ' + cur._m.updatedBy : ''}` : 'Lưu trên hệ thống') : 'Đã lưu trên máy này');
+    const ro = !editable(cur);
+    $('editor').classList.toggle('bk-ro', ro);
+    $('roNote').hidden = !ro;
+    if (ro) $('roNote').innerHTML = `🔒 Phiếu của <b>${esc(cur._m.createdBy || 'người khác')}</b> — bạn chỉ được xem và xuất báo cáo. Chỉ người tạo phiếu và Admin được sửa. Cần chỉnh? Bấm <b>Nhân bản</b> để tạo bản của bạn.`;
+    $('btnDelete').hidden = ro;
     renderRows();
     history.replaceState(null, '', '#' + cur.id);
     window.scrollTo(0, 0);
   }
   function close() {
-    clearTimeout(saveTimer); if (cur) persist();
+    clearTimeout(saveTimer); if (cur && editable(cur)) persist();
     cur = null; $('editor').hidden = true; $('secList').hidden = false;
     history.replaceState(null, '', location.pathname + location.search);
     renderList();
@@ -240,7 +342,13 @@
 
   // ---------- sự kiện ----------
   function bind() {
-    $('btnNew').addEventListener('click', () => { const s = blank(); surveys.push(s); persist(); open(s.id); $('f_project').focus(); });
+    $('btnNew').addEventListener('click', async () => { const b = $('btnNew'); b.disabled = true; const s = await addSurvey(blank()); b.disabled = false; if (s) { open(s.id); $('f_project').focus(); } });
+    $('secList').addEventListener('click', (e) => {
+      if (e.target.closest('#btnUpload')) uploadLocal();
+      else if (e.target.closest('#btnReload')) loadServer();
+      const f = e.target.closest('[data-lmine]'); if (f) { lMine = f.dataset.lmine === '1'; document.querySelectorAll('[data-lmine]').forEach((x) => x.setAttribute('aria-pressed', String(x === f))); renderList(); }
+    });
+    $('listQ').addEventListener('input', (e) => { lQ = e.target.value; renderList(); });
     $('list').addEventListener('click', (e) => {
       const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
       const x = e.target.closest('[data-xls]'); if (x) { const s = surveys.find((v) => v.id === x.dataset.xls); if (s) openMenu(x, s); }
@@ -261,16 +369,21 @@
     $('rpPrint').addEventListener('click', printReport);
     $('rpXlsx').addEventListener('click', () => rpSurvey && exportXlsx(rpSurvey));
     window.addEventListener('resize', fitPage);
-    $('btnDup').addEventListener('click', () => {
+    $('btnDup').addEventListener('click', async () => {
       if (!cur) return;
-      const s = JSON.parse(JSON.stringify(cur));
+      if (editable(cur)) { clearTimeout(saveTimer); persist(); }
+      const s = JSON.parse(JSON.stringify(strip(cur)));
+      const me = (typeof Session !== 'undefined' && Session.current && Session.current()) || {};
       Object.assign(s, { id: uid(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), liftId: s.liftId ? s.liftId + ' (bản sao)' : '(bản sao)', date: today(),
-        rows: s.rows.map((r) => ({ line: r.line, sf2: '', sg: '' })) });
-      surveys.push(s); persist(); open(s.id); toast('Đã nhân bản phiếu (giữ thông tin dự án, bracket và tên vị trí; xóa số đo).');
+        surveyor: me.name || s.surveyor, rows: s.rows.map((r) => ({ line: r.line, sf2: '', sg: '' })) });
+      const n = await addSurvey(s); if (!n) return;
+      open(n.id); toast('Đã nhân bản phiếu (giữ thông tin dự án, bracket và tên vị trí; xóa số đo).');
     });
-    $('btnDelete').addEventListener('click', () => {
-      if (!cur || !confirm('Xóa phiếu khảo sát này khỏi máy? Không hoàn tác được — hãy xuất Excel trước nếu cần giữ.')) return;
-      surveys = surveys.filter((s) => s.id !== cur.id); persist(); cur = null; close(); toast('Đã xóa phiếu.');
+    $('btnDelete').addEventListener('click', async () => {
+      if (!cur || !editable(cur)) return;
+      if (!confirm(SERVER ? 'Xóa phiếu khảo sát này khỏi hệ thống? Mọi người sẽ không còn thấy phiếu. Không hoàn tác được — hãy xuất Excel trước nếu cần giữ.' : 'Xóa phiếu khảo sát này khỏi máy? Không hoàn tác được — hãy xuất Excel trước nếu cần giữ.')) return;
+      if (SERVER) { try { await api('DELETE', '/api/bracket/surveys/' + cur._m.sid, {}); } catch (e) { toast('Không xóa được: ' + e.message); return; } }
+      const x = cur; clearTimeout(saveTimer); surveys = surveys.filter((s) => s !== x); if (!SERVER) persist(); cur = null; close(); toast('Đã xóa phiếu.');
     });
     // ô thông tin + bracket
     $('editor').addEventListener('input', (e) => {
@@ -302,11 +415,21 @@
       if (i === cur.rows.length - 1) { if (cur.rows.length >= B.MAX_ROWS) return; cur.rows.push({ line: '', sf2: '', sg: '' }); touch(); renderRows(); }
       const n = document.querySelector(`#rows tr[data-i="${i + 1}"] [data-r=line]`); if (n) n.focus();
     });
-    window.addEventListener('pagehide', () => { if (cur) { clearTimeout(saveTimer); persist(); } });
+    window.addEventListener('pagehide', () => {
+      if (!cur || !editable(cur)) return;
+      clearTimeout(saveTimer);
+      if (!SERVER) { persist(); return; }
+      if (cur._m.dirty) api('PUT', '/api/bracket/surveys/' + cur._m.sid, { version: cur._m.version, data: strip(cur) }, true).catch(() => {});
+    });
   }
 
   const me = (typeof Session !== 'undefined' && Session.current && Session.current()) || null;
-  if (me && me.name) $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · phiếu lưu trên máy này`;
-  bracketOptions(); refTables(); bind(); renderList();
-  const h = location.hash.slice(1); if (h && surveys.some((s) => s.id === h)) open(h);
+  if (me && me.name) $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ` + (SERVER ? 'phiếu lưu trên hệ thống — mọi người cùng xem; chỉ người tạo và Admin được sửa' : 'phiếu lưu trên máy này');
+  $('listTitle').textContent = SERVER ? 'Phiếu khảo sát trên hệ thống' : 'Phiếu khảo sát trên máy này';
+  $('listTools').hidden = !SERVER;
+  bracketOptions(); refTables(); bind();
+  (async () => {
+    if (SERVER) { if (!(await loadServer())) return; renderLocalBanner(); } else renderList();
+    const h = location.hash.slice(1); if (h && surveys.some((s) => s.id === h)) open(h);
+  })();
 })();

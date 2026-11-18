@@ -2368,3 +2368,38 @@ test('Hồ sơ Dự án: phân quyền sửa — QLDA sửa mọi hồ sơ, Site
   assert.equal((await call('DELETE', `/api/hs/projects/${supP.id}`, { email: SUP, body: {} })).status, 200);
   assert.equal((await call('DELETE', `/api/hs/projects/${pmP.id}`, { email: A, body: {} })).status, 200);
 });
+
+test('Khảo sát Bracket: mọi người cùng xem; chỉ người tạo và Admin được sửa / xoá; chống ghi đè; không đổi thì không ghi; không đưa lên trùng', async () => {
+  const A = 'boss@example.com', SUP = 'sup@example.com', TS = 'ts1@example.com';
+  assert.equal((await call('PATCH', '/api/admin/employees/S01', { email: A, body: { active: true } })).status, 200);
+  const d0 = { id: 'bk-cid-1', project: 'TOÀ MẪU', liftId: 'L1', date: '2026-11-18', zBracket: 'Z-CL1', rows: [{ line: 'T1', sf2: '150', sg: '120' }] };
+  const c = await call('POST', '/api/bracket/surveys', { email: TS, body: { data: d0 } });
+  assert.equal(c.status, 200, JSON.stringify(c.data));
+  const s = c.data.survey;
+  assert.deepEqual([s.version, s.mine, s.canEdit, s.data.project], [1, true, true, 'TOÀ MẪU']);
+  const dup = (await call('POST', '/api/bracket/surveys', { email: TS, body: { data: d0 } })).data;
+  assert.deepEqual([dup.existing, dup.survey.id], [true, s.id], 'cùng mã phiếu → không tạo trùng');
+  // người khác (Site Sup) xem được nhưng không sửa / xoá được
+  const ls = (await call('GET', '/api/bracket/surveys', { email: SUP })).data.items.find(x => x.id === s.id);
+  assert.deepEqual([ls.mine, ls.canEdit, ls.createdBy, ls.data.rows.length], [false, false, 'Thợ Một', 1]);
+  const put = (email, version, data) => call('PUT', `/api/bracket/surveys/${s.id}`, { email, body: { version, data } });
+  const r1 = await put(SUP, 1, { ...d0, liftId: 'L2' });
+  assert.equal(r1.status, 403); assert.match(r1.data.error, /chỉ được xem/);
+  assert.equal((await call('DELETE', `/api/bracket/surveys/${s.id}`, { email: SUP, body: {} })).status, 403);
+  // chính chủ sửa; giống hệt → không ghi; version cũ → 409
+  const u = (await put(TS, 1, { ...d0, liftId: 'L2' })).data;
+  assert.deepEqual([u.survey.version, u.survey.data.liftId], [2, 'L2']);
+  assert.equal((await put(TS, 2, { ...d0, liftId: 'L2' })).data.unchanged, true);
+  assert.equal((await put(TS, 1, d0)).status, 409);
+  assert.equal((await put(TS, 2, { rows: 'x' })).status, 400);
+  // Admin sửa được phiếu của người khác
+  const a = (await put(A, 2, { ...d0, liftId: 'L3' })).data;
+  assert.deepEqual([a.survey.version, a.survey.mine, a.survey.canEdit, a.survey.updatedBy], [3, false, true, A]);
+  assert.equal((await call('GET', `/api/bracket/surveys/${s.id}`, { email: TS })).data.survey.data.liftId, 'L3');
+  // xoá: chính chủ hoặc Admin
+  const s2 = (await call('POST', '/api/bracket/surveys', { email: SUP, body: { data: { id: 'bk-cid-2', project: 'P2', rows: [] } } })).data.survey;
+  assert.equal((await call('DELETE', `/api/bracket/surveys/${s2.id}`, { email: TS, body: {} })).status, 403);
+  assert.equal((await call('DELETE', `/api/bracket/surveys/${s2.id}`, { email: A, body: {} })).status, 200);
+  assert.equal((await call('DELETE', `/api/bracket/surveys/${s.id}`, { email: TS, body: {} })).status, 200);
+  assert.equal((await call('GET', `/api/bracket/surveys/${s.id}`, { email: TS })).status, 404);
+});
