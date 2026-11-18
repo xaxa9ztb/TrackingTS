@@ -121,7 +121,7 @@
   <h2><span class="n">1</span>4 chức năng</h2>
   <div class="map">
     <a href="#tien-do"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3.5v17h17.5"/><path d="M7 8h7M7 12h4.5"/><path d="M13 16.5l2.2 2.2L19.5 14"/></svg></div><b>Tiến độ & nghiệm thu</b><small>Bảng tiến độ · hồ sơ chất lượng · nhật ký</small></a>
-    <a href="#cong-van"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/></svg></div><b>Công văn, biên bản</b><small>15 văn bản, cùng 1 khuôn</small></a>
+    <a href="#cong-van"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/></svg></div><b>Công văn, biên bản</b><small>18 văn bản, cùng 1 khuôn</small></a>
     <a href="#phap-ly"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></div><b>Hồ sơ pháp lý</b><small>8 văn bản Word, 1 file .zip</small></a>
     <a href="#ban-ve"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></div><b>Bìa & trang ký bản vẽ</b><small>PDF A3, ghép trước bản vẽ</small></a>
   </div>
@@ -162,30 +162,50 @@
 <section id="tien-do" class="nb">
   <h2><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3.5v17h17.5"/><path d="M7 8h7M7 12h4.5"/><path d="M13 16.5l2.2 2.2L19.5 14"/></svg></span>Tiến độ & nghiệm thu</h2>
   <ul>
-    <li><b>Lập bảng tiến độ</b> — Gantt theo tuần → Excel / PDF A3.</li>
+    <li><b>Lập bảng tiến độ</b> — điền mốc, thời gian các giai đoạn → <b>chỉnh trên Gantt</b> (kéo thả, thêm / xoá / sửa dòng) → Excel / PDF A3.</li>
     <li><b>Hồ sơ chất lượng</b> — điền mục A → E → xuất trọn bộ nghiệm thu (Word).</li>
     <li><b>Nhật ký thi công</b> — điền thông tin + số trang → xuất (ngày điền sẵn).</li>
   </ul>
-  <p class="sub">Cách làm giống công cụ cũ. Chi tiết hồ sơ chất lượng: <a href="huong-dan.html#gs-hoso">hướng dẫn chung 3.4</a>.</p>
+  <h3 style="margin:16px 0 6px">Chỉnh bảng tiến độ kiểu Gantt (bước 3)</h3>
+  <p class="sub" style="margin:0 0 8px">Bảng tự sinh từ dữ liệu bước 2 hiện dưới dạng Gantt — chỉnh xong mới xuất Excel / in. Bảng in và file Excel lấy <b>đúng như trên Gantt</b>.</p>
+  <figure class="shot"><img src="docs/huong-dan/hsda-gantt.jpg" alt="Trình chỉnh tiến độ Gantt: bảng công việc bên trái, thanh tiến độ bên phải" loading="lazy" width="1276" height="797"><figcaption>Trình chỉnh Gantt: sửa ở bảng bên trái hoặc kéo thanh bên phải (dữ liệu mẫu)</figcaption></figure>
+  <table class="tbl">
+    <thead><tr><th style="width:30%">Muốn</th><th>Làm</th></tr></thead>
+    <tbody>
+      <tr><td>Dời ngày một công việc</td><td><b>Kéo thanh</b> sang trái / phải, hoặc sửa ô <b>Bắt đầu</b>. Ngày rơi vào T7, CN, lễ tự dồn sang ngày làm việc kế tiếp.</td></tr>
+      <tr><td>Đổi thời lượng</td><td><b>Kéo mép phải</b> của thanh, hoặc sửa ô <b>Số ngày</b> / <b>Kết thúc</b>.</td></tr>
+      <tr><td>Các việc sau tự dời theo</td><td>Ô <b>↳</b> (nối tiếp) đang tích: việc bắt đầu ngay sau việc phía trên; việc trên dời / dài thêm thì việc này dời theo. Kéo lùi để <b>gối đầu</b>, kéo tới để <b>chờ</b> — số ngày lệch hiện cạnh thanh (VD “+3”). Bỏ tích để <b>cố định ngày</b>.</td></tr>
+      <tr><td>Thêm dòng</td><td>Chọn 1 dòng → <b>＋ Công việc</b>, <b>◆ Mốc</b> (0 ngày) hoặc <b>＋ Nhóm</b> (I, II, III… — chọn màu Sản xuất / Lắp đặt / Bàn giao) → dòng mới chèn ngay bên dưới, gõ tên.</td></tr>
+      <tr><td>Xoá, đổi thứ tự</td><td><b>🗑 Xoá dòng</b> (phím Delete); <b>kéo ⋮⋮</b> hoặc nút <b>↑ ↓</b> để đổi thứ tự. Số thứ tự tự đánh lại.</td></tr>
+      <tr><td>Lỡ tay</td><td><b>↶ Hoàn tác</b> / <b>↷ Làm lại</b> (Ctrl+Z / Ctrl+Y). <b>↺ Tạo lại từ bước 2</b> bỏ mọi chỉnh sửa trên Gantt.</td></tr>
+      <tr><td>Xem rộng / hẹp</td><td>Nút <b>Ngày · Tuần · Tháng</b>. Nhóm có việc con hiện thanh tổng (tự tính từ việc con).</td></tr>
+    </tbody>
+  </table>
+  <p class="sub">Bảng Gantt đã chỉnh được lưu cùng hồ sơ dự án. Nếu sau đó sửa dữ liệu ở bước 2, phần mềm nhắc để bạn chọn <i>tạo lại từ bước 2</i> hoặc giữ bảng đang chỉnh. Ngày hàng về trong Thư xác nhận hàng về lấy theo bảng đã chỉnh. Chi tiết hồ sơ chất lượng: <a href="huong-dan.html#gs-hoso">hướng dẫn chung 3.4</a>.</p>
 </section>
 
 <section id="cong-van">
   <h2><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/></svg></span>Công văn, biên bản</h2>
-  <figure class="shot"><img src="docs/huong-dan/hsda-letters.jpg" alt="Chọn văn bản bên trái, điền bên phải" loading="lazy" width="1280" height="860"><figcaption>Chọn văn bản bên trái, điền bên phải</figcaption></figure>
+  <figure class="shot"><img src="docs/huong-dan/hsda-letters.jpg" alt="Các văn bản xếp thành thẻ có biểu tượng, chia theo giai đoạn dự án" loading="lazy" width="1280" height="860"><figcaption>Văn bản xếp thành thẻ có biểu tượng theo 4 giai đoạn dự án; tìm nhanh hoặc lọc Công văn / Biên bản / Phiếu</figcaption></figure>
   <ol class="steps">
-    <li>Chọn văn bản ở cột trái (<b>CV</b> công văn, <b>BB</b> biên bản, <b>RFA</b> phiếu đề xuất phê duyệt).</li>
-    <li>Điền <b>số, ngày</b> và vài ô riêng — Kính gửi, hợp đồng… tự lấy từ hồ sơ.</li>
-    <li><span class="btn">⬇ Xuất (.docx)</span> → mở Word, in, ký, đóng dấu.</li>
+    <li>Chọn thẻ văn bản. Các thẻ chia theo giai đoạn: <b>1</b> Trình duyệt &amp; phát sinh · <b>2</b> Trước khi hàng về · <b>3</b> Thi công &amp; kiểm định · <b>4</b> Bàn giao &amp; bảo hành; nhãn góc thẻ <b>CV</b> công văn, <b>BB</b> biên bản. Gõ vào ô <b>Tìm văn bản</b> (gõ không dấu cũng được, VD “bao hanh”) hoặc bấm lọc <i>Công văn / Biên bản / Phiếu RFA / RFI</i>. Thẻ có dấu <b>✓</b> là văn bản đã xuất; thẻ ghi “↓ mẫu ở khung bên dưới” sẽ cuộn tới mẫu nằm ở khung phía dưới.</li>
+    <li>Điền <b>số, ngày</b> và vài ô riêng — Kính gửi, hợp đồng… tự lấy từ hồ sơ. Số hiệu in đúng như bạn nhập, cùng một vị trí trên mọi văn bản (“Số: …” dưới tên công ty với công văn; dưới tên biên bản với biên bản). Đã xuất văn bản trước đó thì dưới ô số có nút <b>↳ Dùng số tiếp theo</b> (VD 125/2026/SCH-HN → 126/2026/SCH-HN): công văn chung một dãy số, biên bản một dãy, RFA / RFI mỗi loại một dãy.</li>
+    <li><span class="btn">⬇ Xuất (.docx)</span> → mở Word, in, ký, đóng dấu. Bấm <b>← Tất cả văn bản</b> để quay lại danh sách thẻ.</li>
   </ol>
   <table class="tbl">
     <thead><tr><th style="width:30%">Thời điểm</th><th>Văn bản</th></tr></thead>
     <tbody>
-      <tr><td>Trình duyệt hồ sơ</td><td><b>RFA — Phiếu đề xuất phê duyệt</b> (Request For Approval): bản vẽ thi công, vật tư thiết bị, biện pháp thi công, tiến độ, mẫu hoàn thiện, catalogue. Điền số RFA, lần trình / phiên bản, RFA thay thế (khi trình lại), hạn phản hồi, mục đích (phê duyệt / cho ý kiến / để thông tin), danh sách tài liệu đính kèm (mỗi dòng: <i>số hiệu | tên | phiên bản | số bản</i>). Phiếu 1 trang, có phần cho TVGS / Chủ đầu tư đánh dấu kết quả <b>A</b> phê duyệt · <b>B</b> phê duyệt sửa theo ý kiến · <b>C</b> sửa và trình lại · <b>D</b> từ chối, ghi ý kiến và ký.</td></tr>
-      <tr><td>Trước khi hàng về</td><td>Thư xác nhận hàng về · Hàng về lần 1 (trước 30 ngày) · lần 2 (trước 1 tuần) · Tồn tại giếng thang · BB hàng về</td></tr>
+      <tr><td>Trình duyệt hồ sơ</td><td><b>RFA — Phiếu đề xuất phê duyệt</b> (Request For Approval): bản vẽ thi công, vật tư thiết bị, biện pháp thi công, tiến độ, mẫu hoàn thiện, catalogue. Điền số RFA, lần trình / phiên bản, RFA thay thế (khi trình lại), hạn phản hồi, mục đích (phê duyệt / cho ý kiến / để thông tin), danh sách tài liệu đính kèm (mỗi dòng: <i>số hiệu | tên | phiên bản | số bản</i>). Phiếu 1 trang, có phần cho bên duyệt đánh dấu kết quả <b>A</b> phê duyệt · <b>B</b> duyệt theo ý kiến · <b>C</b> sửa và trình lại · <b>D</b> từ chối, ghi ý kiến và ký.<br><b>Bên duyệt / trả lời:</b> chọn <i>Chủ đầu tư</i> (dự án không có Tư vấn giám sát — phiếu chỉ còn 1 ô ký của CĐT) hoặc <i>Tư vấn giám sát + Chủ đầu tư</i>. Để trống thì tự chọn: hồ sơ dự án có điền TVGS → TVGS + CĐT, không có → chỉ CĐT.</td></tr>
+      <tr><td>Cần làm rõ thông tin</td><td><b>RFI — Phiếu yêu cầu cung cấp thông tin</b> (Request For Information): hạng mục, tài liệu tham chiếu, hạn trả lời, các câu hỏi (mỗi dòng 1 câu, tự đánh số), đề xuất của nhà thầu, ảnh hưởng nếu chưa trả lời (tiến độ / chi phí). Phiếu 1 trang, có phần trả lời và ký của CĐT (hoặc TVGS + CĐT, chọn như RFA).</td></tr>
+      <tr><td>Phát sinh ngoài hợp đồng</td><td><b>Báo giá công việc phát sinh</b>: lý do (theo yêu cầu CĐT, thay đổi thiết kế, điều kiện công trường…), căn cứ văn bản yêu cầu, bảng hạng mục (mỗi dòng: <i>nội dung | ĐVT | số lượng | đơn giá</i>) — tự tính thành tiền, thuế GTGT (mặc định 8%), tổng cộng và <b>số tiền bằng chữ</b>; mục <b>Điều khoản báo giá</b>: <b>thời gian thực hiện</b>; <b>hiệu lực báo giá</b> (nhập số ngày — tự ghi “đến hết ngày …”); <b>điều khoản thanh toán</b> theo đợt (mỗi dòng 1 đợt, có % thì tự ghi số tiền tương đương), hình thức và hồ sơ thanh toán; ghi chú. Cuối thư có ô <b>xác nhận của Chủ đầu tư</b> (đồng ý / không đồng ý / đồng ý có điều chỉnh).</td></tr>
+      <tr><td>Trước khi hàng về</td><td>Thư xác nhận ngày giao vật tư về công trường (cùng khuôn công văn, có ô Khách hàng xác nhận; ngày hàng về / mặt bằng tự lấy từ bảng tiến độ) · Hàng về lần 1 (trước 30 ngày) · lần 2 (trước 1 tuần) · Tồn tại giếng thang · BB hàng về</td></tr>
+      <tr><td>Trước khi lắp đặt</td><td><b>Thông báo tồn tại giếng thang &amp; điều kiện công trường</b>: A — danh sách tồn tại giếng thang; B — bảng kiểm tra điều kiện công trường (kho tập kết, đường vận chuyển, điện thi công, chiếu sáng, lan can cửa tầng, móc treo, đáy hố, mốc cao độ, điều kiện cho công nhân). Mỗi dòng ghi <i>nội dung | tình trạng</i>: “Đạt” in ✔, “Chưa đạt” in ✘ đậm, để trống in ô ☐ Đạt ☐ Chưa đạt để đánh dấu tay. Kèm ngày dự kiến lắp đặt và hạn hoàn thành.</td></tr>
       <tr><td>Kiểm định, nghiệm thu</td><td>Tồn tại trước kiểm định · Thư mời kiểm định · BB cote cửa tầng · Kết quả nghiệm thu</td></tr>
       <tr><td>Bàn giao, bảo hành</td><td>Bàn giao thang (thư + BB song ngữ) · Huấn luyện & chìa khoá · Thời hạn bảo hành · Tính thời gian bảo hành · Bảo quản khi tạm dừng</td></tr>
     </tbody>
   </table>
+  <figure class="shot" style="max-width:520px"><img src="docs/huong-dan/hsda-rfa.jpg" alt="Phiếu RFA – đề xuất phê duyệt (dữ liệu mẫu)" loading="lazy" width="910" height="1287"><figcaption>RFA – Phiếu đề xuất phê duyệt (dữ liệu mẫu): thông tin trình, loại hồ sơ, tài liệu đính kèm, phần TVGS / Chủ đầu tư ghi kết quả A–D</figcaption></figure>
+  <div class="pair"><figure class="shot"><img src="docs/huong-dan/hsda-rfi.jpg" alt="Phiếu RFI (dữ liệu mẫu)" loading="lazy" width="662" height="936"><figcaption>RFI – yêu cầu cung cấp thông tin, chỉ Chủ đầu tư trả lời</figcaption></figure><figure class="shot"><img src="docs/huong-dan/hsda-baogia.jpg" alt="Báo giá phát sinh (dữ liệu mẫu)" loading="lazy" width="662" height="936"><figcaption>Báo giá phát sinh – tự tính tổng, thuế, bằng chữ, số tiền từng đợt thanh toán</figcaption></figure></div>
   <div class="pair"><figure class="shot"><img src="docs/huong-dan/hsda-out-cv.jpg" alt="Công văn mẫu" loading="lazy" width="662" height="936"><figcaption>Công văn mẫu</figcaption></figure><figure class="shot"><img src="docs/huong-dan/hsda-out-bb.jpg" alt="Biên bản mẫu" loading="lazy" width="662" height="936"><figcaption>Biên bản mẫu</figcaption></figure></div>
 </section>
 

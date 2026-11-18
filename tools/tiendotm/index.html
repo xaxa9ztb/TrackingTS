@@ -26,13 +26,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="chungtu.js?v=1"></script>
-<script src="docxkit.js?v=1"></script>
+<script src="docxkit.js?v=2"></script>
+<script src="gantt.js?v=2"></script>
 <script src="docread.js?v=1"></script>
 <script src="parties.js?v=1"></script>
-<script src="hsletters.js?v=2"></script>
+<script src="hsletters.js?v=6"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=7"></script>
+<script src="hoso.js?v=11"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -278,13 +279,87 @@ table.hs-table tbody tr[data-id]{cursor:pointer}table.hs-table tbody tr[data-id]
 .hs-common summary{cursor:pointer;font-weight:700}
 .hs-wide{grid-column:1/-1}
 .hs-h3{font-size:14.5px;margin:18px 0 8px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
-.hs-letters{display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:16px}
-.hs-ll{display:flex;flex-direction:column;gap:4px}
-.hs-grp{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:8px 0 2px;font-weight:700}
-.hs-li{display:flex;gap:8px;align-items:flex-start;text-align:left;font:inherit;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 9px;cursor:pointer;color:var(--ni-ink)}
-.hs-li:hover{border-color:var(--ni-action)}.hs-li.on{border-color:var(--ni-app);box-shadow:0 0 0 2px color-mix(in srgb,var(--ni-app) 25%,transparent)}
-.hs-k{flex:none;font-size:10.5px;font-weight:700;color:var(--ni-app);background:color-mix(in srgb,var(--ni-app) 12%,#fff);border-radius:5px;padding:1px 5px;margin-top:1px}
-.hs-n{flex:1}.hs-done{color:#047857;font-weight:700}
+.gxh{--gx-row:34px;position:relative}
+.gx-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.gx-bar .btn:disabled{opacity:.4;cursor:default}
+.gx-sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+.gx-zoom{display:inline-flex;gap:2px;padding:3px;background:#f1f5f9;border-radius:9px;margin-left:6px}
+.gx-zoom button{font:inherit;font-size:12.5px;font-weight:600;border:0;background:transparent;padding:4px 10px;border-radius:7px;cursor:pointer;color:var(--ni-ink)}
+.gx-zoom button.on{background:#fff;color:var(--ni-app);box-shadow:0 1px 3px rgba(15,23,42,.15)}
+.gx-info{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--ni-ink)}
+.gx-wrap{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:10px;background:#fff;outline:0}
+table.gx{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:100%}
+.gx th,.gx td{border-bottom:1px solid #e5e8ee;padding:0;height:var(--gx-row);background:#fff;white-space:nowrap}
+.gx thead th{position:sticky;top:0;z-index:3;background:#f5f7fa;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;height:44px;border-bottom:1px solid #d5dae2}
+.gx .gx-hd,.gx .gx-id,.gx .gx-nm,.gx .gx-dt,.gx .gx-n,.gx .gx-lk{position:sticky;z-index:2}
+.gx thead .gx-hd,.gx thead .gx-id,.gx thead .gx-nm,.gx thead .gx-dt,.gx thead .gx-n,.gx thead .gx-lk{z-index:4}
+.gx .gx-hd{left:0;width:22px;min-width:22px;text-align:center}
+.gx .gx-id{left:22px;width:44px;min-width:44px;text-align:center;font-weight:700;color:var(--muted)}
+.gx .gx-nm{left:66px;width:270px;min-width:270px;max-width:270px}
+.gx .gx-dt:nth-of-type(4){left:336px}.gx .gx-n{left:450px}.gx .gx-dt:nth-of-type(6){left:506px}.gx .gx-lk{left:620px;box-shadow:2px 0 0 #d5dae2}
+.gx .gx-dt{width:114px;min-width:114px;text-align:center}.gx .gx-n{width:56px;min-width:56px;text-align:center}.gx .gx-lk{width:30px;min-width:30px;text-align:center}
+.gx td input,.gx td select{font:inherit;font-size:12.5px;border:1px solid transparent;border-radius:6px;background:transparent;padding:4px 5px;width:100%;box-sizing:border-box;color:var(--ni-ink)}
+.gx td input:hover,.gx td select:hover{border-color:#d5dae2}.gx td input:focus,.gx td select:focus{border-color:var(--ni-action);background:#fff;outline:0;box-shadow:0 0 0 2px var(--ni-focus)}
+.gx td input[type=number]{text-align:center}.gx td input[type=date]{font-size:12px;padding:4px 2px}
+.gx td input[type=checkbox]{width:auto;accent-color:var(--ni-app)}
+.gx-nmw{display:flex;align-items:center;gap:4px;padding:0 4px}.gx-nmw.ind{padding-left:20px}.gx-nmw .gx-in{flex:1;min-width:0}
+.gx-fix{padding:0 5px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.gx-ph{width:78px!important;flex:none;padding:3px 2px!important;font-size:11px!important;font-weight:700;color:var(--c)!important;border-color:color-mix(in srgb,var(--c) 35%,#fff)!important}
+.gx tr.sec td{background:#f3f6fb}.gx tr.sec .gx-in{font-weight:700}
+.gx tr.on td{background:#eaf1ff}.gx tr.on .gx-id{color:var(--ni-app)}
+.gx tr.drag td{opacity:.45}.gx tr.dropb td{box-shadow:inset 0 2px 0 var(--ni-app)}.gx tr.dropa td{box-shadow:inset 0 -2px 0 var(--ni-app)}
+.gx-grip{cursor:grab;color:#9aa4b2;font-size:12px;letter-spacing:-2px;user-select:none;touch-action:none;display:inline-block;padding:6px 2px}
+.gx-grip:hover{color:var(--ni-app)}
+.gx .gx-tl{width:var(--gx-w);min-width:var(--gx-w);padding:0;position:relative}
+.gx-sc{position:relative;width:var(--gx-w);height:var(--gx-row);background-image:var(--gx-bg),repeating-linear-gradient(to right,transparent 0,transparent calc(var(--gx-wk) - 1px),#e3e7ee calc(var(--gx-wk) - 1px),#e3e7ee var(--gx-wk));background-position:0 0,var(--gx-off) 0}
+.gx thead .gx-sc{height:44px;background:none}
+.gx-m,.gx-d{position:absolute;left:0;right:0;height:22px}.gx-m{top:0;border-bottom:1px solid #e1e5ec}.gx-d{top:22px}
+.gx-m span,.gx-d span{position:absolute;top:0;height:22px;line-height:22px;font-size:10.5px;text-align:center;overflow:hidden;box-sizing:border-box;border-left:1px solid #dde2ea;text-transform:none;letter-spacing:0}
+.gx-m span{font-weight:700;color:var(--ni-ink);text-align:left;padding-left:5px}.gx-d span{font-weight:600}.gx-d span.off{color:#b4232a;background:#fbecec}
+.gx-b{position:absolute;top:8px;height:18px;border-radius:5px;background:var(--c);cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.18);touch-action:none}
+.gx-b.grp{top:7px;height:20px;background:repeating-linear-gradient(135deg,var(--c) 0 6px,color-mix(in srgb,var(--c) 82%,#fff) 6px 12px)}
+.gx-b:hover{filter:brightness(1.08);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 30%,transparent)}
+.gx-b.drag,.gx-ms.drag{cursor:grabbing;opacity:.85;box-shadow:0 0 0 3px var(--ni-focus)}
+.gx-rz{position:absolute;right:-3px;top:0;bottom:0;width:10px;cursor:ew-resize;border-radius:0 5px 5px 0}
+.gx-rz::after{content:"";position:absolute;right:4px;top:4px;bottom:4px;width:2px;background:rgba(255,255,255,.75);border-radius:1px}
+.gx-sum{position:absolute;top:12px;height:8px;background:var(--c);opacity:.9}
+.gx-sum::before,.gx-sum::after{content:"";position:absolute;top:0;border:6px solid transparent;border-top:7px solid var(--c)}
+.gx-sum::before{left:0;border-left-color:var(--c)}.gx-sum::after{right:0;border-right-color:var(--c)}
+.gx-ms{position:absolute;top:9px;width:15px;height:15px;background:var(--c);transform:rotate(45deg);border-radius:2px;cursor:grab;touch-action:none}
+.gx-ms.fix{cursor:default}
+.gx-lb{position:absolute;top:9px;font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap}
+.gx-tip{position:fixed;z-index:50;background:#111827;color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap}
+@media(max-width:720px){.gx .gx-nm{width:180px;min-width:180px;max-width:180px}.gx .gx-dt:nth-of-type(4){left:246px}.gx .gx-n{left:368px}.gx .gx-dt:nth-of-type(6){left:432px}.gx .gx-lk{left:554px}}
+.hs-lbar[hidden],.hs-gal[hidden],.hs-lf[hidden]{display:none!important}
+.hs-lbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}
+.hs-q{flex:1 1 280px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:#fff}
+.hs-q:focus-within{border-color:var(--ni-action);box-shadow:0 0 0 3px var(--ni-focus)}.hs-q svg{width:16px;height:16px;color:var(--muted);flex:none}
+.hs-q input{border:0!important;box-shadow:none!important;outline:0;padding:9px 0!important;flex:1;min-width:0;background:transparent;font:inherit;font-size:14px}
+.hs-chips{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:#f1f5f9;border-radius:11px}
+.hs-chips button{font:inherit;font-size:13px;font-weight:600;border:0;background:transparent;color:var(--ni-ink);padding:6px 11px;border-radius:8px;cursor:pointer}
+.hs-chips button.on{background:#fff;color:var(--ni-app);box-shadow:0 1px 3px rgba(15,23,42,.15)}
+.hs-phase{margin:0 0 18px}.hs-ph{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.hs-ph .pn{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;background:var(--pc);flex:none}
+.hs-ph b{font-size:15px;color:var(--ni-ink)}.hs-ph small{color:var(--muted);font-size:12.5px}
+.hs-ph::after{content:"";flex:1;height:1px;background:var(--line)}
+.hs-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.hs-tile{position:relative;display:flex;gap:11px;align-items:flex-start;text-align:left;font:inherit;background:#fff;border:1px solid var(--line);border-left:4px solid var(--pc);border-radius:11px;padding:11px 12px;cursor:pointer;color:var(--ni-ink);transition:box-shadow .15s,transform .15s}
+.hs-tile:hover{box-shadow:0 4px 14px rgba(15,23,42,.10);transform:translateY(-1px);border-color:var(--pc)}
+.hs-tile:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ni-focus)}
+.hs-tic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;flex:none;color:var(--pc);background:color-mix(in srgb,var(--pc) 13%,#fff)}
+.hs-tic svg{width:22px;height:22px}
+.hs-tt{flex:1;min-width:0}.hs-tt b{display:block;font-size:13.5px;line-height:1.3;margin:0 0 3px}
+.hs-tt span{display:block;font-size:12px;color:var(--muted);line-height:1.4}
+.hs-tt span.hs-tag{position:absolute;top:8px;right:9px;display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;border-radius:5px;padding:1px 6px;line-height:1.5;color:var(--pc);background:color-mix(in srgb,var(--pc) 12%,#fff)}
+.hs-tile.tg .hs-tt b{padding-right:28px}
+.hs-tile .hs-done{position:absolute;bottom:8px;right:9px;width:18px;height:18px;border-radius:50%;background:#047857;color:#fff;font-size:11px;display:grid;place-items:center}
+.hs-tile .hs-go{font-size:11px;color:var(--muted);margin-top:4px;display:block}
+.hs-empty{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--line);border-radius:10px}
+.hs-fh{display:flex;gap:14px;align-items:center;margin:0 0 14px;padding:0 0 14px;border-bottom:1px solid var(--line)}
+.hs-fh .hs-tic{width:52px;height:52px;border-radius:13px}.hs-fh .hs-tic svg{width:28px;height:28px}
+.hs-fh h3{margin:0 0 3px;font-size:17px;line-height:1.3}.hs-fh p{margin:0;color:var(--muted);font-size:13px}
+.hs-fh .hs-back{margin-left:auto;flex:none}
+.hs-flash{animation:hsflash 1.6s ease-out}@keyframes hsflash{0%{box-shadow:0 0 0 4px var(--ni-focus)}100%{box-shadow:none}}
 .hs-lf{border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff;min-width:0}
 .hs-docs{display:grid;gap:6px}.hs-doc{font-weight:500;text-transform:none}.hs-doc a{font-size:12px;margin-left:6px}
 .hs-kys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.hs-ky{border:1px solid var(--line);border-radius:9px;padding:10px}
@@ -294,7 +369,7 @@ table.hs-table tbody tr[data-id]{cursor:pointer}table.hs-table tbody tr[data-id]
 .hs-seg button small{display:block;font-weight:500;font-size:11.5px;color:var(--muted)}
 .hs-seg button.on{background:#fff;color:var(--ni-app);box-shadow:0 1px 3px rgba(15,23,42,.15)}
 table.edit td.c{text-align:center}
-@media(max-width:720px){.fn4,.hs-letters,.hs-kys{grid-template-columns:1fr}
+@media(max-width:720px){.fn4,.hs-kys{grid-template-columns:1fr}.hs-ph small{display:none}.hs-fh{flex-wrap:wrap}.hs-fh .hs-back{margin-left:0}
   table.hs-table thead{display:none}table.hs-table tr,table.hs-table td{display:block}table.hs-table tr{border-bottom:1px solid var(--line);padding:6px 0}
   table.hs-table td{border:none;padding:3px 4px}table.hs-table td[data-label]::before{content:attr(data-label) ": ";color:var(--muted);font-size:12px}
   .hs-act{text-align:left}.hsbar{position:static}
@@ -559,9 +634,21 @@ table.edit td.c{text-align:center}
 
 <!-- ================= STEP 3 ================= -->
 <section id="step3" class="hide">
+  <div class="panel" id="gxPanel">
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0"><span class="no">07</span>Chỉnh tiến độ (Gantt) — kéo thả, thêm / xoá / sửa dòng</h2>
+      <div class="row">
+        <button class="btn gho sm" onclick="go(2)">← Hiệu chỉnh dữ liệu (bước 2)</button>
+        <button class="btn gho sm" onclick="gxRegen(true)" title="Bỏ các chỉnh sửa trên Gantt, dựng lại từ dữ liệu bước 2">↺ Tạo lại từ bước 2</button>
+      </div>
+    </div>
+    <p class="hint" style="margin:8px 0 10px"><b>Kéo thanh</b> để dời ngày · <b>kéo mép phải</b> để đổi số ngày · <b>kéo ⋮⋮</b> để đổi thứ tự · sửa trực tiếp tên, ngày bắt đầu / kết thúc, số ngày · chọn dòng rồi <b>＋ Công việc / ◆ Mốc / ＋ Nhóm</b> để chèn ngay bên dưới, <b>🗑</b> (phím Delete) để xoá. Ô <b>↳</b> = nối tiếp việc phía trên: việc phía trên dời thì việc này tự dời theo; bỏ tích để cố định ngày. Bảng in / Excel bên dưới cập nhật ngay theo Gantt.</p>
+    <div class="warn hide" id="gxStale" style="margin:0 0 10px">Dữ liệu ở bước 2 (số ngày, các bước lắp đặt, yếu tố hàng về…) đã thay đổi sau khi bạn chỉnh Gantt. <button type="button" class="btn sm sec" onclick="gxRegen(true)">↺ Tạo lại từ bước 2</button> (bỏ chỉnh sửa trên Gantt) hoặc giữ nguyên bảng đang chỉnh.</div>
+    <div id="gxHost" class="gxh"></div>
+  </div>
   <div class="panel">
     <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="no">07</span>Preview bảng tiến độ</h2>
+      <h2 style="margin:0"><span class="no">07b</span>Bảng tiến độ để in / xuất Excel</h2>
       <div class="row">
         <button class="btn gho" onclick="go(2)">← Hiệu chỉnh</button>
         <button class="btn sec" onclick="exportExcel()">⬇ Xuất Excel (.xlsx, A3 ngang)</button>
@@ -574,9 +661,10 @@ table.edit td.c{text-align:center}
   <!-- ===== THƯ XÁC NHẬN HÀNG VỀ & EMAIL ===== -->
   <div class="panel" style="margin-top:22px">
     <h2><span class="no">08</span>Thư xác nhận hàng về &amp; Email gửi khách hàng</h2>
-    <p class="hint">Thông tin khách hàng/hợp đồng lấy từ dữ liệu quét hợp đồng; các mốc ngày lấy từ bảng tiến độ ở trên (ngày hàng về = ngày kết thúc giai đoạn I). Sửa lại nếu cần rồi xuất file.</p>
+    <p class="hint">Thư dùng <b>chung khuôn công văn</b> của Hồ sơ Dự án (số hiệu, Kính gửi, V/v, Tham chiếu hợp đồng, khối ký, nơi nhận) — cũng mở được ở mục <i>Công văn, biên bản</i>. Các mốc ngày lấy từ bảng tiến độ ở trên (ngày hàng về = ngày kết thúc giai đoạn sản xuất &amp; vận chuyển). Sửa lại nếu cần rồi xuất file.</p>
     <div class="grid g4">
-      <div class="f"><label>Người gửi (From)</label><input id="l_from" placeholder="Họ tên người gửi"></div>
+      <div class="f"><label>Số công văn</label><input id="l_so" placeholder="VD: 125/2026/SCH-HN"></div>
+      <div class="f"><label>Người liên hệ (in cuối thư)</label><input id="l_from" placeholder="để trống = theo Thông tin dự án"></div>
       <div class="f"><label>Ngày thư</label><input type="date" id="l_date"></div>
       <div class="f"><label>Ngày hàng về công trình</label><input type="date" id="l_arrive"></div>
       <div class="f"><label>Cần xong mặt bằng trước ngày</label><input type="date" id="l_site"></div>
@@ -748,28 +836,16 @@ table.edit td.c{text-align:center}
   <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/><path d="M15.5 19v2.5M8.5 19v2.5" opacity=".5"/></svg></span></span>Công văn, biên bản</h2>
     <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="toChoose();document.getElementById('hsCommon').open=true;return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#cong-van" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
-    <div class="hs-letters">
-      <div class="hs-ll" id="hsLetterList"></div>
-      <div class="hs-lf" id="hsLetterForm" data-hs-nosave></div>
+    <div class="hs-lbar" id="hsLetterBar">
+      <label class="hs-q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="hsLetterQ" type="search" placeholder="Tìm văn bản — VD: kiểm định, bảo hành, RFA, báo giá…" aria-label="Tìm văn bản" data-hs-nosave></label>
+      <div class="hs-chips" id="hsLetterKind" role="group" aria-label="Lọc loại văn bản">
+        <button type="button" data-lkind="" class="on">Tất cả</button><button type="button" data-lkind="cv">Công văn</button><button type="button" data-lkind="bb">Biên bản</button><button type="button" data-lkind="phieu">Phiếu RFA / RFI</button>
+      </div>
     </div>
+    <div class="hs-gal" id="hsLetterList"></div>
+    <div class="hs-lf" id="hsLetterForm" data-hs-nosave hidden></div>
   </div>
-  <div class="panel" id="hsTxPanel">
-    <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">TX</span>Thư xác nhận hàng về</h2>
-    <p class="hint">Cùng mẫu thư ở <b>Lập bảng tiến độ</b> (bước 3). Ngày hàng về / mặt bằng tự lấy từ bảng tiến độ nếu đã lập; sửa lại nếu cần rồi xuất.</p>
-    <div class="grid g4">
-      <div class="f"><label>Người gửi</label><input id="lc_from" placeholder="Họ tên người gửi"></div>
-      <div class="f"><label>Ngày thư</label><input type="date" id="lc_date"></div>
-      <div class="f"><label>Ngày hàng về công trình</label><input type="date" id="lc_arrive"></div>
-      <div class="f"><label>Cần xong mặt bằng trước ngày</label><input type="date" id="lc_site"></div>
-      <div class="f"><label>Số lượng thang</label><input id="lc_qty" value="01"></div>
-      <div class="f"><label>Cảng nhập hàng</label><input id="lc_cang" value="Hải Phòng"></div>
-    </div>
-    <div class="row" style="margin-top:12px;gap:10px">
-      <button class="btn pri sm" onclick="exportLetter('lc_')">⬇ Xuất thư xác nhận hàng về (.docx)</button>
-      <span id="lc_status" style="font-size:12.5px;color:var(--muted)"></span>
-    </div>
-  </div>
-  <div class="panel">
+  <div class="panel" id="hsBBPanel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">BB</span>Biên bản theo dữ liệu Hồ sơ chất lượng</h2>
     <h3 style="font-size:14px;margin:14px 0 6px">Biên bản xác nhận thiết bị đến công trường</h3>
     <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -778,7 +854,7 @@ table.edit td.c{text-align:center}
       <span id="bx_status" style="font-size:12.5px;color:var(--muted)"></span>
     </div>
 
-    <h3 style="font-size:14px;margin:18px 0 6px">Biên bản bàn giao thang máy (song ngữ)</h3>
+    <h3 style="font-size:14px;margin:18px 0 6px" id="hsBanGiaoH">Biên bản bàn giao thang máy (song ngữ)</h3>
     <p class="hint" style="margin:0 0 6px">Mỗi thang một biên bản (đúng mẫu: số hiệu thang, model, số điểm dừng, vận tốc, tải trọng). Nhiều thang thì tải về 1 file .zip. Thông tin Bên Mua / Bên Bán lấy ở mục B2 bên dưới; thang máy lấy ở Hồ sơ chất lượng (mục D).</p>
     <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
       <button class="btn pri sm" onclick="exportBanGiao()">⬇ Xuất BB bàn giao thang máy (.docx)</button>
@@ -1266,7 +1342,7 @@ function go(n){
     document.getElementById("tab"+k).classList.toggle("on",k===n);
   });
   if(n===2){pushForm();renderSteps();renderFactors();}
-  if(n===3){pullForm();renderPreview();letterAutofill();}
+  if(n===3){pullForm();gxEnsure();renderPreview();letterAutofill();}
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
@@ -1507,9 +1583,39 @@ function scaleSteps(target){ // proportionally rescale 14 steps to match detecte
 /* ================================================================
    PREVIEW RENDER
 ================================================================ */
+/* ================================================================
+   BẢNG TIẾN ĐỘ ĐÃ CHỈNH (Gantt) — nguồn cho bản in, Excel, thư hàng về
+================================================================ */
+function gxCtx(){return {base:pd(document.getElementById("baseline").value),mode:document.querySelector("input[name=daymode]:checked").value,H:holSet()};}
+function gxSrc(){return Gantt.srcKey({p:document.getElementById("ph_prod").value,h:document.getElementById("ph_hand").value,st:S.steps,f:S.factors});}
+function gxEnsure(force){
+  const key=gxSrc();
+  if(force||!S.gplan||!Array.isArray(S.gplan.items)||!S.gplan.items.length||(S.gplan.src!==key&&!S.gplan.edited))
+    S.gplan={items:Gantt.fromRows(computeSchedule().rows),src:key,edited:false};
+  const stale=document.getElementById("gxStale");if(stale)stale.classList.toggle("hide",!(S.gplan.edited&&S.gplan.src!==key));
+  gxMount();
+}
+let gxUI=null,gxT=null;
+function gxMount(){
+  const host=document.getElementById("gxHost");if(!host||typeof Gantt.mount!=="function")return;
+  if(!gxUI)gxUI=Gantt.mount(host,{get:()=>S.gplan.items,set:(a)=>{S.gplan.items=a;},ctx:gxCtx,
+    onChange:()=>{S.gplan.edited=true;clearTimeout(gxT);gxT=setTimeout(()=>{renderPreview();host.dispatchEvent(new Event("change",{bubbles:true}));},120);}});
+  else gxUI.render();
+}
+function gxRegen(ask){
+  if(ask&&S.gplan&&S.gplan.edited&&!confirm("Dựng lại bảng tiến độ từ dữ liệu bước 2? Các chỉnh sửa trên Gantt (dời ngày, thêm / xoá dòng…) sẽ bị bỏ."))return;
+  pullForm();gxEnsure(true);if(gxUI){gxUI.state.undo=[];gxUI.state.redo=[];gxUI.render();}renderPreview();
+  document.getElementById("gxHost").dispatchEvent(new Event("change",{bubbles:true}));
+}
+// lịch đã chỉnh: cùng dạng computeSchedule() (+ start) để bản in / Excel dùng chung
+function planSchedule(){
+  if(!S.gplan||!S.gplan.items||!S.gplan.items.length){const s=computeSchedule();return Object.assign(s,{start:s.base});}
+  const c=gxCtx(),R=Gantt.compute(S.gplan.items,c);
+  return {rows:R.rows,total:R.total,base:c.base,start:R.start,end:R.end,mode:c.mode,H:c.H};
+}
 function renderPreview(){
-  const {rows,total,base,end,mode,H}=computeSchedule();
-  const G=dayGrid(base,end,mode,H);
+  const {rows,total,base,start,end,mode,H}=planSchedule();
+  const G=dayGrid(start<base?start:base,end,mode,H);
   const P=S.project;
   
   const sheet=document.getElementById("sheet");
@@ -1578,8 +1684,8 @@ function renderPreview(){
 ================================================================ */
 async function exportExcel(){
   pullForm();
-  const {rows,total,base,end,mode,H}=computeSchedule();
-  const G=dayGrid(base,end,mode,H);
+  const {rows,total,base,start,end,mode,H}=planSchedule();
+  const G=dayGrid(start<base?start:base,end,mode,H);
   const P=S.project;
   const NW=G.days.length, C_G0=6, LASTC=C_G0+NW-1;
   const wb=new ExcelJS.Workbook();
@@ -1632,7 +1738,7 @@ async function exportExcel(){
   });
   ws.getRow(H1).height=20;ws.getRow(H2).height=18;
   const FM={M:BLK,P:BLUE,I:RED,H:GREEN};
-  r=H2+1;const sumRows=[];
+  r=H2+1;
   rows.forEach(t=>{
     const fB=t.sec?F(10,1):F(10);
     Object.assign(cell(r,1,t.id),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
@@ -1641,7 +1747,6 @@ async function exportExcel(){
     Object.assign(cell(r,4,fmtDow(t.s)),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
     Object.assign(cell(r,5,fmtDow(t.e)),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
     if(t.sec)for(let c=1;c<=5;c++)cell(r,c).fill=fill(SEC);
-    if(["I","II","III"].includes(t.id))sumRows.push(r);
     // thang tiến độ theo NGÀY: ngày nghỉ (lễ; T7, CN khi tính ngày làm việc) chỉ tô nền nhạt, KHÔNG tô thanh tiến độ
     G.days.forEach((dx,i)=>{
       const x=cell(r,C_G0+i);x.border=bG;
@@ -1654,7 +1759,7 @@ async function exportExcel(){
   });
   M(r,1,r,2);
   Object.assign(cell(r,1,"TỔNG THỜI GIAN HOÀN THÀNH CÔNG VIỆC"),{font:F(10,1),alignment:{horizontal:"right",vertical:"middle"},border:bAll});
-  Object.assign(cell(r,3,{formula:sumRows.map(x=>"C"+x).join("+"),result:total}),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
+  Object.assign(cell(r,3,total+" ngày"),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
   Object.assign(cell(r,4,fmtDow(base)),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
   Object.assign(cell(r,5,fmtDow(end)),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
   for(let c=1;c<=LASTC;c++){cell(r,c).fill=fill(TOT);if(c>=C_G0)cell(r,c).border=bG;}
@@ -3090,8 +3195,10 @@ function isoToVN(s){if(!s)return"";const p=s.split("-");return p.length===3?p[2]
 function backWork(d,n,mode,H){let x=new Date(d.getTime()),c=0;while(c<n){x=new Date(x.getTime()-DAY);if(isWork(x,H,mode))c++;}return x;}
 // các mốc chính của tiến độ, dùng cho cả thư và email
 function scheduleMilestones(){
-  const s=computeSchedule();
-  const pick=id=>s.rows.find(r=>r.id===id);
+  const s=planSchedule();
+  // giai đoạn theo màu nhóm (Sản xuất / Lắp đặt / Bàn giao) — đúng cả khi đã thêm / đổi thứ tự nhóm trên Gantt
+  const pick=id=>{const ph={I:"P",II:"I",III:"H"}[id];const g=s.rows.filter(r=>r.sec&&r.kind!=="base"&&r.ph===ph);
+    if(!g.length)return s.rows.find(r=>r.id===id);return {id,s:new Date(Math.min(...g.map(r=>r.s))),e:new Date(Math.max(...g.map(r=>r.e)))};};
   return {base:s.base,mode:s.mode,H:s.H,I:pick("I"),II:pick("II"),III:pick("III")};
 }
 // tự điền các ô còn trống (không ghi đè khi người dùng đã sửa)
@@ -3109,51 +3216,36 @@ function letterAutofill(){
   if(qEl&&(!qEl.value||qEl.value==="01")&&q)qEl.value=pad2(+q[1]);
   buildEmail();
 }
-// Công văn, biên bản: điền ô trống của thư hàng về từ bước 3 tiến độ / bảng tiến độ (không ghi đè ô đã sửa)
-function letterAutofillCV(){
-  const setIf=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value&&v)el.value=v;};
-  ["from","date","arrive","site","cang"].forEach(k=>{const src=document.getElementById("l_"+k);if(src&&src.value)setIf("lc_"+k,src.value);});
-  try{const m=scheduleMilestones();if(m.I){setIf("lc_arrive",isoUTC(m.I.e));setIf("lc_site",isoUTC(backWork(m.I.e,7,m.mode,m.H)));}}catch(e){}
-  setIf("lc_date",isoUTC(new Date()));
-  const q=document.getElementById("lc_qty"),lq=document.getElementById("l_qty");
-  if(q&&(!q.value||q.value==="01")){const n=(S.qElevs||[]).filter(e=>String(e.name||"").trim()).length;const v=(lq&&lq.value&&lq.value!=="01")?lq.value:(n?pad2(n):"");if(v)q.value=v;}
+// giá trị gợi ý cho Thư xác nhận hàng về (mục Công văn, biên bản): lấy từ bảng tiến độ / ô ở bước 3
+function xnDefaults(){
+  const o={};const g=id=>{const el=document.getElementById(id);return el?el.value.trim():"";};
+  try{const m=scheduleMilestones();if(m.I){o.ngayVe=isoUTC(m.I.e);o.matBang=isoUTC(backWork(m.I.e,7,m.mode,m.H));}}catch(e){}
+  if(g("l_arrive"))o.ngayVe=g("l_arrive");if(g("l_site"))o.matBang=g("l_site");if(g("l_cang"))o.cang=g("l_cang");
+  const n=(S.qElevs||[]).filter(e=>String(e.name||"").trim()).length;
+  o.soThang=g("l_qty")&&g("l_qty")!=="01"?g("l_qty"):(n?pad2(n):"");
+  return o;
 }
-/* ---------- Thư xác nhận hàng về (.docx) ---------- */
-// px = "l_" (bước 3 tiến độ) hoặc "lc_" (Công văn, biên bản) — cùng một mẫu thư
-async function exportLetter(px){
-  px=px||"l_";
-  const st=document.getElementById(px+"status");st.textContent="Đang tạo thư…";
+/* ---------- Thư xác nhận hàng về (.docx) — cùng khuôn công văn (HsLetters 'xn_hangve') ---------- */
+async function exportLetter(){
+  const st=document.getElementById("l_status");st.textContent="Đang tạo thư…";
   try{
     if(typeof JSZip==="undefined")throw new Error("Chưa tải được thư viện JSZip");
     const resp=await fetch("thu_hangve_template.docx");
-    if(!resp.ok)throw new Error("Không tải được file mẫu thư (HTTP "+resp.status+")");
-    const zip=await JSZip.loadAsync(await resp.arrayBuffer());
-    let doc=await zip.file("word/document.xml").async("string");
+    if(!resp.ok)throw new Error("Không tải được khuôn công văn (HTTP "+resp.status+")");
     try{pullForm();}catch(e){}
-    // thông tin hợp đồng: ưu tiên dữ liệu quét hợp đồng, thiếu thì lấy ở Thông tin dự án dùng chung
-    const I=(window.HS&&HS.info)?HS.info():{};
-    const P=Object.assign({},S.project);
-    P.buyer=P.buyer||I.chuDauTu||"";P.baddr=P.baddr||I.cdtDiaChi||"";P.no=P.no||I.soHD||"";
-    P.cdate=P.cdate||(I.ngayHD?isoToVN(I.ngayHD):"");P.name=P.name||I.congTrinh||"";P.addr=P.addr||I.diaDiem||"";
-    const map={
-      "{{KHACH_HANG}}":P.buyer||"Quý Khách hàng",
-      "{{DIA_CHI_KH}}":P.baddr||"",
-      "{{SO_HD}}":P.no||"",
-      "{{NGAY_KY_HD}}":P.cdate||"",
-      "{{DU_AN}}":P.name+(P.addr?" - "+P.addr:""),
-      "{{NGAY_HANG_VE}}":isoToVN(lv(px+"arrive")),
-      "{{NGAY_MAT_BANG}}":isoToVN(lv(px+"site")),
-      "{{NGAY_THU}}":isoToVN(lv(px+"date")),
-      "{{NGUOI_GUI}}":lv(px+"from"),
-      "{{SL_THANG}}":lv(px+"qty")||"01",
-      "{{CANG}}":lv(px+"cang")||"Hải Phòng"
-    };
-    for(const k in map)doc=doc.split(k).join(xescQ(map[k]));
-    zip.file("word/document.xml",doc);
+    // thông tin dự án dùng chung; thiếu thì lấy dữ liệu quét hợp đồng ở bước 2
+    const I=Object.assign({},(window.HS&&HS.info)?HS.info():{});const P=S.project;
+    I.chuDauTu=I.chuDauTu||P.buyer;I.cdtDiaChi=I.cdtDiaChi||P.baddr;I.soHD=I.soHD||P.no;I.ngayHD=I.ngayHD||toISO(P.cdate);
+    I.congTrinh=I.congTrinh||P.name;I.diaDiem=I.diaDiem||P.addr;
+    if(lv("l_from"))Object.assign(I,{pmTen:lv("l_from"),pmDT:"",pmEmail:""});
+    const def=HsLetters.LETTERS.find(d=>d.id==="xn_hangve");
+    const f={so:lv("l_so"),ngay:lv("l_date")||isoUTC(new Date()),ngayVe:lv("l_arrive"),matBang:lv("l_site"),soThang:lv("l_qty")||"01",cang:lv("l_cang")||"Hải Phòng"};
+    def.fields.forEach(x=>{if(f[x.k]==null&&x.def)f[x.k]=x.def;});
+    const zip=await HsLetters.build(JSZip,await resp.arrayBuffer(),def,I,f);
     const blob=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",compression:"DEFLATE"});
-    saveAs(blob,"Thu_xac_nhan_hang_ve_"+((P.no||"du_an").replace(/[^\w-]/g,"_"))+".docx");
+    saveAs(blob,HsLetters.fileName(def,I,f));
     st.textContent="✓ Đã xuất thư xác nhận hàng về (.docx).";
-  }catch(e){st.textContent="Lỗi: "+e.message+". Lưu ý: cần mở app qua GitHub Pages (không chạy khi mở file cục bộ).";}
+  }catch(e){st.textContent="Lỗi: "+e.message;}
 }
 /* ---------- Nội dung email ---------- */
 function buildEmail(){

@@ -87,6 +87,7 @@
   }
   function restore(d) {
     if (!d || typeof d !== 'object') return;
+    S.gplan = null;   // bảng Gantt đã chỉnh thuộc từng dự án — không mang sang dự án khác
     if (d.S) Object.keys(d.S).forEach(k => { S[k] = d.S[k]; });
     const R = (fn) => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.warn(fn, e); } };
     ['renderSigners', 'renderSteps', 'renderFactors', 'renderQElevs', 'renderQParties', 'renderQExtras', 'renderQPhases', 'pushForm'].forEach(R);
@@ -283,7 +284,7 @@
     prefillCommon();
     if (typeof prefillQuality === 'function' && /screenLetters|screenNhatKy/.test(screen)) { try { prefillQuality(); } catch (e) { /* bỏ qua */ } }
     showScreen(screen);
-    if (screen === 'screenLetters') { renderLetters(); if (typeof letterAutofillCV === 'function') { try { letterAutofillCV(); } catch (e) { /* bỏ qua */ } } }
+    if (screen === 'screenLetters') renderLetters();
     if (screen === 'screenLegal') renderLegal();
     if (screen === 'screenDrawing') renderDrawing();
   }
@@ -291,31 +292,118 @@
   // ===== Công văn, biên bản =====
   let tplBuf = null, curLetter = null;
   const letterTpl = async () => tplBuf || (tplBuf = await fetch('thu_hangve_template.docx', { cache: 'force-cache' }).then(r => { if (!r.ok) throw new Error('Không tải được khuôn công văn'); return r.arrayBuffer(); }));
+  // biểu tượng (nét, 24×24) cho từng văn bản
+  const LI = {
+    stamp: '<path d="M9 3h6l-1 6h-4z"/><path d="M5 13h14a1 1 0 0 1 1 1v3H4v-3a1 1 0 0 1 1-1z"/><path d="M10 9v4M14 9v4M5 21h14"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.3a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.5h.01"/>',
+    calc: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 11h5M10 14.5h5M10 18h3"/><path d="M4 8v10" opacity=".55"/>',
+    pkgok: '<path d="M21 8l-9-5-9 5v8l9 5 4-2.2"/><path d="M3 8l9 5 9-5M12 13v8"/><path d="M16.5 17.5l1.8 1.8 3.2-3.6"/>',
+    truck: '<path d="M2 6h11v9H2zM13 9h4l3 3v3h-7"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/>',
+    cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h3v3H8z"/>',
+    shaft: '<rect x="6" y="2.5" width="12" height="19" rx="1"/><path d="M12 2.5v19"/><path d="M9 8l-1.5 2.5h3zM15 16l1.5-2.5h-3z"/>',
+    warn: '<path d="M12 3.5L2.5 20h19z"/><path d="M12 10v4.5M12 17.3h.01"/>',
+    clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 12.5l2.2 2.2 4.8-5"/>',
+    mail: '<rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/>',
+    gauge: '<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/><circle cx="12" cy="18" r="1.3"/>',
+    ruler: '<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
+    award: '<circle cx="12" cy="9" r="6"/><path d="M9 14.5L7.5 21l4.5-2.5 4.5 2.5L15 14.5"/><path d="M9.5 9l1.7 1.7L14.5 7.5"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><path d="M12 14.5v2.5"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+    hand: '<path d="M3 14h4l3 2h4a1.5 1.5 0 0 1 0 3H9"/><path d="M7 14l3.5-3h4l4.5 3.5"/><path d="M3 20h4"/><rect x="13" y="3" width="7" height="6" rx="1"/>',
+    teach: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/><path d="M22 9v6"/>',
+    shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+    cone: '<path d="M10.4 3h3.2l5 16H5.4z"/><path d="M7.6 12h8.8M8.9 7.8h6.2"/><path d="M3 19.5h18"/>',
+  };
+  const lic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LI[k] || LI.mail}</svg>`;
+  // giai đoạn dự án → màu; mỗi văn bản: icon, tên ngắn, mô tả 1 dòng; jump = mẫu nằm ở khung bên dưới
+  const LPHASE = [
+    { id: 'td', name: 'Trình duyệt & phát sinh', note: 'trước và trong khi thi công', c: '#7c3aed', items: [
+      { id: 'rfa', ic: 'stamp', t: 'RFA — Đề xuất phê duyệt', s: 'Trình bản vẽ, vật tư, biện pháp, tiến độ để CĐT / TVGS duyệt' },
+      { id: 'rfi', ic: 'help', t: 'RFI — Yêu cầu cung cấp thông tin', s: 'Hỏi CĐT làm rõ cao độ, nguồn điện, kích thước…' },
+      { id: 'bao_gia_ps', ic: 'calc', t: 'Báo giá công việc phát sinh', s: 'Tự tính tổng, VAT, bằng chữ; điều khoản thanh toán' }] },
+    { id: 'hv', name: 'Trước khi hàng về', note: 'chuẩn bị mặt bằng, giao hàng', c: '#2563eb', items: [
+      { id: 'xn_hangve', ic: 'pkgok', t: 'Thư xác nhận ngày giao vật tư về công trường', s: 'Ngày hàng về, mặt bằng lưu kho — có ô Khách hàng xác nhận' },
+      { id: 'hangve1', ic: 'cal', t: 'Thông báo hàng về — lần 1', s: 'Gửi trước 30 ngày: lịch hàng về, yêu cầu mặt bằng' },
+      { id: 'hangve2', ic: 'truck', t: 'Thông báo hàng về — lần 2', s: 'Gửi trước 1 tuần: ngày giao, kho bãi, đường vận chuyển' },
+      { id: 'defect_mos', ic: 'shaft', t: 'Tồn tại giếng thang trước khi hàng về', s: 'Kết quả khảo sát giếng thang, hạng mục CĐT cần sửa' },
+      { jump: 'hsBBPanel', focus: 'bx_ngay', key: 'bbxn', bb: true, ic: 'clip', t: 'BB xác nhận thiết bị đến công trường', s: 'Lấy dữ liệu chứng từ từ Hồ sơ chất lượng' }] },
+    { id: 'kd', name: 'Thi công & kiểm định', note: 'lắp đặt, nghiệm thu', c: '#0891b2', items: [
+      { id: 'defect_ld', ic: 'cone', t: 'Tồn tại giếng thang & điều kiện công trường trước lắp đặt', s: 'Danh sách tồn tại + bảng kiểm tra kho, điện, lan can, móc treo…' },
+      { id: 'bao_quan', ic: 'lock', t: 'Bảo quản tài sản khi tạm dừng', s: 'Trách nhiệm bảo quản thiết bị khi công trường dừng' },
+      { id: 'defect_kd', ic: 'warn', t: 'Tồn tại giếng thang trước kiểm định', s: 'Các hạng mục cần khắc phục trước khi kiểm định' },
+      { id: 'moi_kd', ic: 'mail', t: 'Thư mời kiểm định thang máy', s: 'Mời CĐT / TVGS tham gia kiểm định' },
+      { id: 'bb_cote', ic: 'ruler', t: 'BB nghiệm thu cote cửa tầng', s: 'Biên bản hiện trường kiểm tra cao độ cửa tầng' },
+      { id: 'kq_nt', ic: 'award', t: 'Thông báo kết quả nghiệm thu', s: 'Kết quả nghiệm thu / kiểm định từng hạng mục' }] },
+    { id: 'bg', name: 'Bàn giao & bảo hành', note: 'đưa vào sử dụng', c: '#059669', items: [
+      { id: 'ban_giao', ic: 'key', t: 'Thông báo bàn giao thang máy', s: 'Đề nghị CĐT nhận bàn giao, đưa vào sử dụng' },
+      { jump: 'hsBanGiaoH', key: 'bangiao', bb: true, ic: 'hand', t: 'BB bàn giao thang máy (song ngữ)', s: 'Mỗi thang 1 biên bản — dữ liệu từ Hồ sơ chất lượng' },
+      { id: 'bb_huanluyen', ic: 'teach', t: 'BB huấn luyện & bàn giao chìa khoá', s: 'Hướng dẫn sử dụng, cứu hộ, giao chìa khoá' },
+      { id: 'han_bh', ic: 'shield', t: 'Thời hạn bảo hành, bảo trì', s: 'Thông báo thời hạn bảo hành, bảo trì miễn phí' },
+      { id: 'tinh_bh', ic: 'clock', t: 'Cách tính thời gian bảo hành', s: 'Mốc bắt đầu tính bảo hành, bảo trì miễn phí' }] },
+  ];
+  const LKIND = (it, d) => it.bb || (d && d.kind === 'bb') ? 'bb' : d && d.kind === 'rfa' ? 'phieu' : 'cv';
+  const LTAG = { cv: 'CV', bb: 'BB', phieu: '' };
+  let lQuery = '', lKind = '';
+  // văn bản chưa có trong LPHASE (thêm mẫu mới sau này) → nhóm "Khác"
+  function letterPhases() {
+    const known = new Set(LPHASE.flatMap(g => g.items.map(i => i.id).filter(Boolean)));
+    const extra = HsLetters.LETTERS.filter(d => !known.has(d.id)).map(d => ({ id: d.id, ic: d.kind === 'bb' ? 'clip' : 'mail', t: d.name, s: '' }));
+    return extra.length ? [...LPHASE, { id: 'khac', name: 'Văn bản khác', note: '', c: '#64748b', items: extra }] : LPHASE;
+  }
+  const letterMeta = (id) => { for (const g of letterPhases()) { const it = g.items.find(i => i.id === id); if (it) return { g, it }; } return null; };
+  const vnFold = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   function renderLetters() {
-    const box = $('hsLetterList');
-    const item = (d) => { const done = LT[d.id] && LT[d.id]._last; return `<button class="hs-li${curLetter === d.id ? ' on' : ''}" data-letter="${d.id}"><span class="hs-k">${d.kind === 'bb' ? 'BB' : d.kind === 'rfa' ? 'RFA' : 'CV'}</span><span class="hs-n">${esc(d.name)}</span>${done ? `<span class="hs-done" title="Đã xuất lúc ${esc(fmtTime(done))}">✓</span>` : ''}</button>`; };
-    box.innerHTML = `<div class="hs-grp">Công văn gửi Chủ đầu tư / các bên</div><button class="hs-li" data-jump="hsTxPanel"><span class="hs-k">CV</span><span class="hs-n">Thư xác nhận hàng về (cùng mẫu ở Tiến độ)</span><span class="hs-mini">↓</span></button>${HsLetters.LETTERS.filter(d => d.kind === 'letter').map(item).join('')}
-      <div class="hs-grp">Biên bản</div>${HsLetters.LETTERS.filter(d => d.kind === 'bb').map(item).join('')}
-      <div class="hs-grp">Hồ sơ trình duyệt</div>${HsLetters.LETTERS.filter(d => d.kind === 'rfa').map(item).join('')}`;
-    renderLetterForm();
+    const list = $('hsLetterList'), form = $('hsLetterForm'), bar = $('hsLetterBar');
+    const open = !!HsLetters.LETTERS.find(x => x.id === curLetter);
+    list.hidden = open; bar.hidden = open; form.hidden = !open;
+    if (open) { renderLetterForm(); return; }
+    const q = vnFold(lQuery).trim();
+    let n = 0;
+    const html = letterPhases().map((g, gi) => {
+      const tiles = g.items.map(it => {
+        const d = it.id ? HsLetters.LETTERS.find(x => x.id === it.id) : null;
+        if (it.id && !d) return '';
+        const kind = LKIND(it, d);
+        if (lKind && kind !== lKind) return '';
+        if (q && !vnFold(`${it.t} ${it.s} ${d ? d.name : ''} ${g.name} ${LTAG[kind]}`).includes(q)) return '';
+        n++;
+        const done = d && LT[d.id] && LT[d.id]._last;
+        const tag = LTAG[kind] ? `<span class="hs-tag">${LTAG[kind]}</span>` : '';
+        return `<button type="button" class="hs-tile${tag ? ' tg' : ''}" style="--pc:${g.c}" ${it.jump ? `data-jump="${it.jump}"${it.focus ? ` data-focus="${it.focus}"` : ''}` : `data-letter="${it.id}"`} title="${esc(d ? d.name : it.t)}">
+          <span class="hs-tic">${lic(it.ic)}</span><span class="hs-tt"><b>${tag}${esc(it.t)}</b><span>${esc(it.s)}</span>${it.jump ? '<span class="hs-go">↓ mẫu ở khung bên dưới</span>' : ''}</span>
+          ${done ? `<span class="hs-done" title="Đã xuất lúc ${esc(fmtTime(done))}">✓</span>` : ''}</button>`;
+      }).join('');
+      return tiles ? `<section class="hs-phase" style="--pc:${g.c}"><div class="hs-ph"><span class="pn">${gi + 1}</span><b>${esc(g.name)}</b>${g.note ? `<small>· ${esc(g.note)}</small>` : ''}</div><div class="hs-tiles">${tiles}</div></section>` : '';
+    }).join('');
+    list.innerHTML = n ? html : `<div class="hs-empty">Không có văn bản nào khớp “${esc(lQuery)}”. <button type="button" class="hs-link" data-lclear>Xoá bộ lọc</button></div>`;
   }
   function renderLetterForm() {
     const host = $('hsLetterForm');
     const d = HsLetters.LETTERS.find(x => x.id === curLetter);
-    if (!d) { host.innerHTML = '<p class="hint" style="margin:0">Chọn một công văn / biên bản ở danh sách bên trái. Tất cả dùng chung <b>một khuôn công văn của nhà thầu</b> (logo đầu trang, địa chỉ chân trang, khối Kính gửi – V/v – Tham chiếu hợp đồng, khối ký và nơi nhận giống nhau) và lấy thông tin ở mục <b>Thông tin dự án dùng chung</b>.</p>'; return; }
+    if (!d) { host.innerHTML = ''; return; }
     const v = LT[d.id] || (LT[d.id] = {});
+    // thư hàng về: điền sẵn ngày hàng về / mặt bằng / số thang từ bảng tiến độ (không ghi đè ô đã sửa)
+    if (d.id === 'xn_hangve' && typeof window.xnDefaults === 'function') { try { const o = window.xnDefaults(); Object.keys(o).forEach(k => { if (o[k] && (v[k] == null || v[k] === '' || (k === 'soThang' && v[k] === '01'))) v[k] = o[k]; }); } catch (e) { /* chưa lập tiến độ */ } }
+    // gợi ý số tiếp theo: lấy số của văn bản cùng loại xuất gần nhất (công văn chung 1 dãy số; biên bản 1 dãy; RFA / RFI mỗi loại 1 dãy)
+    const same = (x) => x && (d.kind === 'rfa' ? x.id === d.id : x.kind === d.kind);
+    const lastSo = Object.keys(LT).filter(k => k !== d.id && LT[k] && LT[k].so && LT[k]._last && same(HsLetters.LETTERS.find(x => x.id === k)))
+      .sort((a, b) => String(LT[b]._last).localeCompare(String(LT[a]._last)))[0];
+    const sugg = !v.so && lastSo ? HsLetters.nextSo(LT[lastSo].so) : '';
     const fld = (k, label, type, o = {}) => {
       const val = v[k] != null ? v[k] : (o.def || '');
       const inp = type === 'textarea' ? `<textarea data-lk="${k}" rows="${o.rows || 4}" placeholder="${esc(o.ph || '')}">${esc(val)}</textarea>`
         : type === 'select' ? `<input data-lk="${k}" type="text" list="dl_${k}" value="${esc(val)}" placeholder="${esc(o.ph || 'chọn hoặc gõ')}"><datalist id="dl_${k}">${(o.options || []).map(x => `<option value="${esc(x)}">`).join('')}</datalist>`
         : `<input data-lk="${k}" type="${type === 'date' ? 'date' : 'text'}" value="${esc(val)}" placeholder="${esc(o.ph || '')}">`;
-      return `<div class="f${type === 'textarea' || o.wide ? ' hs-wide' : ''}"><label>${esc(label)}</label>${inp}</div>`;
+      const hint = k === 'so' && sugg ? `<button type="button" class="hs-link" data-sonext="${esc(sugg)}" title="Số tiếp theo sau ${esc(LT[lastSo].so)}">↳ Dùng số tiếp theo: ${esc(sugg)}</button>` : '';
+      return `<div class="f${type === 'textarea' || o.wide ? ' hs-wide' : ''}"><label>${esc(label)}</label>${inp}${hint}</div>`;
     };
-    host.innerHTML = `<h3 class="hs-h3">${esc(d.name)}</h3>
-      <div class="grid g2">${fld('so', d.kind === 'bb' ? 'Số biên bản' : d.kind === 'rfa' ? 'Số RFA' : 'Số công văn', 'text', { ph: d.kind === 'rfa' ? 'VD: RFA-SCH-001' : 'VD: 125/2026/SCH-HN' })}${fld('ngay', 'Ngày lập', 'date', { def: todayISO() })}
+    const m = letterMeta(d.id), pc = m ? m.g.c : '#64748b';
+    host.innerHTML = `<div class="hs-fh" style="--pc:${pc}"><span class="hs-tic">${lic(m ? m.it.ic : 'mail')}</span><div><h3>${esc(d.name)}</h3><p>${m ? esc(m.g.name) + (m.it.s ? ' · ' + esc(m.it.s) : '') : ''}</p></div><button type="button" class="btn gho sm hs-back" data-lback>← Tất cả văn bản</button></div>
+      <div class="grid g2">${fld('so', d.kind === 'bb' ? 'Số biên bản' : d.kind === 'rfa' ? 'Số ' + d.id.toUpperCase() : 'Số công văn', 'text', { ph: d.kind === 'rfa' ? `VD: ${d.id.toUpperCase()}-SCH-001` : 'VD: 125/2026/SCH-HN' })}${fld('ngay', 'Ngày lập', 'date', { def: todayISO() })}
       ${(d.fields || []).map(x => fld(x.k, x.label, x.type || 'text', x)).join('')}
       ${d.kind === 'letter' ? fld('kinhGui', 'Kính gửi (để trống = Chủ đầu tư)', 'text', { ph: gv('hs_cdt') }) + fld('dongKinhGui', 'Đồng kính gửi (để trống = Ban QLDA; TVGS)', 'text', { ph: [gv('hs_qlda'), gv('hs_tvgs')].filter(Boolean).join('; ') }) : ''}</div>
-      <div class="row" style="gap:10px;margin-top:12px"><button class="btn pri" id="hsLetterGo">⬇ Xuất ${d.kind === 'bb' ? 'biên bản' : d.kind === 'rfa' ? 'phiếu RFA' : 'công văn'} (.docx)</button><span id="hsLetterSt" class="hs-mini"></span></div>`;
+      <div class="row" style="gap:10px;margin-top:12px"><button class="btn pri" id="hsLetterGo">⬇ Xuất ${d.kind === 'bb' ? 'biên bản' : d.kind === 'rfa' ? 'phiếu ' + d.id.toUpperCase() : 'công văn'} (.docx)</button><span id="hsLetterSt" class="hs-mini"></span></div>`;
     (d.fields || []).forEach(x => { if (v[x.k] == null && x.def) v[x.k] = x.def; });
     if (v.ngay == null) v.ngay = todayISO();
   }
@@ -326,7 +414,7 @@
       const zip = await HsLetters.build(JSZip, await letterTpl(), d, info(), LT[d.id] || {});
       saveAs(await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), HsLetters.fileName(d, info(), LT[d.id] || {}));
       LT[d.id]._last = new Date().toISOString();
-      stEl.textContent = '✓ Đã xuất'; renderLetters(); saveSoon();
+      renderLetters(); saveSoon(); const st2 = $('hsLetterSt'); if (st2) st2.textContent = '✓ Đã xuất ' + fmtTime(LT[d.id]._last);
     } catch (e) { console.error(e); stEl.textContent = '⚠ ' + e.message; }
   }
 
@@ -519,9 +607,17 @@
       else enter(f);
     }));
     // công văn
-    $('hsLetterList').addEventListener('click', (e) => { const j = e.target.closest('[data-jump]'); if (j) { const el = $(j.dataset.jump); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const f = $('lc_from'); if (f) setTimeout(() => f.focus({ preventScroll: true }), 400); } return; } const b = e.target.closest('[data-letter]'); if (!b) return; curLetter = b.dataset.letter; renderLetters(); });
+    $('hsLetterList').addEventListener('click', (e) => {
+      if (e.target.closest('[data-lclear]')) { lQuery = ''; lKind = ''; $('hsLetterQ').value = ''; document.querySelectorAll('#hsLetterKind [data-lkind]').forEach(x => x.classList.toggle('on', !x.dataset.lkind)); renderLetters(); return; }
+      const j = e.target.closest('[data-jump]');
+      if (j) { const el = $(j.dataset.jump); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const box = el.closest('.panel') || el; box.classList.remove('hs-flash'); void box.offsetWidth; box.classList.add('hs-flash'); const f = j.dataset.focus && $(j.dataset.focus); if (f) setTimeout(() => f.focus({ preventScroll: true }), 450); } return; }
+      const b = e.target.closest('[data-letter]'); if (!b) return;
+      curLetter = b.dataset.letter; renderLetters(); $('screenLetters').scrollIntoView({ block: 'start' });
+    });
+    $('hsLetterQ').addEventListener('input', (e) => { lQuery = e.target.value; renderLetters(); });
+    $('hsLetterKind').addEventListener('click', (e) => { const b = e.target.closest('[data-lkind]'); if (!b) return; lKind = b.dataset.lkind; document.querySelectorAll('#hsLetterKind [data-lkind]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); renderLetters(); });
     $('hsLetterForm').addEventListener('input', (e) => { const k = e.target.dataset.lk; if (k && curLetter) (LT[curLetter] || (LT[curLetter] = {}))[k] = e.target.value; });
-    $('hsLetterForm').addEventListener('click', (e) => { if (e.target.id === 'hsLetterGo') exportLetter(); });
+    $('hsLetterForm').addEventListener('click', (e) => { const sn = e.target.closest('[data-sonext]'); if (sn && curLetter) { const inp = $('hsLetterForm').querySelector('[data-lk="so"]'); inp.value = sn.dataset.sonext; (LT[curLetter] || (LT[curLetter] = {})).so = inp.value; sn.remove(); inp.dispatchEvent(new Event('input', { bubbles: true })); return; } if (e.target.id === 'hsLetterGo') exportLetter(); if (e.target.closest('[data-lback]')) { curLetter = null; renderLetters(); $('screenLetters').scrollIntoView({ block: 'start' }); } });
     // pháp lý
     $('hsLgNgay').addEventListener('input', (e) => { LG.ngay = e.target.value; });
     $('hsPeople').addEventListener('input', (e) => { const k = e.target.dataset.pk, tr = e.target.closest('tr[data-i]'); if (!k || !tr) return; LG.people[+tr.dataset.i][k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });
