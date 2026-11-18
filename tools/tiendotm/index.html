@@ -32,7 +32,7 @@
 <script src="hsletters.js?v=4"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=8"></script>
+<script src="hoso.js?v=9"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -278,13 +278,36 @@ table.hs-table tbody tr[data-id]{cursor:pointer}table.hs-table tbody tr[data-id]
 .hs-common summary{cursor:pointer;font-weight:700}
 .hs-wide{grid-column:1/-1}
 .hs-h3{font-size:14.5px;margin:18px 0 8px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
-.hs-letters{display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:16px}
-.hs-ll{display:flex;flex-direction:column;gap:4px}
-.hs-grp{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:8px 0 2px;font-weight:700}
-.hs-li{display:flex;gap:8px;align-items:flex-start;text-align:left;font:inherit;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 9px;cursor:pointer;color:var(--ni-ink)}
-.hs-li:hover{border-color:var(--ni-action)}.hs-li.on{border-color:var(--ni-app);box-shadow:0 0 0 2px color-mix(in srgb,var(--ni-app) 25%,transparent)}
-.hs-k{flex:none;font-size:10.5px;font-weight:700;color:var(--ni-app);background:color-mix(in srgb,var(--ni-app) 12%,#fff);border-radius:5px;padding:1px 5px;margin-top:1px}
-.hs-n{flex:1}.hs-done{color:#047857;font-weight:700}
+.hs-lbar[hidden],.hs-gal[hidden],.hs-lf[hidden]{display:none!important}
+.hs-lbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}
+.hs-q{flex:1 1 280px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:#fff}
+.hs-q:focus-within{border-color:var(--ni-action);box-shadow:0 0 0 3px var(--ni-focus)}.hs-q svg{width:16px;height:16px;color:var(--muted);flex:none}
+.hs-q input{border:0!important;box-shadow:none!important;outline:0;padding:9px 0!important;flex:1;min-width:0;background:transparent;font:inherit;font-size:14px}
+.hs-chips{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:#f1f5f9;border-radius:11px}
+.hs-chips button{font:inherit;font-size:13px;font-weight:600;border:0;background:transparent;color:var(--ni-ink);padding:6px 11px;border-radius:8px;cursor:pointer}
+.hs-chips button.on{background:#fff;color:var(--ni-app);box-shadow:0 1px 3px rgba(15,23,42,.15)}
+.hs-phase{margin:0 0 18px}.hs-ph{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.hs-ph .pn{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;background:var(--pc);flex:none}
+.hs-ph b{font-size:15px;color:var(--ni-ink)}.hs-ph small{color:var(--muted);font-size:12.5px}
+.hs-ph::after{content:"";flex:1;height:1px;background:var(--line)}
+.hs-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.hs-tile{position:relative;display:flex;gap:11px;align-items:flex-start;text-align:left;font:inherit;background:#fff;border:1px solid var(--line);border-left:4px solid var(--pc);border-radius:11px;padding:11px 12px;cursor:pointer;color:var(--ni-ink);transition:box-shadow .15s,transform .15s}
+.hs-tile:hover{box-shadow:0 4px 14px rgba(15,23,42,.10);transform:translateY(-1px);border-color:var(--pc)}
+.hs-tile:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ni-focus)}
+.hs-tic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;flex:none;color:var(--pc);background:color-mix(in srgb,var(--pc) 13%,#fff)}
+.hs-tic svg{width:22px;height:22px}
+.hs-tt{flex:1;min-width:0}.hs-tt b{display:block;font-size:13.5px;line-height:1.3;margin:0 0 3px}
+.hs-tt span{display:block;font-size:12px;color:var(--muted);line-height:1.4}
+.hs-tt span.hs-tag{position:absolute;top:8px;right:9px;display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;border-radius:5px;padding:1px 6px;line-height:1.5;color:var(--pc);background:color-mix(in srgb,var(--pc) 12%,#fff)}
+.hs-tile.tg .hs-tt b{padding-right:28px}
+.hs-tile .hs-done{position:absolute;bottom:8px;right:9px;width:18px;height:18px;border-radius:50%;background:#047857;color:#fff;font-size:11px;display:grid;place-items:center}
+.hs-tile .hs-go{font-size:11px;color:var(--muted);margin-top:4px;display:block}
+.hs-empty{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--line);border-radius:10px}
+.hs-fh{display:flex;gap:14px;align-items:center;margin:0 0 14px;padding:0 0 14px;border-bottom:1px solid var(--line)}
+.hs-fh .hs-tic{width:52px;height:52px;border-radius:13px}.hs-fh .hs-tic svg{width:28px;height:28px}
+.hs-fh h3{margin:0 0 3px;font-size:17px;line-height:1.3}.hs-fh p{margin:0;color:var(--muted);font-size:13px}
+.hs-fh .hs-back{margin-left:auto;flex:none}
+.hs-flash{animation:hsflash 1.6s ease-out}@keyframes hsflash{0%{box-shadow:0 0 0 4px var(--ni-focus)}100%{box-shadow:none}}
 .hs-lf{border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff;min-width:0}
 .hs-docs{display:grid;gap:6px}.hs-doc{font-weight:500;text-transform:none}.hs-doc a{font-size:12px;margin-left:6px}
 .hs-kys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.hs-ky{border:1px solid var(--line);border-radius:9px;padding:10px}
@@ -294,7 +317,7 @@ table.hs-table tbody tr[data-id]{cursor:pointer}table.hs-table tbody tr[data-id]
 .hs-seg button small{display:block;font-weight:500;font-size:11.5px;color:var(--muted)}
 .hs-seg button.on{background:#fff;color:var(--ni-app);box-shadow:0 1px 3px rgba(15,23,42,.15)}
 table.edit td.c{text-align:center}
-@media(max-width:720px){.fn4,.hs-letters,.hs-kys{grid-template-columns:1fr}
+@media(max-width:720px){.fn4,.hs-kys{grid-template-columns:1fr}.hs-ph small{display:none}.hs-fh{flex-wrap:wrap}.hs-fh .hs-back{margin-left:0}
   table.hs-table thead{display:none}table.hs-table tr,table.hs-table td{display:block}table.hs-table tr{border-bottom:1px solid var(--line);padding:6px 0}
   table.hs-table td{border:none;padding:3px 4px}table.hs-table td[data-label]::before{content:attr(data-label) ": ";color:var(--muted);font-size:12px}
   .hs-act{text-align:left}.hsbar{position:static}
@@ -748,10 +771,14 @@ table.edit td.c{text-align:center}
   <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/><path d="M15.5 19v2.5M8.5 19v2.5" opacity=".5"/></svg></span></span>Công văn, biên bản</h2>
     <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="toChoose();document.getElementById('hsCommon').open=true;return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#cong-van" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
-    <div class="hs-letters">
-      <div class="hs-ll" id="hsLetterList"></div>
-      <div class="hs-lf" id="hsLetterForm" data-hs-nosave></div>
+    <div class="hs-lbar" id="hsLetterBar">
+      <label class="hs-q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="hsLetterQ" type="search" placeholder="Tìm văn bản — VD: kiểm định, bảo hành, RFA, báo giá…" aria-label="Tìm văn bản" data-hs-nosave></label>
+      <div class="hs-chips" id="hsLetterKind" role="group" aria-label="Lọc loại văn bản">
+        <button type="button" data-lkind="" class="on">Tất cả</button><button type="button" data-lkind="cv">Công văn</button><button type="button" data-lkind="bb">Biên bản</button><button type="button" data-lkind="phieu">Phiếu RFA / RFI</button>
+      </div>
     </div>
+    <div class="hs-gal" id="hsLetterList"></div>
+    <div class="hs-lf" id="hsLetterForm" data-hs-nosave hidden></div>
   </div>
   <div class="panel" id="hsTxPanel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">TX</span>Thư xác nhận hàng về</h2>
@@ -769,7 +796,7 @@ table.edit td.c{text-align:center}
       <span id="lc_status" style="font-size:12.5px;color:var(--muted)"></span>
     </div>
   </div>
-  <div class="panel">
+  <div class="panel" id="hsBBPanel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">BB</span>Biên bản theo dữ liệu Hồ sơ chất lượng</h2>
     <h3 style="font-size:14px;margin:14px 0 6px">Biên bản xác nhận thiết bị đến công trường</h3>
     <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -778,7 +805,7 @@ table.edit td.c{text-align:center}
       <span id="bx_status" style="font-size:12.5px;color:var(--muted)"></span>
     </div>
 
-    <h3 style="font-size:14px;margin:18px 0 6px">Biên bản bàn giao thang máy (song ngữ)</h3>
+    <h3 style="font-size:14px;margin:18px 0 6px" id="hsBanGiaoH">Biên bản bàn giao thang máy (song ngữ)</h3>
     <p class="hint" style="margin:0 0 6px">Mỗi thang một biên bản (đúng mẫu: số hiệu thang, model, số điểm dừng, vận tốc, tải trọng). Nhiều thang thì tải về 1 file .zip. Thông tin Bên Mua / Bên Bán lấy ở mục B2 bên dưới; thang máy lấy ở Hồ sơ chất lượng (mục D).</p>
     <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
       <button class="btn pri sm" onclick="exportBanGiao()">⬇ Xuất BB bàn giao thang máy (.docx)</button>
