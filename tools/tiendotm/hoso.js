@@ -284,7 +284,7 @@
     prefillCommon();
     if (typeof prefillQuality === 'function' && /screenLetters|screenNhatKy/.test(screen)) { try { prefillQuality(); } catch (e) { /* bỏ qua */ } }
     showScreen(screen);
-    if (screen === 'screenLetters') { renderLetters(); if (typeof letterAutofillCV === 'function') { try { letterAutofillCV(); } catch (e) { /* bỏ qua */ } } }
+    if (screen === 'screenLetters') renderLetters();
     if (screen === 'screenLegal') renderLegal();
     if (screen === 'screenDrawing') renderDrawing();
   }
@@ -323,7 +323,7 @@
       { id: 'rfi', ic: 'help', t: 'RFI — Yêu cầu cung cấp thông tin', s: 'Hỏi CĐT làm rõ cao độ, nguồn điện, kích thước…' },
       { id: 'bao_gia_ps', ic: 'calc', t: 'Báo giá công việc phát sinh', s: 'Tự tính tổng, VAT, bằng chữ; điều khoản thanh toán' }] },
     { id: 'hv', name: 'Trước khi hàng về', note: 'chuẩn bị mặt bằng, giao hàng', c: '#2563eb', items: [
-      { jump: 'hsTxPanel', focus: 'lc_from', key: 'tx', ic: 'pkgok', t: 'Thư xác nhận hàng về', s: 'Cùng mẫu ở Lập bảng tiến độ — ngày hàng về, mặt bằng' },
+      { id: 'xn_hangve', ic: 'pkgok', t: 'Thư xác nhận ngày giao vật tư về công trường', s: 'Ngày hàng về, mặt bằng lưu kho — có ô Khách hàng xác nhận' },
       { id: 'hangve1', ic: 'cal', t: 'Thông báo hàng về — lần 1', s: 'Gửi trước 30 ngày: lịch hàng về, yêu cầu mặt bằng' },
       { id: 'hangve2', ic: 'truck', t: 'Thông báo hàng về — lần 2', s: 'Gửi trước 1 tuần: ngày giao, kho bãi, đường vận chuyển' },
       { id: 'defect_mos', ic: 'shaft', t: 'Tồn tại giếng thang trước khi hàng về', s: 'Kết quả khảo sát giếng thang, hạng mục CĐT cần sửa' },
@@ -383,12 +383,20 @@
     const d = HsLetters.LETTERS.find(x => x.id === curLetter);
     if (!d) { host.innerHTML = ''; return; }
     const v = LT[d.id] || (LT[d.id] = {});
+    // thư hàng về: điền sẵn ngày hàng về / mặt bằng / số thang từ bảng tiến độ (không ghi đè ô đã sửa)
+    if (d.id === 'xn_hangve' && typeof window.xnDefaults === 'function') { try { const o = window.xnDefaults(); Object.keys(o).forEach(k => { if (o[k] && (v[k] == null || v[k] === '' || (k === 'soThang' && v[k] === '01'))) v[k] = o[k]; }); } catch (e) { /* chưa lập tiến độ */ } }
+    // gợi ý số tiếp theo: lấy số của văn bản cùng loại xuất gần nhất (công văn chung 1 dãy số; biên bản 1 dãy; RFA / RFI mỗi loại 1 dãy)
+    const same = (x) => x && (d.kind === 'rfa' ? x.id === d.id : x.kind === d.kind);
+    const lastSo = Object.keys(LT).filter(k => k !== d.id && LT[k] && LT[k].so && LT[k]._last && same(HsLetters.LETTERS.find(x => x.id === k)))
+      .sort((a, b) => String(LT[b]._last).localeCompare(String(LT[a]._last)))[0];
+    const sugg = !v.so && lastSo ? HsLetters.nextSo(LT[lastSo].so) : '';
     const fld = (k, label, type, o = {}) => {
       const val = v[k] != null ? v[k] : (o.def || '');
       const inp = type === 'textarea' ? `<textarea data-lk="${k}" rows="${o.rows || 4}" placeholder="${esc(o.ph || '')}">${esc(val)}</textarea>`
         : type === 'select' ? `<input data-lk="${k}" type="text" list="dl_${k}" value="${esc(val)}" placeholder="${esc(o.ph || 'chọn hoặc gõ')}"><datalist id="dl_${k}">${(o.options || []).map(x => `<option value="${esc(x)}">`).join('')}</datalist>`
         : `<input data-lk="${k}" type="${type === 'date' ? 'date' : 'text'}" value="${esc(val)}" placeholder="${esc(o.ph || '')}">`;
-      return `<div class="f${type === 'textarea' || o.wide ? ' hs-wide' : ''}"><label>${esc(label)}</label>${inp}</div>`;
+      const hint = k === 'so' && sugg ? `<button type="button" class="hs-link" data-sonext="${esc(sugg)}" title="Số tiếp theo sau ${esc(LT[lastSo].so)}">↳ Dùng số tiếp theo: ${esc(sugg)}</button>` : '';
+      return `<div class="f${type === 'textarea' || o.wide ? ' hs-wide' : ''}"><label>${esc(label)}</label>${inp}${hint}</div>`;
     };
     const m = letterMeta(d.id), pc = m ? m.g.c : '#64748b';
     host.innerHTML = `<div class="hs-fh" style="--pc:${pc}"><span class="hs-tic">${lic(m ? m.it.ic : 'mail')}</span><div><h3>${esc(d.name)}</h3><p>${m ? esc(m.g.name) + (m.it.s ? ' · ' + esc(m.it.s) : '') : ''}</p></div><button type="button" class="btn gho sm hs-back" data-lback>← Tất cả văn bản</button></div>
@@ -609,7 +617,7 @@
     $('hsLetterQ').addEventListener('input', (e) => { lQuery = e.target.value; renderLetters(); });
     $('hsLetterKind').addEventListener('click', (e) => { const b = e.target.closest('[data-lkind]'); if (!b) return; lKind = b.dataset.lkind; document.querySelectorAll('#hsLetterKind [data-lkind]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); renderLetters(); });
     $('hsLetterForm').addEventListener('input', (e) => { const k = e.target.dataset.lk; if (k && curLetter) (LT[curLetter] || (LT[curLetter] = {}))[k] = e.target.value; });
-    $('hsLetterForm').addEventListener('click', (e) => { if (e.target.id === 'hsLetterGo') exportLetter(); if (e.target.closest('[data-lback]')) { curLetter = null; renderLetters(); $('screenLetters').scrollIntoView({ block: 'start' }); } });
+    $('hsLetterForm').addEventListener('click', (e) => { const sn = e.target.closest('[data-sonext]'); if (sn && curLetter) { const inp = $('hsLetterForm').querySelector('[data-lk="so"]'); inp.value = sn.dataset.sonext; (LT[curLetter] || (LT[curLetter] = {})).so = inp.value; sn.remove(); inp.dispatchEvent(new Event('input', { bubbles: true })); return; } if (e.target.id === 'hsLetterGo') exportLetter(); if (e.target.closest('[data-lback]')) { curLetter = null; renderLetters(); $('screenLetters').scrollIntoView({ block: 'start' }); } });
     // pháp lý
     $('hsLgNgay').addEventListener('input', (e) => { LG.ngay = e.target.value; });
     $('hsPeople').addEventListener('input', (e) => { const k = e.target.dataset.pk, tr = e.target.closest('tr[data-i]'); if (!k || !tr) return; LG.people[+tr.dataset.i][k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });

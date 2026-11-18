@@ -31,9 +31,9 @@ test('docxkit: escape ký tự đặc biệt, ngày tiếng Việt, ô trống i
   balanced(t);
 });
 
-test('công văn & biên bản: đủ 16 mẫu (gồm RFA, RFI, báo giá phát sinh, điều kiện công trường), cùng khuôn đầu thư, điền thông tin dự án', () => {
-  assert.equal(L.LETTERS.length, 16);
-  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 16, 'id không trùng');
+test('công văn & biên bản: đủ 17 mẫu (gồm RFA, RFI, báo giá phát sinh, điều kiện công trường, thư xác nhận hàng về), cùng khuôn đầu thư, điền thông tin dự án', () => {
+  assert.equal(L.LETTERS.length, 17);
+  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 17, 'id không trùng');
   for (const d of L.LETTERS) {
     const f = { so: '01/CV', ngay: '2026-11-12' };
     (d.fields || []).forEach(x => { f[x.k] = x.type === 'date' ? '2026-12-01' : (x.def || 'giá trị'); });
@@ -153,6 +153,38 @@ test('Thông báo tồn tại giếng thang & điều kiện công trường tr�
   const xml = d.body({ I: { congTrinh: 'Toà nhà Mẫu', chuDauTu: 'Công ty Mẫu' }, f: { ngayKS: '2026-11-20', thang: 'PL1, PL2', ngayLD: '2026-12-01', hanXong: '2026-11-28',
     dieuKien: 'Kho tập kết | Đạt\nNguồn điện thi công | Chưa đạt\nLan can cửa tầng |' }, K });
   assert.doesNotMatch(xml, /undefined|NaN/);
-  for (const re of [/A\. Tồn tại giếng thang cần khắc phục/, /B\. Điều kiện công trường cần đáp ứng/, /giếng thang PL1, PL2/, /01\/12\/2026/, /28\/11\/2026/,
+  for (const re of [/1\. Tồn tại giếng thang cần khắc phục/, /2\. Điều kiện công trường cần đáp ứng/, /giếng thang PL1, PL2/, /01\/12\/2026/, /28\/11\/2026/,
     /✔ <\/w:t>.*Đạt/s, /✘ /, /Kho tập kết/, /Nguồn điện thi công/, /Chưa đạt/]) assert.match(xml, re);
+});
+
+test('mọi công văn cùng một khuôn: số hiệu, Kính gửi, V/v, Tham chiếu HĐ, khối ký TM., Nơi nhận; biên bản luôn in số; tên file và số tiếp theo thống nhất', () => {
+  const xt = (x) => x.replace(/<[^>]+>/g, '');
+  for (const d of L.LETTERS) {
+    const f = { so: '125/2026/SCH-HN', ngay: '2026-11-18' };
+    (d.fields || []).forEach(x => { if (x.def) f[x.k] = x.def; });
+    const t = xt(d.body({ I, f, K }));
+    if (d.kind === 'letter') {
+      for (const s of ['Số: 125/2026/SCH-HN', 'Kính gửi:', 'V/v:', 'Tham chiếu: Hợp đồng số', 'Trân trọng kính chào.', 'Nơi nhận:', 'TM. ']) assert.ok(t.includes(s), d.id + ' thiếu “' + s + '”');
+      assert.doesNotMatch(t, /Reference no\.|From|Subject|MOS01/, d.id + ': không còn khung From / Reference no. kiểu cũ');
+    }
+    if (d.kind === 'bb') assert.ok(t.includes('Số: 125/2026/SCH-HN'), d.id + ': biên bản in đúng số đã nhập');
+    const fn = L.fileName(d, { congTrinh: 'Toà A' }, { so: '125/2026/SCH-HN' });
+    assert.match(fn, /^(CV|BB|RFA|RFI) 125-2026-SCH-HN - .+ - Toà A\.docx$/, d.id + ': ' + fn);
+  }
+  const bbNo = xt(L.LETTERS.find(x => x.id === 'bb_huanluyen').body({ I, f: { ngay: '2026-11-18' }, K }));
+  assert.match(bbNo, /Số: ……\/BBHL/);
+  assert.equal(L.nextSo('125/2026/SCH-HN'), '126/2026/SCH-HN');
+  assert.equal(L.nextSo('RFA-SCH-009'), 'RFA-SCH-010');
+  assert.equal(L.nextSo('099/CV'), '100/CV');
+  assert.equal(L.nextSo(''), '');
+});
+
+test('thư xác nhận ngày giao vật tư về công trường: cùng khuôn công văn, nội dung đủ 3 mục + ô khách hàng xác nhận', () => {
+  const d = L.LETTERS.find(x => x.id === 'xn_hangve');
+  const f = { so: '125/2026/SCH-HN', ngay: '2026-11-18', ngayVe: '2026-12-05', matBang: '2026-11-26', soThang: '02', cang: 'Cát Lái' };
+  d.fields.forEach(x => { if (f[x.k] == null && x.def) f[x.k] = x.def; });
+  const t = d.body({ I, f, K }).replace(/<[^>]+>/g, '');
+  for (const s of ['V/v:Xác nhận ngày giao vật tư thang máy về công trường', '02 thang máy', 'cảng Cát Lái', 'ngày 05/12/2026', 'trước ngày 26/11/2026', '30 m²/01 thang máy',
+    '1. Thời gian giao hàng về công trình', '2. Trường hợp tiến độ lắp đặt chậm', '3. Các công việc cần hoàn thiện / chuẩn bị trước khi hàng về', 'Chuẩn bị nguồn điện 3 pha',
+    'XÁC NHẬN CỦA QUÝ KHÁCH HÀNG', 'Đồng ý với kế hoạch hàng về như trên', 'Ý kiến khác']) assert.ok(t.includes(s), 'thiếu ' + s);
 });

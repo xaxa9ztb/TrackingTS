@@ -30,10 +30,10 @@
 <script src="gantt.js?v=2"></script>
 <script src="docread.js?v=1"></script>
 <script src="parties.js?v=1"></script>
-<script src="hsletters.js?v=5"></script>
+<script src="hsletters.js?v=6"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=10"></script>
+<script src="hoso.js?v=11"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -661,9 +661,10 @@ table.edit td.c{text-align:center}
   <!-- ===== THƯ XÁC NHẬN HÀNG VỀ & EMAIL ===== -->
   <div class="panel" style="margin-top:22px">
     <h2><span class="no">08</span>Thư xác nhận hàng về &amp; Email gửi khách hàng</h2>
-    <p class="hint">Thông tin khách hàng/hợp đồng lấy từ dữ liệu quét hợp đồng; các mốc ngày lấy từ bảng tiến độ ở trên (ngày hàng về = ngày kết thúc giai đoạn I). Sửa lại nếu cần rồi xuất file.</p>
+    <p class="hint">Thư dùng <b>chung khuôn công văn</b> của Hồ sơ Dự án (số hiệu, Kính gửi, V/v, Tham chiếu hợp đồng, khối ký, nơi nhận) — cũng mở được ở mục <i>Công văn, biên bản</i>. Các mốc ngày lấy từ bảng tiến độ ở trên (ngày hàng về = ngày kết thúc giai đoạn sản xuất &amp; vận chuyển). Sửa lại nếu cần rồi xuất file.</p>
     <div class="grid g4">
-      <div class="f"><label>Người gửi (From)</label><input id="l_from" placeholder="Họ tên người gửi"></div>
+      <div class="f"><label>Số công văn</label><input id="l_so" placeholder="VD: 125/2026/SCH-HN"></div>
+      <div class="f"><label>Người liên hệ (in cuối thư)</label><input id="l_from" placeholder="để trống = theo Thông tin dự án"></div>
       <div class="f"><label>Ngày thư</label><input type="date" id="l_date"></div>
       <div class="f"><label>Ngày hàng về công trình</label><input type="date" id="l_arrive"></div>
       <div class="f"><label>Cần xong mặt bằng trước ngày</label><input type="date" id="l_site"></div>
@@ -843,22 +844,6 @@ table.edit td.c{text-align:center}
     </div>
     <div class="hs-gal" id="hsLetterList"></div>
     <div class="hs-lf" id="hsLetterForm" data-hs-nosave hidden></div>
-  </div>
-  <div class="panel" id="hsTxPanel">
-    <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">TX</span>Thư xác nhận hàng về</h2>
-    <p class="hint">Cùng mẫu thư ở <b>Lập bảng tiến độ</b> (bước 3). Ngày hàng về / mặt bằng tự lấy từ bảng tiến độ nếu đã lập; sửa lại nếu cần rồi xuất.</p>
-    <div class="grid g4">
-      <div class="f"><label>Người gửi</label><input id="lc_from" placeholder="Họ tên người gửi"></div>
-      <div class="f"><label>Ngày thư</label><input type="date" id="lc_date"></div>
-      <div class="f"><label>Ngày hàng về công trình</label><input type="date" id="lc_arrive"></div>
-      <div class="f"><label>Cần xong mặt bằng trước ngày</label><input type="date" id="lc_site"></div>
-      <div class="f"><label>Số lượng thang</label><input id="lc_qty" value="01"></div>
-      <div class="f"><label>Cảng nhập hàng</label><input id="lc_cang" value="Hải Phòng"></div>
-    </div>
-    <div class="row" style="margin-top:12px;gap:10px">
-      <button class="btn pri sm" onclick="exportLetter('lc_')">⬇ Xuất thư xác nhận hàng về (.docx)</button>
-      <span id="lc_status" style="font-size:12.5px;color:var(--muted)"></span>
-    </div>
   </div>
   <div class="panel" id="hsBBPanel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">BB</span>Biên bản theo dữ liệu Hồ sơ chất lượng</h2>
@@ -3231,51 +3216,36 @@ function letterAutofill(){
   if(qEl&&(!qEl.value||qEl.value==="01")&&q)qEl.value=pad2(+q[1]);
   buildEmail();
 }
-// Công văn, biên bản: điền ô trống của thư hàng về từ bước 3 tiến độ / bảng tiến độ (không ghi đè ô đã sửa)
-function letterAutofillCV(){
-  const setIf=(id,v)=>{const el=document.getElementById(id);if(el&&!el.value&&v)el.value=v;};
-  ["from","date","arrive","site","cang"].forEach(k=>{const src=document.getElementById("l_"+k);if(src&&src.value)setIf("lc_"+k,src.value);});
-  try{const m=scheduleMilestones();if(m.I){setIf("lc_arrive",isoUTC(m.I.e));setIf("lc_site",isoUTC(backWork(m.I.e,7,m.mode,m.H)));}}catch(e){}
-  setIf("lc_date",isoUTC(new Date()));
-  const q=document.getElementById("lc_qty"),lq=document.getElementById("l_qty");
-  if(q&&(!q.value||q.value==="01")){const n=(S.qElevs||[]).filter(e=>String(e.name||"").trim()).length;const v=(lq&&lq.value&&lq.value!=="01")?lq.value:(n?pad2(n):"");if(v)q.value=v;}
+// giá trị gợi ý cho Thư xác nhận hàng về (mục Công văn, biên bản): lấy từ bảng tiến độ / ô ở bước 3
+function xnDefaults(){
+  const o={};const g=id=>{const el=document.getElementById(id);return el?el.value.trim():"";};
+  try{const m=scheduleMilestones();if(m.I){o.ngayVe=isoUTC(m.I.e);o.matBang=isoUTC(backWork(m.I.e,7,m.mode,m.H));}}catch(e){}
+  if(g("l_arrive"))o.ngayVe=g("l_arrive");if(g("l_site"))o.matBang=g("l_site");if(g("l_cang"))o.cang=g("l_cang");
+  const n=(S.qElevs||[]).filter(e=>String(e.name||"").trim()).length;
+  o.soThang=g("l_qty")&&g("l_qty")!=="01"?g("l_qty"):(n?pad2(n):"");
+  return o;
 }
-/* ---------- Thư xác nhận hàng về (.docx) ---------- */
-// px = "l_" (bước 3 tiến độ) hoặc "lc_" (Công văn, biên bản) — cùng một mẫu thư
-async function exportLetter(px){
-  px=px||"l_";
-  const st=document.getElementById(px+"status");st.textContent="Đang tạo thư…";
+/* ---------- Thư xác nhận hàng về (.docx) — cùng khuôn công văn (HsLetters 'xn_hangve') ---------- */
+async function exportLetter(){
+  const st=document.getElementById("l_status");st.textContent="Đang tạo thư…";
   try{
     if(typeof JSZip==="undefined")throw new Error("Chưa tải được thư viện JSZip");
     const resp=await fetch("thu_hangve_template.docx");
-    if(!resp.ok)throw new Error("Không tải được file mẫu thư (HTTP "+resp.status+")");
-    const zip=await JSZip.loadAsync(await resp.arrayBuffer());
-    let doc=await zip.file("word/document.xml").async("string");
+    if(!resp.ok)throw new Error("Không tải được khuôn công văn (HTTP "+resp.status+")");
     try{pullForm();}catch(e){}
-    // thông tin hợp đồng: ưu tiên dữ liệu quét hợp đồng, thiếu thì lấy ở Thông tin dự án dùng chung
-    const I=(window.HS&&HS.info)?HS.info():{};
-    const P=Object.assign({},S.project);
-    P.buyer=P.buyer||I.chuDauTu||"";P.baddr=P.baddr||I.cdtDiaChi||"";P.no=P.no||I.soHD||"";
-    P.cdate=P.cdate||(I.ngayHD?isoToVN(I.ngayHD):"");P.name=P.name||I.congTrinh||"";P.addr=P.addr||I.diaDiem||"";
-    const map={
-      "{{KHACH_HANG}}":P.buyer||"Quý Khách hàng",
-      "{{DIA_CHI_KH}}":P.baddr||"",
-      "{{SO_HD}}":P.no||"",
-      "{{NGAY_KY_HD}}":P.cdate||"",
-      "{{DU_AN}}":P.name+(P.addr?" - "+P.addr:""),
-      "{{NGAY_HANG_VE}}":isoToVN(lv(px+"arrive")),
-      "{{NGAY_MAT_BANG}}":isoToVN(lv(px+"site")),
-      "{{NGAY_THU}}":isoToVN(lv(px+"date")),
-      "{{NGUOI_GUI}}":lv(px+"from"),
-      "{{SL_THANG}}":lv(px+"qty")||"01",
-      "{{CANG}}":lv(px+"cang")||"Hải Phòng"
-    };
-    for(const k in map)doc=doc.split(k).join(xescQ(map[k]));
-    zip.file("word/document.xml",doc);
+    // thông tin dự án dùng chung; thiếu thì lấy dữ liệu quét hợp đồng ở bước 2
+    const I=Object.assign({},(window.HS&&HS.info)?HS.info():{});const P=S.project;
+    I.chuDauTu=I.chuDauTu||P.buyer;I.cdtDiaChi=I.cdtDiaChi||P.baddr;I.soHD=I.soHD||P.no;I.ngayHD=I.ngayHD||toISO(P.cdate);
+    I.congTrinh=I.congTrinh||P.name;I.diaDiem=I.diaDiem||P.addr;
+    if(lv("l_from"))Object.assign(I,{pmTen:lv("l_from"),pmDT:"",pmEmail:""});
+    const def=HsLetters.LETTERS.find(d=>d.id==="xn_hangve");
+    const f={so:lv("l_so"),ngay:lv("l_date")||isoUTC(new Date()),ngayVe:lv("l_arrive"),matBang:lv("l_site"),soThang:lv("l_qty")||"01",cang:lv("l_cang")||"Hải Phòng"};
+    def.fields.forEach(x=>{if(f[x.k]==null&&x.def)f[x.k]=x.def;});
+    const zip=await HsLetters.build(JSZip,await resp.arrayBuffer(),def,I,f);
     const blob=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",compression:"DEFLATE"});
-    saveAs(blob,"Thu_xac_nhan_hang_ve_"+((P.no||"du_an").replace(/[^\w-]/g,"_"))+".docx");
+    saveAs(blob,HsLetters.fileName(def,I,f));
     st.textContent="✓ Đã xuất thư xác nhận hàng về (.docx).";
-  }catch(e){st.textContent="Lỗi: "+e.message+". Lưu ý: cần mở app qua GitHub Pages (không chạy khi mở file cục bộ).";}
+  }catch(e){st.textContent="Lỗi: "+e.message;}
 }
 /* ---------- Nội dung email ---------- */
 function buildEmail(){

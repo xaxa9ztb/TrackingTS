@@ -38,7 +38,7 @@
       { runs: [r('TM. ' + CTY(I), { b: true, sz: 11 }), r('\n' + cv, { b: true, sz: 11 }), r('\n\n\n\n' + (ky || ''), { b: true })], align: 'center', vAlign: 'top' },
     ]], { widths: [3700, 5326], border: false, cantSplit: true });
     const lh = [I.pmTen, I.pmDT, I.pmEmail].filter(Boolean).join(' – ');
-    return p(r(o.thanks || 'Rất mong nhận được sự hợp tác của Quý Khách hàng.'), { align: 'both', before: 4 }) +
+    return p(r(o.thanks || 'Rất mong nhận được sự hợp tác của Quý Khách hàng.'), { align: 'both', before: 4, keep: true }) +
       p(r('Trân trọng kính chào.'), { after: 8, keep: true }) + sign +
       (lh ? p(r('Người liên hệ: ' + lh, { i: true, sz: 10 }), { before: 6 }) : '');
   }
@@ -58,7 +58,7 @@
     ]], { widths: [4300, 4726], border: false }) +
       p(r(ngayVN(f.ngay, I.noiLap || 'Hà Nội'), { i: true }), { align: 'right' }) +
       p(r(title, { b: true, sz: 14 }), { align: 'center', before: 6, after: 2 }) +
-      (soKh ? p(r('Số: ' + (f.so || '……') + '/' + soKh), { align: 'center' }) : '') +
+      p(r('Số: ' + (f.so || '……/' + (soKh || 'BB'))), { align: 'center' }) +   // in đúng số người dùng nhập — như công văn
       p([r('Công trình: ', { b: true }), r(orDots(I.congTrinh))], { after: 2 }) +
       p([r('Địa điểm: ', { b: true }), r(orDots(I.diaDiem))], { after: 2 }) +
       p([r('Hợp đồng số: ', { b: true }), r(`${orDots(I.soHD)}${I.ngayHD ? ' ngày ' + dmy(I.ngayHD) : ''}`)]);
@@ -145,8 +145,29 @@
     'Mốc cao độ hoàn thiện sàn (FFL) và trục tim tại từng tầng |',
     'Nước sạch, nhà vệ sinh, khu vực nghỉ cho công nhân |',
   ].join('\n');
+const DEF_XN_CV = 'Sắp xếp nhân sự nhận hàng và tham gia các công tác giám định đồng bộ, đánh giá hợp quy và nghiệm thu hàng hoá\nHoàn tất xây dựng các giếng thang theo bản vẽ được duyệt để thi công lắp đặt\nChuẩn bị nguồn điện 3 pha cho công tác lắp đặt, vận hành';
 const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thiện lỗ thông gió giếng thang\nHoàn thiện lan can an toàn trước cửa tầng\nCung cấp nguồn điện chính thức cho thang máy';
   const LETTERS = [
+    {
+      // thư xác nhận ngày giao vật tư về công trường (trước đây là file Word riêng) — nay cùng khuôn công văn
+      id: 'xn_hangve', kind: 'letter', name: 'Thư xác nhận ngày giao vật tư thang máy về công trường', subject: 'Xác nhận ngày giao vật tư thang máy về công trường',
+      fields: [{ k: 'soThang', label: 'Số lượng thang', def: '01' }, { k: 'cang', label: 'Cảng nhập hàng', def: 'Hải Phòng' },
+        { k: 'ngayVe', label: 'Ngày hàng về công trình (dự kiến)', type: 'date' }, { k: 'matBang', label: 'Cần xong mặt bằng lưu kho trước ngày', type: 'date' },
+        { k: 'dienTich', label: 'Diện tích mặt bằng tối thiểu (m²/thang)', def: '30' },
+        { k: 'congViec', label: 'Các công việc cần hoàn thiện / chuẩn bị trước khi hàng về (mỗi dòng 1 mục)', type: 'textarea', rows: 4, def: DEF_XN_CV }],
+      body: letter('Xác nhận ngày giao vật tư thang máy về công trường', ({ I, f }) => salute() + intro(I) +
+        para('Chúng tôi xin thông báo với Quý Khách hàng một số nội dung sau:') +
+        head2('1. Thời gian giao hàng về công trình') +
+        para(`Theo nội dung Hợp đồng, toàn bộ vật tư thiết bị của ${qtyThang(I, f)} thang máy dự kiến sẽ được nhập về đến cảng ${f.cang || '……'}; sau khi hoàn tất thủ tục hải quan, lô hàng dự kiến được chuyển đến công trình vào khoảng ngày ${dmy(f.ngayVe)}.`) +
+        para(`Đề nghị Quý Khách hàng bố trí mặt bằng khô ráo, đủ rộng để lưu kho hàng hoá tại công trường trước ngày ${dmy(f.matBang)} (tối thiểu ${f.dienTich || '30'} m²/01 thang máy). Chi tiết vị trí mặt bằng, chúng tôi sẽ cử cán bộ làm việc với Quý Khách hàng trước khi hàng về dự án tối thiểu 07 ngày.`) +
+        head2('2. Trường hợp tiến độ lắp đặt chậm hoặc chưa chuẩn bị được mặt bằng lưu hàng') +
+        para('Nếu ngày lắp đặt theo thoả thuận bị kéo dài do phía Bên Mua, rất mong Quý Khách hàng thông báo ngay cho chúng tôi. Việc trì hoãn công tác lắp đặt sẽ cần sắp xếp lại lịch thi công của nhân lực và ảnh hưởng đến ngày bàn giao thiết bị.') +
+        para('Nếu Quý Khách hàng không chuẩn bị được mặt bằng tại dự án, chúng tôi sẽ làm việc với bên thứ ba để chuẩn bị kho bãi lưu vật tư trong thời gian chờ, với chi phí do Khách hàng thanh toán. Chào giá chi phí lưu kho phát sinh sẽ được gửi Khách hàng xác nhận trước khi thực hiện.') +
+        head2('3. Các công việc cần hoàn thiện / chuẩn bị trước khi hàng về') + list(lines(f.congViec || DEF_XN_CV), '1') +
+        closing(I, f) +
+        tail(table([[{ runs: [r('XÁC NHẬN CỦA QUÝ KHÁCH HÀNG', { b: true }), r('\n'), ckbox(false), r('Đồng ý với kế hoạch hàng về như trên\n'), ckbox(false), r('Ý kiến khác: ………………………')], vAlign: 'top' },
+          { runs: [r('Đại diện Khách hàng', { b: true }), r('\n(Ký, ghi rõ họ tên, chức vụ)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }]], { widths: [4513, 4513], cantSplit: true }))),
+    },
     {
       id: 'hangve1', kind: 'letter', name: 'Thông báo hàng về công trường — lần 1 (trước 30 ngày)', subject: 'Thông báo thời gian lô hàng thang máy về đến công trình',
       fields: [
@@ -196,8 +217,8 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
       subject: 'Thông báo tồn tại giếng thang và điều kiện công trường cần đáp ứng trước khi lắp đặt thang máy',
       fields: [{ k: 'ngayKS', label: 'Ngày kiểm tra hiện trường', type: 'date' }, { k: 'thang', label: 'Thang / giếng thang kiểm tra', ph: 'VD: PL1, PL2 (để trống = toàn bộ)' },
         { k: 'ngayLD', label: 'Ngày dự kiến bắt đầu lắp đặt', type: 'date' }, { k: 'hanXong', label: 'Đề nghị hoàn thành trước ngày', type: 'date' },
-        { k: 'tonTai', label: 'A. Tồn tại giếng thang cần khắc phục (mỗi dòng 1 mục)', type: 'textarea', rows: 6, def: DEF_GIENG },
-        { k: 'dieuKien', label: 'B. Điều kiện công trường — mỗi dòng: nội dung | tình trạng (Đạt / Chưa đạt; để trống = ô đánh dấu)', type: 'textarea', rows: 9, def: DEF_DKCT },
+        { k: 'tonTai', label: '1. Tồn tại giếng thang cần khắc phục (mỗi dòng 1 mục)', type: 'textarea', rows: 6, def: DEF_GIENG },
+        { k: 'dieuKien', label: '2. Điều kiện công trường — mỗi dòng: nội dung | tình trạng (Đạt / Chưa đạt; để trống = ô đánh dấu)', type: 'textarea', rows: 9, def: DEF_DKCT },
         { k: 'ghiChu', label: 'Ghi chú thêm (tuỳ chọn)', type: 'textarea', rows: 2 }],
       body: letter('Thông báo tồn tại giếng thang và điều kiện công trường cần đáp ứng trước khi lắp đặt thang máy', ({ I, f }) => {
         const dk = lines(f.dieuKien || DEF_DKCT).map((ln, i) => {
@@ -209,8 +230,8 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
         return salute() +
           para(`Trước hết xin cảm ơn Quý Khách hàng đã tin tưởng và sử dụng sản phẩm, dịch vụ thang máy do ${short(I)} cung cấp và lắp đặt.`) +
           para(`Ngày ${dmy(f.ngayKS)}, đại diện ${short(I)} đã kiểm tra hiện trạng ${where} và điều kiện công trường tại ${orDots(I.congTrinh)} để chuẩn bị triển khai lắp đặt${f.ngayLD ? ' (dự kiến bắt đầu từ ngày ' + dmy(f.ngayLD) + ')' : ''}. Kết quả như sau:`) +
-          head2('A. Tồn tại giếng thang cần khắc phục') + list(lines(f.tonTai || DEF_GIENG), '1') +
-          head2('B. Điều kiện công trường cần đáp ứng trước khi lắp đặt') +
+          head2('1. Tồn tại giếng thang cần khắc phục') + list(lines(f.tonTai || DEF_GIENG), '1') +
+          head2('2. Điều kiện công trường cần đáp ứng trước khi lắp đặt') +
           table([['STT', 'Nội dung', 'Tình trạng'], ...dk], { widths: [650, 6176, 2200], header: 1 }) +
           (f.ghiChu ? lines(f.ghiChu).map(para).join('') : '') +
           para(`Công tác lắp đặt chỉ được bắt đầu khi giếng thang được hoàn thiện, bàn giao và các điều kiện trên được đáp ứng. Rất mong Quý Khách hàng sắp xếp hoàn thành các hạng mục còn tồn tại trước ngày ${dmy(f.hanXong)}; trường hợp chậm trễ, thời gian lắp đặt và bàn giao sẽ được điều chỉnh tương ứng theo quy định của Hợp đồng.`) +
@@ -311,7 +332,7 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
       fields: [{ k: 'tg', label: 'Thời gian huấn luyện', def: '……h…… đến ……h……' }, { k: 'nguoiHL', label: 'Người huấn luyện / người giao chìa khoá' }, { k: 'chucDanh', label: 'Chức danh người giao', def: 'Giám sát lắp đặt' },
         { k: 'chiaKhoa', label: 'Chìa khoá bàn giao (mỗi dòng 1 loại)', type: 'textarea', rows: 5, def: '01 chìa khoá tam giác mở cửa tầng\n01 chìa khoá mở hộp ưu tiên trong cabin\n01 chìa khoá khoá thang tại tầng chính\n01 chìa khoá tủ điều khiển' },
         { k: 'soDong', label: 'Số dòng danh sách học viên', def: '12' }],
-      body: ({ I, f }) => bbHeader(I, f, 'BIÊN BẢN HUẤN LUYỆN\nSỬ DỤNG THANG MÁY VÀ CỨU HỘ HÀNH KHÁCH TRONG TÌNH HUỐNG KHẨN CẤP', '') +
+      body: ({ I, f }) => bbHeader(I, f, 'BIÊN BẢN HUẤN LUYỆN\nSỬ DỤNG THANG MÁY VÀ CỨU HỘ HÀNH KHÁCH TRONG TÌNH HUỐNG KHẨN CẤP', 'BBHL') +
         para(`Thời gian huấn luyện: ${f.tg || '……h…… đến ……h……'}, ${ngayVN(f.ngay)}.`) + para('Người huấn luyện: ' + orDots(f.nguoiHL || I.chtTen, 40)) +
         head2('A. Nội dung huấn luyện') + list([
           'Hướng dẫn sử dụng thang máy và các chức năng cơ bản: kích hoạt công tắc báo cháy cho thang về tầng thoát hiểm khi có báo cháy, vận hành thang ở chế độ ưu tiên (Reservation).',
@@ -488,7 +509,16 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
     await K.letterheadDocx(zip, xml);
     return zip;
   }
-  const fileName = (def, I, f) => `${def.kind === 'bb' ? 'BB' : def.kind === 'rfa' ? def.id.toUpperCase() + (f && f.so ? ' ' + String(f.so).replace(/[\\/:*?"<>|]/g, '-') : '') : 'CV'} - ${def.kind === 'rfa' ? (def.file || 'De xuat phe duyet') : def.name.replace(/[\\/:*?"<>|]/g, '')}${I.congTrinh ? ' - ' + String(I.congTrinh).replace(/[\\/:*?"<>|]/g, '').slice(0, 50) : ''}.docx`;
-  const api = { LETTERS, EXISTING, build, fileName, header, closing, docSo, quoteCalc, money, validity, payLine };
+  // tên file thống nhất: <CV|BB|RFA|RFI> <số> - <tên văn bản> - <công trình>.docx
+  const safe = (x) => String(x).replace(/[\\/:*?"<>|]/g, '-');
+  const fileName = (def, I, f) => `${def.kind === 'bb' ? 'BB' : def.kind === 'rfa' ? def.id.toUpperCase() : 'CV'}${f && f.so ? ' ' + safe(f.so) : ''} - ${def.kind === 'rfa' ? (def.file || 'De xuat phe duyet') : safe(def.name).replace(/-/g, ' ').replace(/\s+/g, ' ')}${I.congTrinh ? ' - ' + safe(I.congTrinh).slice(0, 50) : ''}.docx`;
+  // số tiếp theo: tăng phần số đầu, giữ nguyên phần còn lại và độ dài (VD 125/2026/SCH-HN → 126/2026/SCH-HN; RFA-SCH-009 → RFA-SCH-010)
+  function nextSo(so) {
+    const t = String(so || '').trim(); if (!t) return '';
+    const m = /^(\D*?)(\d+)(.*)$/.exec(t); if (!m) return '';
+    const n = String(+m[2] + 1).padStart(m[2].length, '0');
+    return m[1] + n + m[3];
+  }
+  const api = { LETTERS, EXISTING, build, fileName, nextSo, header, closing, docSo, quoteCalc, money, validity, payLine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HsLetters = api;
 })(typeof window !== 'undefined' ? window : globalThis);
