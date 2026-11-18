@@ -840,7 +840,6 @@
     dlg.showModal();
     $('soonOk').focus();
   }
-  $('soonDlg').addEventListener('click', (ev) => { if (ev.target === $('soonDlg')) $('soonDlg').close(); }); // bấm ra ngoài
   $('soonDlg').addEventListener('close', () => { if (soonFrom && soonFrom.isConnected) soonFrom.focus(); soonFrom = null; });
 
   // ---------- chế độ Demo (chỉ bản Cloudflare có cơ sở dữ liệu demo) ----------
@@ -849,7 +848,7 @@
     const openDemo = () => { $('demoMsg').textContent = ''; dlg.showModal(); };
     if (!TsDemo.on) TsDemo.available().then((st) => { if (st.available) btn.hidden = false; });
     btn.addEventListener('click', openDemo);
-    dlg.addEventListener('click', (ev) => { if (ev.target === dlg) dlg.close(); });
+    dlg.addEventListener('cancel', (ev) => { if (dlg.querySelector('button:disabled')) ev.preventDefault(); }); // đang dựng dữ liệu: không cho Esc đóng
     // đang ở demo: chọn vai trò = đổi vai, giữ dữ liệu; chưa ở demo: dựng dữ liệu mẫu mới
     if (TsDemo.on) { $('demoTitle').textContent = 'Đổi vai trò (Demo)'; $('demoKeep').hidden = false; }
     dlg.querySelectorAll('.demo-roles button').forEach((b) => b.addEventListener('click', async () => {

@@ -3490,10 +3490,7 @@ function Drawer({
   const panel = useRef(null);
   useEffect(() => {
     const prevFocus = document.activeElement;
-    const onKey = e => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
+    // ngăn kéo nhập liệu chỉ đóng bằng nút ✕ / Hủy / Lưu — Esc hay bấm ra ngoài không đóng (tránh mất dữ liệu đang nhập)
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     if (panel.current) {
@@ -3501,7 +3498,6 @@ function Drawer({
       (first || panel.current).focus();
     }
     return () => {
-      document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
       if (prevFocus && prevFocus.focus) prevFocus.focus();
     };
@@ -3512,8 +3508,7 @@ function Drawer({
     "aria-modal": "true",
     "aria-labelledby": "tsDrawerTitle"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "absolute inset-0 bg-slate-900/40 ts-fade",
-    onClick: onClose
+    className: "absolute inset-0 bg-slate-900/40 ts-fade"
   }), /*#__PURE__*/React.createElement("div", {
     ref: panel,
     tabIndex: -1,
