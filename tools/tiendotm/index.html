@@ -468,6 +468,7 @@ table.edit td.c{text-align:center}
       <a class="btn gho" href="../../huong-dan-ho-so-du-an.html" target="_blank" rel="noopener" style="margin-left:auto">📖 Hướng dẫn sử dụng</a>
       <a class="btn gho" href="../../docs/Huong-dan-Ho-so-Du-an.pdf" target="_blank" rel="noopener" title="Tải tài liệu hướng dẫn (PDF)">⬇ PDF</a>
       <a class="btn gho" href="../../docs/Training-Ho-so-Du-an.pptx" download title="Slide training (PowerPoint)">📊 Slide training</a>
+      <a class="btn gho" href="../../training-giam-sat-ho-so-du-an.html" target="_blank" rel="noopener" title="Tài liệu training dành cho giám sát (Site Sup)">🎓 Training giám sát</a>
       <button class="btn pri" id="hsNew">＋ Tạo hồ sơ dự án mới</button>
     </div>
     <div class="tblwrap"><table class="hs-table" id="hsTable">
@@ -861,7 +862,7 @@ table.edit td.c{text-align:center}
 <section id="screenLetters" class="hide">
     <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/><path d="M15.5 19v2.5M8.5 19v2.5" opacity=".5"/></svg></span></span>Công văn, biên bản</h2>
-    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#cong-van" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
+    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án</a>. <a href="../../huong-dan-ho-so-du-an.html#cong-van" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
     <div class="hs-lbar" id="hsLetterBar">
       <label class="hs-q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="hsLetterQ" type="search" placeholder="Tìm văn bản — VD: kiểm định, bảo hành, RFA, báo giá…" aria-label="Tìm văn bản" data-hs-nosave></label>
       <div class="hs-chips" id="hsLetterKind" role="group" aria-label="Lọc loại văn bản">
@@ -942,7 +943,7 @@ table.edit td.c{text-align:center}
 <section id="screenLegal" class="hide" data-hs-nosave>
     <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></span></span>Hồ sơ pháp lý</h2>
-    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#phap-ly" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
+    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án</a>. <a href="../../huong-dan-ho-so-du-an.html#phap-ly" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
     <div class="grid g2"><div class="f"><label>Ngày lập (in trên các quyết định)</label><input type="date" id="hsLgNgay"></div></div>
     <h3 class="hs-h3">Nhân sự công trường</h3>
     <p class="hint" style="margin:0 0 6px"><b>BCH</b>: có tên trong Quyết định Ban chỉ huy và Danh sách chữ ký mẫu. <b>PCCC</b>: cử tham gia Đội PCCC cơ sở. Họ tên chỉ dùng cho hồ sơ của dự án này.</p>
@@ -976,7 +977,7 @@ table.edit td.c{text-align:center}
     <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></span></span>Bìa &amp; trang ký — <span id="hsDwKindName">Bản vẽ thi công</span></h2>
     <div class="hs-seg" id="hsDwKind" role="group" aria-label="Loại bản vẽ"><button type="button" data-kind="shop" class="on">Bản vẽ thi công <small>Shop drawing</small></button><button type="button" data-kind="asbuilt">Bản vẽ hoàn công <small>As-built</small></button></div>
-    <p class="hint" style="margin:0 0 12px">Mỗi loại có danh mục bản vẽ, nội dung bìa và khối ký riêng. Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#ban-ve" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
+    <p class="hint" style="margin:0 0 12px">Mỗi loại có danh mục bản vẽ, nội dung bìa và khối ký riêng. Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án</a>. <a href="../../huong-dan-ho-so-du-an.html#ban-ve" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
     <div class="drop hs-drop" onclick="document.getElementById('hsDwFiles').click()">
       <div class="big">Tải bản vẽ PDF lên</div>
       <div class="small">Có thể chọn nhiều file (vd. mỗi thang 1 file) · tự đọc khung tên từng trang: số bản vẽ, tờ, tên bản vẽ · nhận ra trang bìa / danh mục của từng bộ · xử lý trên máy, không tải lên máy chủ</div>
