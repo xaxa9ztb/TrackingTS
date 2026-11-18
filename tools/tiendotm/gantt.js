@@ -147,14 +147,14 @@
   if (typeof document !== 'undefined') {
     const COLOR = { P: '#2E74B5', I: '#DC0000', H: '#00B050', M: '#111827' };
     const PH_NAME = { P: 'Sản xuất', I: 'Lắp đặt', H: 'Bàn giao' };
-    const ZOOM = { day: 28, week: 12, month: 4.5 };
+    const ZOOM = { day: 28, week: 12, month: 4.5 }, ZMIN = 2, ZMAX = 60;
     const e = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     const dmy = (d) => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
     const DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
     // host: phần tử chứa; o: { get(): items, set(items), ctx(): {base, mode, H}, onChange() }
     api.mount = function (host, o) {
-      const st = { sel: null, zoom: 'week', undo: [], redo: [] };
+      const st = { sel: null, zoom: 'week', px: ZOOM.week, undo: [], redo: [] };
       const ctx = () => o.ctx();
       const commit = (next, keepSel) => {
         const cur = o.get();
@@ -180,6 +180,9 @@
           <span class="gx-zoom" role="group" aria-label="Thu phóng">
             <button type="button" data-z="day">Ngày</button><button type="button" data-z="week">Tuần</button><button type="button" data-z="month">Tháng</button>
           </span>
+          <span class="gx-zm" role="group" aria-label="Phóng to / thu nhỏ">
+            <button type="button" data-zs="-1" title="Thu nhỏ (Ctrl + lăn chuột trên biểu đồ)" aria-label="Thu nhỏ">−</button><span class="gx-zp" data-zp></span><button type="button" data-zs="1" title="Phóng to (Ctrl + lăn chuột trên biểu đồ)" aria-label="Phóng to">＋</button><button type="button" class="gx-fit" data-zfit title="Vừa khung — thấy toàn bộ tiến độ">↔</button>
+          </span>
           <span class="gx-info" data-info></span>
         </div>
         <div class="gx-wrap" tabindex="-1"><table class="gx"><thead></thead><tbody></tbody></table></div>
@@ -189,7 +192,8 @@
       let G = null;   // trạng thái lưới thời gian của lần vẽ gần nhất
       function render() {
         const items = o.get(), c = ctx(), R = compute(items, c), Cl = cal(c.mode, c.H);
-        const px = ZOOM[st.zoom];
+        const px = st.px;
+        st.zoom = px >= 18 ? 'day' : px >= 7 ? 'week' : 'month';   // nhãn thang thời gian theo độ phóng
         const lo = new Date(Math.min(c.base.getTime(), R.start.getTime())), hi = R.end;
         // khung thời gian: từ đầu tuần chứa mốc sớm nhất − 1 tuần, tới cuối tuần + 2 tuần sau mốc muộn nhất
         const t0 = new Date(lo.getTime() - (((lo.getUTCDay() + 6) % 7) + 7) * DAY);
@@ -244,13 +248,33 @@
             <td class="gx-lk">${fixed ? '' : `<input type="checkbox" data-f="link" ${r.link ? 'checked' : ''} title="Nối tiếp việc phía trên (tự dời theo)">`}</td>
             <td class="gx-tl"><div class="gx-sc">${bar}</div></td></tr>`;
         }).join('');
-        host.querySelectorAll('[data-z]').forEach((b) => b.classList.toggle('on', b.dataset.z === st.zoom));
+        host.querySelectorAll('[data-z]').forEach((b) => b.classList.toggle('on', Math.abs(ZOOM[b.dataset.z] - px) < 0.01));
+        host.querySelector('[data-zp]').textContent = Math.round(px / ZOOM.week * 100) + '%';
+        host.querySelector('[data-zs="-1"]').disabled = px <= ZMIN + 0.01; host.querySelector('[data-zs="1"]').disabled = px >= ZMAX - 0.01;
         host.querySelector('[data-info]').textContent = `Tổng: ${R.total} ${unit} · ${dmy(R.start)} → ${dmy(R.end)}`;
         host.querySelector('[data-a="undo"]').disabled = !st.undo.length;
         host.querySelector('[data-a="redo"]').disabled = !st.redo.length;
         const sel = items.find((x) => x.uid === st.sel);
         ['up', 'down', 'del'].forEach((a) => { host.querySelector(`[data-a="${a}"]`).disabled = !sel || sel.kind === 'base'; });
       }
+
+      // ----- phóng to / thu nhỏ: giữ nguyên ngày đang ở giữa (hoặc dưới con trỏ) -----
+      function zoomTo(px, clientX) {
+        px = Math.max(ZMIN, Math.min(ZMAX, px)); if (!G || Math.abs(px - st.px) < 0.001) { st.px = px; render(); return; }
+        const tl = tbody.querySelector('.gx-tl') || thead.querySelector('.gx-tl'); const lw = tl ? tl.offsetLeft : 0;
+        const vis = wrap.clientWidth - lw, ax = clientX != null ? clientX - wrap.getBoundingClientRect().left - lw : vis / 2;
+        const day = (wrap.scrollLeft + Math.max(0, ax)) / G.px, t0 = G.t0.getTime();
+        st.px = px; render();
+        wrap.scrollLeft = Math.max(0, ((t0 - G.t0.getTime()) / DAY + day) * G.px - Math.max(0, ax));
+      }
+      wrap.addEventListener('wheel', (ev) => {
+        if (!(ev.ctrlKey || ev.metaKey) || !ev.target.closest('.gx-tl')) return;
+        ev.preventDefault(); zoomTo(st.px * (ev.deltaY < 0 ? 1.15 : 1 / 1.15), ev.clientX);
+      }, { passive: false });
+      host.addEventListener('keydown', (ev) => {
+        if (/INPUT|SELECT|TEXTAREA/.test(ev.target.tagName)) return;
+        if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); zoomTo(st.px * 1.25); } else if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); zoomTo(st.px * 0.8); }
+      });
 
       // ----- sửa ô -----
       host.addEventListener('change', (ev) => {
@@ -266,7 +290,9 @@
       });
       // ----- chọn dòng, nút công cụ -----
       host.addEventListener('click', (ev) => {
-        const z = ev.target.closest('[data-z]'); if (z) { st.zoom = z.dataset.z; render(); return; }
+        const z = ev.target.closest('[data-z]'); if (z) { zoomTo(ZOOM[z.dataset.z]); return; }
+        if (ev.target.closest('[data-zfit]')) { const tl = thead.querySelector('.gx-tl'), vis = wrap.clientWidth - (tl ? tl.offsetLeft : 0) - 8; zoomTo(st.px * vis / G.W); wrap.scrollLeft = 0; return; }
+        const zs = ev.target.closest('[data-zs]'); if (zs) { zoomTo(st.px * (+zs.dataset.zs > 0 ? 1.25 : 0.8)); return; }
         const b = ev.target.closest('[data-a]');
         if (b) {
           const a = b.dataset.a, items = o.get();
