@@ -31,9 +31,9 @@ test('docxkit: escape ký tự đặc biệt, ngày tiếng Việt, ô trống i
   balanced(t);
 });
 
-test('công văn & biên bản: đủ 12 mẫu, cùng khuôn đầu thư, điền thông tin dự án', () => {
-  assert.equal(L.LETTERS.length, 12);
-  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 12, 'id không trùng');
+test('công văn & biên bản: đủ 13 mẫu (gồm RFA), cùng khuôn đầu thư, điền thông tin dự án', () => {
+  assert.equal(L.LETTERS.length, 13);
+  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 13, 'id không trùng');
   for (const d of L.LETTERS) {
     const f = { so: '01/CV', ngay: '2026-11-12' };
     (d.fields || []).forEach(x => { f[x.k] = x.type === 'date' ? '2026-12-01' : (x.def || 'giá trị'); });
@@ -46,8 +46,23 @@ test('công văn & biên bản: đủ 12 mẫu, cùng khuôn đầu thư, điề
       assert.match(xml, /Kính gửi:/, d.id); assert.match(xml, /V\/v:/, d.id); assert.match(xml, /Tham chiếu: /, d.id);
       assert.match(xml, /Nơi nhận:/, d.id); assert.match(xml, /NGƯỜI KÝ/, d.id); assert.match(xml, /Số: 01\/CV/, d.id);
       assert.match(xml, /Ban QLDA Thử; TVGS Thử/, d.id + ': đồng kính gửi mặc định');
-    } else assert.match(xml, /CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM/, d.id);
+    } else if (d.kind === 'bb') assert.match(xml, /CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM/, d.id);
   }
+});
+
+test('RFA — phiếu đề xuất phê duyệt: thông tin dự án, loại / mục đích đánh dấu, danh mục tài liệu, phần phê duyệt A–D', () => {
+  const d = L.LETTERS.find(x => x.id === 'rfa');
+  assert.equal(d.kind, 'rfa');
+  const f = { so: 'RFA-SCH-001', ngay: '2026-11-18', hanPH: '2026-11-25', loai: 'Biện pháp thi công (Method statement)', mucDich: 'Phê duyệt', lan: 'Lần 2 – Rev.01', thayThe: 'RFA-SCH-000',
+    tieuDe: 'Biện pháp lắp đặt thang máy', taiLieu: 'BP-01 | Biện pháp thi công lắp đặt | 01 | 03\nPhụ lục an toàn', canCu: 'Hợp đồng', nguoiLap: 'Kỹ sư A' };
+  const xml = d.body({ I, f, K });
+  balanced(xml);
+  assert.doesNotMatch(xml, /undefined|NaN/);
+  for (const re of [/PHIẾU ĐỀ XUẤT PHÊ DUYỆT/, /REQUEST FOR APPROVAL/, /RFA-SCH-001/, /18\/11\/2026/, /25\/11\/2026/, /Công trình Thử &amp; Co/, /123\/SCH/, /Công ty Thử; TVGS Thử/,
+    /Lần 2 – Rev\.01/, /RFA-SCH-000/, /☒ <\/w:t><\/w:r><w:r><w:t xml:space="preserve">Biện pháp thi công \(Method statement\)/, /☒ <\/w:t><\/w:r><w:r><w:t xml:space="preserve">Phê duyệt/,
+    /BP-01/, /Biện pháp thi công lắp đặt/, /Phụ lục an toàn/, /A – Phê duyệt/, /C – Không phê duyệt, sửa và trình lại/, /D – Từ chối/, /TƯ VẤN GIÁM SÁT/, /CHỦ ĐẦU TƯ/, /Kỹ sư A/, /NGƯỜI KÝ/]) assert.match(xml, re);
+  assert.equal((xml.match(/☒/g) || []).length, 2, 'chỉ đánh dấu loại + mục đích đã chọn');
+  assert.match(L.fileName(d, I, f), /^RFA RFA-SCH-001 - De xuat phe duyet - Công trình Thử & Co\.docx$/);
 });
 
 test('công văn: ô trống in dấu chấm, không lỗi', () => {
