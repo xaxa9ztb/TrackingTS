@@ -31,9 +31,9 @@ test('docxkit: escape ký tự đặc biệt, ngày tiếng Việt, ô trống i
   balanced(t);
 });
 
-test('công văn & biên bản: đủ 15 mẫu (gồm RFA, RFI, báo giá phát sinh), cùng khuôn đầu thư, điền thông tin dự án', () => {
-  assert.equal(L.LETTERS.length, 15);
-  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 15, 'id không trùng');
+test('công văn & biên bản: đủ 16 mẫu (gồm RFA, RFI, báo giá phát sinh, điều kiện công trường), cùng khuôn đầu thư, điền thông tin dự án', () => {
+  assert.equal(L.LETTERS.length, 16);
+  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 16, 'id không trùng');
   for (const d of L.LETTERS) {
     const f = { so: '01/CV', ngay: '2026-11-12' };
     (d.fields || []).forEach(x => { f[x.k] = x.type === 'date' ? '2026-12-01' : (x.def || 'giá trị'); });
@@ -145,4 +145,14 @@ test('Báo giá phát sinh: thành tiền, VAT, tổng cộng, số tiền bằn
     /Hình thức: Chuyển khoản\./, /Hồ sơ thanh toán: Hoá đơn GTGT\./]) assert.match(xml, re);
   assert.equal(L.validity('45 ngày', ''), '45 ngày kể từ ngày báo giá'); assert.equal(L.validity('đến hết năm 2026', '2026-11-18'), 'đến hết năm 2026');
   assert.equal(L.payLine('Đợt 1: 500.000 đồng', 1e6), 'Đợt 1: 500.000 đồng.');
+});
+
+test('Thông báo tồn tại giếng thang & điều kiện công trường trước lắp đặt', () => {
+  const d = L.LETTERS.find(x => x.id === 'defect_ld');
+  assert.ok(d);
+  const xml = d.body({ I: { congTrinh: 'Toà nhà Mẫu', chuDauTu: 'Công ty Mẫu' }, f: { ngayKS: '2026-11-20', thang: 'PL1, PL2', ngayLD: '2026-12-01', hanXong: '2026-11-28',
+    dieuKien: 'Kho tập kết | Đạt\nNguồn điện thi công | Chưa đạt\nLan can cửa tầng |' }, K });
+  assert.doesNotMatch(xml, /undefined|NaN/);
+  for (const re of [/A\. Tồn tại giếng thang cần khắc phục/, /B\. Điều kiện công trường cần đáp ứng/, /giếng thang PL1, PL2/, /01\/12\/2026/, /28\/11\/2026/,
+    /✔ <\/w:t>.*Đạt/s, /✘ /, /Kho tập kết/, /Nguồn điện thi công/, /Chưa đạt/]) assert.match(xml, re);
 });

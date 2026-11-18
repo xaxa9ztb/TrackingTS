@@ -27,12 +27,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="chungtu.js?v=1"></script>
 <script src="docxkit.js?v=2"></script>
+<script src="gantt.js?v=2"></script>
 <script src="docread.js?v=1"></script>
 <script src="parties.js?v=1"></script>
-<script src="hsletters.js?v=4"></script>
+<script src="hsletters.js?v=5"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=9"></script>
+<script src="hoso.js?v=10"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -278,6 +279,57 @@ table.hs-table tbody tr[data-id]{cursor:pointer}table.hs-table tbody tr[data-id]
 .hs-common summary{cursor:pointer;font-weight:700}
 .hs-wide{grid-column:1/-1}
 .hs-h3{font-size:14.5px;margin:18px 0 8px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.gxh{--gx-row:34px;position:relative}
+.gx-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.gx-bar .btn:disabled{opacity:.4;cursor:default}
+.gx-sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+.gx-zoom{display:inline-flex;gap:2px;padding:3px;background:#f1f5f9;border-radius:9px;margin-left:6px}
+.gx-zoom button{font:inherit;font-size:12.5px;font-weight:600;border:0;background:transparent;padding:4px 10px;border-radius:7px;cursor:pointer;color:var(--ni-ink)}
+.gx-zoom button.on{background:#fff;color:var(--ni-app);box-shadow:0 1px 3px rgba(15,23,42,.15)}
+.gx-info{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--ni-ink)}
+.gx-wrap{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:10px;background:#fff;outline:0}
+table.gx{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:100%}
+.gx th,.gx td{border-bottom:1px solid #e5e8ee;padding:0;height:var(--gx-row);background:#fff;white-space:nowrap}
+.gx thead th{position:sticky;top:0;z-index:3;background:#f5f7fa;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;height:44px;border-bottom:1px solid #d5dae2}
+.gx .gx-hd,.gx .gx-id,.gx .gx-nm,.gx .gx-dt,.gx .gx-n,.gx .gx-lk{position:sticky;z-index:2}
+.gx thead .gx-hd,.gx thead .gx-id,.gx thead .gx-nm,.gx thead .gx-dt,.gx thead .gx-n,.gx thead .gx-lk{z-index:4}
+.gx .gx-hd{left:0;width:22px;min-width:22px;text-align:center}
+.gx .gx-id{left:22px;width:44px;min-width:44px;text-align:center;font-weight:700;color:var(--muted)}
+.gx .gx-nm{left:66px;width:270px;min-width:270px;max-width:270px}
+.gx .gx-dt:nth-of-type(4){left:336px}.gx .gx-n{left:450px}.gx .gx-dt:nth-of-type(6){left:506px}.gx .gx-lk{left:620px;box-shadow:2px 0 0 #d5dae2}
+.gx .gx-dt{width:114px;min-width:114px;text-align:center}.gx .gx-n{width:56px;min-width:56px;text-align:center}.gx .gx-lk{width:30px;min-width:30px;text-align:center}
+.gx td input,.gx td select{font:inherit;font-size:12.5px;border:1px solid transparent;border-radius:6px;background:transparent;padding:4px 5px;width:100%;box-sizing:border-box;color:var(--ni-ink)}
+.gx td input:hover,.gx td select:hover{border-color:#d5dae2}.gx td input:focus,.gx td select:focus{border-color:var(--ni-action);background:#fff;outline:0;box-shadow:0 0 0 2px var(--ni-focus)}
+.gx td input[type=number]{text-align:center}.gx td input[type=date]{font-size:12px;padding:4px 2px}
+.gx td input[type=checkbox]{width:auto;accent-color:var(--ni-app)}
+.gx-nmw{display:flex;align-items:center;gap:4px;padding:0 4px}.gx-nmw.ind{padding-left:20px}.gx-nmw .gx-in{flex:1;min-width:0}
+.gx-fix{padding:0 5px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.gx-ph{width:78px!important;flex:none;padding:3px 2px!important;font-size:11px!important;font-weight:700;color:var(--c)!important;border-color:color-mix(in srgb,var(--c) 35%,#fff)!important}
+.gx tr.sec td{background:#f3f6fb}.gx tr.sec .gx-in{font-weight:700}
+.gx tr.on td{background:#eaf1ff}.gx tr.on .gx-id{color:var(--ni-app)}
+.gx tr.drag td{opacity:.45}.gx tr.dropb td{box-shadow:inset 0 2px 0 var(--ni-app)}.gx tr.dropa td{box-shadow:inset 0 -2px 0 var(--ni-app)}
+.gx-grip{cursor:grab;color:#9aa4b2;font-size:12px;letter-spacing:-2px;user-select:none;touch-action:none;display:inline-block;padding:6px 2px}
+.gx-grip:hover{color:var(--ni-app)}
+.gx .gx-tl{width:var(--gx-w);min-width:var(--gx-w);padding:0;position:relative}
+.gx-sc{position:relative;width:var(--gx-w);height:var(--gx-row);background-image:var(--gx-bg),repeating-linear-gradient(to right,transparent 0,transparent calc(var(--gx-wk) - 1px),#e3e7ee calc(var(--gx-wk) - 1px),#e3e7ee var(--gx-wk));background-position:0 0,var(--gx-off) 0}
+.gx thead .gx-sc{height:44px;background:none}
+.gx-m,.gx-d{position:absolute;left:0;right:0;height:22px}.gx-m{top:0;border-bottom:1px solid #e1e5ec}.gx-d{top:22px}
+.gx-m span,.gx-d span{position:absolute;top:0;height:22px;line-height:22px;font-size:10.5px;text-align:center;overflow:hidden;box-sizing:border-box;border-left:1px solid #dde2ea;text-transform:none;letter-spacing:0}
+.gx-m span{font-weight:700;color:var(--ni-ink);text-align:left;padding-left:5px}.gx-d span{font-weight:600}.gx-d span.off{color:#b4232a;background:#fbecec}
+.gx-b{position:absolute;top:8px;height:18px;border-radius:5px;background:var(--c);cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.18);touch-action:none}
+.gx-b.grp{top:7px;height:20px;background:repeating-linear-gradient(135deg,var(--c) 0 6px,color-mix(in srgb,var(--c) 82%,#fff) 6px 12px)}
+.gx-b:hover{filter:brightness(1.08);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 30%,transparent)}
+.gx-b.drag,.gx-ms.drag{cursor:grabbing;opacity:.85;box-shadow:0 0 0 3px var(--ni-focus)}
+.gx-rz{position:absolute;right:-3px;top:0;bottom:0;width:10px;cursor:ew-resize;border-radius:0 5px 5px 0}
+.gx-rz::after{content:"";position:absolute;right:4px;top:4px;bottom:4px;width:2px;background:rgba(255,255,255,.75);border-radius:1px}
+.gx-sum{position:absolute;top:12px;height:8px;background:var(--c);opacity:.9}
+.gx-sum::before,.gx-sum::after{content:"";position:absolute;top:0;border:6px solid transparent;border-top:7px solid var(--c)}
+.gx-sum::before{left:0;border-left-color:var(--c)}.gx-sum::after{right:0;border-right-color:var(--c)}
+.gx-ms{position:absolute;top:9px;width:15px;height:15px;background:var(--c);transform:rotate(45deg);border-radius:2px;cursor:grab;touch-action:none}
+.gx-ms.fix{cursor:default}
+.gx-lb{position:absolute;top:9px;font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap}
+.gx-tip{position:fixed;z-index:50;background:#111827;color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap}
+@media(max-width:720px){.gx .gx-nm{width:180px;min-width:180px;max-width:180px}.gx .gx-dt:nth-of-type(4){left:246px}.gx .gx-n{left:368px}.gx .gx-dt:nth-of-type(6){left:432px}.gx .gx-lk{left:554px}}
 .hs-lbar[hidden],.hs-gal[hidden],.hs-lf[hidden]{display:none!important}
 .hs-lbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}
 .hs-q{flex:1 1 280px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:#fff}
@@ -582,9 +634,21 @@ table.edit td.c{text-align:center}
 
 <!-- ================= STEP 3 ================= -->
 <section id="step3" class="hide">
+  <div class="panel" id="gxPanel">
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0"><span class="no">07</span>Chỉnh tiến độ (Gantt) — kéo thả, thêm / xoá / sửa dòng</h2>
+      <div class="row">
+        <button class="btn gho sm" onclick="go(2)">← Hiệu chỉnh dữ liệu (bước 2)</button>
+        <button class="btn gho sm" onclick="gxRegen(true)" title="Bỏ các chỉnh sửa trên Gantt, dựng lại từ dữ liệu bước 2">↺ Tạo lại từ bước 2</button>
+      </div>
+    </div>
+    <p class="hint" style="margin:8px 0 10px"><b>Kéo thanh</b> để dời ngày · <b>kéo mép phải</b> để đổi số ngày · <b>kéo ⋮⋮</b> để đổi thứ tự · sửa trực tiếp tên, ngày bắt đầu / kết thúc, số ngày · chọn dòng rồi <b>＋ Công việc / ◆ Mốc / ＋ Nhóm</b> để chèn ngay bên dưới, <b>🗑</b> (phím Delete) để xoá. Ô <b>↳</b> = nối tiếp việc phía trên: việc phía trên dời thì việc này tự dời theo; bỏ tích để cố định ngày. Bảng in / Excel bên dưới cập nhật ngay theo Gantt.</p>
+    <div class="warn hide" id="gxStale" style="margin:0 0 10px">Dữ liệu ở bước 2 (số ngày, các bước lắp đặt, yếu tố hàng về…) đã thay đổi sau khi bạn chỉnh Gantt. <button type="button" class="btn sm sec" onclick="gxRegen(true)">↺ Tạo lại từ bước 2</button> (bỏ chỉnh sửa trên Gantt) hoặc giữ nguyên bảng đang chỉnh.</div>
+    <div id="gxHost" class="gxh"></div>
+  </div>
   <div class="panel">
     <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="no">07</span>Preview bảng tiến độ</h2>
+      <h2 style="margin:0"><span class="no">07b</span>Bảng tiến độ để in / xuất Excel</h2>
       <div class="row">
         <button class="btn gho" onclick="go(2)">← Hiệu chỉnh</button>
         <button class="btn sec" onclick="exportExcel()">⬇ Xuất Excel (.xlsx, A3 ngang)</button>
@@ -1293,7 +1357,7 @@ function go(n){
     document.getElementById("tab"+k).classList.toggle("on",k===n);
   });
   if(n===2){pushForm();renderSteps();renderFactors();}
-  if(n===3){pullForm();renderPreview();letterAutofill();}
+  if(n===3){pullForm();gxEnsure();renderPreview();letterAutofill();}
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
@@ -1534,9 +1598,39 @@ function scaleSteps(target){ // proportionally rescale 14 steps to match detecte
 /* ================================================================
    PREVIEW RENDER
 ================================================================ */
+/* ================================================================
+   BẢNG TIẾN ĐỘ ĐÃ CHỈNH (Gantt) — nguồn cho bản in, Excel, thư hàng về
+================================================================ */
+function gxCtx(){return {base:pd(document.getElementById("baseline").value),mode:document.querySelector("input[name=daymode]:checked").value,H:holSet()};}
+function gxSrc(){return Gantt.srcKey({p:document.getElementById("ph_prod").value,h:document.getElementById("ph_hand").value,st:S.steps,f:S.factors});}
+function gxEnsure(force){
+  const key=gxSrc();
+  if(force||!S.gplan||!Array.isArray(S.gplan.items)||!S.gplan.items.length||(S.gplan.src!==key&&!S.gplan.edited))
+    S.gplan={items:Gantt.fromRows(computeSchedule().rows),src:key,edited:false};
+  const stale=document.getElementById("gxStale");if(stale)stale.classList.toggle("hide",!(S.gplan.edited&&S.gplan.src!==key));
+  gxMount();
+}
+let gxUI=null,gxT=null;
+function gxMount(){
+  const host=document.getElementById("gxHost");if(!host||typeof Gantt.mount!=="function")return;
+  if(!gxUI)gxUI=Gantt.mount(host,{get:()=>S.gplan.items,set:(a)=>{S.gplan.items=a;},ctx:gxCtx,
+    onChange:()=>{S.gplan.edited=true;clearTimeout(gxT);gxT=setTimeout(()=>{renderPreview();host.dispatchEvent(new Event("change",{bubbles:true}));},120);}});
+  else gxUI.render();
+}
+function gxRegen(ask){
+  if(ask&&S.gplan&&S.gplan.edited&&!confirm("Dựng lại bảng tiến độ từ dữ liệu bước 2? Các chỉnh sửa trên Gantt (dời ngày, thêm / xoá dòng…) sẽ bị bỏ."))return;
+  pullForm();gxEnsure(true);if(gxUI){gxUI.state.undo=[];gxUI.state.redo=[];gxUI.render();}renderPreview();
+  document.getElementById("gxHost").dispatchEvent(new Event("change",{bubbles:true}));
+}
+// lịch đã chỉnh: cùng dạng computeSchedule() (+ start) để bản in / Excel dùng chung
+function planSchedule(){
+  if(!S.gplan||!S.gplan.items||!S.gplan.items.length){const s=computeSchedule();return Object.assign(s,{start:s.base});}
+  const c=gxCtx(),R=Gantt.compute(S.gplan.items,c);
+  return {rows:R.rows,total:R.total,base:c.base,start:R.start,end:R.end,mode:c.mode,H:c.H};
+}
 function renderPreview(){
-  const {rows,total,base,end,mode,H}=computeSchedule();
-  const G=dayGrid(base,end,mode,H);
+  const {rows,total,base,start,end,mode,H}=planSchedule();
+  const G=dayGrid(start<base?start:base,end,mode,H);
   const P=S.project;
   
   const sheet=document.getElementById("sheet");
@@ -1605,8 +1699,8 @@ function renderPreview(){
 ================================================================ */
 async function exportExcel(){
   pullForm();
-  const {rows,total,base,end,mode,H}=computeSchedule();
-  const G=dayGrid(base,end,mode,H);
+  const {rows,total,base,start,end,mode,H}=planSchedule();
+  const G=dayGrid(start<base?start:base,end,mode,H);
   const P=S.project;
   const NW=G.days.length, C_G0=6, LASTC=C_G0+NW-1;
   const wb=new ExcelJS.Workbook();
@@ -1659,7 +1753,7 @@ async function exportExcel(){
   });
   ws.getRow(H1).height=20;ws.getRow(H2).height=18;
   const FM={M:BLK,P:BLUE,I:RED,H:GREEN};
-  r=H2+1;const sumRows=[];
+  r=H2+1;
   rows.forEach(t=>{
     const fB=t.sec?F(10,1):F(10);
     Object.assign(cell(r,1,t.id),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
@@ -1668,7 +1762,6 @@ async function exportExcel(){
     Object.assign(cell(r,4,fmtDow(t.s)),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
     Object.assign(cell(r,5,fmtDow(t.e)),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
     if(t.sec)for(let c=1;c<=5;c++)cell(r,c).fill=fill(SEC);
-    if(["I","II","III"].includes(t.id))sumRows.push(r);
     // thang tiến độ theo NGÀY: ngày nghỉ (lễ; T7, CN khi tính ngày làm việc) chỉ tô nền nhạt, KHÔNG tô thanh tiến độ
     G.days.forEach((dx,i)=>{
       const x=cell(r,C_G0+i);x.border=bG;
@@ -1681,7 +1774,7 @@ async function exportExcel(){
   });
   M(r,1,r,2);
   Object.assign(cell(r,1,"TỔNG THỜI GIAN HOÀN THÀNH CÔNG VIỆC"),{font:F(10,1),alignment:{horizontal:"right",vertical:"middle"},border:bAll});
-  Object.assign(cell(r,3,{formula:sumRows.map(x=>"C"+x).join("+"),result:total}),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
+  Object.assign(cell(r,3,total+" ngày"),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
   Object.assign(cell(r,4,fmtDow(base)),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
   Object.assign(cell(r,5,fmtDow(end)),{font:F(10,1),alignment:{horizontal:"center"},border:bAll});
   for(let c=1;c<=LASTC;c++){cell(r,c).fill=fill(TOT);if(c>=C_G0)cell(r,c).border=bG;}
@@ -3117,8 +3210,10 @@ function isoToVN(s){if(!s)return"";const p=s.split("-");return p.length===3?p[2]
 function backWork(d,n,mode,H){let x=new Date(d.getTime()),c=0;while(c<n){x=new Date(x.getTime()-DAY);if(isWork(x,H,mode))c++;}return x;}
 // các mốc chính của tiến độ, dùng cho cả thư và email
 function scheduleMilestones(){
-  const s=computeSchedule();
-  const pick=id=>s.rows.find(r=>r.id===id);
+  const s=planSchedule();
+  // giai đoạn theo màu nhóm (Sản xuất / Lắp đặt / Bàn giao) — đúng cả khi đã thêm / đổi thứ tự nhóm trên Gantt
+  const pick=id=>{const ph={I:"P",II:"I",III:"H"}[id];const g=s.rows.filter(r=>r.sec&&r.kind!=="base"&&r.ph===ph);
+    if(!g.length)return s.rows.find(r=>r.id===id);return {id,s:new Date(Math.min(...g.map(r=>r.s))),e:new Date(Math.max(...g.map(r=>r.e)))};};
   return {base:s.base,mode:s.mode,H:s.H,I:pick("I"),II:pick("II"),III:pick("III")};
 }
 // tự điền các ô còn trống (không ghi đè khi người dùng đã sửa)

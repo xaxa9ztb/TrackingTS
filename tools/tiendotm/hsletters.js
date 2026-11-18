@@ -134,7 +134,18 @@
   const RFA_PURPOSE = ['Phê duyệt', 'Xem xét, cho ý kiến', 'Để thông tin'];
   const RFI_IMPACT = ['Không ảnh hưởng', 'Ảnh hưởng tiến độ', 'Ảnh hưởng chi phí', 'Ảnh hưởng tiến độ và chi phí'];
   const VO_REASONS = ['Theo yêu cầu của Chủ đầu tư', 'Do thay đổi thiết kế', 'Do điều kiện thực tế công trường', 'Phát sinh ngoài phạm vi Hợp đồng'];
-  const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thiện lỗ thông gió giếng thang\nHoàn thiện lan can an toàn trước cửa tầng\nCung cấp nguồn điện chính thức cho thang máy';
+  const DEF_DKCT = [
+    'Mặt bằng / kho tập kết thiết bị có mái che, khoá được, gần giếng thang |',
+    'Đường vận chuyển thiết bị từ kho đến giếng thang thông thoáng |',
+    'Nguồn điện thi công (1 pha + 3 pha, có aptomat) tại tầng trên cùng / phòng máy |',
+    'Chiếu sáng tạm trong giếng thang và tại sảnh các tầng |',
+    'Lan can, rào chắn an toàn tại tất cả cửa tầng (cao tối thiểu 1,1 m) |',
+    'Móc treo / đà treo tải đỉnh giếng thang đã hoàn thiện, đủ tải |',
+    'Đáy hố thang khô ráo, đã chống thấm, không đọng nước |',
+    'Mốc cao độ hoàn thiện sàn (FFL) và trục tim tại từng tầng |',
+    'Nước sạch, nhà vệ sinh, khu vực nghỉ cho công nhân |',
+  ].join('\n');
+const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thiện lỗ thông gió giếng thang\nHoàn thiện lan can an toàn trước cửa tầng\nCung cấp nguồn điện chính thức cho thang máy';
   const LETTERS = [
     {
       id: 'hangve1', kind: 'letter', name: 'Thông báo hàng về công trường — lần 1 (trước 30 ngày)', subject: 'Thông báo thời gian lô hàng thang máy về đến công trình',
@@ -178,6 +189,33 @@
         list(lines(f.tonTai || DEF_GIENG), '1') +
         para('Các kết quả trên chưa bao gồm việc kiểm tra độ thẳng đứng của giếng thang.') +
         para(`Để đảm bảo tiến độ lắp đặt, vận hành và bàn giao thang máy${f.ngayBG ? ' vào ngày ' + dmy(f.ngayBG) : ''}, rất mong Quý Khách hàng sắp xếp hoàn thành các hạng mục trên trước ngày ${dmy(f.hanXong)}.`) + closing(I, f, { thanks: 'Rất mong nhận được sự hỗ trợ và hợp tác của Quý Khách hàng.' })),
+    },
+    {
+      // trước khi lắp đặt: tồn tại giếng thang + bảng kiểm tra điều kiện công trường (có cột tình trạng)
+      id: 'defect_ld', kind: 'letter', name: 'Thông báo tồn tại giếng thang và điều kiện công trường trước khi lắp đặt',
+      subject: 'Thông báo tồn tại giếng thang và điều kiện công trường cần đáp ứng trước khi lắp đặt thang máy',
+      fields: [{ k: 'ngayKS', label: 'Ngày kiểm tra hiện trường', type: 'date' }, { k: 'thang', label: 'Thang / giếng thang kiểm tra', ph: 'VD: PL1, PL2 (để trống = toàn bộ)' },
+        { k: 'ngayLD', label: 'Ngày dự kiến bắt đầu lắp đặt', type: 'date' }, { k: 'hanXong', label: 'Đề nghị hoàn thành trước ngày', type: 'date' },
+        { k: 'tonTai', label: 'A. Tồn tại giếng thang cần khắc phục (mỗi dòng 1 mục)', type: 'textarea', rows: 6, def: DEF_GIENG },
+        { k: 'dieuKien', label: 'B. Điều kiện công trường — mỗi dòng: nội dung | tình trạng (Đạt / Chưa đạt; để trống = ô đánh dấu)', type: 'textarea', rows: 9, def: DEF_DKCT },
+        { k: 'ghiChu', label: 'Ghi chú thêm (tuỳ chọn)', type: 'textarea', rows: 2 }],
+      body: letter('Thông báo tồn tại giếng thang và điều kiện công trường cần đáp ứng trước khi lắp đặt thang máy', ({ I, f }) => {
+        const dk = lines(f.dieuKien || DEF_DKCT).map((ln, i) => {
+          const c = ln.split('|').map(x => x.trim()), st = c[1] || '';
+          const ok = /^đạt$|^ok$|^rồi|^đã/i.test(st), no = /chưa|không|^x$/i.test(st);
+          return [{ t: String(i + 1), align: 'center' }, c[0], st ? { runs: [r(ok ? '✔ ' : no ? '✘ ' : ''), r(st, { b: no })], align: 'center' } : { runs: [ckbox(false), r('Đạt  '), ckbox(false), r('Chưa đạt')], align: 'center' }];
+        });
+        const where = f.thang ? `giếng thang ${f.thang}` : 'các giếng thang';
+        return salute() +
+          para(`Trước hết xin cảm ơn Quý Khách hàng đã tin tưởng và sử dụng sản phẩm, dịch vụ thang máy do ${short(I)} cung cấp và lắp đặt.`) +
+          para(`Ngày ${dmy(f.ngayKS)}, đại diện ${short(I)} đã kiểm tra hiện trạng ${where} và điều kiện công trường tại ${orDots(I.congTrinh)} để chuẩn bị triển khai lắp đặt${f.ngayLD ? ' (dự kiến bắt đầu từ ngày ' + dmy(f.ngayLD) + ')' : ''}. Kết quả như sau:`) +
+          head2('A. Tồn tại giếng thang cần khắc phục') + list(lines(f.tonTai || DEF_GIENG), '1') +
+          head2('B. Điều kiện công trường cần đáp ứng trước khi lắp đặt') +
+          table([['STT', 'Nội dung', 'Tình trạng'], ...dk], { widths: [650, 6176, 2200], header: 1 }) +
+          (f.ghiChu ? lines(f.ghiChu).map(para).join('') : '') +
+          para(`Công tác lắp đặt chỉ được bắt đầu khi giếng thang được hoàn thiện, bàn giao và các điều kiện trên được đáp ứng. Rất mong Quý Khách hàng sắp xếp hoàn thành các hạng mục còn tồn tại trước ngày ${dmy(f.hanXong)}; trường hợp chậm trễ, thời gian lắp đặt và bàn giao sẽ được điều chỉnh tương ứng theo quy định của Hợp đồng.`) +
+          closing(I, f, { thanks: 'Rất mong nhận được sự hỗ trợ và hợp tác của Quý Khách hàng.' });
+      }),
     },
     {
       id: 'defect_kd', kind: 'letter', name: 'Thông báo tồn tại giếng thang trước khi kiểm định', subject: 'Thông báo các tồn tại giếng thang cần khắc phục trước khi kiểm định',

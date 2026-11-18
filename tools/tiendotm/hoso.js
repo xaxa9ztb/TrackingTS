@@ -87,6 +87,7 @@
   }
   function restore(d) {
     if (!d || typeof d !== 'object') return;
+    S.gplan = null;   // bảng Gantt đã chỉnh thuộc từng dự án — không mang sang dự án khác
     if (d.S) Object.keys(d.S).forEach(k => { S[k] = d.S[k]; });
     const R = (fn) => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.warn(fn, e); } };
     ['renderSigners', 'renderSteps', 'renderFactors', 'renderQElevs', 'renderQParties', 'renderQExtras', 'renderQPhases', 'pushForm'].forEach(R);
@@ -312,6 +313,7 @@
     teach: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/><path d="M22 9v6"/>',
     shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+    cone: '<path d="M10.4 3h3.2l5 16H5.4z"/><path d="M7.6 12h8.8M8.9 7.8h6.2"/><path d="M3 19.5h18"/>',
   };
   const lic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LI[k] || LI.mail}</svg>`;
   // giai đoạn dự án → màu; mỗi văn bản: icon, tên ngắn, mô tả 1 dòng; jump = mẫu nằm ở khung bên dưới
@@ -327,6 +329,7 @@
       { id: 'defect_mos', ic: 'shaft', t: 'Tồn tại giếng thang trước khi hàng về', s: 'Kết quả khảo sát giếng thang, hạng mục CĐT cần sửa' },
       { jump: 'hsBBPanel', focus: 'bx_ngay', key: 'bbxn', bb: true, ic: 'clip', t: 'BB xác nhận thiết bị đến công trường', s: 'Lấy dữ liệu chứng từ từ Hồ sơ chất lượng' }] },
     { id: 'kd', name: 'Thi công & kiểm định', note: 'lắp đặt, nghiệm thu', c: '#0891b2', items: [
+      { id: 'defect_ld', ic: 'cone', t: 'Tồn tại giếng thang & điều kiện công trường trước lắp đặt', s: 'Danh sách tồn tại + bảng kiểm tra kho, điện, lan can, móc treo…' },
       { id: 'bao_quan', ic: 'lock', t: 'Bảo quản tài sản khi tạm dừng', s: 'Trách nhiệm bảo quản thiết bị khi công trường dừng' },
       { id: 'defect_kd', ic: 'warn', t: 'Tồn tại giếng thang trước kiểm định', s: 'Các hạng mục cần khắc phục trước khi kiểm định' },
       { id: 'moi_kd', ic: 'mail', t: 'Thư mời kiểm định thang máy', s: 'Mời CĐT / TVGS tham gia kiểm định' },
