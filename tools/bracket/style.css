@@ -155,3 +155,17 @@ body { margin: 0; background: var(--ni-bg); }
 .bk-menu button:hover, .bk-menu button:focus-visible { background: var(--ni-sunk); outline: none; }
 .bk-menu b { display: block; font-size: 14px; font-weight: 600; }
 .bk-menu span { display: block; font-size: 12.5px; color: var(--ni-muted); }
+
+/* ---- phiếu trên hệ thống: lọc, phiếu cũ trên máy, chế độ chỉ xem ---- */
+.bk-ltools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}
+.bk-q{flex:1 1 220px;min-height:36px;padding:6px 10px;border:1px solid var(--ni-line-strong,#c9d0db);border-radius:var(--ni-r-ctl,6px);font:inherit}
+.bk-seg{display:inline-flex;padding:3px;background:var(--ni-bg-soft,#f1f5f9);border-radius:9px;gap:2px}
+.bk-seg button{font:inherit;font-size:13px;border:0;background:transparent;padding:6px 12px;border-radius:7px;cursor:pointer;color:inherit}
+.bk-seg button[aria-pressed="true"]{background:#fff;font-weight:700;box-shadow:0 1px 2px rgba(15,23,42,.12)}
+.bk-local{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;margin:4px 0 10px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;font-size:13.5px}
+.bk-own{display:block;font-size:12px;color:var(--ni-muted,#64748b);margin-top:2px}.bk-own.me{color:#1d4ed8;font-weight:600}
+.bk-loading{list-style:none;padding:12px 4px}
+.bk-ronote{margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;font-size:14px}
+.bk-ro .bk-del,.bk-ro .bk-add{display:none}
+.bk-ro input:disabled,.bk-ro select:disabled{background:#f8fafc;color:#0f172a;opacity:1;-webkit-text-fill-color:#0f172a;cursor:default}
+.bk-main [hidden]{display:none!important}
