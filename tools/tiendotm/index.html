@@ -33,7 +33,7 @@
 <script src="hsletters.js?v=6"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=11"></script>
+<script src="hoso.js?v=12"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -86,7 +86,7 @@ input[type=checkbox],input[type=radio]{width:auto}
 .choosecard .ct{font-family:var(--disp);font-weight:700;font-size:17px;color:var(--ni-ink);margin:10px 0 6px}
 .choosecard .cd{color:var(--muted);font-size:12.5px;line-height:1.5}
 .party{border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:12px;background:#fcfdfe}
-.party .phead{display:grid;grid-template-columns:1.1fr 1.6fr auto auto 34px;gap:12px;align-items:end}
+.party .phead{display:grid;grid-template-columns:1.1fr 1.6fr auto auto auto 34px;gap:12px;align-items:end}
 .party .chk{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;white-space:nowrap}
 .party .chk input{margin-right:5px;vertical-align:-1px}
 .party table.edit{margin-top:12px}
@@ -330,6 +330,50 @@ table.gx{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 .gx-lb{position:absolute;top:9px;font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap}
 .gx-tip{position:fixed;z-index:50;background:#111827;color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap}
 @media(max-width:720px){.gx .gx-nm{width:180px;min-width:180px;max-width:180px}.gx .gx-dt:nth-of-type(4){left:246px}.gx .gx-n{left:368px}.gx .gx-dt:nth-of-type(6){left:432px}.gx .gx-lk{left:554px}}
+.hs-tabs{flex-basis:100%;margin:2px -4px -4px;background:var(--ni-sunk,#eef1f5)}
+.hs-tabs[hidden]{display:none}
+.hs-tabs>button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.hs-tabs .ti{display:inline-grid;width:18px;height:18px;color:var(--ni-muted,#667085)}.hs-tabs .ti svg{width:18px;height:18px}
+.hs-tabs>[aria-selected=true] .ti{color:var(--ni-app)}
+.hs-tabs>button:hover:not([aria-selected=true]){background:rgba(255,255,255,.6)}
+.hs-tabs>button:focus-visible{outline:2px solid var(--ni-action);outline-offset:-2px}
+.hs-steps{margin:0 0 14px;width:fit-content;max-width:100%}
+.hs-steps>button{display:inline-flex;align-items:center;gap:8px}
+.hs-steps>button b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ni-line,#e3e7ee);color:var(--ni-ink-2);font-size:12px}
+.hs-steps>button.on{background:var(--ni-surface,#fff);color:var(--ni-ink);box-shadow:var(--ni-shadow)}.hs-steps>button.on b{background:var(--ni-app);color:#fff}
+.hs-ph2{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.hs-ph2 h2{margin:0}
+.hs-fs{border:1px solid var(--line);border-radius:10px;padding:10px 14px 4px;margin:0 0 14px;background:#fff}
+.hs-fs legend{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;padding:0 6px;color:var(--ni-ink)}
+.hs-fs legend .ti{display:inline-grid;width:18px;height:18px;color:var(--ni-app)}.hs-fs legend .ti svg{width:18px;height:18px}
+.hs-mt{border:1px solid var(--ni-warn-line,#f8d48a);background:var(--ni-warn-soft,#fff7e6);border-radius:10px;padding:10px 12px;margin:0 0 14px}
+.hs-mt.ok{border-color:var(--ni-ok-line,#a6e9c5);background:var(--ni-ok-soft,#ecfdf3)}
+.hs-mt-h{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13.5px}
+.hs-mt-bar{height:8px;border-radius:99px;background:rgba(15,27,45,.08);margin:8px 0 2px;overflow:hidden}.hs-mt-bar i{display:block;height:100%;background:var(--ni-warn,#b45309);border-radius:99px;transition:width .3s}
+.hs-mt.ok .hs-mt-bar i{background:var(--ni-ok,#047857)}
+.hs-mt-miss{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:12.5px;color:var(--ni-ink-2);margin-top:6px}
+.hs-chip{font:inherit;font-size:12px;font-weight:600;border:1px solid var(--ni-warn-line,#f8d48a);background:#fff;color:var(--ni-warn,#b45309);border-radius:99px;padding:2px 9px;cursor:pointer}
+.hs-chip:hover{border-color:var(--ni-warn,#b45309)}
+.hs-sum-t{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hs-sum .hs-lbl{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+h2.hs-sum-n{font-size:21px;margin:2px 0 2px;line-height:1.25}
+.hs-kvs{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.hs-kv{display:inline-flex;flex-direction:column;background:var(--ni-sunk,#eef1f5);border-radius:8px;padding:5px 10px;font-size:13px;font-weight:600;color:var(--ni-ink);max-width:100%}
+.hs-kv small{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.hs-ovh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:6px 2px 10px}.hs-ovh h2{font-size:16px;margin:0}
+.hs-fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:18px}
+.hs-fc{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-rows:1fr auto;gap:8px 12px;text-align:left;font:inherit;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;color:var(--ni-ink);transition:box-shadow .15s,transform .15s,border-color .15s}
+.hs-fc:hover{border-color:var(--ni-app);box-shadow:0 6px 18px rgba(15,23,42,.09);transform:translateY(-1px)}
+.hs-fc:focus-visible{outline:0;box-shadow:0 0 0 3px var(--ni-focus)}
+.hs-fi{grid-row:1/3;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;color:var(--ni-app);background:color-mix(in srgb,var(--ni-app) 12%,#fff)}.hs-fi svg{width:24px;height:24px}
+.hs-ft b{display:block;font-size:15px;margin-bottom:3px}.hs-ft span{display:block;font-size:12.5px;color:var(--muted);line-height:1.45}
+.hs-fs2{align-self:end;justify-self:start;font-size:12px;font-weight:600;color:var(--muted);background:var(--ni-sunk,#eef1f5);border-radius:99px;padding:2px 10px}
+.hs-fs2.ok{color:var(--ni-ok,#047857);background:var(--ni-ok-soft,#ecfdf3)}
+.hs-go{position:absolute;right:14px;bottom:13px;font-size:12.5px;font-weight:700;color:var(--ni-action);opacity:0;transition:opacity .15s}.hs-fc:hover .hs-go,.hs-fc:focus-visible .hs-go{opacity:1}
+.hs-toc{position:sticky;top:var(--hs-bar-h,104px);z-index:15;display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none;background:var(--ni-bg,#f4f6f9);padding:6px 2px 8px;margin:-4px 0 8px}
+.hs-toc::-webkit-scrollbar{display:none}
+.hs-toc-l{font-size:12px;font-weight:700;color:var(--muted);flex:none}
+.hs-toc a{flex:none;font-size:12.5px;font-weight:600;color:var(--ni-ink-2);background:#fff;border:1px solid var(--line);border-radius:99px;padding:4px 11px;text-decoration:none;white-space:nowrap}
+.hs-toc a b{color:var(--ni-app)}.hs-toc a.on{background:var(--ni-app);border-color:var(--ni-app);color:#fff}.hs-toc a.on b{color:#fff}.hs-toc a:hover{border-color:var(--ni-app);color:var(--ni-ink)}
 .hs-lbar[hidden],.hs-gal[hidden],.hs-lf[hidden]{display:none!important}
 .hs-lbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}
 .hs-q{flex:1 1 280px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:#fff}
@@ -372,7 +416,7 @@ table.edit td.c{text-align:center}
 @media(max-width:720px){.fn4,.hs-kys{grid-template-columns:1fr}.hs-ph small{display:none}.hs-fh{flex-wrap:wrap}.hs-fh .hs-back{margin-left:0}
   table.hs-table thead{display:none}table.hs-table tr,table.hs-table td{display:block}table.hs-table tr{border-bottom:1px solid var(--line);padding:6px 0}
   table.hs-table td{border:none;padding:3px 4px}table.hs-table td[data-label]::before{content:attr(data-label) ": ";color:var(--muted);font-size:12px}
-  .hs-act{text-align:left}.hsbar{position:static}
+  .hs-act{text-align:left}.hsbar{position:static}.hs-toc{position:static}.hs-fgrid{grid-template-columns:1fr}.hs-go{display:none}
   .hs-tools input{max-width:none;flex-basis:100%}.hs-tools a.btn{margin-left:0!important;padding:6px 8px}.hs-tools #hsNew{flex-basis:100%}}
 
 @media print{
@@ -393,11 +437,7 @@ table.edit td.c{text-align:center}
     <h1 class="mark">Hồ sơ Dự án</h1>
     <div class="sub">Tiến độ &amp; nghiệm thu · Công văn, biên bản · Hồ sơ pháp lý · Bìa &amp; trang ký bản vẽ — thông tin đã nhập được lưu theo từng dự án.</div>
   </div>
-  <div class="stepper" id="stepper">
-    <button id="tab1" class="on" onclick="go(1)">1 · Thiết lập tiến độ</button>
-    <button id="tab2" onclick="go(2)">2 · Kiểm tra &amp; hiệu chỉnh</button>
-    <button id="tab3" onclick="go(3)">3 · Preview &amp; Xuất file</button>
-  </div>
+
 </div>
 
 <div class="wrap">
@@ -406,6 +446,8 @@ table.edit td.c{text-align:center}
   <div class="hs-bi"><span class="hs-lbl">Hồ sơ</span> <b id="hsBarName"></b> <span id="hsBarMeta" class="hs-meta"></span></div>
   <span id="hsBarStatus" class="hs-st"></span>
   <div class="hs-ba"><button class="btn sm pri" id="hsSave" title="Lưu toàn bộ thông tin đã nhập của dự án">💾 Lưu</button><button class="btn sm gho" id="hsToList">☰ Danh sách dự án</button></div>
+
+  <nav class="ni-tabs hs-tabs" id="hsTabs" role="tablist" aria-label="Các chức năng của hồ sơ"><button type="button" role="tab" data-go="overview" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span>Tổng quan</span></button><button type="button" role="tab" data-go="info" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="9.5" r="2.6"/><path d="M7.5 17c.8-2.2 2.5-3.3 4.5-3.3s3.7 1.1 4.5 3.3"/></svg></span><span>Thông tin dự án</span></button><button type="button" role="tab" data-go="schedule" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16h18"/><path d="M7 8h6M10 12h7M8 16h5"/></svg></span><span>Tiến độ</span></button><button type="button" role="tab" data-go="quality" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V4"/><path d="M8.5 12.5l2.2 2.2 4.8-5"/></svg></span><span>Hồ sơ chất lượng</span></button><button type="button" role="tab" data-go="nhatky" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7.5h6M9 11h4"/></svg></span><span>Nhật ký</span></button><button type="button" role="tab" data-go="letters" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/></svg></span><span>Công văn, biên bản</span></button><button type="button" role="tab" data-go="legal" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></span><span>Hồ sơ pháp lý</span></button><button type="button" role="tab" data-go="drawing" aria-selected="false"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></span><span>Bìa & ký bản vẽ</span></button></nav>
 </div>
 
 <!-- ===== MÀN HÌNH ĐẦU: DANH SÁCH HỒ SƠ DỰ ÁN ĐÃ LƯU ===== -->
@@ -431,7 +473,7 @@ table.edit td.c{text-align:center}
 <!-- ===== BƯỚC 1 (DÙNG CHUNG): NHẬP HỢP ĐỒNG ===== -->
 <section id="screenContract">
   <div class="panel">
-    <h2><span class="no">01</span>Nhập hợp đồng &amp; quét thông tin (PDF, Word, Excel hoặc ảnh)</h2>
+    <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></span></span>Nhập hợp đồng &amp; quét thông tin (PDF, Word, Excel hoặc ảnh)</h2>
     <p class="hint">Phần mềm đọc file ngay trên máy của bạn (không upload lên server) — Word / Excel / PDF có chữ đọc trực tiếp, PDF scan và ảnh quét bằng OCR — tự nhận diện: thông tin dự án, khách hàng, hợp đồng, thiết bị, thời gian thực hiện, điều kiện thi công. Dữ liệu này dùng cho cả hai chức năng. Có thể bỏ qua và nhập tay.</p>
     <!-- Bộ công cụ: chọn dự án từ dữ liệu Dự án dùng chung (Yan_COM) để điền sẵn -->
     <div class="pp" id="projPick">
@@ -458,76 +500,52 @@ table.edit td.c{text-align:center}
     </div>
   </div>
   <div class="row" style="justify-content:flex-end">
-    <button class="btn pri" onclick="toChoose()">Tiếp tục → Chọn chức năng</button>
+    <button class="btn pri" onclick="hsGo('info')">Tiếp tục → Kiểm tra thông tin dự án</button>
   </div>
 </section>
 
-<!-- ===== BƯỚC 2 (DÙNG CHUNG): CHỌN CHỨC NĂNG ===== -->
+<!-- ===== TỔNG QUAN DỰ ÁN (thay màn hình "Chọn chức năng") ===== -->
 <section id="screenChoose" class="hide">
-  <div class="panel">
-    <h2><span class="no">02</span>Chọn chức năng</h2>
-    <p class="hint">Dữ liệu hợp đồng và thông tin dự án dùng chung cho cả 4 chức năng. Mọi thông tin nhập vào được lưu theo dự án. <a href="../../huong-dan-ho-so-du-an.html" target="_blank" rel="noopener">📖 Xem hướng dẫn sử dụng</a> (<a href="../../docs/Huong-dan-Ho-so-Du-an.pdf" target="_blank" rel="noopener">PDF</a>)</p>
-    <div class="fn4">
-      <div class="fncard">
-        <div class="fn-h"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3.5v17h17.5"/><path d="M7 8h7M7 12h4.5"/><path d="M13 16.5l2.2 2.2L19.5 14"/></svg></span><div><div class="ct">Tiến độ &amp; nghiệm thu</div><div class="cd">Bảng tiến độ thi công, bộ hồ sơ chất lượng (nghiệm thu) và nhật ký thi công.</div></div></div>
-        <div class="fn-sub">
-          <button class="fn-s" data-fn="schedule"><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16h18"/><path d="M7 8h6M10 12h7M8 16h5"/></svg></span>Lập bảng tiến độ thi công</button>
-          <button class="fn-s" data-fn="quality"><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V4"/><path d="M9 12.5l2 2 4-4"/></svg></span>Hồ sơ chất lượng (nghiệm thu)</button>
-          <button class="fn-s" data-fn="screenNhatKy"><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7.5h6M9 11h4"/></svg></span>Nhật ký thi công</button>
-        </div>
-      </div>
-      <button class="fncard fn-btn" data-fn="screenLetters">
-        <div class="fn-h"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/><path d="M15.5 19v2.5M8.5 19v2.5" opacity=".5"/></svg></span><div><div class="ct">Công văn, biên bản</div><div class="cd">Thư thông báo hàng về, tồn tại giếng thang, mời kiểm định, bảo hành – bảo trì, nghiệm thu, bàn giao… cùng một khuôn công văn của nhà thầu; biên bản hàng về, bàn giao, huấn luyện, cote cửa.</div></div></div>
-      </button>
-      <button class="fncard fn-btn" data-fn="screenLegal">
-        <div class="fn-h"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></span><div><div class="ct">Hồ sơ pháp lý</div><div class="cd">Bìa, danh mục, quyết định Ban chỉ huy, trách nhiệm quyền hạn, chữ ký mẫu, đội PCCC, sơ đồ tổ chức, máy móc thiết bị; đổi tên công trình trong Kế hoạch an toàn.</div></div></div>
-      </button>
-      <div class="fncard">
-        <div class="fn-h"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></span><div><div class="ct">Bìa &amp; trang ký bản vẽ</div><div class="cd">Tải bản vẽ PDF lên → tự lập danh mục, tạo bìa và trang ký khổ A3, ghép trước bộ bản vẽ.</div></div></div>
-        <div class="fn-sub">
-          <button class="fn-s" data-fn="screenDrawing:shop"><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/><path d="M4 20h16" opacity=".5"/></svg></span>Bản vẽ thi công (Shop drawing)</button>
-          <button class="fn-s" data-fn="screenDrawing:asbuilt"><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h5"/><path d="M12.5 17l2 2 4-4"/></svg></span>Bản vẽ hoàn công (As-built)</button>
-        </div>
-      </div>
-    </div>
+  <div id="hsOverview"></div>
+</section>
 
-    <details class="hs-common" id="hsCommon">
-      <summary>Thông tin dự án dùng chung <span class="hs-mini">(công văn, hồ sơ pháp lý, bìa bản vẽ — tự lấy từ hợp đồng, sửa được)</span></summary>
-      <div class="grid g2" style="margin-top:10px">
-        <div class="f hs-wide"><label>Tên công trình / dự án</label><input id="hs_congtrinh"></div>
-        <div class="f hs-wide"><label>Địa điểm xây dựng</label><input id="hs_diadiem"></div>
-        <div class="f"><label>Mã WBS</label><input id="hs_wbs"></div>
-        <div class="f"><label>Hạng mục / gói thầu</label><input id="hs_hangmuc" placeholder="Cung cấp và lắp đặt hệ thống thang máy"></div>
-        <div class="f"><label>Chủ đầu tư (Kính gửi)</label><input id="hs_cdt"></div>
-        <div class="f"><label>Địa chỉ Chủ đầu tư</label><input id="hs_cdt_diachi"></div>
-        <div class="f"><label>Người đại diện Chủ đầu tư</label><input id="hs_cdt_daidien"></div>
-        <div class="f"><label>Ban quản lý dự án</label><input id="hs_qlda"></div>
-        <div class="f"><label>Tư vấn giám sát</label><input id="hs_tvgs"></div>
-        <div class="f"><label>Thiết bị (in ở bìa bản vẽ)</label><input id="hs_thietbi" placeholder="VD: Thang máy chở ô tô 3.500 kg"></div>
-        <div class="f"><label>Số hợp đồng</label><input id="hs_sohd"></div>
-        <div class="f"><label>Ngày ký hợp đồng</label><input type="date" id="hs_ngayhd"></div>
-        <div class="f hs-wide"><label>Nhà thầu (đơn vị phát hành công văn)</label><input id="hs_nhathau"></div>
-        <div class="f hs-wide"><label>Địa chỉ nhà thầu (dòng nhỏ ở bìa bản vẽ)</label><input id="hs_nt_diachi"></div>
-        <div class="f"><label>Nơi lập văn bản</label><input id="hs_noilap" placeholder="Hà Nội"></div>
-        <div class="f"><label>Chỉ huy trưởng công trường</label><input id="hs_cht"></div>
-        <div class="f"><label>Người ký công văn</label><input id="hs_nguoiky"></div>
-        <div class="f"><label>Chức vụ người ký</label><input id="hs_chucvuky" placeholder="VD: Trưởng phòng Lắp đặt"></div>
-        <div class="f"><label>Người liên hệ (QLDA)</label><input id="hs_pm_ten"></div>
-        <div class="f"><label>Điện thoại người liên hệ</label><input id="hs_pm_dt"></div>
-        <div class="f"><label>Email người liên hệ</label><input id="hs_pm_email"></div>
-      </div>
-    </details>
+<!-- ===== THÔNG TIN DỰ ÁN (dùng chung cho mọi văn bản) ===== -->
+<section id="screenInfo" class="hide">
+  <div class="panel">
+    <div class="hs-ph2"><h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="9.5" r="2.6"/><path d="M7.5 17c.8-2.2 2.5-3.3 4.5-3.3s3.7 1.1 4.5 3.3"/></svg></span></span>Thông tin dự án</h2>
+      <button type="button" class="btn sm gho" onclick="showScreen('screenContract')">📄 Quét hợp đồng để điền tự động</button></div>
+    <p class="hint" style="margin:0 0 10px">Nhập <b>một lần</b> — dùng cho mọi công văn, biên bản, hồ sơ pháp lý và bìa bản vẽ. Ô trống được tự điền từ hợp đồng đã quét, bảng tiến độ và hồ sơ chất lượng (không ghi đè ô đã sửa).</p>
+    <div class="hs-meter" id="hsInfoMeter"></div>
+    <fieldset class="hs-fs"><legend><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span>Công trình</legend>
+      <div class="grid g2"><div class="f hs-wide"><label>Tên công trình / dự án</label><input id="hs_congtrinh"></div><div class="f hs-wide"><label>Địa điểm xây dựng</label><input id="hs_diadiem"></div><div class="f"><label>Mã WBS</label><input id="hs_wbs"></div><div class="f"><label>Hạng mục / gói thầu</label><input id="hs_hangmuc" placeholder="Cung cấp và lắp đặt hệ thống thang máy"></div><div class="f"><label>Thiết bị (in ở bìa bản vẽ)</label><input id="hs_thietbi" placeholder="VD: Thang máy chở ô tô 3.500 kg"></div></div>
+    </fieldset>
+    <fieldset class="hs-fs"><legend><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="9.5" r="2.6"/><path d="M7.5 17c.8-2.2 2.5-3.3 4.5-3.3s3.7 1.1 4.5 3.3"/></svg></span>Chủ đầu tư &amp; các bên</legend><p class="hint" style="margin:0 0 8px">Chủ đầu tư = Bên Mua / Bên Giao thầu / Bên A trong hợp đồng. Không có Tư vấn giám sát thì để trống — các phiếu RFA / RFI sẽ chỉ có ô ký của Chủ đầu tư.</p>
+      <div class="grid g2"><div class="f"><label>Chủ đầu tư (Kính gửi)</label><input id="hs_cdt"></div><div class="f"><label>Địa chỉ Chủ đầu tư</label><input id="hs_cdt_diachi"></div><div class="f"><label>Người đại diện Chủ đầu tư</label><input id="hs_cdt_daidien"></div><div class="f"><label>Ban quản lý dự án</label><input id="hs_qlda"></div><div class="f"><label>Tư vấn giám sát</label><input id="hs_tvgs"></div></div>
+    </fieldset>
+    <fieldset class="hs-fs"><legend><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></span>Hợp đồng</legend>
+      <div class="grid g2"><div class="f"><label>Số hợp đồng</label><input id="hs_sohd"></div><div class="f"><label>Ngày ký hợp đồng</label><input type="date" id="hs_ngayhd"></div></div>
+    </fieldset>
+    <fieldset class="hs-fs"><legend><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/></svg></span>Nhà thầu &amp; người ký</legend>
+      <div class="grid g2"><div class="f hs-wide"><label>Nhà thầu (đơn vị phát hành công văn)</label><input id="hs_nhathau"></div><div class="f hs-wide"><label>Địa chỉ nhà thầu (dòng nhỏ ở bìa bản vẽ)</label><input id="hs_nt_diachi"></div><div class="f"><label>Nơi lập văn bản</label><input id="hs_noilap" placeholder="Hà Nội"></div><div class="f"><label>Chỉ huy trưởng công trường</label><input id="hs_cht"></div><div class="f"><label>Người ký công văn</label><input id="hs_nguoiky"></div><div class="f"><label>Chức vụ người ký</label><input id="hs_chucvuky" placeholder="VD: Trưởng phòng Lắp đặt"></div></div>
+    </fieldset>
+    <fieldset class="hs-fs"><legend><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7.5h6M9 11h4"/></svg></span>Người liên hệ (in cuối công văn)</legend>
+      <div class="grid g2"><div class="f"><label>Người liên hệ (QLDA)</label><input id="hs_pm_ten"></div><div class="f"><label>Điện thoại người liên hệ</label><input id="hs_pm_dt"></div><div class="f"><label>Email người liên hệ</label><input id="hs_pm_email"></div></div>
+    </fieldset>
   </div>
 </section>
 
 <!-- ===== CHỨC NĂNG: TIẾN ĐỘ ===== -->
 <section id="screenSchedule" class="hide">
-<div class="row" style="margin-bottom:12px"><button class="btn gho sm" onclick="toChoose()">← Chọn chức năng khác</button></div>
+<div class="ni-tabs hs-steps stepper" id="stepper" role="tablist" aria-label="Các bước lập bảng tiến độ">
+    <button id="tab1" class="on" onclick="go(1)"><b>1</b> Thiết lập mốc &amp; người ký</button>
+    <button id="tab2" onclick="go(2)"><b>2</b> Dữ liệu &amp; thời gian</button>
+    <button id="tab3" onclick="go(3)"><b>3</b> Chỉnh Gantt &amp; xuất file</button>
+  </div>
 
 <!-- ================= STEP 1 ================= -->
 <section id="step1">
   <div class="panel">
-    <h2><span class="no">02</span>Mốc tiến độ &amp; cách tính ngày</h2>
+    <h2><span class="no">1</span>Mốc tiến độ &amp; cách tính ngày</h2>
     <div class="grid g3">
       <div class="f">
         <label>Ngày ký phê duyệt bản vẽ (mốc khởi tính)</label>
@@ -552,7 +570,7 @@ table.edit td.c{text-align:center}
   </div>
 
   <div class="panel">
-    <h2><span class="no">03</span>Thành phần ký phê duyệt</h2>
+    <h2><span class="no">2</span>Thành phần ký phê duyệt</h2>
     <p class="hint">Tick chọn các bên tham gia ký. Có thể sửa tên/chức danh hoặc thêm thành phần khác.</p>
     <div class="signers" id="signers"></div>
     <div class="row" style="margin-top:14px">
@@ -570,7 +588,7 @@ table.edit td.c{text-align:center}
   <div class="warn" id="ocrnote">Dữ liệu dưới đây do phần mềm tự nhận diện từ file scan — vui lòng kiểm tra và hiệu chỉnh trước khi tạo bảng tiến độ. Trường có nhãn <span style="color:var(--green);font-weight:700">●OCR</span> là trường đã nhận diện tự động.</div>
 
   <div class="panel">
-    <h2><span class="no">04</span>Thông tin dự án &amp; hợp đồng</h2>
+    <h2><span class="no">3</span>Thông tin dự án &amp; hợp đồng</h2>
     <div class="grid g2">
       <div class="f"><label>Số hợp đồng <span class="det hide" id="d_contract">●OCR</span></label><input id="p_no" value=""></div>
       <div class="f"><label>Ngày ký hợp đồng <span class="det hide" id="d_cdate">●OCR</span></label><input id="p_cdate" value="" placeholder="dd/mm/yyyy"></div>
@@ -586,7 +604,7 @@ table.edit td.c{text-align:center}
   </div>
 
   <div class="panel">
-    <h2><span class="no">05</span>Thời gian các giai đoạn <span class="pill" id="totpill"></span></h2>
+    <h2><span class="no">4</span>Thời gian các giai đoạn <span class="pill" id="totpill"></span></h2>
     <div class="grid g2" style="margin-bottom:16px">
       <div class="f"><label>Xác nhận ngày ký phê duyệt bản vẽ (mốc khởi tính)</label><input type="date" id="baseline2"></div>
       <div class="f"><label>Ngày nghỉ lễ đang áp dụng (sửa ở bước 1)</label><input type="text" id="holidays2" disabled style="font-family:var(--mono);background:#f3f5f8"></div>
@@ -618,10 +636,10 @@ table.edit td.c{text-align:center}
   </div>
 
   <div class="panel">
-    <h2><span class="no">06</span>Điều kiện &amp; mốc tiến độ có điều kiện <span class="det hide" id="d_cond" style="font-size:11px;color:var(--green)">●OCR đã trích một số điều kiện</span></h2>
+    <h2><span class="no">5</span>Điều kiện &amp; mốc tiến độ có điều kiện <span class="det hide" id="d_cond" style="font-size:11px;color:var(--green)">●OCR đã trích một số điều kiện</span></h2>
     <p class="hint">Mỗi dòng là một ghi chú/điều kiện (ví dụ: chỉ lắp đặt khi đã thanh toán &amp; hố thang được bàn giao) sẽ in ở mục "Ghi chú &amp; điều kiện thực hiện".</p>
     <textarea id="conds" rows="7" style="font-size:12.5px;line-height:1.6"></textarea>
-    <h2 style="font-size:15px;margin:20px 0 4px"><span class="no" style="background:var(--navy)">06b</span>Nghĩa vụ Bên Mua ảnh hưởng tiến độ <span class="det hide" id="d_oblig" style="font-size:11px;color:var(--green)">●OCR</span></h2>
+    <h2 style="font-size:15px;margin:20px 0 4px"><span class="no" style="background:var(--navy)">5b</span>Nghĩa vụ Bên Mua ảnh hưởng tiến độ <span class="det hide" id="d_oblig" style="font-size:11px;color:var(--green)">●OCR</span></h2>
     <p class="hint">Các nghĩa vụ/công việc Bên Mua phải hoàn thành đồng bộ để không ảnh hưởng mốc tiến độ (bàn giao mặt bằng, hố thang, cấp nguồn, thanh toán…). Mỗi dòng một mục.</p>
     <textarea id="obligs" rows="5" style="font-size:12.5px;line-height:1.6"></textarea>
   </div>
@@ -636,7 +654,7 @@ table.edit td.c{text-align:center}
 <section id="step3" class="hide">
   <div class="panel" id="gxPanel">
     <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <h2 style="margin:0"><span class="no">07</span>Chỉnh tiến độ (Gantt) — kéo thả, thêm / xoá / sửa dòng</h2>
+      <h2 style="margin:0"><span class="no">6</span>Chỉnh tiến độ (Gantt) — kéo thả, thêm / xoá / sửa dòng</h2>
       <div class="row">
         <button class="btn gho sm" onclick="go(2)">← Hiệu chỉnh dữ liệu (bước 2)</button>
         <button class="btn gho sm" onclick="gxRegen(true)" title="Bỏ các chỉnh sửa trên Gantt, dựng lại từ dữ liệu bước 2">↺ Tạo lại từ bước 2</button>
@@ -648,7 +666,7 @@ table.edit td.c{text-align:center}
   </div>
   <div class="panel">
     <div class="row" style="justify-content:space-between">
-      <h2 style="margin:0"><span class="no">07b</span>Bảng tiến độ để in / xuất Excel</h2>
+      <h2 style="margin:0"><span class="no">7</span>Bảng tiến độ để in / xuất Excel</h2>
       <div class="row">
         <button class="btn gho" onclick="go(2)">← Hiệu chỉnh</button>
         <button class="btn sec" onclick="exportExcel()">⬇ Xuất Excel (.xlsx, A3 ngang)</button>
@@ -660,7 +678,7 @@ table.edit td.c{text-align:center}
 
   <!-- ===== THƯ XÁC NHẬN HÀNG VỀ & EMAIL ===== -->
   <div class="panel" style="margin-top:22px">
-    <h2><span class="no">08</span>Thư xác nhận hàng về &amp; Email gửi khách hàng</h2>
+    <h2><span class="no">8</span>Thư xác nhận hàng về &amp; Email gửi khách hàng</h2>
     <p class="hint">Thư dùng <b>chung khuôn công văn</b> của Hồ sơ Dự án (số hiệu, Kính gửi, V/v, Tham chiếu hợp đồng, khối ký, nơi nhận) — cũng mở được ở mục <i>Công văn, biên bản</i>. Các mốc ngày lấy từ bảng tiến độ ở trên (ngày hàng về = ngày kết thúc giai đoạn sản xuất &amp; vận chuyển). Sửa lại nếu cần rồi xuất file.</p>
     <div class="grid g4">
       <div class="f"><label>Số công văn</label><input id="l_so" placeholder="VD: 125/2026/SCH-HN"></div>
@@ -689,8 +707,7 @@ table.edit td.c{text-align:center}
 
 <!-- ===== CHỨC NĂNG: HỒ SƠ CHẤT LƯỢNG (Word) ===== -->
 <section id="quality" class="hide">
-  <div class="row" style="margin-bottom:12px"><button class="btn gho sm" onclick="toChoose()">← Chọn chức năng khác</button></div>
-  <div class="panel">
+    <div class="panel">
     <h2><span class="no">Q</span>Hồ sơ quản lý chất lượng (bộ hồ sơ nghiệm thu — Word)</h2>
     <p class="hint">Xuất <b>trọn bộ hồ sơ chất lượng</b> theo mẫu chuẩn (.docx): bìa hồ sơ, căn cứ lập hồ sơ &amp; danh mục, và 7 phần nghiệm thu — mỗi phần gồm <i>Phiếu đề nghị nghiệm thu</i>, <i>Biên bản nghiệm thu công việc</i> và <i>Biên bản kiểm tra công tác nghiệm thu</i>; kèm phần hồ sơ kiểm định và bản vẽ hoàn công. Điền thông tin bên dưới rồi bấm xuất — mở bằng Word và in trực tiếp.</p>
     <div class="row" style="margin-bottom:8px">
@@ -832,10 +849,9 @@ table.edit td.c{text-align:center}
 
 <!-- ===== CÔNG VĂN, BIÊN BẢN ===== -->
 <section id="screenLetters" class="hide">
-  <div class="row" style="margin-bottom:12px"><button class="btn gho sm" onclick="toChoose()">← Chọn chức năng khác</button></div>
-  <div class="panel">
+    <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13.5" rx="2"/><path d="M3.6 7.2L12 13l8.4-5.8"/><path d="M15.5 19v2.5M8.5 19v2.5" opacity=".5"/></svg></span></span>Công văn, biên bản</h2>
-    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="toChoose();document.getElementById('hsCommon').open=true;return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#cong-van" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
+    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#cong-van" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
     <div class="hs-lbar" id="hsLetterBar">
       <label class="hs-q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="hsLetterQ" type="search" placeholder="Tìm văn bản — VD: kiểm định, bảo hành, RFA, báo giá…" aria-label="Tìm văn bản" data-hs-nosave></label>
       <div class="hs-chips" id="hsLetterKind" role="group" aria-label="Lọc loại văn bản">
@@ -882,8 +898,7 @@ table.edit td.c{text-align:center}
 
 <!-- ===== NHẬT KÝ THI CÔNG ===== -->
 <section id="screenNhatKy" class="hide">
-  <div class="row" style="margin-bottom:12px"><button class="btn gho sm" onclick="toChoose()">← Chọn chức năng khác</button></div>
-  <div class="panel">
+    <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7.5h6M9 11h4"/></svg></span></span>Nhật ký thi công xây dựng công trình</h2>
     
     <p class="hint" style="margin:0 0 6px">Bìa, trang thông tin, bảng cán bộ công trường và các trang nhật ký hàng ngày (điền sẵn ngày). Ô để trống sẽ in dấu chấm để ghi tay.</p>
@@ -914,10 +929,9 @@ table.edit td.c{text-align:center}
 
 <!-- ===== HỒ SƠ PHÁP LÝ ===== -->
 <section id="screenLegal" class="hide" data-hs-nosave>
-  <div class="row" style="margin-bottom:12px"><button class="btn gho sm" onclick="toChoose()">← Chọn chức năng khác</button></div>
-  <div class="panel">
+    <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></span></span>Hồ sơ pháp lý</h2>
-    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="toChoose();document.getElementById('hsCommon').open=true;return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#phap-ly" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
+    <p class="hint" style="margin:0 0 12px">Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#phap-ly" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
     <div class="grid g2"><div class="f"><label>Ngày lập (in trên các quyết định)</label><input type="date" id="hsLgNgay"></div></div>
     <h3 class="hs-h3">Nhân sự công trường</h3>
     <p class="hint" style="margin:0 0 6px"><b>BCH</b>: có tên trong Quyết định Ban chỉ huy và Danh sách chữ ký mẫu. <b>PCCC</b>: cử tham gia Đội PCCC cơ sở. Họ tên chỉ dùng cho hồ sơ của dự án này.</p>
@@ -948,11 +962,10 @@ table.edit td.c{text-align:center}
 
 <!-- ===== BÌA & TRANG KÝ BẢN VẼ ===== -->
 <section id="screenDrawing" class="hide" data-hs-nosave>
-  <div class="row" style="margin-bottom:12px"><button class="btn gho sm" onclick="toChoose()">← Chọn chức năng khác</button></div>
-  <div class="panel">
+    <div class="panel">
     <h2><span class="no"><span class="hs-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></span></span>Bìa &amp; trang ký — <span id="hsDwKindName">Bản vẽ thi công</span></h2>
     <div class="hs-seg" id="hsDwKind" role="group" aria-label="Loại bản vẽ"><button type="button" data-kind="shop" class="on">Bản vẽ thi công <small>Shop drawing</small></button><button type="button" data-kind="asbuilt">Bản vẽ hoàn công <small>As-built</small></button></div>
-    <p class="hint" style="margin:0 0 12px">Mỗi loại có danh mục bản vẽ, nội dung bìa và khối ký riêng. Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="toChoose();document.getElementById('hsCommon').open=true;return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#ban-ve" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
+    <p class="hint" style="margin:0 0 12px">Mỗi loại có danh mục bản vẽ, nội dung bìa và khối ký riêng. Thông tin công trình, chủ đầu tư, hợp đồng, người ký lấy ở <a href="#" onclick="hsGo('info');return false">Thông tin dự án dùng chung</a>. <a href="../../huong-dan-ho-so-du-an.html#ban-ve" target="_blank" rel="noopener">📖 Hướng dẫn</a></p>
     <div class="drop hs-drop" onclick="document.getElementById('hsDwFiles').click()">
       <div class="big">Tải bản vẽ PDF lên</div>
       <div class="small">Có thể chọn nhiều file (vd. mỗi thang 1 file) · tự đọc khung tên từng trang: số bản vẽ, tờ, tên bản vẽ · nhận ra trang bìa / danh mục của từng bộ · xử lý trên máy, không tải lên máy chủ</div>
@@ -1358,7 +1371,7 @@ drop.ondragover=e=>{e.preventDefault();drop.classList.add("over");};
 drop.ondragleave=()=>drop.classList.remove("over");
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove("over");if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);};
 file.onchange=()=>{if(file.files[0])handleFile(file.files[0]);};
-function skipOCR(){document.getElementById("ocrstat").textContent="Đã bỏ qua OCR — nhập dữ liệu tay.";const n=document.getElementById("ocrnote");if(n)n.classList.add("hide");toChoose();}
+function skipOCR(){document.getElementById("ocrstat").textContent="Đã bỏ qua OCR — nhập dữ liệu tay.";const n=document.getElementById("ocrnote");if(n)n.classList.add("hide");hsGo("info");}
 
 async function handleFile(f){
   logEl.textContent="";log("▸ Đang đọc file: "+f.name);
@@ -3302,12 +3315,17 @@ async function copyEmail(){
 /* --- tiện ích XML dùng chung cho các file .docx sinh ra --- */
 function xescQ(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 /* điều hướng cấp cao: hợp đồng → chọn chức năng → (tiến độ | hồ sơ chất lượng) */
+const HS_TAB={screenChoose:"overview",screenInfo:"info",screenContract:"info",screenSchedule:"schedule",quality:"quality",screenNhatKy:"nhatky",screenLetters:"letters",screenLegal:"legal",screenDrawing:"drawing"};
 function showScreen(name){
-  ["screenHome","screenContract","screenChoose","screenSchedule","quality","screenLetters","screenNhatKy","screenLegal","screenDrawing"].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.toggle("hide",id!==name);});
-  const sp=document.getElementById("stepper");if(sp)sp.style.display=name==="screenSchedule"?"":"none";
+  ["screenHome","screenContract","screenChoose","screenInfo","screenSchedule","quality","screenLetters","screenNhatKy","screenLegal","screenDrawing"].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.toggle("hide",id!==name);});
+  const t=HS_TAB[name]||"";document.querySelectorAll("#hsTabs [data-go]").forEach(b=>{const on=b.dataset.go===t;b.setAttribute("aria-selected",on?"true":"false");if(on&&b.scrollIntoView)b.scrollIntoView({block:"nearest",inline:"nearest"});});
+  const tb=document.getElementById("hsTabs");if(tb)tb.hidden=name==="screenHome";
   window.scrollTo({top:0,behavior:"smooth"});
+  if(window.HS&&HS.onScreen)HS.onScreen(name);
 }
-function toChoose(){showScreen("screenChoose");if(window.HS){HS.prefillCommon();HS.save("nav");}}
+// "Tổng quan" dự án (tên cũ toChoose giữ để các nút cũ vẫn chạy)
+function toChoose(){hsGo("overview");}
+function hsGo(tab){if(window.HS&&HS.go)HS.go(tab);else showScreen(tab==="info"?"screenInfo":"screenChoose");}
 function chooseFn(fn){
   if(fn==="schedule"){showScreen("screenSchedule");go(1);}
   else{showScreen("quality");prefillQuality();}

@@ -125,8 +125,13 @@
     <a href="#phap-ly"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10l3.2 1.3v2.1c0 1.9-1.4 3.2-3.2 4-1.8-.8-3.2-2.1-3.2-4v-2.1z"/></svg></div><b>Hồ sơ pháp lý</b><small>8 văn bản Word, 1 file .zip</small></a>
     <a href="#ban-ve"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12.5 15h8.5M12.5 15v5"/><path d="M6 11.5c1.1-2.6 2.1-2.6 3 0s1.9 2.6 3 0 1.9-2.6 3 0"/></svg></div><b>Bìa & trang ký bản vẽ</b><small>PDF A3, ghép trước bản vẽ</small></a>
   </div>
-  <div class="flow"><span>Tạo / mở hồ sơ</span><i>→</i><span>Chọn chức năng</span><i>→</i><span>Điền vài ô</span><i>→</i><span>Xuất file</span></div>
-  <figure class="shot"><img src="docs/huong-dan/hsda-choose.jpg" alt="Màn hình chọn chức năng" loading="lazy" width="1280" height="860"><figcaption>Màn hình chọn chức năng</figcaption></figure>
+  <div class="flow"><span>Tạo / mở hồ sơ</span><i>→</i><span>Thông tin dự án</span><i>→</i><span>Chọn tab chức năng</span><i>→</i><span>Điền vài ô</span><i>→</i><span>Xuất file</span></div>
+  <figure class="shot"><img src="docs/huong-dan/hsda-choose.jpg" alt="Tổng quan dự án" loading="lazy" width="1280" height="860"><figcaption>Tổng quan dự án: thông tin chính, mức độ đầy đủ, tình trạng từng chức năng (dữ liệu mẫu)</figcaption></figure>
+  <ul>
+    <li><b>Thanh tab</b> ngay dưới tên hồ sơ — luôn ở đầu trang: <i>Tổng quan · Thông tin dự án · Tiến độ · Hồ sơ chất lượng · Nhật ký · Công văn, biên bản · Hồ sơ pháp lý · Bìa &amp; ký bản vẽ</i>. Bấm để chuyển chức năng bất kỳ lúc nào (tự lưu khi chuyển).</li>
+    <li><b>Tổng quan</b>: thông tin chính của dự án, thanh <b>Đã điền x/12 thông tin chính</b> (bấm tên mục còn thiếu để nhảy tới ô đó) và thẻ từng chức năng kèm tình trạng — VD <i>“110 ngày · xong 02/12/2026”</i>, <i>“Đã xuất 2/19 văn bản”</i>, <i>“Chưa xuất”</i>.</li>
+    <li>Màn hình dài (<b>Hồ sơ chất lượng</b>, <b>Hồ sơ pháp lý</b>) có dòng <b>Đến mục</b> bám ở đầu trang để nhảy nhanh; mục đang xem được tô màu.</li>
+  </ul>
 </section>
 
 <section id="bat-dau" class="pb">
@@ -136,7 +141,7 @@
     <li>Trang chủ → <b>Hồ sơ Dự án</b> → bảng các dự án đã nhập.</li>
     <li>Gõ vào ô <b>Tìm dự án</b> (tên, WBS, chủ đầu tư, số HĐ) → bấm <span class="btn">Mở</span>.</li>
     <li>Dự án mới: <span class="btn">＋ Tạo hồ sơ dự án mới</span> → kéo thả hợp đồng (PDF, Word .docx/.doc, Excel .xlsx/.xls/.csv hoặc ảnh — Word, Excel, PDF có chữ đọc thẳng không cần OCR; Word .doc đời cũ đọc gần đúng, nếu thiếu thông tin hãy lưu lại .docx/PDF). <b>Chủ đầu tư</b> lấy từ <b>Bên Mua / Bên Giao thầu / Bên A</b> (hoặc Bên Đặt hàng) ở phần đầu hợp đồng, <b>nhà thầu</b> từ Bên Bán / Bên Nhận thầu / Bên B — kiểm tra lại ô <i>Chủ đầu tư</i> sau khi quét hoặc <span class="btn">Bỏ qua — nhập tay</span>.</li>
-    <li>Mở mục <b>Thông tin dự án dùng chung</b> (cuối màn hình chọn chức năng) → kiểm tra chủ đầu tư, số HĐ, người ký.</li>
+    <li>Sau khi quét (hoặc bấm <i>Bỏ qua — nhập tay</i>), app mở tab <b>Thông tin dự án</b>: các ô chia nhóm <i>Công trình · Chủ đầu tư &amp; các bên · Hợp đồng · Nhà thầu &amp; người ký · Người liên hệ</i>. Kiểm tra chủ đầu tư, số HĐ, người ký — nhập <b>một lần</b>, dùng cho mọi văn bản. Muốn quét lại hợp đồng: nút <b>📄 Quét hợp đồng để điền tự động</b>.</li>
   </ol>
   <div class="note info"><b>Mỗi WBS 1 hồ sơ.</b> Tạo trùng → app mời mở hồ sơ cũ.</div>
   <table class="tbl">
@@ -151,7 +156,7 @@
 
 <section id="luu" class="nb">
   <h2><span class="n">3</span>Lưu</h2>
-  <figure class="shot thin"><img src="docs/huong-dan/hsda-bar.jpg" alt="Thanh Hồ sơ ở đầu trang" loading="lazy" width="1236" height="54"><figcaption>Thanh Hồ sơ ở đầu trang</figcaption></figure>
+  <figure class="shot thin"><img src="docs/huong-dan/hsda-bar.jpg" alt="Thanh Hồ sơ ở đầu trang" loading="lazy" width="1236" height="106"><figcaption>Thanh Hồ sơ ở đầu trang: tên dự án, trạng thái lưu, nút Lưu và thanh tab chức năng</figcaption></figure>
   <ul>
     <li><span class="btn">💾 Lưu</span> bất kỳ lúc nào · app <b>tự lưu 5 phút</b> và <b>sau mỗi lần xuất file</b>.</li>
     <li>Mất mạng: dữ liệu vẫn giữ <b>nháp trên máy</b>, mở lại app sẽ hỏi khôi phục.</li>
@@ -247,7 +252,7 @@
   <h2><span class="n">?</span>Hỏi nhanh</h2>
   <table class="tbl">
     <tbody>
-      <tr><td style="width:40%"><b>Không lưu được hồ sơ?</b></td><td>Cần có <b>Tên công trình</b> trong Thông tin dùng chung.</td></tr>
+      <tr><td style="width:40%"><b>Không lưu được hồ sơ?</b></td><td>Cần có <b>Tên công trình</b> ở tab <b>Thông tin dự án</b>.</td></tr>
       <tr><td><b>Báo “Chưa lưu được”?</b></td><td>Dữ liệu vẫn giữ nháp trên máy — có mạng bấm 💾 Lưu lại.</td></tr>
       <tr><td><b>Ô để trống?</b></td><td>Văn bản in “……” để điền tay.</td></tr>
       <tr><td><b>Hồ sơ hiện “chỉ xem”?</b></td><td>Hồ sơ của người khác — nhờ Admin cấp quyền sửa.</td></tr>

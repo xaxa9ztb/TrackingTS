@@ -87,7 +87,7 @@
   }
   function restore(d) {
     if (!d || typeof d !== 'object') return;
-    S.gplan = null;   // bảng Gantt đã chỉnh thuộc từng dự án — không mang sang dự án khác
+    S.gplan = null; S.hsDone = {};   // bảng Gantt đã chỉnh thuộc từng dự án — không mang sang dự án khác
     if (d.S) Object.keys(d.S).forEach(k => { S[k] = d.S[k]; });
     const R = (fn) => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.warn(fn, e); } };
     ['renderSigners', 'renderSteps', 'renderFactors', 'renderQElevs', 'renderQParties', 'renderQExtras', 'renderQPhases', 'pushForm'].forEach(R);
@@ -289,6 +289,91 @@
     if (screen === 'screenDrawing') renderDrawing();
   }
 
+  // ===== Điều hướng theo tab + Tổng quan dự án =====
+  const TAB_IC = {};   // biểu tượng lấy từ thanh tab (một nguồn)
+  const tabIcon = (k) => TAB_IC[k] || (TAB_IC[k] = (document.querySelector(`#hsTabs [data-go="${k}"] .ti`) || {}).innerHTML || '');
+  function go(tab) {
+    if (st.booted && !readOnly() && (st.cur || projName())) save('nav');
+    if (tab === 'overview') { prefillCommon(); showScreen('screenChoose'); return; }
+    if (tab === 'info') { prefillCommon(); showScreen('screenInfo'); return; }
+    if (tab === 'schedule' || tab === 'quality') { prefillCommon(); chooseFn(tab); return; }
+    enter({ nhatky: 'screenNhatKy', letters: 'screenLetters', legal: 'screenLegal', drawing: 'screenDrawing' }[tab] || 'screenChoose');
+  }
+  function onScreen(name) {
+    const hb = $('hsBar'); if (hb) document.documentElement.style.setProperty('--hs-bar-h', (hb.offsetHeight + 8) + 'px');
+    if (name === 'screenChoose') renderOverview();
+    if (name === 'screenInfo') renderMeter();
+    if (name === 'quality' || name === 'screenLegal') buildToc(name);
+  }
+  // ghi lại lần xuất gần nhất của từng chức năng (hiện ở Tổng quan)
+  function markDone(k) { S.hsDone = Object.assign({}, S.hsDone, { [k]: new Date().toISOString() }); }
+  // mức độ đầy đủ của Thông tin dự án
+  const INFO_REQ = [['hs_congtrinh', 'Tên công trình'], ['hs_diadiem', 'Địa điểm'], ['hs_cdt', 'Chủ đầu tư'], ['hs_cdt_diachi', 'Địa chỉ CĐT'], ['hs_sohd', 'Số hợp đồng'], ['hs_ngayhd', 'Ngày ký HĐ'],
+    ['hs_thietbi', 'Thiết bị'], ['hs_nguoiky', 'Người ký'], ['hs_chucvuky', 'Chức vụ người ký'], ['hs_pm_ten', 'Người liên hệ'], ['hs_pm_dt', 'Điện thoại liên hệ'], ['hs_cht', 'Chỉ huy trưởng']];
+  function infoFill() { const miss = INFO_REQ.filter(([id]) => !gv(id)); return { n: INFO_REQ.length - miss.length, total: INFO_REQ.length, miss }; }
+  function meterHtml(f, cta) {
+    const pct = Math.round(f.n / f.total * 100), ok = !f.miss.length;
+    return `<div class="hs-mt${ok ? ' ok' : ''}"><div class="hs-mt-h"><b>${ok ? '✓ Đã đủ thông tin chính' : `Đã điền ${f.n}/${f.total} thông tin chính`}</b>${cta || ''}</div>
+      <div class="hs-mt-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${f.total}" aria-valuenow="${f.n}"><i style="width:${pct}%"></i></div>
+      ${ok ? '' : `<div class="hs-mt-miss">Còn thiếu: ${f.miss.map(([id, t]) => `<button type="button" class="hs-chip" data-focus="${id}">${esc(t)}</button>`).join('')}</div>`}</div>`;
+  }
+  function renderMeter() {
+    const box = $('hsInfoMeter'); if (!box) return;
+    box.innerHTML = meterHtml(infoFill());
+    box.onclick = (e) => { const c = e.target.closest('[data-focus]'); if (c) { const el = $(c.dataset.focus); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => el.focus({ preventScroll: true }), 300); } } };
+  }
+  const dShort = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; };
+  function renderOverview() {
+    const box = $('hsOverview'); if (!box) return;
+    const I = info(), done = S.hsDone || {}, f = infoFill();
+    const nLet = Object.keys(LT).filter(k => LT[k] && LT[k]._last).length + (done.letters ? 0 : 0);
+    const totalLet = HsLetters.LETTERS.length + 2;
+    let sched = null;
+    try { if (typeof planSchedule === 'function' && S.gplan && S.gplan.items && S.gplan.items.length) { const p = planSchedule(); sched = `${p.total} ngày · xong ${dShort(p.end.toISOString())}`; } } catch (e) { /* chưa lập */ }
+    const st2 = (k, alt) => done[k] ? { t: 'Đã xuất ' + dShort(done[k]), ok: true } : alt || { t: 'Chưa xuất', ok: false };
+    const nEl = (S.qElevs || []).filter(e => String(e.name || '').trim()).length;
+    const cards = [
+      ['schedule', 'Tiến độ thi công', 'Lập bảng tiến độ theo hợp đồng, chỉnh kéo thả trên Gantt, xuất Excel / PDF A3 và thư xác nhận hàng về.', sched ? { t: sched, ok: true } : st2('schedule', { t: 'Chưa lập', ok: false })],
+      ['quality', 'Hồ sơ chất lượng', 'Bộ hồ sơ nghiệm thu (Word): các bên, chứng từ hàng hoá, danh sách thang, đợt nghiệm thu.', st2('quality', nEl ? { t: `${nEl} thang · chưa xuất`, ok: false } : null)],
+      ['nhatky', 'Nhật ký thi công', 'Sổ nhật ký thi công xây dựng — điền sẵn ngày từng trang.', st2('nhatky')],
+      ['letters', 'Công văn, biên bản', 'Thông báo hàng về, tồn tại giếng thang, mời kiểm định, bàn giao, RFA / RFI, báo giá phát sinh…', nLet ? { t: `Đã xuất ${nLet}/${totalLet} văn bản`, ok: true } : { t: `${totalLet} mẫu có sẵn`, ok: false }],
+      ['legal', 'Hồ sơ pháp lý', 'Bìa, danh mục, quyết định Ban chỉ huy, trách nhiệm, chữ ký mẫu, đội PCCC, sơ đồ tổ chức, máy móc.', st2('legal')],
+      ['drawing', 'Bìa & trang ký bản vẽ', 'Shop drawing / As-built: ghép A3, trang ngăn cách, danh mục, bìa và trang ký.', done.drawing_shop || done.drawing_asbuilt ? { t: 'Đã tạo ' + [done.drawing_shop && 'shop', done.drawing_asbuilt && 'as-built'].filter(Boolean).join(' + '), ok: true } : { t: 'Chưa tạo', ok: false }],
+    ];
+    const chip = (lb, v) => v ? `<span class="hs-kv"><small>${lb}</small>${esc(v)}</span>` : '';
+    box.innerHTML = `<div class="panel hs-sum">
+        <div class="hs-sum-t"><div><div class="hs-lbl">Công trình</div><h2 class="hs-sum-n">${esc(I.congTrinh || 'Chưa đặt tên công trình')}</h2>${I.diaDiem ? `<div class="hs-mini">${esc(I.diaDiem)}</div>` : ''}</div>
+          <button type="button" class="btn sm gho" data-go="info">✎ Sửa thông tin dự án</button></div>
+        <div class="hs-kvs">${chip('Chủ đầu tư', I.chuDauTu)}${chip('Hợp đồng', I.soHD ? I.soHD + (I.ngayHD ? ' · ' + dShort(I.ngayHD) : '') : '')}${chip('WBS', I.wbs)}${chip('Thiết bị', I.thietBi)}${chip('Số thang', I.soThang)}</div>
+        ${meterHtml(f, f.miss.length ? '<button type="button" class="btn sm sec" data-go="info">Bổ sung →</button>' : '')}
+      </div>
+      <div class="hs-ovh"><h2>Chức năng</h2><span class="hs-mini">Bấm để mở — hoặc dùng thanh tab phía trên. Mọi thứ nhập vào được lưu theo dự án.</span></div>
+      <div class="hs-fgrid">${cards.map(([k, t, d, s2]) => `<button type="button" class="hs-fc" data-go="${k}">
+          <span class="hs-fi">${tabIcon(k)}</span><span class="hs-ft"><b>${t}</b><span>${d}</span></span>
+          <span class="hs-fs2 ${s2.ok ? 'ok' : ''}">${s2.ok ? '✓ ' : ''}${esc(s2.t)}</span><span class="hs-go" aria-hidden="true">Mở →</span></button>`).join('')}</div>`;
+    box.querySelector('.hs-mt').onclick = (e) => { const c = e.target.closest('[data-focus]'); if (c) { go('info'); setTimeout(() => { const el = $(c.dataset.focus); if (el) { el.scrollIntoView({ block: 'center' }); el.focus({ preventScroll: true }); } }, 350); } };
+  }
+  // mục lục nhảy nhanh cho màn hình dài (Hồ sơ chất lượng, Hồ sơ pháp lý)
+  function buildToc(id) {
+    const sec = $(id); if (!sec) return;
+    const panels = [...sec.querySelectorAll(':scope > .panel')].filter(p => p.querySelector('h2'));
+    let nav = sec.querySelector(':scope > .hs-toc');
+    if (panels.length < 3) { if (nav) nav.remove(); return; }
+    if (!nav) { nav = document.createElement('nav'); nav.className = 'hs-toc'; nav.setAttribute('aria-label', 'Đến nhanh mục'); sec.insertBefore(nav, sec.firstChild); }
+    nav.innerHTML = '<span class="hs-toc-l">Đến mục:</span>' + panels.map((p, i) => {
+      if (!p.id) p.id = id + '_m' + i;
+      const h = p.querySelector('h2').cloneNode(true); h.querySelectorAll('.det,.pill,.hs-mini').forEach(x => x.remove());
+      const no = (h.querySelector('.no') || {}).textContent || ''; const t = h.textContent.replace(no, '').trim().replace(/\s*\(.*$/, '');
+      return `<a href="#${p.id}" data-toc="${p.id}">${no && no.length <= 3 ? `<b>${esc(no)}</b> ` : ''}${esc(t.length > 34 ? t.slice(0, 32) + '…' : t)}</a>`;
+    }).join('');
+    // tô mục đang xem
+    const mark = () => { if (sec.classList.contains('hide')) return; const top = (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hs-bar-h')) || 100) + 70; let cur = panels[0];
+      panels.forEach(p => { if (p.getBoundingClientRect().top <= top) cur = p; }); nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.toc === cur.id)); };
+    if (!sec._tocScroll) { sec._tocScroll = true; window.addEventListener('scroll', () => { clearTimeout(sec._tocT); sec._tocT = setTimeout(mark, 60); }, { passive: true }); }
+    mark();
+    nav.onclick = (e) => { const a = e.target.closest('[data-toc]'); if (!a) return; e.preventDefault(); const el = $(a.dataset.toc); const y = el.getBoundingClientRect().top + window.scrollY - (($('hsBar') || {}).offsetHeight || 0) - 56; window.scrollTo({ top: y, behavior: 'smooth' }); };
+  }
+
   // ===== Công văn, biên bản =====
   let tplBuf = null, curLetter = null;
   const letterTpl = async () => tplBuf || (tplBuf = await fetch('thu_hangve_template.docx', { cache: 'force-cache' }).then(r => { if (!r.ok) throw new Error('Không tải được khuôn công văn'); return r.arrayBuffer(); }));
@@ -462,7 +547,7 @@
         saveAs(await out.generateAsync({ type: 'blob' }), `Ho so phap ly - ${(I.congTrinh || 'du an').replace(/[\\/:*?"<>|]/g, '')}.zip`);
       }
       LG._last = new Date().toISOString();
-      stEl.textContent = `✓ Đã xuất ${list.length} tài liệu`; saveSoon();
+      stEl.textContent = `✓ Đã xuất ${list.length} tài liệu`; markDone('legal'); saveSoon();
     } catch (e) { console.error(e); stEl.textContent = '⚠ ' + e.message; }
   }
   async function exportKh(file) {
@@ -580,7 +665,7 @@
       const nm = (I.congTrinh || 'du an').replace(/[\\/:*?"<>|]/g, '');
       saveAs(new Blob([out], { type: 'application/pdf' }), withFiles ? `${DWK[dwKind].file} (kem bia va trang ky) - ${nm}.pdf` : `Bia va trang ky - ${DWK[dwKind].file} - ${nm}.pdf`);
       DW._last = new Date().toISOString();
-      stEl.textContent = '✓ Đã tạo PDF'; saveSoon();
+      stEl.textContent = '✓ Đã tạo PDF'; markDone('drawing_' + dwKind); saveSoon();
     } catch (e) { console.error(e); stEl.textContent = '⚠ ' + e.message; }
   }
 
@@ -600,12 +685,19 @@
     // ghi nhận sửa → nháp trên máy; xuất tài liệu ở các chức năng cũ → lưu sau khi xuất
     document.querySelector('.wrap').addEventListener('input', onEdit);
     document.querySelector('.wrap').addEventListener('change', onEdit);
-    document.addEventListener('click', (e) => { const b = e.target.closest('button[onclick]'); if (b && /export|Excel|PDF|downloadLetter|exportLetter/i.test(b.getAttribute('onclick'))) saveSoon(); }, true);
-    document.querySelectorAll('[data-fn]').forEach(b => b.addEventListener('click', () => {
-      const f = b.dataset.fn;
-      if (f === 'schedule' || f === 'quality') { prefillCommon(); chooseFn(f); }
-      else enter(f);
-    }));
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('button[onclick]'); if (!b) return;
+      const oc = b.getAttribute('onclick');
+      if (/export|Excel|PDF|downloadLetter|exportLetter|print/i.test(oc)) {
+        const k = /exportExcel|print/.test(oc) ? 'schedule' : /exportQuality/.test(oc) ? 'quality' : /exportNhatKy/.test(oc) ? 'nhatky' : /exportBBXN|exportBanGiao|exportLetter/.test(oc) ? 'letters' : '';
+        if (k) markDone(k);
+        saveSoon();
+      }
+    }, true);
+    // thanh tab chức năng + thẻ ở Tổng quan
+    $('hsTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
+    $('hsOverview').addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
+    $('screenInfo').addEventListener('input', () => { clearTimeout(st.meterT); st.meterT = setTimeout(renderMeter, 150); });
     // công văn
     $('hsLetterList').addEventListener('click', (e) => {
       if (e.target.closest('[data-lclear]')) { lQuery = ''; lKind = ''; $('hsLetterQ').value = ''; document.querySelectorAll('#hsLetterKind [data-lkind]').forEach(x => x.classList.toggle('on', !x.dataset.lkind)); renderLetters(); return; }
@@ -668,7 +760,7 @@
     if (!q) { $('hsBar').hidden = true; showScreen('screenHome'); loadList(); st.booted = true; return; }
     if (q === 'new') {
       const d = readDraft('hs_draft_new');
-      if (d && d.data && confirm(`Có hồ sơ mới đang nhập dở trên máy này (${fmtTime(d.t)}). Mở tiếp?\n(Huỷ = bắt đầu hồ sơ trống.)`)) { restore(d.data); bar('Đã mở nháp trên máy — bấm Lưu để lưu hồ sơ', 'warn'); showScreen('screenChoose'); prefillCommon(); }
+      if (d && d.data && confirm(`Có hồ sơ mới đang nhập dở trên máy này (${fmtTime(d.t)}). Mở tiếp?\n(Huỷ = bắt đầu hồ sơ trống.)`)) { restore(d.data); bar('Đã mở nháp trên máy — bấm Lưu để lưu hồ sơ', 'warn'); prefillCommon(); showScreen('screenChoose'); }
       else { try { localStorage.removeItem('hs_draft_new'); } catch (e) { /* bỏ qua */ } bar('Hồ sơ mới — nhập hợp đồng hoặc bỏ qua để nhập tay', ''); showScreen('screenContract'); }
       st.lastJson = ''; st.booted = true; return;
     }
@@ -683,9 +775,9 @@
       if (!readOnly() && d && d.data && JSON.stringify(d.data) !== st.lastJson && confirm(`Trên máy này có thay đổi chưa lưu của hồ sơ “${p.name}” (${fmtTime(d.t)}).\nKhôi phục các thay đổi đó?`)) { restore(d.data); bar('Đã khôi phục thay đổi chưa lưu — bấm Lưu để lưu lên ' + (SERVER ? 'máy chủ' : 'danh sách'), 'warn'); }
       else { if (d) dropDraft(); bar('✓ Đã mở hồ sơ', 'ok'); }
       if (readOnly()) { dropDraft(); bar('👁 Chỉ xem — hồ sơ của ' + (p.createdBy || 'người khác') + '. Muốn sửa: liên hệ Admin để được cấp quyền. Vẫn xuất được tài liệu.', 'warn'); $('hsSave').disabled = true; $('hsSave').title = 'Bạn chưa có quyền sửa hồ sơ này'; }
-      prefillCommon();
+      prefillCommon(); renderOverview();
     } catch (e) { bar('⚠ ' + e.message, 'err'); showScreen('screenHome'); loadList(); }
     st.booted = true;
   }
-  window.HS = { boot, save, toList, enter, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, get _DW() { return DW; }, _DWS: DWS };
+  window.HS = { boot, save, toList, enter, go, onScreen, renderOverview, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, get _DW() { return DW; }, _DWS: DWS };
 })();
