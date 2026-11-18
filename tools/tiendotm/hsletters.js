@@ -66,6 +66,10 @@
   const signRow = (labels) => table([labels.map(l => ({ runs: [r(l.toUpperCase(), { b: true, sz: 11 }), r('\n(Ký và ghi rõ họ tên)\n\n\n\n', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }))],
     { widths: labels.map(() => Math.floor(9026 / labels.length)), border: false });
 
+  // bảng cuối văn bản: thay đoạn trống sau bảng bằng đoạn cao 1pt (Word bắt buộc có đoạn sau bảng) → không đẩy sang trang trống
+  const tail = (tbl) => { const e = p('', { after: 0 }); return tbl.endsWith(e) ? tbl.slice(0, -e.length) + '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>' : tbl; };
+  const RFA_TYPES = ['Bản vẽ thi công (Shop drawing)', 'Vật tư, thiết bị (Material / Equipment)', 'Biện pháp thi công (Method statement)', 'Tiến độ thi công (Schedule)', 'Mẫu hoàn thiện (Sample)', 'Tài liệu kỹ thuật (Catalogue)'];
+  const RFA_PURPOSE = ['Phê duyệt', 'Xem xét, cho ý kiến', 'Để thông tin'];
   const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thiện lỗ thông gió giếng thang\nHoàn thiện lan can an toàn trước cửa tầng\nCung cấp nguồn điện chính thức cho thang máy';
   const LETTERS = [
     {
@@ -228,6 +232,63 @@
         para('Bên nhận: ' + orDots(I.chuDauTu, 60)) + para('Họ và tên người nhận: ' + '.'.repeat(40) + '     Chức danh: ' + '.'.repeat(30)) +
         para('Gồm:') + list(lines(f.chiaKhoa)) + signRow(['Bên nhận', 'Bên giao']),
     },
+    {
+      // Phiếu đề xuất phê duyệt (RFA — Request For Approval): nhà thầu trình hồ sơ để TVGS / Chủ đầu tư xem xét, phê duyệt
+      id: 'rfa', kind: 'rfa', name: 'RFA — Phiếu đề xuất phê duyệt (Request For Approval)', subject: (ctx) => `Đề xuất phê duyệt ${(ctx.f.loai || 'hồ sơ').toLowerCase()}`,
+      fields: [
+        { k: 'loai', label: 'Loại hồ sơ trình', type: 'select', def: 'Bản vẽ thi công (Shop drawing)', options: RFA_TYPES },
+        { k: 'mucDich', label: 'Mục đích trình', type: 'select', def: 'Phê duyệt', options: RFA_PURPOSE },
+        { k: 'tieuDe', label: 'Nội dung trình (tiêu đề)', def: 'Bản vẽ thi công hệ thống thang máy', wide: true },
+        { k: 'lan', label: 'Lần trình / phiên bản', def: 'Lần 1 – Rev.00' },
+        { k: 'thayThe', label: 'Thay thế RFA số (nếu trình lại)', ph: 'để trống nếu trình lần đầu' },
+        { k: 'hanPH', label: 'Đề nghị phản hồi trước ngày', type: 'date' },
+        { k: 'guiDen', label: 'Gửi đến (để trống = Chủ đầu tư; TVGS)', ph: 'VD: Ban QLDA / Tư vấn giám sát' },
+        { k: 'taiLieu', label: 'Tài liệu đính kèm — mỗi dòng: số hiệu | tên tài liệu | phiên bản | số bản', type: 'textarea', rows: 6,
+          def: 'TM-01 | Bản vẽ mặt bằng hố thang | 00 | 03\nTM-02 | Bản vẽ mặt cắt giếng thang | 00 | 03\nTM-03 | Bản vẽ mặt trước và lỗ chờ cửa tầng | 00 | 03\nTM-04 | Thông số kỹ thuật thang máy | 00 | 03' },
+        { k: 'dienGiai', label: 'Diễn giải / nội dung đề xuất', type: 'textarea', rows: 4,
+          def: 'Nhà thầu trình hồ sơ nêu trên để Tư vấn giám sát / Chủ đầu tư xem xét, phê duyệt làm cơ sở triển khai thi công lắp đặt hệ thống thang máy theo Hợp đồng.' },
+        { k: 'canCu', label: 'Căn cứ (mỗi dòng 1 mục)', type: 'textarea', rows: 3,
+          def: 'Hợp đồng và các phụ lục hợp đồng\nHồ sơ thiết kế, bản vẽ kiến trúc của công trình\nTCVN 6395:2008 / TCVN 6396 (thang máy điện) và quy định hiện hành' },
+        { k: 'nguoiLap', label: 'Người lập (nhà thầu)', ph: 'Họ tên – chức danh' },
+      ],
+      body: ({ I, f }) => {
+        const box = (on) => r(on ? '☒ ' : '☐ ', { font: 'Segoe UI Symbol' });
+        const pick = (opts, val) => opts.map(o => [box(o === val), r(o + '    ')]).flat();
+        const otherType = f.loai && !RFA_TYPES.includes(f.loai);
+        const docs = lines(f.taiLieu).map((ln, i) => { const c = ln.split('|').map(x => x.trim()); return [{ t: String(i + 1), align: 'center' }, c[0] || '', c[1] || (c.length === 1 ? c[0] : ''), { t: c[2] || '', align: 'center' }, { t: c[3] || '', align: 'center' }]; })
+          .map(row => (row[2] === row[1] && row[1] ? [row[0], '', row[1], row[3], row[4]] : row));
+        const to = f.guiDen || [I.chuDauTu, I.tvgs || I.banQLDA].filter(Boolean).join('; ');
+        const info = table([
+          [{ t: 'Dự án / Project', b: true }, { t: orDots(I.congTrinh), span: 3 }],
+          [{ t: 'Hợp đồng số', b: true }, { t: `${orDots(I.soHD)}${I.ngayHD ? ' ngày ' + dmy(I.ngayHD) : ''}`, span: 3 }],
+          [{ t: 'Số RFA', b: true }, { runs: [r(f.so || '……', { b: true })] }, { t: 'Ngày trình', b: true }, dmy(f.ngay)],
+          [{ t: 'Lần trình', b: true }, f.lan || 'Lần 1 – Rev.00', { t: 'Hạn phản hồi', b: true }, f.hanPH ? dmy(f.hanPH) : '…/…/……'],
+          [{ t: 'Từ (Nhà thầu)', b: true }, { t: CTY(I), span: 3 }],
+          [{ t: 'Gửi đến', b: true }, { t: orDots(to), span: 3 }],
+          ...(f.thayThe ? [[{ t: 'Thay thế RFA', b: true }, { t: f.thayThe, span: 3 }]] : []),
+          [{ t: 'Mục đích trình', b: true }, { runs: pick(RFA_PURPOSE, f.mucDich || RFA_PURPOSE[0]), span: 3 }],
+        ], { widths: [2000, 2700, 1700, 2626] });
+        const resp = table([
+          [{ t: 'PHẦN DÀNH CHO TƯ VẤN GIÁM SÁT / CHỦ ĐẦU TƯ (FOR CONSULTANT / OWNER USE)', b: true, span: 2, fill: 'D9E2F3', align: 'center' }],
+          [{ runs: [box(false), r('A – Phê duyệt', { b: true }), r(' (Approved)', { i: true })] }, { runs: [box(false), r('B – Phê duyệt, sửa theo ý kiến', { b: true }), r(' (Approved with comments)', { i: true })] }],
+          [{ runs: [box(false), r('C – Không phê duyệt, sửa và trình lại', { b: true }), r(' (Revise & resubmit)', { i: true })] }, { runs: [box(false), r('D – Từ chối', { b: true }), r(' (Rejected)', { i: true })] }],
+          [{ runs: [r('Ý kiến / Comments:', { b: true }), r('\n' + '…'.repeat(40) + '\n' + '…'.repeat(40), { sz: 11 })], span: 2 }],
+          [{ runs: [r('TƯ VẤN GIÁM SÁT', { b: true }), r('\n(Ký, ghi rõ họ tên)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' },
+            { runs: [r('CHỦ ĐẦU TƯ', { b: true }), r('\n(Ký, ghi rõ họ tên, đóng dấu)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }],
+        ], { widths: [4513, 4513] });
+        return p(r('PHIẾU ĐỀ XUẤT PHÊ DUYỆT', { b: true, sz: 15 }), { align: 'center', after: 0 }) +
+          p(r('REQUEST FOR APPROVAL (RFA)', { b: true, i: true, sz: 11 }), { align: 'center', after: 6 }) + info +
+          head2('1. Loại hồ sơ trình') + p(otherType ? [box(true), r(f.loai)] : pick(RFA_TYPES, f.loai || RFA_TYPES[0]), { align: 'left' }) +
+          head2('2. Nội dung đề xuất') + p([r('Nội dung trình: ', { b: true }), r(orDots(f.tieuDe || 'Bản vẽ thi công hệ thống thang máy'))]) + para(f.dienGiai || '…'.repeat(90)) +
+          head2('3. Tài liệu đính kèm') +
+          table([['STT', 'Số hiệu', 'Tên tài liệu', 'Phiên bản', 'Số bản'], ...(docs.length ? docs : [[{ t: '1', align: 'center' }, '', '', '', '']])], { widths: [650, 1600, 4476, 1200, 1100], header: 1 }) +
+          (lines(f.canCu).length ? p([r('4. Căn cứ: ', { b: true }), r(lines(f.canCu).join('; ') + '.')], { align: 'both', before: 4 }) : '') +
+          table([[
+            { runs: [r('Người lập', { b: true, sz: 11 }), r('\n(Ký, ghi rõ họ tên)\n\n' + (f.nguoiLap || ''), { i: true, sz: 10 })], align: 'center', vAlign: 'top' },
+            { runs: [r('ĐẠI DIỆN NHÀ THẦU', { b: true, sz: 11 }), r('\n' + (f.chucVuKy || I.chucVuKy || 'Quản lý dự án'), { b: true, sz: 11 }), r('\n\n' + (f.nguoiKy || I.nguoiKy || ''), { b: true })], align: 'center', vAlign: 'top' },
+          ]], { widths: [4513, 4513], border: false }) + tail(resp);
+      },
+    },
   ];
   // các văn bản đã có sẵn trong công cụ (dữ liệu ở phần Tiến độ & nghiệm thu) — chỉ để liệt kê / gọi
   const EXISTING = [
@@ -240,7 +301,7 @@
     await K.letterheadDocx(zip, xml);
     return zip;
   }
-  const fileName = (def, I, f) => `${def.kind === 'bb' ? 'BB' : 'CV'} - ${def.name.replace(/[\\/:*?"<>|]/g, '')}${I.congTrinh ? ' - ' + String(I.congTrinh).replace(/[\\/:*?"<>|]/g, '').slice(0, 50) : ''}.docx`;
+  const fileName = (def, I, f) => `${def.kind === 'bb' ? 'BB' : def.kind === 'rfa' ? 'RFA' + (f && f.so ? ' ' + String(f.so).replace(/[\\/:*?"<>|]/g, '-') : '') : 'CV'} - ${def.kind === 'rfa' ? 'De xuat phe duyet' : def.name.replace(/[\\/:*?"<>|]/g, '')}${I.congTrinh ? ' - ' + String(I.congTrinh).replace(/[\\/:*?"<>|]/g, '').slice(0, 50) : ''}.docx`;
   const api = { LETTERS, EXISTING, build, fileName, header, closing };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HsLetters = api;
 })(typeof window !== 'undefined' ? window : globalThis);

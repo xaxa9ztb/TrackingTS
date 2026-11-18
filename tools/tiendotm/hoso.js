@@ -293,9 +293,10 @@
   const letterTpl = async () => tplBuf || (tplBuf = await fetch('thu_hangve_template.docx', { cache: 'force-cache' }).then(r => { if (!r.ok) throw new Error('Không tải được khuôn công văn'); return r.arrayBuffer(); }));
   function renderLetters() {
     const box = $('hsLetterList');
-    const item = (d) => { const done = LT[d.id] && LT[d.id]._last; return `<button class="hs-li${curLetter === d.id ? ' on' : ''}" data-letter="${d.id}"><span class="hs-k">${d.kind === 'bb' ? 'BB' : 'CV'}</span><span class="hs-n">${esc(d.name)}</span>${done ? `<span class="hs-done" title="Đã xuất lúc ${esc(fmtTime(done))}">✓</span>` : ''}</button>`; };
+    const item = (d) => { const done = LT[d.id] && LT[d.id]._last; return `<button class="hs-li${curLetter === d.id ? ' on' : ''}" data-letter="${d.id}"><span class="hs-k">${d.kind === 'bb' ? 'BB' : d.kind === 'rfa' ? 'RFA' : 'CV'}</span><span class="hs-n">${esc(d.name)}</span>${done ? `<span class="hs-done" title="Đã xuất lúc ${esc(fmtTime(done))}">✓</span>` : ''}</button>`; };
     box.innerHTML = `<div class="hs-grp">Công văn gửi Chủ đầu tư / các bên</div><button class="hs-li" data-jump="hsTxPanel"><span class="hs-k">CV</span><span class="hs-n">Thư xác nhận hàng về (cùng mẫu ở Tiến độ)</span><span class="hs-mini">↓</span></button>${HsLetters.LETTERS.filter(d => d.kind === 'letter').map(item).join('')}
-      <div class="hs-grp">Biên bản</div>${HsLetters.LETTERS.filter(d => d.kind === 'bb').map(item).join('')}`;
+      <div class="hs-grp">Biên bản</div>${HsLetters.LETTERS.filter(d => d.kind === 'bb').map(item).join('')}
+      <div class="hs-grp">Hồ sơ trình duyệt</div>${HsLetters.LETTERS.filter(d => d.kind === 'rfa').map(item).join('')}`;
     renderLetterForm();
   }
   function renderLetterForm() {
@@ -306,14 +307,15 @@
     const fld = (k, label, type, o = {}) => {
       const val = v[k] != null ? v[k] : (o.def || '');
       const inp = type === 'textarea' ? `<textarea data-lk="${k}" rows="${o.rows || 4}" placeholder="${esc(o.ph || '')}">${esc(val)}</textarea>`
+        : type === 'select' ? `<input data-lk="${k}" type="text" list="dl_${k}" value="${esc(val)}" placeholder="${esc(o.ph || 'chọn hoặc gõ')}"><datalist id="dl_${k}">${(o.options || []).map(x => `<option value="${esc(x)}">`).join('')}</datalist>`
         : `<input data-lk="${k}" type="${type === 'date' ? 'date' : 'text'}" value="${esc(val)}" placeholder="${esc(o.ph || '')}">`;
       return `<div class="f${type === 'textarea' || o.wide ? ' hs-wide' : ''}"><label>${esc(label)}</label>${inp}</div>`;
     };
     host.innerHTML = `<h3 class="hs-h3">${esc(d.name)}</h3>
-      <div class="grid g2">${fld('so', d.kind === 'bb' ? 'Số biên bản' : 'Số công văn', 'text', { ph: 'VD: 125/2026/SCH-HN' })}${fld('ngay', 'Ngày lập', 'date', { def: todayISO() })}
+      <div class="grid g2">${fld('so', d.kind === 'bb' ? 'Số biên bản' : d.kind === 'rfa' ? 'Số RFA' : 'Số công văn', 'text', { ph: d.kind === 'rfa' ? 'VD: RFA-SCH-001' : 'VD: 125/2026/SCH-HN' })}${fld('ngay', 'Ngày lập', 'date', { def: todayISO() })}
       ${(d.fields || []).map(x => fld(x.k, x.label, x.type || 'text', x)).join('')}
       ${d.kind === 'letter' ? fld('kinhGui', 'Kính gửi (để trống = Chủ đầu tư)', 'text', { ph: gv('hs_cdt') }) + fld('dongKinhGui', 'Đồng kính gửi (để trống = Ban QLDA; TVGS)', 'text', { ph: [gv('hs_qlda'), gv('hs_tvgs')].filter(Boolean).join('; ') }) : ''}</div>
-      <div class="row" style="gap:10px;margin-top:12px"><button class="btn pri" id="hsLetterGo">⬇ Xuất ${d.kind === 'bb' ? 'biên bản' : 'công văn'} (.docx)</button><span id="hsLetterSt" class="hs-mini"></span></div>`;
+      <div class="row" style="gap:10px;margin-top:12px"><button class="btn pri" id="hsLetterGo">⬇ Xuất ${d.kind === 'bb' ? 'biên bản' : d.kind === 'rfa' ? 'phiếu RFA' : 'công văn'} (.docx)</button><span id="hsLetterSt" class="hs-mini"></span></div>`;
     (d.fields || []).forEach(x => { if (v[x.k] == null && x.def) v[x.k] = x.def; });
     if (v.ngay == null) v.ngay = todayISO();
   }
