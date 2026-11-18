@@ -68,8 +68,55 @@
 
   // bảng cuối văn bản: thay đoạn trống sau bảng bằng đoạn cao 1pt (Word bắt buộc có đoạn sau bảng) → không đẩy sang trang trống
   const tail = (tbl) => { const e = p('', { after: 0 }); return tbl.endsWith(e) ? tbl.slice(0, -e.length) + '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>' : tbl; };
+  // người duyệt: chỉ Chủ đầu tư (không phải dự án nào cũng có TVGS) hoặc TVGS + Chủ đầu tư; để trống → có TVGS trong thông tin dự án thì duyệt 2 bên
+  const APPROVERS = ['Chủ đầu tư', 'Tư vấn giám sát + Chủ đầu tư'];
+  const withTvgs = (I, f) => (f.duyet ? /tư vấn|tvgs/i.test(f.duyet) : !!(I.tvgs));
+  const sendTo = (I, f) => f.guiDen || (withTvgs(I, f) ? [I.chuDauTu, I.tvgs || I.banQLDA] : [I.chuDauTu]).filter(Boolean).join('; ');
+  const ownerBox = (I, f) => withTvgs(I, f) ? { head: 'TƯ VẤN GIÁM SÁT / CHỦ ĐẦU TƯ (FOR CONSULTANT / OWNER USE)', who: 'Tư vấn giám sát / Chủ đầu tư' } : { head: 'CHỦ ĐẦU TƯ (FOR OWNER USE)', who: 'Chủ đầu tư' };
+  // hàng ký của bên duyệt: 1 cột (chỉ CĐT) hoặc 2 cột (TVGS + CĐT)
+  const reviewSigns = (I, f) => withTvgs(I, f)
+    ? [{ runs: [r('TƯ VẤN GIÁM SÁT', { b: true }), r('\n(Ký, ghi rõ họ tên)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' },
+      { runs: [r('CHỦ ĐẦU TƯ', { b: true }), r('\n(Ký, ghi rõ họ tên, đóng dấu)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }]
+    : [{ runs: [r('CHỦ ĐẦU TƯ', { b: true }), r('\n(Ký, ghi rõ họ tên, đóng dấu)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top', span: 2 }];
+  const APPROVER_FIELD = { k: 'duyet', label: 'Bên duyệt / trả lời', type: 'select', options: APPROVERS, ph: 'để trống: có TVGS trong thông tin dự án → TVGS + CĐT, không có → chỉ CĐT' };
+  const ckbox = (on) => r(on ? '☒ ' : '☐ ', { font: 'Segoe UI Symbol' });
+  const pickBox = (opts, val) => opts.map(o => [ckbox(o === val), r(o + '    ')]).flat();
+  // ---- tiền: đọc số tiền bằng chữ (tiếng Việt), định dạng 1.234.567, đọc số nhập kiểu 1.250.000 / 1,250,000 / 2,5
+  const DIG = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  function read3(n, full) {
+    const h = Math.floor(n / 100), t = Math.floor(n / 10) % 10, u = n % 10, out = [];
+    if (full || h) out.push(DIG[h] + ' trăm');
+    if (t === 0) { if (u && (full || h)) out.push('linh'); }
+    else if (t === 1) out.push('mười'); else out.push(DIG[t] + ' mươi');
+    if (u) out.push(u === 1 && t >= 2 ? 'mốt' : u === 5 && t >= 1 ? 'lăm' : u === 4 && t >= 2 ? 'tư' : DIG[u]);
+    return out.join(' ');
+  }
+  function docSo(x) {
+    let n = Math.round(Math.abs(Number(x) || 0));
+    if (!n) return 'Không đồng';
+    const units = ['', ' nghìn', ' triệu', ' tỷ', ' nghìn tỷ', ' triệu tỷ'], parts = [];
+    let i = 0;
+    while (n > 0) { parts.unshift([n % 1000, i]); n = Math.floor(n / 1000); i++; }
+    const words = parts.map(([g, k], j) => (g ? read3(g, j > 0) + units[k] : '')).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    return (Number(x) < 0 ? 'Âm ' : '') + words.charAt(0).toUpperCase() + words.slice(1) + ' đồng';
+  }
+  const money = (n) => Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const numIn = (v, dec) => {   // dec: cho phép số lẻ (số lượng): '2,5' → 2.5 ; tiền: bỏ mọi dấu phân cách
+    let t = String(v == null ? '' : v).trim().replace(/\s|đ|vnđ|vnd/gi, '');
+    if (!t) return 0;
+    if (dec) { if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, ''); t = t.replace(',', '.'); return Number(t) || 0; }
+    return Number(t.replace(/[.,]/g, '')) || 0;
+  };
+  // báo giá: dòng "nội dung | ĐVT | số lượng | đơn giá" → { rows, sub, vat, total }
+  function quoteCalc(text, vatPct) {
+    const rows = lines(text).map(ln => { const c = ln.split('|').map(x => x.trim()); const q = numIn(c[2], true), u = numIn(c[3]); return { ten: c[0] || '', dvt: c[1] || '', q, u, tt: Math.round(q * u) }; });
+    const sub = rows.reduce((a, x) => a + x.tt, 0), pct = numIn(vatPct, true), vat = Math.round(sub * pct / 100);
+    return { rows, sub, pct, vat, total: sub + vat };
+  }
   const RFA_TYPES = ['Bản vẽ thi công (Shop drawing)', 'Vật tư, thiết bị (Material / Equipment)', 'Biện pháp thi công (Method statement)', 'Tiến độ thi công (Schedule)', 'Mẫu hoàn thiện (Sample)', 'Tài liệu kỹ thuật (Catalogue)'];
   const RFA_PURPOSE = ['Phê duyệt', 'Xem xét, cho ý kiến', 'Để thông tin'];
+  const RFI_IMPACT = ['Không ảnh hưởng', 'Ảnh hưởng tiến độ', 'Ảnh hưởng chi phí', 'Ảnh hưởng tiến độ và chi phí'];
+  const VO_REASONS = ['Theo yêu cầu của Chủ đầu tư', 'Do thay đổi thiết kế', 'Do điều kiện thực tế công trường', 'Phát sinh ngoài phạm vi Hợp đồng'];
   const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thiện lỗ thông gió giếng thang\nHoàn thiện lan can an toàn trước cửa tầng\nCung cấp nguồn điện chính thức cho thang máy';
   const LETTERS = [
     {
@@ -242,11 +289,11 @@
         { k: 'lan', label: 'Lần trình / phiên bản', def: 'Lần 1 – Rev.00' },
         { k: 'thayThe', label: 'Thay thế RFA số (nếu trình lại)', ph: 'để trống nếu trình lần đầu' },
         { k: 'hanPH', label: 'Đề nghị phản hồi trước ngày', type: 'date' },
-        { k: 'guiDen', label: 'Gửi đến (để trống = Chủ đầu tư; TVGS)', ph: 'VD: Ban QLDA / Tư vấn giám sát' },
+        APPROVER_FIELD,
+        { k: 'guiDen', label: 'Gửi đến (để trống = theo bên duyệt)', ph: 'VD: Ban QLDA / Tư vấn giám sát' },
         { k: 'taiLieu', label: 'Tài liệu đính kèm — mỗi dòng: số hiệu | tên tài liệu | phiên bản | số bản', type: 'textarea', rows: 6,
           def: 'TM-01 | Bản vẽ mặt bằng hố thang | 00 | 03\nTM-02 | Bản vẽ mặt cắt giếng thang | 00 | 03\nTM-03 | Bản vẽ mặt trước và lỗ chờ cửa tầng | 00 | 03\nTM-04 | Thông số kỹ thuật thang máy | 00 | 03' },
-        { k: 'dienGiai', label: 'Diễn giải / nội dung đề xuất', type: 'textarea', rows: 4,
-          def: 'Nhà thầu trình hồ sơ nêu trên để Tư vấn giám sát / Chủ đầu tư xem xét, phê duyệt làm cơ sở triển khai thi công lắp đặt hệ thống thang máy theo Hợp đồng.' },
+        { k: 'dienGiai', label: 'Diễn giải / nội dung đề xuất (để trống = câu mặc định theo bên duyệt)', type: 'textarea', rows: 4 },
         { k: 'canCu', label: 'Căn cứ (mỗi dòng 1 mục)', type: 'textarea', rows: 3,
           def: 'Hợp đồng và các phụ lục hợp đồng\nHồ sơ thiết kế, bản vẽ kiến trúc của công trình\nTCVN 6395:2008 / TCVN 6396 (thang máy điện) và quy định hiện hành' },
         { k: 'nguoiLap', label: 'Người lập (nhà thầu)', ph: 'Họ tên – chức danh' },
@@ -257,7 +304,7 @@
         const otherType = f.loai && !RFA_TYPES.includes(f.loai);
         const docs = lines(f.taiLieu).map((ln, i) => { const c = ln.split('|').map(x => x.trim()); return [{ t: String(i + 1), align: 'center' }, c[0] || '', c[1] || (c.length === 1 ? c[0] : ''), { t: c[2] || '', align: 'center' }, { t: c[3] || '', align: 'center' }]; })
           .map(row => (row[2] === row[1] && row[1] ? [row[0], '', row[1], row[3], row[4]] : row));
-        const to = f.guiDen || [I.chuDauTu, I.tvgs || I.banQLDA].filter(Boolean).join('; ');
+        const to = sendTo(I, f), ob = ownerBox(I, f);
         const info = table([
           [{ t: 'Dự án / Project', b: true }, { t: orDots(I.congTrinh), span: 3 }],
           [{ t: 'Hợp đồng số', b: true }, { t: `${orDots(I.soHD)}${I.ngayHD ? ' ngày ' + dmy(I.ngayHD) : ''}`, span: 3 }],
@@ -269,17 +316,16 @@
           [{ t: 'Mục đích trình', b: true }, { runs: pick(RFA_PURPOSE, f.mucDich || RFA_PURPOSE[0]), span: 3 }],
         ], { widths: [2000, 2700, 1700, 2626] });
         const resp = table([
-          [{ t: 'PHẦN DÀNH CHO TƯ VẤN GIÁM SÁT / CHỦ ĐẦU TƯ (FOR CONSULTANT / OWNER USE)', b: true, span: 2, fill: 'D9E2F3', align: 'center' }],
-          [{ runs: [box(false), r('A – Phê duyệt', { b: true }), r(' (Approved)', { i: true })] }, { runs: [box(false), r('B – Phê duyệt, sửa theo ý kiến', { b: true }), r(' (Approved with comments)', { i: true })] }],
-          [{ runs: [box(false), r('C – Không phê duyệt, sửa và trình lại', { b: true }), r(' (Revise & resubmit)', { i: true })] }, { runs: [box(false), r('D – Từ chối', { b: true }), r(' (Rejected)', { i: true })] }],
+          [{ t: 'PHẦN DÀNH CHO ' + ob.head, b: true, span: 2, fill: 'D9E2F3', align: 'center' }],
+          [{ runs: [box(false), r('A – Phê duyệt', { b: true }), r(' (Approved)', { i: true })] }, { runs: [box(false), r('B – Duyệt theo ý kiến', { b: true }), r(' (Approved as noted)', { i: true })] }],
+          [{ runs: [box(false), r('C – Sửa và trình lại', { b: true }), r(' (Revise & resubmit)', { i: true })] }, { runs: [box(false), r('D – Từ chối', { b: true }), r(' (Rejected)', { i: true })] }],
           [{ runs: [r('Ý kiến / Comments:', { b: true }), r('\n' + '…'.repeat(40) + '\n' + '…'.repeat(40), { sz: 11 })], span: 2 }],
-          [{ runs: [r('TƯ VẤN GIÁM SÁT', { b: true }), r('\n(Ký, ghi rõ họ tên)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' },
-            { runs: [r('CHỦ ĐẦU TƯ', { b: true }), r('\n(Ký, ghi rõ họ tên, đóng dấu)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }],
+          reviewSigns(I, f),
         ], { widths: [4513, 4513] });
         return p(r('PHIẾU ĐỀ XUẤT PHÊ DUYỆT', { b: true, sz: 15 }), { align: 'center', after: 0 }) +
           p(r('REQUEST FOR APPROVAL (RFA)', { b: true, i: true, sz: 11 }), { align: 'center', after: 6 }) + info +
           head2('1. Loại hồ sơ trình') + p(otherType ? [box(true), r(f.loai)] : pick(RFA_TYPES, f.loai || RFA_TYPES[0]), { align: 'left' }) +
-          head2('2. Nội dung đề xuất') + p([r('Nội dung trình: ', { b: true }), r(orDots(f.tieuDe || 'Bản vẽ thi công hệ thống thang máy'))]) + para(f.dienGiai || '…'.repeat(90)) +
+          head2('2. Nội dung đề xuất') + p([r('Nội dung trình: ', { b: true }), r(orDots(f.tieuDe || 'Bản vẽ thi công hệ thống thang máy'))]) + para(f.dienGiai || `Nhà thầu trình hồ sơ nêu trên để ${ob.who} xem xét, phê duyệt làm cơ sở triển khai thi công lắp đặt hệ thống thang máy theo Hợp đồng.`) +
           head2('3. Tài liệu đính kèm') +
           table([['STT', 'Số hiệu', 'Tên tài liệu', 'Phiên bản', 'Số bản'], ...(docs.length ? docs : [[{ t: '1', align: 'center' }, '', '', '', '']])], { widths: [650, 1600, 4476, 1200, 1100], header: 1 }) +
           (lines(f.canCu).length ? p([r('4. Căn cứ: ', { b: true }), r(lines(f.canCu).join('; ') + '.')], { align: 'both', before: 4 }) : '') +
@@ -287,6 +333,82 @@
             { runs: [r('Người lập', { b: true, sz: 11 }), r('\n(Ký, ghi rõ họ tên)\n\n' + (f.nguoiLap || ''), { i: true, sz: 10 })], align: 'center', vAlign: 'top' },
             { runs: [r('ĐẠI DIỆN NHÀ THẦU', { b: true, sz: 11 }), r('\n' + (f.chucVuKy || I.chucVuKy || 'Quản lý dự án'), { b: true, sz: 11 }), r('\n\n' + (f.nguoiKy || I.nguoiKy || ''), { b: true })], align: 'center', vAlign: 'top' },
           ]], { widths: [4513, 4513], border: false }) + tail(resp);
+      },
+    },
+    {
+      // Phiếu yêu cầu cung cấp thông tin / làm rõ (RFI — Request For Information)
+      id: 'rfi', kind: 'rfa', file: 'Yeu cau cung cap thong tin', name: 'RFI — Phiếu yêu cầu cung cấp thông tin (Request For Information)', subject: (ctx) => `Yêu cầu cung cấp thông tin – ${ctx.f.hangMuc || 'hệ thống thang máy'}`,
+      fields: [
+        { k: 'hangMuc', label: 'Hạng mục / khu vực', def: 'Hệ thống thang máy' },
+        { k: 'thamChieu', label: 'Bản vẽ / tài liệu tham chiếu', ph: 'VD: Bản vẽ kiến trúc KT-05, mặt cắt giếng thang' },
+        { k: 'hanTL', label: 'Đề nghị trả lời trước ngày', type: 'date' },
+        APPROVER_FIELD,
+        { k: 'guiDen', label: 'Gửi đến (để trống = theo bên trả lời)' },
+        { k: 'cauHoi', label: 'Nội dung cần làm rõ (mỗi dòng 1 câu hỏi)', type: 'textarea', rows: 5,
+          def: 'Đề nghị xác nhận cao độ hoàn thiện sàn (FFL) tại các tầng để lắp đặt cửa tầng thang máy\nĐề nghị cung cấp vị trí và công suất nguồn điện cấp cho phòng máy / tủ điều khiển' },
+        { k: 'deXuat', label: 'Đề xuất của nhà thầu (nếu có)', type: 'textarea', rows: 3 },
+        { k: 'anhHuong', label: 'Ảnh hưởng nếu chưa có trả lời', type: 'select', def: 'Ảnh hưởng tiến độ', options: RFI_IMPACT },
+        { k: 'dinhKem', label: 'Tài liệu đính kèm (mỗi dòng 1 mục)', type: 'textarea', rows: 2 },
+        { k: 'nguoiLap', label: 'Người lập (nhà thầu)', ph: 'Họ tên – chức danh' },
+      ],
+      body: ({ I, f }) => {
+        const ob = ownerBox(I, f), qs = lines(f.cauHoi), att = lines(f.dinhKem);
+        const info = table([
+          [{ t: 'Dự án / Project', b: true }, { t: orDots(I.congTrinh), span: 3 }],
+          [{ t: 'Hợp đồng số', b: true }, { t: `${orDots(I.soHD)}${I.ngayHD ? ' ngày ' + dmy(I.ngayHD) : ''}`, span: 3 }],
+          [{ t: 'Số RFI', b: true }, { runs: [r(f.so || '……', { b: true })] }, { t: 'Ngày gửi', b: true }, dmy(f.ngay)],
+          [{ t: 'Hạng mục', b: true }, f.hangMuc || 'Hệ thống thang máy', { t: 'Hạn trả lời', b: true }, f.hanTL ? dmy(f.hanTL) : '…/…/……'],
+          [{ t: 'Từ (Nhà thầu)', b: true }, { t: CTY(I), span: 3 }],
+          [{ t: 'Gửi đến', b: true }, { t: orDots(sendTo(I, f)), span: 3 }],
+          [{ t: 'Tham chiếu', b: true }, { t: f.thamChieu || '—', span: 3 }],
+        ], { widths: [2000, 2700, 1700, 2626] });
+        const resp = table([
+          [{ t: 'PHẦN TRẢ LỜI CỦA ' + ob.head.replace(' (FOR CONSULTANT / OWNER USE)', ' (RESPONSE)').replace(' (FOR OWNER USE)', ' (RESPONSE)'), b: true, span: 2, fill: 'D9E2F3', align: 'center' }],
+          [{ runs: [r('Nội dung trả lời / Response:', { b: true }), r('\n' + Array.from({ length: 4 }, () => '…'.repeat(40)).join('\n'), { sz: 11 })], span: 2 }],
+          reviewSigns(I, f),
+        ], { widths: [4513, 4513] });
+        return p(r('PHIẾU YÊU CẦU CUNG CẤP THÔNG TIN', { b: true, sz: 15 }), { align: 'center', after: 0 }) +
+          p(r('REQUEST FOR INFORMATION (RFI)', { b: true, i: true, sz: 11 }), { align: 'center', after: 6 }) + info +
+          head2('1. Nội dung cần làm rõ') + (qs.length ? list(qs, '1') : para('…'.repeat(90))) +
+          (lines(f.deXuat).length ? head2('2. Đề xuất của nhà thầu') + para(lines(f.deXuat).join(' ')) : '') +
+          head2((lines(f.deXuat).length ? '3' : '2') + '. Ảnh hưởng nếu chưa có trả lời') + p(pickBox(RFI_IMPACT, f.anhHuong || RFI_IMPACT[1])) +
+          (att.length ? p([r('Tài liệu đính kèm: ', { b: true }), r(att.join('; ') + '.')], { before: 4 }) : '') +
+          table([[
+            { runs: [r('Người lập', { b: true, sz: 11 }), r('\n(Ký, ghi rõ họ tên)\n\n' + (f.nguoiLap || ''), { i: true, sz: 10 })], align: 'center', vAlign: 'top' },
+            { runs: [r('ĐẠI DIỆN NHÀ THẦU', { b: true, sz: 11 }), r('\n' + (f.chucVuKy || I.chucVuKy || 'Quản lý dự án'), { b: true, sz: 11 }), r('\n\n' + (f.nguoiKy || I.nguoiKy || ''), { b: true })], align: 'center', vAlign: 'top' },
+          ]], { widths: [4513, 4513], border: false }) + tail(resp);
+      },
+    },
+    {
+      // Công văn báo giá công việc phát sinh: bảng hạng mục tự tính thành tiền, VAT, tổng cộng, số tiền bằng chữ
+      id: 'bao_gia_ps', kind: 'letter', name: 'Báo giá công việc phát sinh', subject: (ctx) => `Báo giá công việc phát sinh${ctx.f.tieuDe ? ' – ' + ctx.f.tieuDe : ''}`,
+      fields: [
+        { k: 'tieuDe', label: 'Tên công việc phát sinh (ngắn)', def: 'Bổ sung hạng mục thang máy', wide: true },
+        { k: 'lyDo', label: 'Lý do phát sinh', type: 'select', def: 'Theo yêu cầu của Chủ đầu tư', options: VO_REASONS },
+        { k: 'canCuYC', label: 'Căn cứ (văn bản yêu cầu / biên bản hiện trường)', ph: 'VD: Công văn số 15/CV-CĐT ngày 10/11/2026' },
+        { k: 'hangMucBG', label: 'Hạng mục báo giá — mỗi dòng: nội dung | ĐVT | số lượng | đơn giá (VNĐ)', type: 'textarea', rows: 5,
+          def: 'Bổ sung cửa tầng thang máy (tầng tum) | bộ | 1 | 45.000.000\nNhân công lắp đặt, căn chỉnh bổ sung | gói | 1 | 8.000.000' },
+        { k: 'vat', label: 'Thuế GTGT (%)', def: '8' },
+        { k: 'thoiGian', label: 'Thời gian thực hiện', def: '…… ngày kể từ khi được chấp thuận' },
+        { k: 'hieuLuc', label: 'Hiệu lực báo giá', def: '30 ngày' },
+        { k: 'thanhToan', label: 'Điều kiện thanh toán', def: '100% giá trị phát sinh sau khi hoàn thành và nghiệm thu công việc' },
+        { k: 'ghiChu', label: 'Ghi chú (mỗi dòng 1 mục)', type: 'textarea', rows: 3, def: 'Đơn giá đã bao gồm vật tư, vận chuyển đến công trình và nhân công lắp đặt\nChưa bao gồm các công việc xây dựng, điện ngoài phạm vi thang máy' },
+      ],
+      body: ({ I, f }) => {
+        const q = quoteCalc(f.hangMucBG, f.vat == null || f.vat === '' ? '0' : f.vat);
+        const rows = (q.rows.length ? q.rows : [{ ten: '', dvt: '', q: 0, u: 0, tt: 0 }]).map((x, i) => [{ t: String(i + 1), align: 'center' }, x.ten, { t: x.dvt, align: 'center' },
+          { t: x.q ? String(x.q).replace('.', ',') : '', align: 'center' }, { t: x.u ? money(x.u) : '', align: 'right' }, { t: x.tt ? money(x.tt) : '', align: 'right' }]);
+        const sum = (label, v, b) => [{ t: label, span: 5, align: 'right', b: !!b }, { runs: [r(money(v), { b: !!b })], align: 'right' }];
+        return letter((ctx) => `Báo giá công việc phát sinh${ctx.f.tieuDe ? ' – ' + ctx.f.tieuDe : ''}`, () =>
+          para(`${f.canCuYC ? 'Căn cứ ' + f.canCuYC + ', ' : ''}${f.lyDo ? (f.lyDo.charAt(0).toLowerCase() + f.lyDo.slice(1)) + ', ' : ''}chúng tôi trân trọng gửi đến Quý Công ty báo giá các công việc phát sinh ngoài phạm vi Hợp đồng như sau:`.replace(/^./, c => c.toUpperCase())) +
+          table([['STT', 'Nội dung công việc', 'ĐVT', 'SL', 'Đơn giá (VNĐ)', 'Thành tiền (VNĐ)'], ...rows,
+            sum('Cộng (chưa thuế GTGT)', q.sub), sum(`Thuế GTGT ${String(q.pct).replace('.', ',')}%`, q.vat), sum('TỔNG CỘNG', q.total, true)],
+            { widths: [650, 4050, 700, 750, 1400, 1476], header: 1 }) +
+          p([r('Bằng chữ: ', { b: true }), r(docSo(q.total) + '.', { i: true })], { before: 2 }) +
+          head2('Điều kiện báo giá') + list([`Thời gian thực hiện: ${f.thoiGian || '……'}. Hiệu lực báo giá: ${f.hieuLuc || '……'}.`, `Điều kiện thanh toán: ${f.thanhToan || '……'}.`, ...lines(f.ghiChu)]) +
+          closing(I, f, { thanks: 'Kính đề nghị Quý Công ty xem xét, ký xác nhận chấp thuận để chúng tôi triển khai. Giá trị phát sinh sẽ được ký phụ lục và thanh toán theo Hợp đồng.' }) +
+          tail(table([[{ runs: [r('XÁC NHẬN CỦA CHỦ ĐẦU TƯ', { b: true }), r('\n'), ckbox(false), r('Đồng ý     '), ckbox(false), r('Không đồng ý\n'), ckbox(false), r('Đồng ý có điều chỉnh: ……………')], vAlign: 'top' },
+            { runs: [r('Đại diện Chủ đầu tư', { b: true }), r('\n(Ký, ghi rõ họ tên, đóng dấu)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }]], { widths: [4513, 4513] })))({ I, f });
       },
     },
   ];
@@ -301,7 +423,7 @@
     await K.letterheadDocx(zip, xml);
     return zip;
   }
-  const fileName = (def, I, f) => `${def.kind === 'bb' ? 'BB' : def.kind === 'rfa' ? 'RFA' + (f && f.so ? ' ' + String(f.so).replace(/[\\/:*?"<>|]/g, '-') : '') : 'CV'} - ${def.kind === 'rfa' ? 'De xuat phe duyet' : def.name.replace(/[\\/:*?"<>|]/g, '')}${I.congTrinh ? ' - ' + String(I.congTrinh).replace(/[\\/:*?"<>|]/g, '').slice(0, 50) : ''}.docx`;
-  const api = { LETTERS, EXISTING, build, fileName, header, closing };
+  const fileName = (def, I, f) => `${def.kind === 'bb' ? 'BB' : def.kind === 'rfa' ? def.id.toUpperCase() + (f && f.so ? ' ' + String(f.so).replace(/[\\/:*?"<>|]/g, '-') : '') : 'CV'} - ${def.kind === 'rfa' ? (def.file || 'De xuat phe duyet') : def.name.replace(/[\\/:*?"<>|]/g, '')}${I.congTrinh ? ' - ' + String(I.congTrinh).replace(/[\\/:*?"<>|]/g, '').slice(0, 50) : ''}.docx`;
+  const api = { LETTERS, EXISTING, build, fileName, header, closing, docSo, quoteCalc, money };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HsLetters = api;
 })(typeof window !== 'undefined' ? window : globalThis);
