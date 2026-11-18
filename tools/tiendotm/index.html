@@ -1306,8 +1306,7 @@ function fmtDow(d){return DOW_T[d.getUTCDay()]+" "+fmt(d,true);}
 function barAt(r,x,mode,H){
   if(r.ph==="M")return (r.s>=x.s&&r.s<=x.e)?"ms":"";
   if(r.e<x.s||r.s>x.e)return "";
-  for(let d=new Date(Math.max(r.s.getTime(),x.s.getTime()));d<=r.e&&d<=x.e;d=nextDay(d))if(isWork(d,H,mode))return "bar";
-  return "";
+  return "bar"; // tô liền mạch cả tuần nghỉ (Tết, lễ dài) nằm giữa thanh tiến độ
 }
 // nội dung hiển thị theo cách tính (ngày lịch chỉ loại trừ ngày lễ)
 function basisText(P,mode){
@@ -1792,7 +1791,7 @@ function renderPreview(){
         <td class="c">${r.days==="–"?"–":r.days+" ngày"}</td><td class="c">${r.ph==="M"?fmtDow(r.s):fmtDow(r.s)}</td><td class="c">${fmtDow(r.e)}</td>`;
     G.days.forEach(x=>{
       const k=barAt(r,x,mode,H);
-      h+=`<td class="g${k==="bar"?" b-"+r.ph+(r.sec?" s":""):k==="ms"?" b-M":x.off?" hol":""}"${k==="bar"&&r.color?` style="background:linear-gradient(transparent ${r.sec?14:26}%,${r.color} ${r.sec?14:26}% ${r.sec?86:74}%,transparent ${r.sec?86:74}%)"`:""}>${k==="ms"?"◆":""}</td>`;
+      h+=`<td class="g${k==="bar"?" b-"+r.ph+(r.sec?" s":"")+(x.off?" hol":""):k==="ms"?" b-M":x.off?" hol":""}"${k==="bar"&&r.color?` style="background:linear-gradient(transparent ${r.sec?14:26}%,${r.color} ${r.sec?14:26}% ${r.sec?86:74}%,transparent ${r.sec?86:74}%)"`:""}>${k==="ms"?"◆":""}</td>`;
     });
     h+=`</tr>`;
   });
@@ -1803,7 +1802,7 @@ function renderPreview(){
   const lg=[];rows.forEach(r=>{if(r.kind==="base"||r.ph==="M")return;const n=r.ownColor?r.name:(Gantt.TYPE[r.type]||Gantt.TYPE.khac).n;if(!lg.some(x=>x[0]===n&&x[1]===r.color))lg.push([n,r.color]);});
   h+=`<div class="legend"><b>CHÚ GIẢI / LEGEND:</b>${lg.map(x=>`<span><i style="background:${x[1]}"></i>${esc(x[0])}</span>`).join("")}
       <span><i style="background:#000"></i>Mốc tiến độ</span>
-      <span><i style="background:#f6dede;border:1px solid #8b1a1a"></i>Tuần nghỉ (không có ngày làm việc — không tô tiến độ)</span>
+      <span><i style="background:#f6dede;border:1px solid #8b1a1a"></i>Tuần nghỉ (không có ngày làm việc — nền đỏ nhạt ở hàng tiêu đề)</span>
       <span style="color:#555">Mỗi tháng 4 cột: T1 = ngày 1–7 · T2 = 8–14 · T3 = 15–21 · T4 = 22–hết tháng</span></div>`;
 
   h+=`<div class="notes"><b>GHI CHÚ &amp; ĐIỀU KIỆN THỰC HIỆN:</b>`;
@@ -1906,7 +1905,7 @@ function excelSheet(wb,sheetName,pl){
     Object.assign(cell(r,4,fmtDow(t.s)),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
     Object.assign(cell(r,5,fmtDow(t.e)),{font:fB,alignment:{horizontal:"center",vertical:"middle"},border:bAll});
     if(t.sec)for(let c=1;c<=5;c++)cell(r,c).fill=fill(SEC);
-    // thang tiến độ theo NGÀY: ngày nghỉ (lễ; T7, CN khi tính ngày làm việc) chỉ tô nền nhạt, KHÔNG tô thanh tiến độ
+    // thanh tiến độ tô liền mạch; tuần không có ngày làm việc ngoài thanh chỉ tô nền nhạt
     G.days.forEach((dx,i)=>{
       const x=cell(r,C_G0+i);x.border=bG;
       const k=barAt(t,dx,mode,H);
@@ -1926,7 +1925,7 @@ function excelSheet(wb,sheetName,pl){
   // legend
   Object.assign(cell(r,2,"CHÚ GIẢI / LEGEND:"),{font:F(10,1)});
   const LG=[];rows.forEach(t=>{if(t.kind==="base"||t.ph==="M")return;const n=t.ownColor?t.name:(Gantt.TYPE[t.type]||Gantt.TYPE.khac).n,c=AR(t.color)||FM[t.ph];if(!LG.some(x=>x[0]===n&&x[1]===c))LG.push([n,c]);});
-  LG.push(["Mốc tiến độ (bản vẽ được duyệt)",BLK],["Ngày nghỉ (không tô tiến độ)",HOLB]);
+  LG.push(["Mốc tiến độ (bản vẽ được duyệt)",BLK],["Tuần nghỉ (không có ngày làm việc)",HOLB]);
   LG.forEach((L,k)=>{
     const rr=r+Math.floor(k/2),cc=C_G0+(k%2)*14;
     cell(rr,cc).fill=fill(L[1]);cell(rr,cc).border=bAll;
