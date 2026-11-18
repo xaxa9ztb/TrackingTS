@@ -33,7 +33,7 @@
 <script src="hsletters.js?v=6"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=12"></script>
+<script src="hoso.js?v=13"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -102,6 +102,7 @@ input[type=checkbox],input[type=radio]{width:auto}
 .panel{background:var(--paper);border:1px solid var(--ni-line);border-radius:var(--ni-r-card);padding:24px 26px;margin-bottom:20px;box-shadow:var(--ni-shadow)}
 .panel h2{font-family:var(--disp);font-weight:600;font-size:var(--ni-fs-h2);color:var(--ni-ink);display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .panel h2 .no{font-family:var(--ni-font);font-size:12.5px;font-weight:700;color:var(--ni-action);background:var(--ni-action-soft);border-radius:var(--ni-r-pill);min-width:28px;text-align:center;padding:2px 8px}
+.panel h2 .no[style*="navy"]{background:var(--ni-action-soft)!important;color:var(--ni-action)}
 .panel .hint{color:var(--muted);font-size:12.5px;margin-bottom:18px}
 /* min-width:auto của grid item khiến ô ngày (bề rộng tối thiểu lớn) phình cột */
 .grid{display:grid;gap:14px}
@@ -374,6 +375,12 @@ h2.hs-sum-n{font-size:21px;margin:2px 0 2px;line-height:1.25}
 .hs-toc-l{font-size:12px;font-weight:700;color:var(--muted);flex:none}
 .hs-toc a{flex:none;font-size:12.5px;font-weight:600;color:var(--ni-ink-2);background:#fff;border:1px solid var(--line);border-radius:99px;padding:4px 11px;text-decoration:none;white-space:nowrap}
 .hs-toc a b{color:var(--ni-app)}.hs-toc a.on{background:var(--ni-app);border-color:var(--ni-app);color:#fff}.hs-toc a.on b{color:#fff}.hs-toc a:hover{border-color:var(--ni-app);color:var(--ni-ink)}
+.hs-mirror{background:var(--ni-sunk,#eef1f5)!important;color:var(--ni-ink-2);cursor:pointer;border-style:dashed!important}
+.hs-mirror:hover{border-color:var(--ni-app)!important}
+.hs-lnk{font-size:11px;text-transform:none;letter-spacing:0}
+.hs-mnote{font-size:12.5px;color:var(--ni-info,#0369a1);background:var(--ni-info-soft,#f0f9ff);border:1px solid var(--ni-info-line,#b9e6fe);border-radius:8px;padding:6px 10px;margin:0 0 10px}
+.hs-mnote a{font-weight:700}
+input.hs-flash{animation:hsflash 1.6s ease-out}
 .hs-lbar[hidden],.hs-gal[hidden],.hs-lf[hidden]{display:none!important}
 .hs-lbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 14px}
 .hs-q{flex:1 1 280px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:#fff}
@@ -589,6 +596,7 @@ table.edit td.c{text-align:center}
 
   <div class="panel">
     <h2><span class="no">3</span>Thông tin dự án &amp; hợp đồng</h2>
+    <p class="hs-mnote">🔗 Các ô có biểu tượng 🔗 lấy từ tab <a href="#" onclick="hsGo('info');return false">Thông tin dự án</a> — sửa ở đó, mọi chức năng tự cập nhật.</p>
     <div class="grid g2">
       <div class="f"><label>Số hợp đồng <span class="det hide" id="d_contract">●OCR</span></label><input id="p_no" value=""></div>
       <div class="f"><label>Ngày ký hợp đồng <span class="det hide" id="d_cdate">●OCR</span></label><input id="p_cdate" value="" placeholder="dd/mm/yyyy"></div>
@@ -718,6 +726,7 @@ table.edit td.c{text-align:center}
 
   <div class="panel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">A</span>Công trình &amp; hạng mục</h2>
+    <p class="hs-mnote">🔗 Các ô có biểu tượng 🔗 lấy từ tab <a href="#" onclick="hsGo('info');return false">Thông tin dự án</a> — sửa ở đó, mọi chức năng tự cập nhật.</p>
     <div class="grid g2">
       <div class="f" style="grid-column:1/-1"><label>Tên công trình</label><input id="q_congtrinh" placeholder="VD: Trung tâm thương mại ABC"></div>
       <div class="f" style="grid-column:1/-1"><label>Địa điểm xây dựng</label><input id="q_diadiem"></div>
@@ -747,6 +756,7 @@ table.edit td.c{text-align:center}
 
   <div class="panel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">C</span>Hợp đồng &amp; tài liệu căn cứ</h2>
+    <p class="hs-mnote">🔗 Các ô có biểu tượng 🔗 lấy từ tab <a href="#" onclick="hsGo('info');return false">Thông tin dự án</a> — sửa ở đó, mọi chức năng tự cập nhật.</p>
     <div class="grid g2">
       <div class="f"><label>Số hợp đồng</label><input id="q_sohd"></div>
       <div class="f"><label>Ngày ký hợp đồng</label><input type="date" id="q_ngayhd"></div>
@@ -793,7 +803,7 @@ table.edit td.c{text-align:center}
 
   <div class="panel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">D</span>Danh sách thang máy &amp; phạm vi nghiệm thu</h2>
-    <p class="hint">Khai báo <b>toàn bộ thang của dự án</b>, sau đó chia các <b>đợt nghiệm thu</b> ở mục D3 (1 thang, một số thang, hay tất cả). Loại thang và phòng máy được ghi vào bảng khối lượng của mọi biên bản.</p>
+    <p class="hint">Khai báo <b>toàn bộ thang của dự án</b>, sau đó chia các <b>đợt nghiệm thu</b> ở mục D2 (1 thang, một số thang, hay tất cả). Loại thang và phòng máy được ghi vào bảng khối lượng của mọi biên bản.</p>
     <div class="tblwrap">
     <table class="edit" style="margin-top:8px;min-width:1050px">
       <thead><tr><th style="width:28px">#</th><th style="width:90px">Tên thang</th><th>Vị trí</th><th style="width:150px">Loại thang</th><th style="width:135px">Phòng máy</th><th style="width:130px">Model</th><th style="width:82px">Tải (kg)<br><span style="font-weight:400;text-transform:none">cao nâng (m)</span></th><th style="width:82px">Số người<br><span style="font-weight:400;text-transform:none">góc nghiêng</span></th><th style="width:80px">Vận tốc</th><th style="width:92px">Điểm dừng<br><span style="font-weight:400;text-transform:none">bề rộng bậc</span></th><th style="width:32px"></th></tr></thead>
@@ -806,7 +816,7 @@ table.edit td.c{text-align:center}
     </div>
     <p class="hint" id="q_scope" style="margin-top:8px;color:var(--navy);font-weight:600"></p>
 
-    <h2 style="font-size:15px;margin-top:24px"><span class="no" style="background:var(--navy)">D3</span>Đợt nghiệm thu</h2>
+    <h2 style="font-size:15px;margin-top:24px"><span class="no" style="background:var(--navy)">D2</span>Đợt nghiệm thu</h2>
     <p class="hint">Nghiệm thu có thể chia nhiều đợt. Mỗi đợt chọn các thang thuộc đợt đó. Khi xuất, bộ hồ sơ sẽ gồm <b>đầy đủ tài liệu của tất cả các đợt</b> và <b>danh mục hồ sơ được cập nhật trọn bộ</b>.</p>
     <div id="qphasesbox"></div>
     <div class="row" style="margin-top:10px">
@@ -814,7 +824,7 @@ table.edit td.c{text-align:center}
       <span style="margin-left:auto" class="sum">Số đợt: <span id="qphasecount">0</span></span>
     </div>
 
-    <h2 style="font-size:15px;margin-top:22px"><span class="no" style="background:var(--navy)">D2</span>Hạng mục khác (tuỳ chọn)</h2>
+    <h2 style="font-size:15px;margin-top:22px"><span class="no" style="background:var(--navy)">D3</span>Hạng mục khác (tuỳ chọn)</h2>
     <p class="hint">Các hạng mục ngoài thang máy đưa vào bảng khối lượng nghiệm thu. Ba hạng mục hay gặp đã có sẵn diễn giải và <b>bộ tiêu chí tương ứng trong Biên bản kiểm tra</b> — bấm nút để thêm, sửa lại được. Hạng mục khác thì bấm “Thêm hạng mục” và tự nhập.</p>
     <div class="tblwrap"><table class="edit" style="margin-top:8px;min-width:640px">
       <thead><tr><th style="width:28px">#</th><th>Tên hạng mục</th><th>Diễn giải</th><th style="width:70px">ĐVT</th><th style="width:60px">SL</th><th style="width:110px">Xuất xứ</th><th style="width:32px"></th></tr></thead>
@@ -881,6 +891,7 @@ table.edit td.c{text-align:center}
   <div class="panel">
     <h2 style="font-size:16px"><span class="no" style="background:var(--navy)">B2</span>Thông tin Bên Mua / Bên Bán cho Biên bản bàn giao</h2>
     <p class="hint">Dùng cho Biên bản bàn giao thang máy (mẫu song ngữ) — cả khi xuất riêng ở trên và ở cuối bộ hồ sơ chất lượng. Để trống thì in dấu chấm để điền tay.</p>
+    <p class="hs-mnote">🔗 Các ô có biểu tượng 🔗 lấy từ tab <a href="#" onclick="hsGo('info');return false">Thông tin dự án</a> — sửa ở đó, mọi chức năng tự cập nhật.</p>
     <div class="grid g2">
       <div class="f"><label>Địa chỉ Chủ đầu tư / Bên Mua</label><input id="q_cdt_diachi"></div>
       <div class="f"><label>Người đại diện Bên Mua</label><input id="q_cdt_daidien"></div>
@@ -1354,7 +1365,7 @@ function go(n){
     document.getElementById("step"+k).classList.toggle("hide",k!==n);
     document.getElementById("tab"+k).classList.toggle("on",k===n);
   });
-  if(n===2){pushForm();renderSteps();renderFactors();}
+  if(n===2){if(window.HS&&HS.syncInfo)HS.syncInfo();pushForm();if(window.HS&&HS.syncInfo)HS.syncInfo();renderSteps();renderFactors();}
   if(n===3){pullForm();gxEnsure();renderPreview();letterAutofill();}
   window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -1428,8 +1439,9 @@ async function handleFile(f){
     prog(1);
     log(kind==="docx"||kind==="doc"||kind==="sheet"?"▸ Đọc xong. Đang trích xuất dữ liệu…":"▸ OCR hoàn tất. Đang trích xuất dữ liệu…");
     const hits=extract(fullText);
-    document.getElementById("ocrstat").textContent=`✓ Đã quét xong — nhận diện ${hits} nhóm thông tin. Chọn chức năng để tiếp tục.`;
-    showScreen("screenChoose");
+    document.getElementById("ocrstat").textContent=`✓ Đã quét xong — nhận diện ${hits} nhóm thông tin. Kiểm tra ở tab Thông tin dự án.`;
+    pushForm();   // ghi kết quả quét vào form bước 2 — tránh lần đọc form sau ghi đè bằng ô trống
+    hsGo("info");
   }catch(err){
     log("✗ Lỗi: "+err.message);
     document.getElementById("ocrstat").textContent="Không xử lý được file — bạn có thể bỏ qua và nhập tay.";

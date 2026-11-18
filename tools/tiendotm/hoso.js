@@ -294,9 +294,10 @@
   const tabIcon = (k) => TAB_IC[k] || (TAB_IC[k] = (document.querySelector(`#hsTabs [data-go="${k}"] .ti`) || {}).innerHTML || '');
   function go(tab) {
     if (st.booted && !readOnly() && (st.cur || projName())) save('nav');
-    if (tab === 'overview') { prefillCommon(); showScreen('screenChoose'); return; }
-    if (tab === 'info') { prefillCommon(); showScreen('screenInfo'); return; }
-    if (tab === 'schedule' || tab === 'quality') { prefillCommon(); chooseFn(tab); return; }
+    prefillCommon(); syncInfo();
+    if (tab === 'overview') { showScreen('screenChoose'); return; }
+    if (tab === 'info') { showScreen('screenInfo'); return; }
+    if (tab === 'schedule' || tab === 'quality') { chooseFn(tab); syncInfo(); return; }
     enter({ nhatky: 'screenNhatKy', letters: 'screenLetters', legal: 'screenLegal', drawing: 'screenDrawing' }[tab] || 'screenChoose');
   }
   function onScreen(name) {
@@ -307,6 +308,32 @@
   }
   // ghi lại lần xuất gần nhất của từng chức năng (hiện ở Tổng quan)
   function markDone(k) { S.hsDone = Object.assign({}, S.hsDone, { [k]: new Date().toISOString() }); }
+  // ===== Một nguồn thông tin dự án: các ô trùng ở Tiến độ / Hồ sơ chất lượng / Biên bản bàn giao chỉ hiển thị (đồng bộ từ tab Thông tin dự án) =====
+  const dmyOf = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  const MIRROR = [   // [ô trùng, ô gốc ở tab Thông tin dự án, khoá S.project, đổi định dạng]
+    ['p_name', 'hs_congtrinh', 'name'], ['p_addr', 'hs_diadiem', 'addr'], ['p_no', 'hs_sohd', 'no'], ['p_cdate', 'hs_ngayhd', 'cdate', dmyOf],
+    ['p_buyer', 'hs_cdt', 'buyer'], ['p_rep', 'hs_cdt_daidien', 'rep'], ['p_baddr', 'hs_cdt_diachi', 'baddr'], ['p_seller', 'hs_nhathau', 'seller'], ['p_equip', 'hs_thietbi', 'equip'],
+    ['q_congtrinh', 'hs_congtrinh'], ['q_diadiem', 'hs_diadiem'], ['q_hangmuc', 'hs_hangmuc'], ['q_sohd', 'hs_sohd'], ['q_ngayhd', 'hs_ngayhd'],
+    ['q_cdt_diachi', 'hs_cdt_diachi'], ['q_cdt_daidien', 'hs_cdt_daidien'], ['q_nt_diachi', 'hs_nt_diachi'],
+  ];
+  function syncInfo() {
+    const P = S.project || (S.project = {});
+    MIRROR.forEach(([mid, src, key, fmt]) => {
+      const el = $(mid), v = gv(src); if (!el) return;
+      if (!el.dataset.mirror) {   // lần đầu: khoá ô, gắn nhãn
+        el.dataset.mirror = src; el.readOnly = true; el.classList.add('hs-mirror'); el.title = 'Lấy từ tab Thông tin dự án — bấm để sửa ở đó';
+        const lb = el.closest('.f') && el.closest('.f').querySelector('label'); if (lb && !lb.querySelector('.hs-lnk')) lb.insertAdjacentHTML('beforeend', ' <span class="hs-lnk" aria-hidden="true">🔗</span>');
+      }
+      if (!v) return;   // ô gốc trống: giữ giá trị cũ (đã được chép sang ô gốc bằng prefillCommon nếu có)
+      const val = fmt ? fmt(v) : v; el.value = val; if (key) P[key] = val;
+    });
+  }
+  function mirrorClick(e) {
+    const el = e.target.closest && e.target.closest('.hs-mirror'); if (!el) return;
+    const src = el.dataset.mirror; go('info');
+    setTimeout(() => { const t = $(src); if (t) { t.scrollIntoView({ block: 'center' }); t.focus({ preventScroll: true }); t.classList.add('hs-flash'); setTimeout(() => t.classList.remove('hs-flash'), 1600); } }, 350);
+  }
+
   // mức độ đầy đủ của Thông tin dự án
   const INFO_REQ = [['hs_congtrinh', 'Tên công trình'], ['hs_diadiem', 'Địa điểm'], ['hs_cdt', 'Chủ đầu tư'], ['hs_cdt_diachi', 'Địa chỉ CĐT'], ['hs_sohd', 'Số hợp đồng'], ['hs_ngayhd', 'Ngày ký HĐ'],
     ['hs_thietbi', 'Thiết bị'], ['hs_nguoiky', 'Người ký'], ['hs_chucvuky', 'Chức vụ người ký'], ['hs_pm_ten', 'Người liên hệ'], ['hs_pm_dt', 'Điện thoại liên hệ'], ['hs_cht', 'Chỉ huy trưởng']];
@@ -697,6 +724,7 @@
     // thanh tab chức năng + thẻ ở Tổng quan
     $('hsTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
     $('hsOverview').addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
+    document.addEventListener('click', mirrorClick);
     $('screenInfo').addEventListener('input', () => { clearTimeout(st.meterT); st.meterT = setTimeout(renderMeter, 150); });
     // công văn
     $('hsLetterList').addEventListener('click', (e) => {
@@ -775,9 +803,9 @@
       if (!readOnly() && d && d.data && JSON.stringify(d.data) !== st.lastJson && confirm(`Trên máy này có thay đổi chưa lưu của hồ sơ “${p.name}” (${fmtTime(d.t)}).\nKhôi phục các thay đổi đó?`)) { restore(d.data); bar('Đã khôi phục thay đổi chưa lưu — bấm Lưu để lưu lên ' + (SERVER ? 'máy chủ' : 'danh sách'), 'warn'); }
       else { if (d) dropDraft(); bar('✓ Đã mở hồ sơ', 'ok'); }
       if (readOnly()) { dropDraft(); bar('👁 Chỉ xem — hồ sơ của ' + (p.createdBy || 'người khác') + '. Muốn sửa: liên hệ Admin để được cấp quyền. Vẫn xuất được tài liệu.', 'warn'); $('hsSave').disabled = true; $('hsSave').title = 'Bạn chưa có quyền sửa hồ sơ này'; }
-      prefillCommon(); renderOverview();
+      prefillCommon(); syncInfo(); renderOverview();
     } catch (e) { bar('⚠ ' + e.message, 'err'); showScreen('screenHome'); loadList(); }
     st.booted = true;
   }
-  window.HS = { boot, save, toList, enter, go, onScreen, renderOverview, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, get _DW() { return DW; }, _DWS: DWS };
+  window.HS = { boot, save, toList, enter, go, onScreen, renderOverview, syncInfo, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, get _DW() { return DW; }, _DWS: DWS };
 })();
