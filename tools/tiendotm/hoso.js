@@ -469,6 +469,7 @@
     const list = $('hsLetterList'), form = $('hsLetterForm'), bar = $('hsLetterBar');
     const open = !!HsLetters.LETTERS.find(x => x.id === curLetter);
     list.hidden = open; bar.hidden = open; form.hidden = !open;
+    const xm = $('hsXnEmail'); if (xm) { xm.hidden = !(open && curLetter === 'xn_hangve'); if (!xm.hidden && typeof window.buildEmail === 'function') { try { window.buildEmail(); } catch (e) { /* chưa lập tiến độ */ } } }
     if (open) { renderLetterForm(); return; }
     const q = vnFold(lQuery).trim();
     let n = 0;
@@ -518,6 +519,14 @@
       <div class="row" style="gap:10px;margin-top:12px"><button class="btn pri" id="hsLetterGo">⬇ Xuất ${d.kind === 'bb' ? 'biên bản' : d.kind === 'rfa' ? 'phiếu ' + d.id.toUpperCase() : 'công văn'} (.docx)</button><span id="hsLetterSt" class="hs-mini"></span></div>`;
     (d.fields || []).forEach(x => { if (v[x.k] == null && x.def) v[x.k] = x.def; });
     if (v.ngay == null) v.ngay = todayISO();
+  }
+  // mở thẳng một văn bản trong mục Công văn, biên bản (VD từ nút ở mục Tiến độ)
+  function openLetter(id) {
+    go('letters');
+    curLetter = HsLetters.LETTERS.find(x => x.id === id) ? id : null;
+    lQuery = ''; lKind = ''; const q = $('hsLetterQ'); if (q) q.value = '';
+    renderLetters();
+    const f = $('hsLetterForm'); if (f) { (f.hidden ? $('screenLetters') : f).scrollIntoView({ block: 'start' }); f.classList.remove('hs-flash'); void f.offsetWidth; f.classList.add('hs-flash'); }
   }
   async function exportLetter() {
     const d = HsLetters.LETTERS.find(x => x.id === curLetter); if (!d) return;
@@ -807,5 +816,5 @@
     } catch (e) { bar('⚠ ' + e.message, 'err'); showScreen('screenHome'); loadList(); }
     st.booted = true;
   }
-  window.HS = { boot, save, toList, enter, go, onScreen, renderOverview, syncInfo, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, get _DW() { return DW; }, _DWS: DWS };
+  window.HS = { boot, save, toList, enter, go, openLetter, onScreen, renderOverview, syncInfo, info, snapshot, restore, prefillCommon, _st: st, _LT: LT, _LG: LG, get _DW() { return DW; }, _DWS: DWS };
 })();
