@@ -40,21 +40,53 @@
     });
   }
 
+  // ---------- loại công việc & màu (tự gợi ý theo tên — cùng loại cùng màu; sửa được) ----------
+  const TYPES = [
+    { k: 'base', n: 'Mốc khởi tính', c: '#111827' },
+    { k: 'sx', n: 'Sản xuất & vận chuyển', c: '#2E74B5', re: /san xuat|van chuyen thiet bi|nhap khau|hang ve|giao vat tu|giao hang/ },
+    { k: 'yt', n: 'Phê duyệt / chờ / yếu tố ảnh hưởng', c: '#F59E0B', re: /phe duyet|cho |gian tien do|yeu cau|thanh toan|tam ung/ },
+    { k: 'cb', n: 'Chuẩn bị, mặt bằng, giàn giáo', c: '#64748B', re: /nhan ban giao ho|ban giao ho thang|tap ket|gian giao|san thao tac|tha doi|dinh vi|kiem tra kich thuoc|khao sat/ },
+    { k: 'ck', n: 'Lắp đặt cơ khí (ray, máy, cabin, cáp)', c: '#DC0000', re: /ray|bracket|doi trong|day ho|giam chan|khung xe|cabin|may keo|gia may|thang meo|cap tai|governor|tha cap|lien ket/ },
+    { k: 'cua', n: 'Cửa tầng', c: '#EA580C', re: /cua tang|nguong|canh cua|khung cua/ },
+    { k: 'dien', n: 'Điện & điều khiển', c: '#CA8A04', re: /tu dieu khien|di day|tin hieu|dau noi|dien|nguon/ },
+    { k: 'test', n: 'Căn chỉnh & chạy thử', c: '#7C3AED', re: /can chinh|chay thu|cai dat|commissioning|hieu chinh/ },
+    { k: 'kd', n: 'Kiểm định & nghiệm thu', c: '#0891B2', re: /kiem dinh|nghiem thu|bbkd|giam dinh/ },
+    { k: 'bg', n: 'Bàn giao & huấn luyện', c: '#00B050', re: /ban giao|huan luyen|dao tao|dua vao su dung/ },
+    { k: 'ht', n: 'Hoàn thiện, vệ sinh', c: '#94A3B8', re: /thao do|ve sinh|hoan thien|don dep/ },
+    { k: 'ms', n: 'Mốc', c: '#111827' },
+    { k: 'khac', n: 'Khác', c: '#6366F1' },
+  ];
+  const TYPE = Object.fromEntries(TYPES.map((t) => [t.k, t]));
+  const PH_TYPE = { P: 'sx', I: 'ck', H: 'bg', M: 'base' };
+  const PALETTE = ['#2E74B5', '#0EA5E9', '#0891B2', '#00B050', '#16A34A', '#84CC16', '#CA8A04', '#F59E0B', '#EA580C', '#DC0000', '#DB2777', '#7C3AED', '#6366F1', '#64748B', '#94A3B8', '#111827'];
+  const fold = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  // loại gợi ý theo tên (thứ tự quy tắc quan trọng: “Cấp nguồn…, căn chỉnh, chạy thử” → chạy thử; “Nhận bàn giao hố thang” → chuẩn bị)
+  function classify(name, kind, ph) {
+    if (kind === 'base') return 'base';
+    if (kind === 'ms') return 'ms';
+    const t = fold(name);
+    for (const k of ['yt', 'ht', 'cb', 'test', 'kd', 'sx', 'cua', 'ck', 'dien', 'bg']) if (TYPE[k].re.test(t)) return k;
+    return PH_TYPE[ph] || 'khac';
+  }
+  // màu cuối cùng: màu riêng của dòng → màu của loại (đã đổi) → màu mặc định của loại
+  const colorOf = (type, it, tc) => (it && it.color) || (tc && tc[type]) || (TYPE[type] || TYPE.khac).c;
+
   const hasKids = (items, i) => items[i] && items[i].kind === 'group' && items[i + 1] && (items[i + 1].kind === 'task' || items[i + 1].kind === 'ms');
 
   // tính ngày cho từng dòng → { rows, total, start, end }
   //   rows: { uid, id, name, days ('–' với mốc), s, e, ph, sec, kind, link, lag, summary, natural }
   function compute(items, ctx) {
-    const C = cal(ctx.mode, ctx.H), base = ctx.base;
+    const C = cal(ctx.mode, ctx.H), base = ctx.base, tc = ctx.typeColors || {};
     const out = [];
     let prevEnd = null, gi = -1, ci = 0, ph = 'I', groupRow = null;
     items.forEach((it, i) => {
-      if (it.kind === 'base') { out.push({ uid: it.uid, id: '0', name: it.name, days: '–', s: base, e: base, ph: 'M', sec: true, kind: 'base' }); prevEnd = base; return; }
+      if (it.kind === 'base') { out.push({ uid: it.uid, id: '0', name: it.name, days: '–', s: base, e: base, ph: 'M', sec: true, kind: 'base', type: 'base', color: colorOf('base', it, tc) }); prevEnd = base; return; }
       if (it.kind === 'group') { gi++; ci = 0; ph = it.ph || 'I'; }
       const kids = hasKids(items, i);
       const id = it.kind === 'group' ? (ROMAN[gi] || String(gi + 1)) : (gi >= 0 ? `${ROMAN[gi] || gi + 1}.${++ci}` : String(++ci));
       if (it.kind === 'group' && kids) {
-        groupRow = { uid: it.uid, id, name: it.name, days: 0, s: null, e: null, ph, sec: true, kind: 'group', summary: true };
+        const gt = it.type || PH_TYPE[ph] || 'khac';
+        groupRow = { uid: it.uid, id, name: it.name, days: 0, s: null, e: null, ph, sec: true, kind: 'group', summary: true, type: gt, color: colorOf(gt, it, tc) };
         out.push(groupRow); return;
       }
       const after = prevEnd || base;
@@ -70,6 +102,7 @@
       }
       const row = { uid: it.uid, id, name: it.name, days: it.kind === 'ms' ? '–' : (+it.days || 0), s, e, ph: it.kind === 'ms' ? 'M' : ph, sec: it.kind === 'group',
         kind: it.kind, link: it.link !== false, lag: it.lag || 0, natural, msInGroup: it.kind === 'ms' ? ph : undefined };
+      row.type = it.type || classify(it.name, it.kind, ph); row.autoType = !it.type; row.color = colorOf(row.type, it, tc); row.ownColor = !!it.color;
       out.push(row);
       prevEnd = e;
       if (it.kind !== 'group' && groupRow) {
@@ -141,7 +174,7 @@
   // khoá so sánh dữ liệu bước 2: đổi dữ liệu nguồn → nhắc tạo lại
   const srcKey = (o) => JSON.stringify(o);
 
-  const api = { cal, fromRows, compute, setStart, setDays, setEnd, setLink, insert, remove, move, srcKey, pd, iso, ROMAN };
+  const api = { TYPES, TYPE, PALETTE, classify, colorOf, cal, fromRows, compute, setStart, setDays, setEnd, setLink, insert, remove, move, srcKey, pd, iso, ROMAN };
 
   // ======================= giao diện (trình duyệt) =======================
   if (typeof document !== 'undefined') {
@@ -155,16 +188,22 @@
     // host: phần tử chứa; o: { get(): items, set(items), ctx(): {base, mode, H}, onChange() }
     api.mount = function (host, o) {
       const st = { sel: null, zoom: 'week', px: ZOOM.week, undo: [], redo: [] };
-      const ctx = () => o.ctx();
+      const getTC = () => (o.getTC && o.getTC()) || {};
+      const ctx = () => Object.assign({}, o.ctx(), { typeColors: getTC() });
+      const snap = () => JSON.stringify({ i: o.get(), t: getTC() });
+      const load = (j) => { const d = JSON.parse(j); o.set(d.i); if (o.setTC) o.setTC(d.t || {}); };
+      const push = () => { st.undo.push(snap()); if (st.undo.length > 80) st.undo.shift(); st.redo = []; };
       const commit = (next, keepSel) => {
         const cur = o.get();
         if (next === cur) return;
-        st.undo.push(JSON.stringify(cur)); if (st.undo.length > 80) st.undo.shift(); st.redo = [];
+        push();
         o.set(next); if (!keepSel && !next.some((x) => x.uid === st.sel)) st.sel = null;
         render(); o.onChange && o.onChange();
       };
-      const undo = () => { if (!st.undo.length) return; st.redo.push(JSON.stringify(o.get())); o.set(JSON.parse(st.undo.pop())); render(); o.onChange && o.onChange(); };
-      const redo = () => { if (!st.redo.length) return; st.undo.push(JSON.stringify(o.get())); o.set(JSON.parse(st.redo.pop())); render(); o.onChange && o.onChange(); };
+      // đổi màu theo loại (cả loại cùng đổi)
+      const commitTC = (tc) => { push(); if (o.setTC) o.setTC(tc); render(); o.onChange && o.onChange(); };
+      const undo = () => { if (!st.undo.length) return; st.redo.push(snap()); load(st.undo.pop()); render(); o.onChange && o.onChange(); };
+      const redo = () => { if (!st.redo.length) return; st.undo.push(snap()); load(st.redo.pop()); render(); o.onChange && o.onChange(); };
 
       host.innerHTML = `<div class="gx-bar" role="toolbar" aria-label="Chỉnh tiến độ">
           <button type="button" class="btn sm pri" data-a="task">＋ Công việc</button>
@@ -185,9 +224,10 @@
           </span>
           <span class="gx-info" data-info></span>
         </div>
+        <div class="gx-leg" data-legend aria-label="Màu theo loại công việc"></div>
         <div class="gx-wrap" tabindex="-1"><table class="gx"><thead></thead><tbody></tbody></table></div>
-        <div class="gx-tip" hidden></div>`;
-      const thead = host.querySelector('thead'), tbody = host.querySelector('tbody'), wrap = host.querySelector('.gx-wrap'), tip = host.querySelector('.gx-tip');
+        <div class="gx-tip" hidden></div><div class="gx-pop" hidden role="dialog" aria-label="Chọn màu"></div>`;
+      const thead = host.querySelector('thead'), tbody = host.querySelector('tbody'), wrap = host.querySelector('.gx-wrap'), tip = host.querySelector('.gx-tip'), pop = host.querySelector('.gx-pop'), leg = host.querySelector('[data-legend]');
 
       let G = null;   // trạng thái lưới thời gian của lần vẽ gần nhất
       function render() {
@@ -243,20 +283,21 @@
           return `background:linear-gradient(to right,${st2.join(',')}),linear-gradient(${col},${col}) center/100% 2px no-repeat;`;
         };
         tbody.innerHTML = R.rows.map((r, i) => {
-          const it = items[i], col = COLOR[r.ph] || COLOR.I;
+          const it = items[i], col = r.color || COLOR[r.ph] || COLOR.I;
           const L = Math.round((r.s - t0) / DAY * px), Wd = Math.max(px, Math.round(((r.e - r.s) / DAY + 1) * px));
           let bar;
-          if (r.kind === 'base' || r.kind === 'ms') bar = `<div class="gx-ms${r.kind === 'base' ? ' fix' : ''}" data-drag="${r.kind === 'base' ? '' : 'move'}" style="left:${L + px / 2 - 8}px;--c:${r.kind === 'ms' ? COLOR[r.msInGroup] || col : col}" title="${e(r.name)} — ${dmy(r.s)}"></div><span class="gx-lb" style="left:${L + px / 2 + 12}px">${dmy(r.s)}</span>`;
+          if (r.kind === 'base' || r.kind === 'ms') bar = `<div class="gx-ms${r.kind === 'base' ? ' fix' : ''}" data-drag="${r.kind === 'base' ? '' : 'move'}" style="left:${L + px / 2 - 8}px;--c:${col}" title="${e(r.name)} — ${dmy(r.s)}"></div><span class="gx-lb" style="left:${L + px / 2 + 12}px">${dmy(r.s)}</span>`;
           else if (r.summary) bar = `<div class="gx-sum" style="left:${L}px;width:${Wd}px;--c:${col};${segBg(r, col)}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit})"></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày</span>`;
           else { const sb = segBg(r, col, r.sec); bar = `<div class="gx-b${r.sec ? ' grp' : ''}${sb ? ' seg' : ''}" data-drag="move" style="left:${L}px;width:${Wd}px;--c:${col};${sb}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit}) — kéo để dời, kéo mép phải để đổi số ngày"><i class="gx-rz" data-drag="size"></i></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày${r.link && r.lag ? ` · ${r.lag > 0 ? '+' : ''}${r.lag}` : ''}</span>`; }
           const fixed = r.kind === 'base' || r.summary;
           const nm = r.kind === 'base' ? `<span class="gx-fix" title="Sửa ở bước 1 (Ngày ký phê duyệt bản vẽ)">${e(r.name)}</span>`
             : `<input class="gx-in" data-f="name" value="${e(it.name)}" aria-label="Tên công việc dòng ${r.id}">`;
+          const sw = r.kind === 'base' ? '' : `<button type="button" class="gx-sw${r.ownColor ? ' own' : ''}" data-sw="${r.uid}" style="--c:${col}" title="Màu: ${e((TYPE[r.type] || TYPE.khac).n)}${r.ownColor ? ' (màu riêng)' : ''} — bấm để đổi màu / loại"></button>`;
           const phSel = it.kind === 'group' ? `<select class="gx-ph" data-f="ph" title="Màu / giai đoạn" style="--c:${col}">${Object.keys(PH_NAME).map((k) => `<option value="${k}"${it.ph === k ? ' selected' : ''}>${PH_NAME[k]}</option>`).join('')}</select>` : '';
           return `<tr class="gx-r ${r.sec ? 'sec' : ''} k-${r.kind}${st.sel === r.uid ? ' on' : ''}" data-uid="${r.uid}">
             <td class="gx-hd">${r.kind === 'base' ? '' : '<span class="gx-grip" title="Kéo để đổi thứ tự">⋮⋮</span>'}</td>
             <td class="gx-id">${e(r.id)}</td>
-            <td class="gx-nm"><div class="gx-nmw${r.sec || r.kind === 'base' ? '' : ' ind'}">${nm}${phSel}</div></td>
+            <td class="gx-nm"><div class="gx-nmw${r.sec || r.kind === 'base' ? '' : ' ind'}">${sw}${nm}${phSel}</div></td>
             <td class="gx-dt">${fixed ? `<span>${DOW[r.s.getUTCDay()]} ${dmy(r.s)}</span>` : `<input type="date" data-f="start" value="${iso(r.s)}" aria-label="Bắt đầu">`}</td>
             <td class="gx-n">${fixed || r.kind === 'ms' ? `<span>${r.kind === 'ms' || r.kind === 'base' ? '–' : r.days}</span>` : `<input type="number" min="0" data-f="days" value="${r.days}" aria-label="Số ngày">`}</td>
             <td class="gx-dt">${fixed || r.kind === 'ms' ? `<span>${DOW[r.e.getUTCDay()]} ${dmy(r.e)}</span>` : `<input type="date" data-f="end" value="${iso(r.e)}" aria-label="Kết thúc">`}</td>
@@ -267,11 +308,58 @@
         host.querySelector('[data-zp]').textContent = Math.round(px / ZOOM.week * 100) + '%';
         host.querySelector('[data-zs="-1"]').disabled = px <= ZMIN + 0.01; host.querySelector('[data-zs="1"]').disabled = px >= ZMAX - 0.01;
         host.querySelector('[data-info]').textContent = `Tổng: ${R.total} ${unit} · ${dmy(R.start)} → ${dmy(R.end)}`;
+        // chú giải màu: các loại đang có trong bảng — bấm để đổi màu cả loại
+        const used = []; R.rows.forEach((r) => { if (r.kind !== 'base' && !used.includes(r.type)) used.push(r.type); });
+        const tc = getTC(), anyOwn = R.rows.some((r) => r.ownColor);
+        leg.innerHTML = '<span class="gx-leg-l">Màu theo loại:</span>' + used.map((k) => `<button type="button" class="gx-lc" data-tsw="${k}" title="Bấm để đổi màu cho mọi việc loại này"><i style="background:${tc[k] || (TYPE[k] || TYPE.khac).c}"></i>${e((TYPE[k] || TYPE.khac).n)}</button>`).join('') +
+          (Object.keys(tc).length || anyOwn ? '<button type="button" class="gx-lr" data-treset title="Bỏ mọi màu đã đổi, dùng màu app gợi ý">↺ Màu gợi ý</button>' : '');
         host.querySelector('[data-a="undo"]').disabled = !st.undo.length;
         host.querySelector('[data-a="redo"]').disabled = !st.redo.length;
         const sel = items.find((x) => x.uid === st.sel);
         ['up', 'down', 'del'].forEach((a) => { host.querySelector(`[data-a="${a}"]`).disabled = !sel || sel.kind === 'base'; });
       }
+
+      // ----- chọn màu / loại -----
+      const closePop = () => { pop.hidden = true; pop.innerHTML = ''; };
+      function openPop(btn, html) {
+        pop.innerHTML = html; pop.hidden = false;
+        const b = btn.getBoundingClientRect(), hb = host.getBoundingClientRect();
+        pop.style.left = Math.max(0, Math.min(b.left - hb.left, hb.width - 270)) + 'px'; pop.style.top = (b.bottom - hb.top + 6) + 'px';
+      }
+      const swatches = (cur) => '<div class="gx-pal">' + PALETTE.map((c) => `<button type="button" data-pc="${c}" style="background:${c}"${c.toLowerCase() === String(cur || '').toLowerCase() ? ' class="on"' : ''} aria-label="${c}"></button>`).join('') + '</div>';
+      host.addEventListener('click', (ev) => {
+        const sw = ev.target.closest('[data-sw]'), tsw = ev.target.closest('[data-tsw]');
+        if (sw) {
+          ev.stopPropagation();
+          const r = G.rows.find((x) => x.uid === sw.dataset.sw); if (!r) return;
+          st.popFor = { uid: r.uid };
+          openPop(sw, `<b>Màu dòng ${e(r.id)}</b><label class="gx-pl">Loại công việc<select data-ptype>${TYPES.filter((t) => !['base'].includes(t.k)).map((t) => `<option value="${t.k}"${t.k === r.type ? ' selected' : ''}>${e(t.n)}${t.k === classify(r.name, r.kind, r.ph) ? ' (gợi ý)' : ''}</option>`).join('')}</select></label>
+            <div class="gx-ph2">Màu riêng cho dòng này:</div>${swatches(r.ownColor ? r.color : '')}
+            <div class="gx-pa">${r.ownColor ? '<button type="button" class="hs-link" data-pclear>Dùng màu theo loại</button>' : '<span class="gx-pm">Đang dùng màu của loại</span>'}</div>`);
+          return;
+        }
+        if (tsw) {
+          ev.stopPropagation(); const k = tsw.dataset.tsw; st.popFor = { type: k };
+          openPop(tsw, `<b>Màu cho loại “${e((TYPE[k] || TYPE.khac).n)}”</b><div class="gx-ph2">Mọi việc thuộc loại này cùng đổi màu.</div>${swatches(getTC()[k] || (TYPE[k] || TYPE.khac).c)}
+            ${getTC()[k] ? '<div class="gx-pa"><button type="button" class="hs-link" data-pclear>Về màu gợi ý</button></div>' : ''}`);
+          return;
+        }
+        if (ev.target.closest('[data-treset]')) { push(); if (o.setTC) o.setTC({}); o.set(o.get().map((x) => { const y = { ...x }; delete y.color; delete y.type; return y; })); render(); o.onChange && o.onChange(); return; }
+        const pc = ev.target.closest('[data-pc]'), pcl = ev.target.closest('[data-pclear]');
+        if ((pc || pcl) && st.popFor) {
+          const f = st.popFor; closePop();
+          if (f.uid) commit(patch(o.get(), f.uid, { color: pc ? pc.dataset.pc : undefined }), true);
+          else { const tc = { ...getTC() }; if (pc) tc[f.type] = pc.dataset.pc; else delete tc[f.type]; commitTC(tc); }
+          return;
+        }
+        if (!ev.target.closest('.gx-pop')) closePop();
+      }, true);
+      pop.addEventListener('change', (ev) => {
+        if (!ev.target.matches('[data-ptype]') || !st.popFor || !st.popFor.uid) return;
+        const r = G.rows.find((x) => x.uid === st.popFor.uid), v = ev.target.value; closePop();
+        commit(patch(o.get(), r.uid, { type: v === classify(r.name, r.kind, r.ph) ? undefined : v }), true);
+      });
+      document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !pop.hidden) closePop(); });
 
       // ----- phóng to / thu nhỏ: giữ nguyên ngày đang ở giữa (hoặc dưới con trỏ) -----
       function zoomTo(px, clientX) {

@@ -356,7 +356,7 @@
     const nLet = Object.keys(LT).filter(k => LT[k] && LT[k]._last).length + (done.letters ? 0 : 0);
     const totalLet = HsLetters.LETTERS.length + 2;
     let sched = null;
-    try { if (typeof planSchedule === 'function' && S.gplan && S.gplan.items && S.gplan.items.length) { const p = planSchedule(); sched = `${p.total} ngày · xong ${dShort(p.end.toISOString())}`; } } catch (e) { /* chưa lập */ }
+    try { if (typeof planSchedule === 'function' && S.gplan && S.gplan.items && S.gplan.items.length) { const L = (S.gplans && S.gplans.list) || []; const m = L.find((x) => x.main) || S.gplan; const p = planSchedule(m); sched = `${p.total} ngày · xong ${dShort(p.end.toISOString())}${L.length > 1 ? ` · ${L.length} bảng` : ''}`; } } catch (e) { /* chưa lập */ }
     const st2 = (k, alt) => done[k] ? { t: 'Đã xuất ' + dShort(done[k]), ok: true } : alt || { t: 'Chưa xuất', ok: false };
     const nEl = (S.qElevs || []).filter(e => String(e.name || '').trim()).length;
     const cards = [

@@ -27,13 +27,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="chungtu.js?v=1"></script>
 <script src="docxkit.js?v=2"></script>
-<script src="gantt.js?v=4"></script>
+<script src="gantt.js?v=5"></script>
 <script src="docread.js?v=1"></script>
 <script src="parties.js?v=1"></script>
 <script src="hsletters.js?v=6"></script>
 <script src="hslegal.js?v=1"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=13"></script>
+<script src="hoso.js?v=14"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -334,6 +334,33 @@ table.gx{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 .gx-ms{position:absolute;top:9px;width:15px;height:15px;background:var(--c);transform:rotate(45deg);border-radius:2px;cursor:grab;touch-action:none}
 .gx-ms.fix{cursor:default}
 .gx-lb{position:absolute;top:9px;font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap}
+.gx-leg{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px;font-size:12.5px}
+.gx-leg-l{color:var(--muted,#64748b);font-weight:600;margin-right:2px}
+.gx-lc{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer;color:var(--ni-ink)}
+.gx-lc:hover{border-color:var(--ni-app)}.gx-lc i{width:14px;height:10px;border-radius:3px;display:inline-block}
+.gx-lr{font:inherit;font-size:12.5px;border:0;background:none;color:var(--ni-app);cursor:pointer;padding:4px 6px}
+.gx-sw{flex:none;width:14px;height:14px;border-radius:4px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(15,23,42,.25);background:var(--c);cursor:pointer;padding:0;margin-right:6px;vertical-align:middle}
+.gx-sw.own{box-shadow:0 0 0 2px var(--ni-ink)}.gx-sw:hover{transform:scale(1.2)}
+.gx-pop{position:absolute;z-index:40;width:260px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:12px;font-size:13px}
+.gx-pop b{display:block;margin-bottom:8px}
+.gx-pl{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted,#64748b);margin-bottom:8px}.gx-pl select{font:inherit;font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:7px}
+.gx-ph2{font-size:12px;color:var(--muted,#64748b);margin:2px 0 6px}
+.gx-pal{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
+.gx-pal button{aspect-ratio:1;border:2px solid #fff;border-radius:6px;box-shadow:0 0 0 1px rgba(15,23,42,.2);cursor:pointer;padding:0}
+.gx-pal button.on,.gx-pal button:hover{box-shadow:0 0 0 2px var(--ni-ink)}
+.gx-pa{margin-top:8px}.gx-pm{font-size:12px;color:var(--muted,#64748b)}
+.gx-plans{margin:0 0 10px}
+.gx-pt{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch}
+.gx-pt [data-plan]{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;max-width:260px}
+.gx-pt [data-plan] small{font-size:11px;font-weight:400;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.gx-padd{font:inherit;font-size:13px;font-weight:600;border:1.5px dashed var(--line);background:#fff;color:var(--ni-app);border-radius:10px;padding:6px 12px;cursor:pointer}
+.gx-padd:hover{border-color:var(--ni-app)}
+.gx-pact{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.gx-pel{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 0}
+.gx-dlg{max-width:640px;width:calc(100% - 32px);border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:0 20px 50px rgba(15,23,42,.25)}
+.gx-dlg::backdrop{background:rgba(15,23,42,.45)}
+.gx-dlg h3{margin:0 0 6px;font-size:17px}
+.gx-pel .chk{display:inline-flex;gap:6px;align-items:center;font-size:13.5px}
 .gx-tip{position:fixed;z-index:50;background:#111827;color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap}
 @media(max-width:720px){.gx .gx-nm{width:180px;min-width:180px;max-width:180px}.gx .gx-dt:nth-of-type(4){left:246px}.gx .gx-n{left:368px}.gx .gx-dt:nth-of-type(6){left:432px}.gx .gx-lk{left:554px}}
 .hs-tabs{flex-basis:100%;margin:2px -4px -4px;background:var(--ni-sunk,#eef1f5)}
@@ -676,7 +703,22 @@ table.edit td.c{text-align:center}
     </div>
     <p class="hint" style="margin:8px 0 10px"><b>Kéo thanh</b> để dời ngày · <b>kéo mép phải</b> để đổi số ngày · <b>kéo ⋮⋮</b> để đổi thứ tự · sửa trực tiếp tên, ngày bắt đầu / kết thúc, số ngày · chọn dòng rồi <b>＋ Công việc / ◆ Mốc / ＋ Nhóm</b> để chèn ngay bên dưới, <b>🗑</b> (phím Delete) để xoá. Ô <b>↳</b> = nối tiếp việc phía trên: việc phía trên dời thì việc này tự dời theo; bỏ tích để cố định ngày. Bảng in / Excel bên dưới cập nhật ngay theo Gantt.</p>
     <div class="warn hide" id="gxStale" style="margin:0 0 10px">Dữ liệu ở bước 2 (số ngày, các bước lắp đặt, yếu tố hàng về…) đã thay đổi sau khi bạn chỉnh Gantt. <button type="button" class="btn sm sec" onclick="gxRegen(true)">↺ Tạo lại từ bước 2</button> (bỏ chỉnh sửa trên Gantt) hoặc giữ nguyên bảng đang chỉnh.</div>
+    <div id="gxPlans" class="gx-plans"></div>
     <div id="gxHost" class="gxh"></div>
+    <dialog class="dlg gx-dlg" id="gxPlanDlg" aria-labelledby="gxpT">
+      <form method="dialog" onsubmit="gxPlanSave();return false">
+        <h3 id="gxpT" data-pt>Thêm bảng tiến độ</h3>
+        <p class="hint" style="margin:0 0 10px">Mỗi bảng có Gantt, bản in và Excel riêng — dùng khi các thang / cụm thang / toà triển khai lệch nhau. Bảng <b>Tổng thể</b> vẫn giữ cho cả hợp đồng.</p>
+        <div class="grid g2">
+          <div class="f"><label for="gxpKind">Loại phạm vi</label><select id="gxpKind"><option value="thang">Theo thang</option><option value="cum">Cụm thang</option><option value="toa">Toà</option><option value="gd">Giai đoạn</option></select></div>
+          <div class="f"><label for="gxpName">Tên bảng</label><input id="gxpName" placeholder="VD: A · PL1–PL3 · Giai đoạn 1" required></div>
+          <div class="f hs-wide"><label>Thang áp dụng</label><div class="gx-pel" id="gxpElevs"></div></div>
+          <div class="f hs-wide"><label for="gxpScope">Ghi chú phạm vi (tuỳ chọn)</label><input id="gxpScope" placeholder="VD: Khối đế + tháp A, tầng B2–25"></div>
+          <div class="f hs-wide"><label for="gxpFrom">Bắt đầu từ</label><select id="gxpFrom"><option value="copy">Sao chép bảng đang xem (rồi chỉnh trên Gantt)</option><option value="step2">Dựng mới từ dữ liệu bước 2</option></select></div>
+        </div>
+        <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn gho" onclick="this.closest('dialog').close()">Huỷ</button><button type="submit" class="btn pri">Lưu</button></div>
+      </form>
+    </dialog>
   </div>
   <div class="panel">
     <div class="row" style="justify-content:space-between">
@@ -1617,19 +1659,33 @@ function scaleSteps(target){ // proportionally rescale 14 steps to match detecte
 /* ================================================================
    BẢNG TIẾN ĐỘ ĐÃ CHỈNH (Gantt) — nguồn cho bản in, Excel, thư hàng về
 ================================================================ */
+// Nhiều bảng tiến độ: S.gplans = {active, list:[{id,name,scope,main,items,src,edited,typeColors}]}.
+// S.gplan = bảng đang xem (thuộc tính ảo, không lưu riêng); dữ liệu cũ có S.gplan → tự chuyển thành bảng "Tổng thể hợp đồng".
+if(!S.gplans)S.gplans={active:"",list:[]};
+Object.defineProperty(S,"gplan",{enumerable:false,configurable:true,
+  get(){const g=S.gplans;if(!g||!Array.isArray(g.list)||!g.list.length)return null;return g.list.find(p=>p.id===g.active)||g.list[0];},
+  set(v){
+    if(!v){S.gplans={active:"",list:[]};return;}
+    if(!S.gplans||!Array.isArray(S.gplans.list))S.gplans={active:"",list:[]};
+    const cur=S.gplan;
+    if(cur){["items","src","edited"].forEach(k=>{if(k in v)cur[k]=v[k];});if(v.typeColors)cur.typeColors=v.typeColors;}
+    else{const p=Object.assign({id:"main",name:"Tổng thể hợp đồng",scope:"Toàn bộ thang theo hợp đồng",main:true,typeColors:{}},v);S.gplans.list.push(p);S.gplans.active=p.id;}
+  }});
+const fold=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D");
 function gxCtx(){return {base:pd(document.getElementById("baseline").value),mode:document.querySelector("input[name=daymode]:checked").value,H:holSet()};}
 function gxSrc(){return Gantt.srcKey({p:document.getElementById("ph_prod").value,h:document.getElementById("ph_hand").value,st:S.steps,f:S.factors});}
 function gxEnsure(force){
   const key=gxSrc();
-  if(force||!S.gplan||!Array.isArray(S.gplan.items)||!S.gplan.items.length||(S.gplan.src!==key&&!S.gplan.edited))
+  if(force||!S.gplan||!Array.isArray(S.gplan.items)||!S.gplan.items.length||(S.gplan.main&&S.gplan.src!==key&&!S.gplan.edited))
     S.gplan={items:Gantt.fromRows(computeSchedule().rows),src:key,edited:false};
-  const stale=document.getElementById("gxStale");if(stale)stale.classList.toggle("hide",!(S.gplan.edited&&S.gplan.src!==key));
+  const stale=document.getElementById("gxStale");if(stale)stale.classList.toggle("hide",!(S.gplan.main&&S.gplan.edited&&S.gplan.src!==key));
   gxMount();
 }
 let gxUI=null,gxT=null;
 function gxMount(){
   const host=document.getElementById("gxHost");if(!host||typeof Gantt.mount!=="function")return;
-  if(!gxUI)gxUI=Gantt.mount(host,{get:()=>S.gplan.items,set:(a)=>{S.gplan.items=a;},ctx:gxCtx,
+  gxPlansRender();
+  if(!gxUI)gxUI=Gantt.mount(host,{get:()=>S.gplan.items,set:(a)=>{S.gplan.items=a;},ctx:gxCtx,getTC:()=>S.gplan.typeColors||(S.gplan.typeColors={}),setTC:(t)=>{S.gplan.typeColors=t;},
     onChange:()=>{S.gplan.edited=true;clearTimeout(gxT);gxT=setTimeout(()=>{renderPreview();host.dispatchEvent(new Event("change",{bubbles:true}));},120);}});
   else gxUI.render();
 }
@@ -1638,14 +1694,71 @@ function gxRegen(ask){
   pullForm();gxEnsure(true);if(gxUI){gxUI.state.undo=[];gxUI.state.redo=[];gxUI.render();}renderPreview();
   document.getElementById("gxHost").dispatchEvent(new Event("change",{bubbles:true}));
 }
-// lịch đã chỉnh: cùng dạng computeSchedule() (+ start) để bản in / Excel dùng chung
-function planSchedule(){
-  if(!S.gplan||!S.gplan.items||!S.gplan.items.length){const s=computeSchedule();return Object.assign(s,{start:s.base});}
-  const c=gxCtx(),R=Gantt.compute(S.gplan.items,c);
-  return {rows:R.rows,total:R.total,base:c.base,start:R.start,end:R.end,mode:c.mode,H:c.H};
+// ----- danh sách bảng tiến độ (tổng thể / theo thang / cụm thang / toà) -----
+function gxPlansRender(){
+  const box=document.getElementById("gxPlans");if(!box||!S.gplan)return;
+  const g=S.gplans,cur=S.gplan;
+  box.innerHTML=`<div class="gx-pt ni-tabs" role="tablist" aria-label="Các bảng tiến độ">${g.list.map(p=>`<button type="button" role="tab" data-plan="${esc(p.id)}" aria-selected="${p.id===cur.id}"><b>${esc(p.name)}</b><small>${esc(p.scope||"")}</small></button>`).join("")}
+    <button type="button" class="gx-padd" data-plan-add title="Thêm bảng tiến độ riêng cho một thang, cụm thang hoặc toà">＋ Thêm bảng theo thang / cụm / toà</button></div>
+    <div class="gx-pact">${cur.main?`<span class="hs-mini">Bảng <b>tổng thể</b> cho cả hợp đồng — dựng từ dữ liệu bước 2.</span>`:`<span class="hs-mini">Bảng riêng: <b>${esc(cur.name)}</b>${cur.scope?" · "+esc(cur.scope):""}</span>`}
+      <button type="button" class="btn sm gho" data-plan-edit>✎ Đổi tên / phạm vi</button>${cur.main?"":`<button type="button" class="btn sm gho" data-plan-del>🗑 Xoá bảng này</button>`}
+      ${g.list.length>1?`<button type="button" class="btn sm sec" onclick="exportExcel(true)" title="Một file Excel, mỗi bảng một sheet">⬇ Excel tất cả ${g.list.length} bảng</button>`:""}</div>`;
 }
+function gxSwitch(id){
+  if(!S.gplans.list.some(p=>p.id===id))return;S.gplans.active=id;
+  if(gxUI){gxUI.state.undo=[];gxUI.state.redo=[];}
+  gxEnsure();renderPreview();document.getElementById("gxHost").dispatchEvent(new Event("change",{bubbles:true}));
+}
+function gxPlanDlg(edit){
+  const d=document.getElementById("gxPlanDlg"),cur=S.gplan;
+  const els=(S.qElevs||[]).map(e=>String(e.name||"").trim()).filter(Boolean);
+  const chosen=new Set(edit&&cur.elevs||[]);
+  d.querySelector("[data-pt]").textContent=edit?"Đổi tên / phạm vi bảng tiến độ":"Thêm bảng tiến độ theo thang / cụm thang / toà";
+  d.querySelector("#gxpKind").value=edit&&cur.kind||"toa";
+  d.querySelector("#gxpName").value=edit?cur.name:"";
+  d.querySelector("#gxpScope").value=edit?(cur.scopeNote||""):"";
+  d.querySelector("#gxpElevs").innerHTML=els.length?els.map(n=>`<label class="chk"><input type="checkbox" value="${esc(n)}"${chosen.has(n)?" checked":""}> ${esc(n)}</label>`).join(""):`<span class="hs-mini">Chưa có danh sách thang (khai ở Hồ sơ chất lượng → mục D) — ghi thang vào ô Ghi chú phạm vi.</span>`;
+  d.querySelector("#gxpFrom").parentElement.parentElement.hidden=!!edit;
+  d.querySelector("#gxpKind").disabled=!!(edit&&cur.main);
+  d.dataset.edit=edit?"1":"";
+  d.showModal();setTimeout(()=>d.querySelector("#gxpName").focus(),50);
+}
+function gxPlanSave(){
+  const d=document.getElementById("gxPlanDlg"),edit=!!d.dataset.edit;
+  const kind=d.querySelector("#gxpKind").value,name=d.querySelector("#gxpName").value.trim(),note=d.querySelector("#gxpScope").value.trim();
+  const elevs=[...d.querySelectorAll("#gxpElevs input:checked")].map(x=>x.value);
+  const KL={thang:"Thang",cum:"Cụm thang",toa:"Toà",gd:"Giai đoạn"};
+  if(!name){d.querySelector("#gxpName").focus();return;}
+  const scope=[elevs.length?`${elevs.length} thang: ${elevs.join(", ")}`:"",note].filter(Boolean).join(" · ")||(KL[kind]||"");
+  if(edit){const cur=S.gplan;cur.name=name;cur.scopeNote=note;cur.elevs=elevs;if(!cur.main){cur.kind=kind;}cur.scope=cur.main&&!elevs.length&&!note?"Toàn bộ thang theo hợp đồng":scope;}
+  else{
+    const from=d.querySelector("#gxpFrom").value,src=S.gplan;
+    const items=from==="copy"&&src?JSON.parse(JSON.stringify(src.items)):Gantt.fromRows(computeSchedule().rows);
+    const p={id:"p"+Date.now().toString(36),name:(KL[kind]&&!new RegExp("^"+KL[kind],"i").test(name)?KL[kind]+" ":"")+name,kind,scope,scopeNote:note,elevs,main:false,items,src:gxSrc(),edited:true,typeColors:JSON.parse(JSON.stringify(src&&src.typeColors||{}))};
+    S.gplans.list.push(p);S.gplans.active=p.id;if(gxUI){gxUI.state.undo=[];gxUI.state.redo=[];}
+  }
+  d.close();gxEnsure();renderPreview();document.getElementById("gxHost").dispatchEvent(new Event("change",{bubbles:true}));
+}
+function gxPlanDel(){
+  const cur=S.gplan;if(!cur||cur.main)return;
+  if(!confirm(`Xoá bảng tiến độ “${cur.name}”? Không khôi phục được.`))return;
+  S.gplans.list=S.gplans.list.filter(p=>p!==cur);S.gplans.active=S.gplans.list[0]?S.gplans.list[0].id:"";
+  gxEnsure();renderPreview();document.getElementById("gxHost").dispatchEvent(new Event("change",{bubbles:true}));
+}
+document.addEventListener("click",ev=>{
+  const b=ev.target.closest("#gxPlans [data-plan],#gxPlans [data-plan-add],#gxPlans [data-plan-edit],#gxPlans [data-plan-del]");if(!b)return;
+  if(b.dataset.plan)gxSwitch(b.dataset.plan);else if("planAdd" in b.dataset)gxPlanDlg(false);else if("planEdit" in b.dataset)gxPlanDlg(true);else gxPlanDel();
+});
+// lịch đã chỉnh: cùng dạng computeSchedule() (+ start) để bản in / Excel dùng chung
+function planSchedule(pl){
+  pl=pl||S.gplan;
+  if(!pl||!pl.items||!pl.items.length){const s=computeSchedule();s.rows.forEach(r=>{r.type=Gantt.classify(r.name,r.ph==="M"?"base":(r.sec?"group":"task"),r.ph);r.color=Gantt.colorOf(r.type,null,{});});return Object.assign(s,{start:s.base,plan:null});}
+  const c=Object.assign(gxCtx(),{typeColors:pl.typeColors||{}}),R=Gantt.compute(pl.items,c);
+  return {rows:R.rows,total:R.total,base:c.base,start:R.start,end:R.end,mode:c.mode,H:c.H,plan:pl};
+}
+const planScope=(pl)=>pl&&!pl.main?`${pl.name}${pl.scope?" — "+pl.scope:""}`:"";
 function renderPreview(){
-  const {rows,total,base,start,end,mode,H}=planSchedule();
+  const {rows,total,base,start,end,mode,H,plan}=planSchedule();
   const G=dayGrid(start<base?start:base,end,mode,H);
   const P=S.project;
   
@@ -1659,7 +1772,8 @@ function renderPreview(){
     <div class="meta"><b>Hợp đồng số / Contract No.:</b><span>${esc(P.no)}${P.cdate?"&nbsp;&nbsp;|&nbsp;&nbsp;Ngày ký: "+esc(P.cdate):""}${P.equip?"&nbsp;&nbsp;|&nbsp;&nbsp;Thiết bị: "+esc(P.equip):""}</span></div>
     <div class="meta"><b>Bên Mua / Chủ đầu tư:</b><span>${esc(P.buyer)}${P.rep?"&nbsp;&nbsp;|&nbsp;&nbsp;Đại diện: "+esc(P.rep):""}${P.baddr?"&nbsp;&nbsp;|&nbsp;&nbsp;Địa chỉ: "+esc(P.baddr):""}</span></div>
     <div class="meta"><b>Căn cứ / Basis:</b><span>${esc(basisText(P,mode))}</span></div>
-    <div class="meta"><b>Mốc khởi tính / Baseline:</b><span>${fmt(base)} – Ngày bản vẽ thi công được phê duyệt</span></div>`;
+    <div class="meta"><b>Mốc khởi tính / Baseline:</b><span>${fmt(base)} – Ngày bản vẽ thi công được phê duyệt</span></div>${planScope(plan)?`
+    <div class="meta"><b>Phạm vi / Scope:</b><span>${esc(planScope(plan))}</span></div>`:""}`;
 
   // bảng kiểu MS Project: cột ID | Tên công việc | Thời lượng | Bắt đầu | Kết thúc | thang thời gian theo ngày (tháng → tuần → thứ)
   h+=`<table class="gt"><thead><tr>
@@ -1677,7 +1791,7 @@ function renderPreview(){
         <td class="c">${r.days==="–"?"–":r.days+" ngày"}</td><td class="c">${r.ph==="M"?fmtDow(r.s):fmtDow(r.s)}</td><td class="c">${fmtDow(r.e)}</td>`;
     G.days.forEach(x=>{
       const k=barAt(r,x,mode,H);
-      h+=`<td class="g${k==="bar"?" b-"+r.ph+(r.sec?" s":""):k==="ms"?" b-M":x.off?" hol":""}">${k==="ms"?"◆":""}</td>`;
+      h+=`<td class="g${k==="bar"?" b-"+r.ph+(r.sec?" s":""):k==="ms"?" b-M":x.off?" hol":""}"${k==="bar"&&r.color?` style="background:linear-gradient(transparent ${r.sec?14:26}%,${r.color} ${r.sec?14:26}% ${r.sec?86:74}%,transparent ${r.sec?86:74}%)"`:""}>${k==="ms"?"◆":""}</td>`;
     });
     h+=`</tr>`;
   });
@@ -1685,11 +1799,9 @@ function renderPreview(){
       <td class="c">${total} ngày</td><td class="c">${fmtDow(base)}</td><td class="c">${fmtDow(end)}</td>
       <td class="g" colspan="${G.days.length}"></td></tr></tbody></table>`;
 
-  h+=`<div class="legend"><b>CHÚ GIẢI / LEGEND:</b>
-      <span><i class="b-P" style="background:var(--navy-2)"></i>Sản xuất &amp; vận chuyển thiết bị</span>
-      <span><i style="background:var(--red)"></i>Lắp đặt thiết bị</span>
-      <span><i style="background:var(--green)"></i>Bàn giao đưa vào sử dụng</span>
-      <span><i style="background:#000"></i>Mốc tiến độ (bản vẽ được duyệt)</span>
+  const lg=[];rows.forEach(r=>{if(r.kind==="base"||r.ph==="M")return;const n=r.ownColor?r.name:(Gantt.TYPE[r.type]||Gantt.TYPE.khac).n;if(!lg.some(x=>x[0]===n&&x[1]===r.color))lg.push([n,r.color]);});
+  h+=`<div class="legend"><b>CHÚ GIẢI / LEGEND:</b>${lg.map(x=>`<span><i style="background:${x[1]}"></i>${esc(x[0])}</span>`).join("")}
+      <span><i style="background:#000"></i>Mốc tiến độ</span>
       <span><i style="background:#f6dede;border:1px solid #8b1a1a"></i>Tuần nghỉ (không có ngày làm việc — không tô tiến độ)</span>
       <span style="color:#555">Mỗi tháng 4 cột: T1 = ngày 1–7 · T2 = 8–14 · T3 = 15–21 · T4 = 22–hết tháng</span></div>`;
 
@@ -1713,14 +1825,28 @@ function renderPreview(){
 /* ================================================================
    EXCEL EXPORT (ExcelJS) — mirrors the A3 template
 ================================================================ */
-async function exportExcel(){
+async function exportExcel(all){
   pullForm();
-  const {rows,total,base,start,end,mode,H}=planSchedule();
+  const wb=new ExcelJS.Workbook();
+  const list=all&&S.gplans&&S.gplans.list.length>1?S.gplans.list:[S.gplan||null];
+  const used=new Set();
+  list.forEach(pl=>{
+    let nm=(pl&&!pl.main?pl.name:"Tiến độ").replace(/[\\/?*\[\]:]/g," ").trim().slice(0,28)||"Tiến độ",b=nm,i=2;
+    while(used.has(nm.toLowerCase()))nm=b.slice(0,25)+" ("+(i++)+")";used.add(nm.toLowerCase());
+    excelSheet(wb,nm,pl);
+  });
+  const P=S.project,cur=S.gplan;
+  const suf=list.length>1?"_tat_ca":(cur&&!cur.main?"_"+fold(cur.name).replace(/[^\w-]+/g,"_"):"");
+  const buf=await wb.xlsx.writeBuffer();
+  saveAs(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),
+    `Bang_tien_do_${(P.no||"du_an").replace(/[^\w-]/g,"_")}${suf}.xlsx`);
+}
+function excelSheet(wb,sheetName,pl){
+  const {rows,total,base,start,end,mode,H}=planSchedule(pl);
   const G=dayGrid(start<base?start:base,end,mode,H);
   const P=S.project;
   const NW=G.days.length, C_G0=6, LASTC=C_G0+NW-1;
-  const wb=new ExcelJS.Workbook();
-  const ws=wb.addWorksheet("Tiến độ",{views:[{showGridLines:false}]});
+  const ws=wb.addWorksheet(sheetName,{views:[{showGridLines:false}]});
   const NAVY="FFDFE3EA",BLUE="FF2E74B5",RED="FFDC0000",GREEN="FF00B050",SEC="FFD9E2F3",TOT="FFFFF2CC",WHT="FFFFFFFF",BLK="FF000000";
   const fill=c=>({type:"pattern",pattern:"solid",fgColor:{argb:c}});
   const thin={style:"thin",color:{argb:"FF808080"}},hair={style:"hair",color:{argb:"FFBFBFBF"}};
@@ -1745,6 +1871,7 @@ async function exportExcel(){
     ["Bên Mua / Chủ đầu tư:",`${P.buyer}${P.rep?"   |   Đại diện: "+P.rep:""}${P.baddr?"   |   Địa chỉ: "+P.baddr:""}`],
     ["Căn cứ / Basis:",basisText(P,mode)],
     ["Mốc khởi tính / Baseline date:",`${fmt(base)} – Ngày bản vẽ thi công được phê duyệt`]];
+  if(planScope(pl))info.push(["Phạm vi / Scope:",planScope(pl)]);
   r=3;
   info.forEach(([a,b])=>{M(r,1,r,2);M(r,3,r,LASTC);
     Object.assign(cell(r,1,a),{font:F(10,1)});Object.assign(cell(r,3,b),{font:F(10),alignment:{vertical:"top",wrapText:true}});if(String(b).length>170)ws.getRow(r).height=28;r++;});
@@ -1768,7 +1895,7 @@ async function exportExcel(){
       {font:F(9,1,x.off?"FF8B1A1A":BLK),fill:fill(x.off?HOLH:NAVY),border:bAll,alignment:{horizontal:"center",vertical:"middle"}});
   });
   ws.getRow(H1).height=20;ws.getRow(H2).height=18;
-  const FM={M:BLK,P:BLUE,I:RED,H:GREEN};
+  const FM={M:BLK,P:BLUE,I:RED,H:GREEN},AR=c=>/^#[0-9a-f]{6}$/i.test(c||"")?"FF"+c.slice(1).toUpperCase():null;
   r=H2+1;
   rows.forEach(t=>{
     const fB=t.sec?F(10,1):F(10);
@@ -1782,7 +1909,7 @@ async function exportExcel(){
     G.days.forEach((dx,i)=>{
       const x=cell(r,C_G0+i);x.border=bG;
       const k=barAt(t,dx,mode,H);
-      if(k==="bar")x.fill=fill(FM[t.ph]);
+      if(k==="bar")x.fill=fill(AR(t.color)||FM[t.ph]);
       else if(k==="ms"){x.fill=fill(BLK);}
       else if(dx.off)x.fill=fill(HOLB);
     });
@@ -1797,13 +1924,14 @@ async function exportExcel(){
   ws.getRow(r).height=24;r+=2;
   // legend
   Object.assign(cell(r,2,"CHÚ GIẢI / LEGEND:"),{font:F(10,1)});
-  [["Sản xuất & vận chuyển thiết bị",BLUE],["Lắp đặt thiết bị",RED],["Bàn giao đưa vào sử dụng",GREEN],["Mốc tiến độ (bản vẽ được duyệt)",BLK],
-    ["Tuần nghỉ (không có ngày làm việc)",HOLB]].forEach((L,k)=>{
+  const LG=[];rows.forEach(t=>{if(t.kind==="base"||t.ph==="M")return;const n=t.ownColor?t.name:(Gantt.TYPE[t.type]||Gantt.TYPE.khac).n,c=AR(t.color)||FM[t.ph];if(!LG.some(x=>x[0]===n&&x[1]===c))LG.push([n,c]);});
+  LG.push(["Mốc tiến độ (bản vẽ được duyệt)",BLK],["Ngày nghỉ (không tô tiến độ)",HOLB]);
+  LG.forEach((L,k)=>{
     const rr=r+Math.floor(k/2),cc=C_G0+(k%2)*14;
     cell(rr,cc).fill=fill(L[1]);cell(rr,cc).border=bAll;
     M(rr,cc+1,rr,cc+12);Object.assign(cell(rr,cc+1,L[0]),{font:F(10)});
   });
-  r+=Math.ceil(5/2)+1;
+  r+=Math.ceil(LG.length/2)+1;
   M(r,1,r,LASTC);Object.assign(cell(r,1,"GHI CHÚ & ĐIỀU KIỆN THỰC HIỆN:"),{font:F(10,1)});r++;
   S.conds.forEach((c,i)=>{M(r,1,r,LASTC);
     Object.assign(cell(r,1,`${i+1}. ${condText(i,mode)}`),{font:F(10),alignment:{horizontal:"left",vertical:"top",wrapText:true}});
@@ -1827,9 +1955,6 @@ async function exportExcel(){
   ws.pageSetup={paperSize:8,orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:1,horizontalCentered:true,
     margins:{left:.3,right:.3,top:.4,bottom:.4,header:.2,footer:.2},
     printArea:`A1:${colName(LASTC)}${r+8}`};
-  const buf=await wb.xlsx.writeBuffer();
-  saveAs(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),
-    `Bang_tien_do_${(P.no||"du_an").replace(/[^\w-]/g,"_")}.xlsx`);
 }
 function colName(n){let s="";while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
 
