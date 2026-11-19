@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 <link rel="stylesheet" href="report.css?v=2">
 <script src="../../js/pwa.js?v=36" defer></script>
 <script src="../../js/demo.js?v=3"></script>
@@ -20,7 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <script src="bracket.js?v=4"></script>
 <script src="report.js?v=1"></script>
-<script src="app.js?v=9" defer></script>
+<script src="app.js?v=10" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="bracket" data-tool="Khảo sát Bracket hố thang" data-help="#bracket"></script>
@@ -168,6 +168,21 @@
     </div>
   </div>
 </main>
+<!-- chi tiết một loại bracket: ID đặt hàng, ghi chú, bản vẽ (bản máy chủ) -->
+<dialog class="bk-dlg" id="bkDlg" aria-labelledby="bkdTitle">
+  <div class="bk-dlgh"><h2 id="bkdTitle"></h2><button type="button" class="ni-btn ghost small" id="bkdClose">Đóng</button></div>
+  <p class="bk-dlgr" id="bkdRange"></p>
+  <div class="bk-dlgg">
+    <label class="ni-field">ID đặt hàng<input id="bkdId" maxlength="200" autocomplete="off" placeholder="VD: mã vật tư / part number dùng khi đặt hàng"></label>
+    <label class="ni-field">Ghi chú<textarea id="bkdNote" rows="2" maxlength="1000" placeholder="VD: ES1 / ES5.0, lưu ý khi đặt hàng…"></textarea></label>
+  </div>
+  <div class="bk-dlgrow"><span class="ni-muted bk-dlgs" id="bkdIdHint"></span><button type="button" class="ni-btn primary small" id="bkdSave">Lưu ID</button></div>
+  <h3>Bản vẽ</h3>
+  <ul class="bk-files" id="bkdFiles"></ul>
+  <label class="bk-drop" id="bkdDrop"><input type="file" id="bkdFile" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.dwg,.dxf" hidden>
+    <b>＋ Đính kèm bản vẽ</b><span>Bấm để chọn hoặc kéo file thả vào đây · PDF, ảnh, DWG / DXF · tối đa 10 MB mỗi file · mọi người cùng xem</span></label>
+  <p class="bk-dlgs" id="bkdMsg" aria-live="polite"></p>
+</dialog>
 <!-- menu Xuất báo cáo -->
 <div class="bk-menu" id="exportMenu" role="menu" hidden>
   <button type="button" role="menuitem" data-out="pdf"><b>📄 Báo cáo PDF</b><span>Bản trình bày khổ A4: kết luận, biểu đồ, việc cần làm — xem trước rồi In / Lưu PDF</span></button>

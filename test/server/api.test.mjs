@@ -2403,3 +2403,49 @@ test('Khảo sát Bracket: mọi người cùng xem; chỉ người tạo và Ad
   assert.equal((await call('DELETE', `/api/bracket/surveys/${s.id}`, { email: TS, body: {} })).status, 200);
   assert.equal((await call('GET', `/api/bracket/surveys/${s.id}`, { email: TS })).status, 404);
 });
+
+test('Bracket — danh mục: ID đặt hàng (Admin / QLDA sửa, có nhật ký), bản vẽ đính kèm (ai cũng thêm; người đính kèm / Admin xoá), file lớn chia khúc', async () => {
+  const A = 'boss@example.com', SUP = 'sup@example.com', TS = 'ts1@example.com';
+  assert.equal((await call('PATCH', '/api/admin/employees/S01', { email: A, body: { active: true } })).status, 200);
+  const c0 = (await call('GET', '/api/bracket/catalog', { email: TS })).data;
+  assert.deepEqual([c0.canEditId, c0.info['Z-CL3']], [false, undefined]);
+  assert.equal((await call('PUT', '/api/bracket/catalog/Z-CL3', { email: TS, body: { orderId: 'X' } })).status, 403, 'thợ không sửa ID');
+  const u = await call('PUT', '/api/bracket/catalog/' + encodeURIComponent('Z-CL3'), { email: A, body: { orderId: ' 59312345 ', note: 'ES1' } });
+  assert.equal(u.status, 200, JSON.stringify(u.data));
+  assert.equal((await call('PUT', '/api/bracket/catalog/Z-CL3', { email: A, body: { orderId: '59312345', note: 'ES1' } })).data.unchanged, true);
+  const o = await call('PUT', '/api/bracket/catalog/' + encodeURIComponent('O-A1 / O-A2  106-1'), { email: A, body: { orderId: '59400001' } });
+  assert.equal(o.status, 200);
+  const c1 = (await call('GET', '/api/bracket/catalog', { email: TS })).data;
+  assert.deepEqual([c1.info['Z-CL3'].orderId, c1.info['Z-CL3'].note, c1.info['O-A1 / O-A2  106-1'].orderId], ['59312345', 'ES1', '59400001']);
+  assert.ok((await env.DB.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'bracket_info'").first()).c >= 2);
+  // tải bản vẽ: nội dung thô + header riêng; thiếu header → bị chặn như mọi yêu cầu không phải JSON
+  const up = async (email, bracket, name, bytes, hdr = true) => {
+    const headers = { 'cf-access-jwt-assertion': await tokenFor(email), 'content-type': 'application/octet-stream' };
+    if (hdr) headers['x-ts-upload'] = '1';
+    const req = new Request(`https://trackingts.pages.dev/api/bracket/files?bracket=${encodeURIComponent(bracket)}&name=${encodeURIComponent(name)}`, { method: 'POST', headers, body: bytes });
+    const resp = await handle(req, env, { getKeys }); return { status: resp.status, data: await resp.json() };
+  };
+  const big = new Uint8Array(2 * 1024 * 1024 + 123); for (let i = 0; i < big.length; i++) big[i] = (i * 7) & 255;
+  assert.equal((await up(TS, 'Z-CL3', 'ban ve.pdf', big, false)).status, 415, 'thiếu header tải lên');
+  assert.equal((await up(TS, 'Z-CL3', 'virus.exe', big)).status, 415, 'sai loại file');
+  assert.equal((await up(TS, '<script>', 'a.pdf', big)).status, 400);
+  const f1 = await up(TS, 'Z-CL3', 'Bản vẽ Z-CL3.pdf', big);
+  assert.equal(f1.status, 200, JSON.stringify(f1.data));
+  assert.deepEqual([f1.data.file.size, f1.data.file.mime, f1.data.file.canDelete], [big.length, 'application/pdf', true]);
+  assert.equal((await env.DB.prepare('SELECT chunks FROM bracket_files WHERE id = ?').bind(f1.data.file.id).first()).chunks, 3, '2 MB → 3 khúc');
+  // tải về đúng từng byte
+  const get = await handle(new Request('https://trackingts.pages.dev/api/bracket/files/' + f1.data.file.id, { headers: { 'cf-access-jwt-assertion': await tokenFor(SUP) } }), env, { getKeys });
+  assert.equal(get.status, 200); assert.equal(get.headers.get('content-type'), 'application/pdf');
+  assert.match(get.headers.get('content-disposition'), /filename\*=UTF-8''B%E1%BA%A3n/);
+  const back = new Uint8Array(await get.arrayBuffer());
+  assert.equal(back.length, big.length); assert.ok(back.every((v, i) => v === big[i]), 'nội dung giữ nguyên');
+  // danh mục liệt kê file; người khác không xoá được, người đính kèm / Admin xoá được
+  const c2 = (await call('GET', '/api/bracket/catalog', { email: SUP })).data;
+  assert.deepEqual([c2.files['Z-CL3'].length, c2.files['Z-CL3'][0].canDelete, c2.files['Z-CL3'][0].createdBy], [1, false, 'Thợ Một']);
+  assert.equal((await call('DELETE', '/api/bracket/files/' + f1.data.file.id, { email: SUP, body: {} })).status, 403);
+  const f2 = await up(SUP, 'Z-CL3', 'anh.jpg', new Uint8Array([1, 2, 3]));
+  assert.equal((await call('DELETE', '/api/bracket/files/' + f2.data.file.id, { email: A, body: {} })).status, 200, 'Admin xoá file của người khác');
+  assert.equal((await call('DELETE', '/api/bracket/files/' + f1.data.file.id, { email: TS, body: {} })).status, 200);
+  assert.equal((await env.DB.prepare('SELECT COUNT(*) c FROM bracket_file_chunks').first()).c, 0, 'xoá hết khúc');
+  assert.equal((await call('GET', '/api/bracket/files/' + f1.data.file.id, { email: TS })).status, 404);
+});

@@ -212,8 +212,9 @@
   function refresh() {
     const c = B.compute(cur);
     const zb = c.zb, ob = c.ob;
-    $('rangeZ').innerHTML = zb ? `SFmin / SFmax: <b>${zb.min} – ${zb.max} mm</b> · dòng <b>${zb.fam}</b>` : '';
-    $('rangeO').innerHTML = ob ? `SGmin / SGmax: <b>${ob.min} – ${ob.max} mm</b>${B.NOTE_O[ob.name] ? `<br><span class="bk-warn">⚠ ${esc(B.NOTE_O[ob.name])}</span>` : ''}` : '';
+    const idTag = (n) => SERVER && n ? ` · <button type="button" class="hs-link bk-idl" data-bk="${esc(n)}">${oid(n) ? 'ID đặt hàng <b>' + esc(oid(n)) + '</b>' : 'Chưa có ID đặt hàng'}${nFiles(n) ? ' · 📎 ' + nFiles(n) + ' bản vẽ' : ''}</button>` : '';
+    $('rangeZ').innerHTML = zb ? `SFmin / SFmax: <b>${zb.min} – ${zb.max} mm</b> · dòng <b>${zb.fam}</b>${idTag(zb.name)}` : '';
+    $('rangeO').innerHTML = ob ? `SGmin / SGmax: <b>${ob.min} – ${ob.max} mm</b>${idTag(ob.name)}${B.NOTE_O[ob.name] ? `<br><span class="bk-warn">⚠ ${esc(B.NOTE_O[ob.name])}</span>` : ''}` : '';
     // phiếu cũ chọn bracket đã bị bỏ khỏi danh mục mới (vd. Z-AL2, Z-AL3 không còn SC-AP từ bản Ae25)
     if (cur.zBracket && !zb) $('rangeZ').innerHTML = `<span class="bk-warn">⚠ ${esc(cur.zBracket)} không còn trong danh mục SC-AP (J 45350713 Ae25) — chọn lại loại Z Bracket.</span>`;
     if (cur.oBracket && !ob) $('rangeO').innerHTML = `<span class="bk-warn">⚠ ${esc(cur.oBracket.replace(/\s{2,}/g, ' '))} không có trong danh mục — chọn lại loại Omega Bracket.</span>`;
@@ -278,12 +279,24 @@
 
   // ---------- tab Tra dung sai (không cần phiếu) ----------
   const fmtMm = (v) => String(v);
+  // ---------- danh mục trên hệ thống: ID đặt hàng + bản vẽ của từng loại ----------
+  let CAT = { info: {}, files: {}, canEditId: false, loaded: false };
+  async function loadCatalog() {
+    if (!SERVER) return;
+    try { const r = await api('GET', '/api/bracket/catalog'); CAT = { info: r.info || {}, files: r.files || {}, canEditId: !!r.canEditId, loaded: true }; }
+    catch (e) { CAT.err = e.message; }
+    lookupTables(); lookup(); if (cur) refresh();
+  }
+  const oid = (n) => (CAT.info[n] && CAT.info[n].orderId) || '';
+  const nFiles = (n) => (CAT.files[n] || []).length;
+  const extra = (n) => SERVER ? `<td class="bk-oid">${oid(n) ? esc(oid(n)) : '<span class="ni-muted">—</span>'}</td><td class="bk-nf">${nFiles(n) ? '📎 ' + nFiles(n) : ''}</td>` : '';
   function lookupTables() {
     const famName = { AL: 'Dòng AL', CL: 'Dòng CL', CHL: 'Dòng CHL', CH: 'Dòng CH' };
-    $('lkZ').innerHTML = '<thead><tr><th>Mã bracket</th><th>SFmin</th><th>SFmax</th><th>Dải</th></tr></thead><tbody>' + B.FAMILIES.map((f) => `<tr class="fam" data-fam="${f}"><td colspan="4">${famName[f]}</td></tr>` +
-      B.Z.filter((b) => b.fam === f).map((b) => `<tr data-n="${esc(b.name)}" data-fam="${f}"><td>${esc(b.name)}</td><td>${b.min}</td><td>${b.max}</td><td>${b.max - b.min}</td></tr>`).join('')).join('') + '</tbody>';
-    $('lkO').innerHTML = '<thead><tr><th>Mã bracket</th><th>SGmin</th><th>SGmax</th><th>Dải</th></tr></thead><tbody>' +
-      B.O.map((b) => `<tr data-n="${esc(b.name)}"><td>${esc(clean(b.name))}</td><td>${b.min}</td><td>${b.max}</td><td>${b.max - b.min}</td></tr>`).join('') + '</tbody>';
+    const hx = SERVER ? '<th>ID đặt hàng</th><th><span class="sr-only">Bản vẽ</span>📎</th>' : '', cs = SERVER ? 6 : 4;
+    const row = (b, f) => `<tr data-n="${esc(b.name)}"${f ? ` data-fam="${f}"` : ''}${SERVER ? ' tabindex="0" class="bk-click" title="Bấm để xem ID đặt hàng, bản vẽ"' : ''}><td>${esc(clean(b.name))}${SERVER ? ' <span class="bk-more" aria-hidden="true">›</span>' : ''}</td><td>${b.min}</td><td>${b.max}</td><td>${b.max - b.min}</td>${extra(b.name)}</tr>`;
+    $('lkZ').innerHTML = `<thead><tr><th>Mã bracket</th><th>SFmin</th><th>SFmax</th><th>Dải</th>${hx}</tr></thead><tbody>` + B.FAMILIES.map((f) => `<tr class="fam" data-fam="${f}"><td colspan="${cs}">${famName[f]}</td></tr>` +
+      B.Z.filter((b) => b.fam === f).map((b) => row(b, f)).join('')).join('') + '</tbody>';
+    $('lkO').innerHTML = `<thead><tr><th>Mã bracket</th><th>SGmin</th><th>SGmax</th><th>Dải</th>${hx}</tr></thead><tbody>` + B.O.map((b) => row(b)).join('') + '</tbody>';
     $('lkSrc').textContent = 'Nguồn: ' + B.SOURCE + ' · Chỉ áp dụng thị trường SC-AP.';
   }
   const normId = (t) => String(t || '').toUpperCase().replace(/\s+/g, '').replace(/^Z-?/, '').replace(/^O-?/, '');
@@ -297,7 +310,7 @@
   function lookup() {
     const xz = B.num($('lkSf2').value), xo = B.num($('lkSg').value), fam = $('lkFam').value, q = normId($('lkQ').value);
     const zList = fam ? B.Z.filter((b) => b.fam === fam) : B.Z;
-    const chip = (b, best) => `<span class="bk-fit${best ? ' best' : ''}"><b>${esc(clean(b.name))}</b> ${b.min}–${b.max}${best ? ' · <i>gợi ý: dải hẹp nhất</i>' : ''}</span>`;
+    const chip = (b, best) => `<button type="button" class="bk-fit${best ? ' best' : ''}" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.min}–${b.max}${oid(b.name) ? ` · ID <b>${esc(oid(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}${best ? ' · <i>gợi ý: dải hẹp nhất</i>' : ''}</button>`;
     const res = [], fitZ = new Set(), fitO = new Set(), bestSet = new Set();
     ['lkSf2', 'lkSg'].forEach((id) => { const el = $(id), bad = el.value.trim() !== '' && B.num(el.value) === null; el.setAttribute('aria-invalid', bad ? 'true' : 'false'); });
     if (xz !== null) {
@@ -316,18 +329,63 @@
         : `<span class="bk-nofit">Không loại nào chứa ${xo} mm${r.near ? ` — gần nhất <b>${esc(clean(r.near.b.name))}</b> (${r.near.b.min}–${r.near.b.max}, lệch ${Math.round(r.near.d)} mm${r.near.d <= B.TOL ? ': đệm bản mã / đục tỉa được' : ''})` : ''}</span>`}</div></div>`);
     }
     if (q && xz === null && xo === null) {
-      const m = [...B.Z, ...B.O].filter((b) => normId(b.name).includes(q));
-      res.push(m.length ? `<div class="bk-lkblk"><h3>Mã khớp “${esc($('lkQ').value.trim())}”</h3><div class="bk-lkrow">${m.map((b) => `<span class="bk-fit"><b>${esc(clean(b.name))}</b> ${b.fam ? 'SF' : 'SG'} ${b.min}–${b.max} mm</span>`).join('')}</div></div>`
+      const m = [...B.Z, ...B.O].filter((b) => normId(b.name).includes(q) || (oid(b.name) && normId(oid(b.name)).includes(q)));
+      res.push(m.length ? `<div class="bk-lkblk"><h3>Mã khớp “${esc($('lkQ').value.trim())}”</h3><div class="bk-lkrow">${m.map((b) => `<button type="button" class="bk-fit" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.fam ? 'SF' : 'SG'} ${b.min}–${b.max} mm${oid(b.name) ? ` · ID <b>${esc(oid(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}</button>`).join('')}</div></div>`
         : `<p class="bk-nofit">Không có mã bracket nào khớp “${esc($('lkQ').value.trim())}”.</p>`);
     }
     $('lkRes').innerHTML = res.join('') || '<p class="ni-muted">Nhập SF2 / SG hoặc mã bracket — bảng bên dưới tô các loại phù hợp.</p>';
     // tô / lọc bảng
-    const show = (n) => !q || normId(n).includes(q);
+    const show = (n) => !q || normId(n).includes(q) || (oid(n) && normId(oid(n)).includes(q));
     document.querySelectorAll('#lkZ tbody tr[data-n]').forEach((tr) => { const n = tr.dataset.n, vis = (!fam || tr.dataset.fam === fam) && show(n);
       tr.hidden = !vis; tr.classList.toggle('fit', fitZ.has(n)); tr.classList.toggle('on', bestSet.has(n)); });
     document.querySelectorAll('#lkZ tbody tr.fam').forEach((tr) => { tr.hidden = ![...document.querySelectorAll(`#lkZ tbody tr[data-n][data-fam="${tr.dataset.fam}"]`)].some((x) => !x.hidden); });
     document.querySelectorAll('#lkO tbody tr[data-n]').forEach((tr) => { const n = tr.dataset.n; tr.hidden = !show(n); tr.classList.toggle('fit', fitO.has(n)); tr.classList.toggle('on', bestSet.has(n)); });
   }
+  // ---------- hộp chi tiết một loại bracket: ID đặt hàng, ghi chú, bản vẽ ----------
+  let dlgName = '';
+  const fmtSize = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  const fIcon = (m) => /pdf/.test(m) ? '📄' : /^image\/(png|jpe?g|webp|gif)/.test(m) ? '🖼' : '📐';
+  function openBk(name) {
+    if (!SERVER) return;
+    const b = B.findZ(name) || B.findO(name); if (!b) return;
+    dlgName = name;
+    const d = $('bkDlg'), info = CAT.info[name] || {};
+    $('bkdTitle').textContent = clean(name);
+    $('bkdRange').innerHTML = `${b.fam ? `Z Bracket · dòng <b>${b.fam}</b> · SFmin / SFmax` : 'Omega Bracket · SGmin / SGmax'}: <b>${b.min} – ${b.max} mm</b> (dải ${b.max - b.min} mm)`;
+    $('bkdId').value = info.orderId || ''; $('bkdNote').value = info.note || '';
+    [$('bkdId'), $('bkdNote')].forEach((el) => { el.readOnly = !CAT.canEditId; });
+    $('bkdSave').hidden = !CAT.canEditId;
+    $('bkdIdHint').textContent = CAT.canEditId ? (info.updatedAt ? `Sửa lần cuối: ${info.updatedBy || ''} · ${new Date(info.updatedAt).toLocaleString('vi-VN')}` : 'Chưa có ID — nhập rồi bấm Lưu ID.')
+      : (info.updatedAt ? `Cập nhật bởi ${info.updatedBy || ''} · ${new Date(info.updatedAt).toLocaleString('vi-VN')}. ` : '') + 'Chỉ Admin, Quản lý dự án, Admin dự án được sửa ID đặt hàng.';
+    $('bkdMsg').textContent = '';
+    renderFiles();
+    if (!d.open) d.showModal();
+  }
+  function renderFiles() {
+    const list = CAT.files[dlgName] || [];
+    $('bkdFiles').innerHTML = list.length ? list.map((f) => `<li><a href="/api/bracket/files/${f.id}" target="_blank" rel="noopener">${fIcon(f.mime)} ${esc(f.name)}</a>
+      <span class="ni-muted">${fmtSize(f.size)} · ${esc(f.createdBy || '')} · ${new Date(f.createdAt).toLocaleDateString('vi-VN')}</span>
+      ${f.canDelete ? `<button type="button" class="ni-btn small ghost" data-fdel="${f.id}" aria-label="Xoá ${esc(f.name)}">Xoá</button>` : ''}</li>`).join('')
+      : '<li class="ni-muted">Chưa có bản vẽ nào cho loại này.</li>';
+  }
+  async function uploadFiles(files) {
+    const name = dlgName; if (!name || !files.length) return;
+    const msg = $('bkdMsg');
+    for (const f of files) {
+      if (f.size > 10 * 1024 * 1024) { msg.textContent = `⚠ ${f.name} quá 10 MB — nén PDF hoặc giảm độ phân giải ảnh rồi thử lại.`; continue; }
+      msg.textContent = `Đang tải lên ${f.name}…`;
+      try {
+        const resp = await fetch(`/api/bracket/files?bracket=${encodeURIComponent(name)}&name=${encodeURIComponent(f.name)}`, { method: 'POST', credentials: 'same-origin', redirect: 'manual',
+          headers: { 'content-type': 'application/octet-stream', 'x-ts-upload': '1' }, body: f });
+        let data = {}; try { data = await resp.json(); } catch (e) { /* bỏ qua */ }
+        if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+        (CAT.files[name] || (CAT.files[name] = [])).push(data.file);
+        msg.textContent = `✓ Đã đính kèm ${f.name}`;
+      } catch (e) { msg.textContent = `⚠ Không tải lên được ${f.name}: ${e.message}`; }
+    }
+    renderFiles(); lookupTables(); lookup(); if (cur) refresh();
+  }
+
   function showTab(t) {
     const look = t === 'lookup';
     $('secLookup').hidden = !look; $('secList').hidden = look;
@@ -412,6 +470,38 @@
     $('bkTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
     $('bkTabs').addEventListener('keydown', (e) => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; const t = $('tabList').getAttribute('aria-selected') === 'true' ? 'lookup' : 'list'; showTab(t); $(t === 'list' ? 'tabList' : 'tabLookup').focus(); });
     ['lkSf2', 'lkSg', 'lkQ', 'lkFam'].forEach((id) => $(id).addEventListener('input', lookup));
+    // mở chi tiết loại bracket: bấm dòng bảng, thẻ kết quả, hoặc liên kết ID trong phiếu
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-bk]'); if (b) { openBk(b.dataset.bk); return; }
+      const tr = e.target.closest('#lkZ tr[data-n], #lkO tr[data-n]'); if (tr && SERVER) openBk(tr.dataset.n);
+    });
+    document.addEventListener('keydown', (e) => { const tr = e.target.closest && e.target.closest('#lkZ tr[data-n], #lkO tr[data-n]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openBk(tr.dataset.n); } });
+    $('bkDlg').addEventListener('cancel', (e) => e.preventDefault());   // chỉ đóng bằng nút Đóng
+    $('bkdClose').addEventListener('click', () => $('bkDlg').close());
+    $('bkdSave').addEventListener('click', async () => {
+      const name = dlgName, msg = $('bkdMsg'); msg.textContent = 'Đang lưu…';
+      try {
+        const r = await api('PUT', '/api/bracket/catalog/' + encodeURIComponent(name), { orderId: $('bkdId').value, note: $('bkdNote').value });
+        if (r.info) CAT.info[name] = r.info;
+        msg.textContent = r.unchanged ? 'Không có gì thay đổi.' : '✓ Đã lưu ID đặt hàng.';
+        openBk(name); msg.textContent = r.unchanged ? 'Không có gì thay đổi.' : '✓ Đã lưu ID đặt hàng.';
+        lookupTables(); lookup(); if (cur) refresh();
+      } catch (e) { msg.textContent = '⚠ ' + e.message; }
+    });
+    $('bkdFile').addEventListener('change', (e) => { uploadFiles([...e.target.files]); e.target.value = ''; });
+    const dz = $('bkdDrop');
+    ['dragenter', 'dragover'].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
+    dz.addEventListener('drop', (e) => uploadFiles([...(e.dataTransfer.files || [])]));
+    $('bkdFiles').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-fdel]'); if (!b) return;
+      if (!confirm('Xoá bản vẽ này khỏi hệ thống? Mọi người sẽ không còn thấy.')) return;
+      try {
+        await api('DELETE', '/api/bracket/files/' + b.dataset.fdel, {});
+        CAT.files[dlgName] = (CAT.files[dlgName] || []).filter((f) => String(f.id) !== b.dataset.fdel);
+        renderFiles(); lookupTables(); lookup(); if (cur) refresh();
+      } catch (err) { $('bkdMsg').textContent = '⚠ ' + err.message; }
+    });
     $('list').addEventListener('click', (e) => {
       const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
       const x = e.target.closest('[data-xls]'); if (x) { const s = surveys.find((v) => v.id === x.dataset.xls); if (s) openMenu(x, s); }
@@ -490,7 +580,7 @@
   if (me && me.name) $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ` + (SERVER ? 'phiếu lưu trên hệ thống — mọi người cùng xem; chỉ người tạo và Admin được sửa' : 'phiếu lưu trên máy này');
   $('listTitle').textContent = SERVER ? 'Phiếu khảo sát trên hệ thống' : 'Phiếu khảo sát trên máy này';
   $('listTools').hidden = !SERVER;
-  bracketOptions(); refTables(); lookupTables(); bind();
+  bracketOptions(); refTables(); lookupTables(); bind(); loadCatalog();
   let tab0 = 'list'; try { tab0 = localStorage.getItem('bk_tab') === 'lookup' ? 'lookup' : 'list'; } catch (e) { /* bỏ qua */ }
   if (location.hash === '#tra') tab0 = 'lookup';
   showTab(tab0);
