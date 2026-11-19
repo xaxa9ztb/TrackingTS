@@ -514,12 +514,79 @@
     };
     const m = letterMeta(d.id), pc = m ? m.g.c : '#64748b';
     host.innerHTML = `<div class="hs-fh" style="--pc:${pc}"><span class="hs-tic">${lic(m ? m.it.ic : 'mail')}</span><div><h3>${esc(d.name)}</h3><p>${m ? esc(m.g.name) + (m.it.s ? ' · ' + esc(m.it.s) : '') : ''}</p></div><button type="button" class="btn gho sm hs-back" data-lback>← Tất cả văn bản</button></div>
+      <div class="hs-lfw${pvWide ? ' wide' : ''}"><div class="hs-lfc"><p class="hs-lfh"><b>① Thông tin</b> — điền từng ô; bản xem trước bên cạnh cập nhật ngay.</p>
       <div class="grid g2">${fld('so', d.kind === 'bb' ? 'Số biên bản' : d.kind === 'rfa' ? 'Số ' + d.id.toUpperCase() : 'Số công văn', 'text', { ph: d.kind === 'rfa' ? `VD: ${d.id.toUpperCase()}-SCH-001` : 'VD: 125/2026/SCH-HN' })}${fld('ngay', 'Ngày lập', 'date', { def: todayISO() })}
       ${(d.fields || []).map(x => fld(x.k, x.label, x.type || 'text', x)).join('')}
       ${d.kind === 'letter' ? fld('kinhGui', 'Kính gửi (để trống = Chủ đầu tư)', 'text', { ph: gv('hs_cdt') }) + fld('dongKinhGui', 'Đồng kính gửi (để trống = Ban QLDA; TVGS)', 'text', { ph: [gv('hs_qlda'), gv('hs_tvgs')].filter(Boolean).join('; ') }) : ''}</div>
-      <div class="row" style="gap:10px;margin-top:12px"><button class="btn pri" id="hsLetterGo">⬇ Xuất ${d.kind === 'bb' ? 'biên bản' : d.kind === 'rfa' ? 'phiếu ' + d.id.toUpperCase() : 'công văn'} (.docx)</button><span id="hsLetterSt" class="hs-mini"></span></div>`;
+      <div class="row hs-lgo" style="gap:10px;margin-top:12px"><button class="btn pri" id="hsLetterGo">⬇ Xuất ${d.kind === 'bb' ? 'biên bản' : d.kind === 'rfa' ? 'phiếu ' + d.id.toUpperCase() : 'công văn'} (.docx)</button><span id="hsLetterSt" class="hs-mini"></span></div></div>
+      <div class="hs-pvw"><div class="hs-pvbar"><b>② Xem trước &amp; sửa tay</b>
+        <span class="hs-pvtools" role="toolbar" aria-label="Định dạng chữ trong đoạn đang sửa"><button type="button" data-fmt="bold" title="In đậm (Ctrl+B)"><b>B</b></button><button type="button" data-fmt="italic" title="In nghiêng (Ctrl+I)"><i>I</i></button><button type="button" data-fmt="underline" title="Gạch chân (Ctrl+U)"><u>U</u></button></span>
+        <button type="button" class="btn gho sm" data-pvreset disabled title="Trả đoạn đang chọn về nội dung tự sinh từ ô thông tin">↺ Bỏ sửa đoạn này</button>
+        <button type="button" class="btn gho sm" data-pvresetall hidden>↺ Bỏ mọi sửa tay</button>
+        <button type="button" class="btn gho sm" data-pvwide title="Mở rộng / thu hẹp khung xem trước">${pvWide ? '⇤ Thu hẹp' : '⤢ Mở rộng'}</button></div>
+        <p class="hs-pvhint">Bấm vào <b>từng đoạn</b> trên trang để sửa trực tiếp — mỗi đoạn là một ô riêng; đoạn đã sửa có <span class="hs-pvmark">vạch vàng</span>. Bản Word xuất ra đúng nội dung trang này (logo, chân trang theo mẫu công văn; chỗ ngắt trang có thể khác đôi chút).</p>
+        <p class="hs-pvmiss" id="hsPvMiss" hidden></p>
+        <div class="hs-pvs" id="hsPvScroll"><div class="pv-page" id="hsPv"></div></div></div></div>`;
     (d.fields || []).forEach(x => { if (v[x.k] == null && x.def) v[x.k] = x.def; });
     if (v.ngay == null) v.ngay = todayISO();
+    renderLetterPreview();
+  }
+  // ---------- xem trước + sửa tay (hspreview.js) ----------
+  let pvWide = false, pvTimer = 0, pvImgs = null, pvFocus = null;
+  async function pvLogos() {
+    if (pvImgs) return pvImgs;
+    pvImgs = { a: '', b: '' };
+    try {
+      const z = await JSZip.loadAsync(await letterTpl());
+      const url = async (n) => { const f = z.file('word/media/' + n); return f ? URL.createObjectURL(new Blob([await f.async('uint8array')], { type: 'image/jpeg' })) : ''; };
+      pvImgs = { a: await url('image1.jpeg'), b: await url('image2.jpeg') };
+    } catch (e) { /* không có logo: vẫn xem được thân văn bản */ }
+    return pvImgs;
+  }
+  function renderLetterPreview() {
+    const box = $('hsPv'), d = HsLetters.LETTERS.find(x => x.id === curLetter);
+    if (!box || !d || !window.HsPreview) return;
+    const v = LT[d.id] || (LT[d.id] = {});
+    let out;
+    try { out = HsPreview.toHtml(HsLetters.compose(d, info(), v), { ed: v._ed, editable: !readOnly() }); }
+    catch (e) { box.innerHTML = `<p class="hs-mini">⚠ Chưa xem trước được: ${esc(e.message)}</p>`; return; }
+    box.innerHTML = `<div class="pv-hd"><img data-logo="a" alt=""><img data-logo="b" alt=""></div><div class="pv-body">${out.html}</div>
+      <div class="pv-ft">Schindler Vietnam Ltd.- Hanoi Branch · Suite 03, Level 12A Indochina Plaza Hanoi · 241 Xuan Thuy, Cau Giay, Hanoi, Vietnam · Tel (84-24) 3974 2677 · www.schindler.vn</div>`;
+    pvLogos().then(L => box.querySelectorAll('[data-logo]').forEach(im => { if (L[im.dataset.logo]) im.src = L[im.dataset.logo]; else im.remove(); }));
+    const n = out.count, miss = out.miss.length;
+    const ra = host().querySelector('[data-pvresetall]'); if (ra) { ra.hidden = !(n || miss); ra.textContent = `↺ Bỏ mọi sửa tay (${n + miss})`; }
+    const mi = $('hsPvMiss'); mi.hidden = !miss;
+    if (miss) mi.innerHTML = `⚠ ${miss} đoạn sửa tay không còn khớp vì nội dung tự sinh đã đổi (do sửa ô thông tin) — sẽ <b>không</b> được dùng khi xuất. <button type="button" class="hs-link" data-pvdropmiss>Xoá các sửa tay này</button>`;
+    pvFit(); pvToolbar();
+  }
+  const host = () => $('hsLetterForm');
+  function pvFit() {
+    const sc = $('hsPvScroll'), pg = $('hsPv'); if (!sc || !pg) return;
+    const k = Math.min(1, (sc.clientWidth - 16) / pg.offsetWidth);
+    pg.style.transform = k < 1 ? `scale(${k})` : ''; pg.style.transformOrigin = 'top left';
+    pg.parentElement.style.height = k < 1 ? Math.ceil(pg.offsetHeight * k + 16) + 'px' : '';
+  }
+  function pvToolbar() {
+    const b = host() && host().querySelector('[data-pvreset]'); if (!b) return;
+    b.disabled = !(pvFocus && pvFocus.isConnected && pvFocus.classList.contains('ed'));
+  }
+  // lưu sửa tay của một đoạn (so với chữ gốc tự sinh; sửa về đúng như gốc thì bỏ)
+  function pvSave(el) {
+    const d = HsLetters.LETTERS.find(x => x.id === curLetter); if (!d || !el || readOnly()) return;
+    const v = LT[d.id] || (LT[d.id] = {});
+    const ed = v._ed || (v._ed = {});
+    const runs = HsPreview.domToRuns(el), o = el.dataset.o || '';
+    const base = HsPreview.paragraphs(HsLetters.compose(d, info(), v))[+el.dataset.pi];
+    let k = el.dataset.k;
+    if (base && HsPreview.canon(runs) === HsPreview.canon(base.runs)) { if (k != null) delete ed[k]; delete el.dataset.k; el.classList.remove('ed'); }
+    else {
+      if (k == null) { k = String(el.dataset.pi); if (ed[k]) k = k + '_' + Date.now().toString(36); el.dataset.k = k; }
+      ed[k] = { o, x: runs }; el.classList.add('ed');
+    }
+    if (!Object.keys(ed).length) delete v._ed;
+    const ra = host().querySelector('[data-pvresetall]'), n = Object.keys(v._ed || {}).length;
+    if (ra) { ra.hidden = !n; ra.textContent = `↺ Bỏ mọi sửa tay (${n})`; }
+    pvToolbar(); saveSoon();
   }
   // mở thẳng một văn bản trong mục Công văn, biên bản (VD từ nút ở mục Tiến độ)
   function openLetter(id) {
@@ -746,8 +813,33 @@
     });
     $('hsLetterQ').addEventListener('input', (e) => { lQuery = e.target.value; renderLetters(); });
     $('hsLetterKind').addEventListener('click', (e) => { const b = e.target.closest('[data-lkind]'); if (!b) return; lKind = b.dataset.lkind; document.querySelectorAll('#hsLetterKind [data-lkind]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); renderLetters(); });
-    $('hsLetterForm').addEventListener('input', (e) => { const k = e.target.dataset.lk; if (k && curLetter) (LT[curLetter] || (LT[curLetter] = {}))[k] = e.target.value; });
-    $('hsLetterForm').addEventListener('click', (e) => { const sn = e.target.closest('[data-sonext]'); if (sn && curLetter) { const inp = $('hsLetterForm').querySelector('[data-lk="so"]'); inp.value = sn.dataset.sonext; (LT[curLetter] || (LT[curLetter] = {})).so = inp.value; sn.remove(); inp.dispatchEvent(new Event('input', { bubbles: true })); return; } if (e.target.id === 'hsLetterGo') exportLetter(); if (e.target.closest('[data-lback]')) { curLetter = null; renderLetters(); $('screenLetters').scrollIntoView({ block: 'start' }); } });
+    $('hsLetterForm').addEventListener('input', (e) => {
+      const k = e.target.dataset.lk;
+      if (k && curLetter) { (LT[curLetter] || (LT[curLetter] = {}))[k] = e.target.value; clearTimeout(pvTimer); pvTimer = setTimeout(renderLetterPreview, 250); return; }
+      const pe = e.target.closest && e.target.closest('#hsPv .pv-p');
+      if (pe) { clearTimeout(pvTimer); pvTimer = setTimeout(() => pvSave(pe), 500); }
+    });
+    $('hsLetterForm').addEventListener('focusin', (e) => { const pe = e.target.closest('#hsPv .pv-p'); if (pe) { pvFocus = pe; pvToolbar(); } });
+    $('hsLetterForm').addEventListener('focusout', (e) => { const pe = e.target.closest('#hsPv .pv-p'); if (pe) { clearTimeout(pvTimer); pvSave(pe); } });
+    $('hsLetterForm').addEventListener('keydown', (e) => {
+      const pe = e.target.closest && e.target.closest('#hsPv .pv-p'); if (!pe) return;
+      if (e.key === 'Enter') { e.preventDefault(); document.execCommand('insertLineBreak'); }   // Enter = xuống dòng trong đoạn
+      if (e.key === 'Escape') pe.blur();
+    });
+    // dán: chỉ lấy chữ thuần (không mang định dạng web / Word lạ vào)
+    $('hsLetterForm').addEventListener('paste', (e) => {
+      if (!e.target.closest || !e.target.closest('#hsPv .pv-p')) return;
+      e.preventDefault(); document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
+    });
+    $('hsLetterForm').addEventListener('mousedown', (e) => { if (e.target.closest('[data-fmt]')) e.preventDefault(); });   // giữ con trỏ trong đoạn
+    window.addEventListener('resize', () => { if (curLetter) pvFit(); });
+    $('hsLetterForm').addEventListener('click', (e) => { const sn = e.target.closest('[data-sonext]'); if (sn && curLetter) { const inp = $('hsLetterForm').querySelector('[data-lk="so"]'); inp.value = sn.dataset.sonext; (LT[curLetter] || (LT[curLetter] = {})).so = inp.value; sn.remove(); inp.dispatchEvent(new Event('input', { bubbles: true })); return; } if (e.target.id === 'hsLetterGo') exportLetter();
+      const fm = e.target.closest('[data-fmt]'); if (fm) { if (pvFocus && pvFocus.isConnected) { pvFocus.focus(); document.execCommand(fm.dataset.fmt); pvSave(pvFocus); } return; }
+      if (e.target.closest('[data-pvreset]') && pvFocus && pvFocus.dataset.k != null && curLetter) { const v = LT[curLetter]; if (v && v._ed) { delete v._ed[pvFocus.dataset.k]; if (!Object.keys(v._ed).length) delete v._ed; } pvFocus = null; renderLetterPreview(); saveSoon(); return; }
+      if (e.target.closest('[data-pvresetall]') && curLetter) { if (!confirm('Bỏ mọi sửa tay trên bản xem trước của văn bản này? Văn bản trở về đúng nội dung tự sinh từ các ô thông tin.')) return; delete (LT[curLetter] || {})._ed; renderLetterPreview(); saveSoon(); return; }
+      if (e.target.closest('[data-pvdropmiss]') && curLetter) { const v = LT[curLetter], d = HsLetters.LETTERS.find(x => x.id === curLetter); const A = HsPreview.applyEdits(HsLetters.compose(d, info(), v), v._ed); A.miss.forEach(k => delete v._ed[k]); if (v._ed && !Object.keys(v._ed).length) delete v._ed; renderLetterPreview(); saveSoon(); return; }
+      if (e.target.closest('[data-pvwide]')) { pvWide = !pvWide; const w = host().querySelector('.hs-lfw'); w.classList.toggle('wide', pvWide); e.target.closest('[data-pvwide]').textContent = pvWide ? '⇤ Thu hẹp' : '⤢ Mở rộng'; pvFit(); return; }
+      if (e.target.closest('[data-lback]')) { curLetter = null; renderLetters(); $('screenLetters').scrollIntoView({ block: 'start' }); } });
     // pháp lý
     $('hsLgNgay').addEventListener('input', (e) => { LG.ngay = e.target.value; });
     $('hsPeople').addEventListener('input', (e) => { const k = e.target.dataset.pk, tr = e.target.closest('tr[data-i]'); if (!k || !tr) return; LG.people[+tr.dataset.i][k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });
