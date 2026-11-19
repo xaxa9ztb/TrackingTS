@@ -169,3 +169,21 @@ body { margin: 0; background: var(--ni-bg); }
 .bk-ro .bk-del,.bk-ro .bk-add{display:none}
 .bk-ro input:disabled,.bk-ro select:disabled{background:#f8fafc;color:#0f172a;opacity:1;-webkit-text-fill-color:#0f172a;cursor:default}
 .bk-main [hidden]{display:none!important}
+
+/* ---- tab Tra dung sai ---- */
+.bk-tabs { margin: 0 0 14px; }
+.bk-lkin { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 10px 0 12px; }
+@media (max-width: 900px) { .bk-lkin { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .bk-lkin { grid-template-columns: 1fr; } }
+.bk-lkres { margin: 0 0 14px; }
+.bk-lkblk { padding: 10px 12px; border: 1px solid var(--ni-line); border-radius: var(--ni-r-card, 10px); background: var(--ni-sunk); margin: 0 0 10px; }
+.bk-lkblk h3 { margin: 0 0 8px; font-size: 14px; }
+.bk-lkrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 6px; }
+.bk-lkf { min-width: 76px; font-size: 12px; font-weight: 700; color: var(--ni-muted); text-transform: uppercase; }
+.bk-fit { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; border-radius: 999px; background: #fff; border: 1px solid var(--ni-line); font-size: 13px; font-variant-numeric: tabular-nums; }
+.bk-fit.best { border-color: #16a34a; background: #f0fdf4; }
+.bk-fit i { font-style: normal; color: #15803d; font-size: 12px; }
+.bk-nofit { font-size: 13px; color: #9a3412; }
+.bk-lkt tr.fit td { background: #f0fdf4; }
+.bk-lkt tr.on td { background: #dcfce7; font-weight: 700; }
+.bk-lkt td:nth-child(n+2), .bk-lkt th:nth-child(n+2) { text-align: right; }

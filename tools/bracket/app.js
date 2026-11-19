@@ -257,7 +257,7 @@
   function open(id) {
     cur = surveys.find((s) => s.id === id) || null;
     if (!cur) return;
-    $('secList').hidden = true; $('editor').hidden = false;
+    $('secList').hidden = true; $('secLookup').hidden = true; $('bkTabs').hidden = true; $('editor').hidden = false;
     document.querySelectorAll('#editor [data-k]').forEach((el) => { el.value = cur[el.dataset.k] == null ? '' : cur[el.dataset.k]; });
     setSaved(SERVER ? (cur._m.updatedAt ? `Lưu trên hệ thống · sửa lần cuối ${hhmm(cur._m.updatedAt)} ${new Date(cur._m.updatedAt).toLocaleDateString('vi-VN')}${cur._m.updatedBy ? ' bởi ' + cur._m.updatedBy : ''}` : 'Lưu trên hệ thống') : 'Đã lưu trên máy này');
     const ro = !editable(cur);
@@ -271,9 +271,69 @@
   }
   function close() {
     clearTimeout(saveTimer); if (cur && editable(cur)) persist();
-    cur = null; $('editor').hidden = true; $('secList').hidden = false;
+    cur = null; $('editor').hidden = true; $('bkTabs').hidden = false; showTab('list');
     history.replaceState(null, '', location.pathname + location.search);
     renderList();
+  }
+
+  // ---------- tab Tra dung sai (không cần phiếu) ----------
+  const fmtMm = (v) => String(v);
+  function lookupTables() {
+    const famName = { AL: 'Dòng AL', CL: 'Dòng CL', CHL: 'Dòng CHL', CH: 'Dòng CH' };
+    $('lkZ').innerHTML = '<thead><tr><th>Mã bracket</th><th>SFmin</th><th>SFmax</th><th>Dải</th></tr></thead><tbody>' + B.FAMILIES.map((f) => `<tr class="fam" data-fam="${f}"><td colspan="4">${famName[f]}</td></tr>` +
+      B.Z.filter((b) => b.fam === f).map((b) => `<tr data-n="${esc(b.name)}" data-fam="${f}"><td>${esc(b.name)}</td><td>${b.min}</td><td>${b.max}</td><td>${b.max - b.min}</td></tr>`).join('')).join('') + '</tbody>';
+    $('lkO').innerHTML = '<thead><tr><th>Mã bracket</th><th>SGmin</th><th>SGmax</th><th>Dải</th></tr></thead><tbody>' +
+      B.O.map((b) => `<tr data-n="${esc(b.name)}"><td>${esc(clean(b.name))}</td><td>${b.min}</td><td>${b.max}</td><td>${b.max - b.min}</td></tr>`).join('') + '</tbody>';
+    $('lkSrc').textContent = 'Nguồn: ' + B.SOURCE + ' · Chỉ áp dụng thị trường SC-AP.';
+  }
+  const normId = (t) => String(t || '').toUpperCase().replace(/\s+/g, '').replace(/^Z-?/, '').replace(/^O-?/, '');
+  // bracket chứa số đo: dải hẹp nhất trước; không loại nào chứa → loại gần nhất (và mức lệch)
+  function fits(list, x) {
+    const hit = list.filter((b) => b.min <= x && b.max >= x).sort((a, b) => (a.max - a.min) - (b.max - b.min) || a.min - b.min);
+    if (hit.length) return { hit, near: null };
+    const near = list.map((b) => ({ b, d: x < b.min ? b.min - x : x - b.max })).sort((a, b) => a.d - b.d)[0];
+    return { hit: [], near };
+  }
+  function lookup() {
+    const xz = B.num($('lkSf2').value), xo = B.num($('lkSg').value), fam = $('lkFam').value, q = normId($('lkQ').value);
+    const zList = fam ? B.Z.filter((b) => b.fam === fam) : B.Z;
+    const chip = (b, best) => `<span class="bk-fit${best ? ' best' : ''}"><b>${esc(clean(b.name))}</b> ${b.min}–${b.max}${best ? ' · <i>gợi ý: dải hẹp nhất</i>' : ''}</span>`;
+    const res = [], fitZ = new Set(), fitO = new Set(), bestSet = new Set();
+    ['lkSf2', 'lkSg'].forEach((id) => { const el = $(id), bad = el.value.trim() !== '' && B.num(el.value) === null; el.setAttribute('aria-invalid', bad ? 'true' : 'false'); });
+    if (xz !== null) {
+      const parts = (fam ? [fam] : B.FAMILIES).map((f) => {
+        const r = fits(B.Z.filter((b) => b.fam === f), xz);
+        r.hit.forEach((b, i) => { fitZ.add(b.name); if (!i) bestSet.add(b.name); });
+        return r.hit.length ? `<div class="bk-lkrow"><span class="bk-lkf">Dòng ${f}</span>${r.hit.map((b, i) => chip(b, !i)).join('')}</div>`
+          : `<div class="bk-lkrow"><span class="bk-lkf">Dòng ${f}</span><span class="bk-nofit">Không loại nào chứa ${xz} mm${r.near ? ` — gần nhất <b>${esc(r.near.b.name)}</b> (${r.near.b.min}–${r.near.b.max}, lệch ${Math.round(r.near.d)} mm${r.near.d <= B.TOL ? ': đệm bản mã / đục tỉa được' : ''})` : ''}</span></div>`;
+      }).join('');
+      res.push(`<div class="bk-lkblk"><h3>Z Bracket cho SF2 = ${xz} mm</h3>${parts}</div>`);
+    }
+    if (xo !== null) {
+      const r = fits(B.O, xo);
+      r.hit.forEach((b, i) => { fitO.add(b.name); if (!i) bestSet.add(b.name); });
+      res.push(`<div class="bk-lkblk"><h3>Omega Bracket cho SG = ${xo} mm</h3><div class="bk-lkrow">${r.hit.length ? r.hit.map((b, i) => chip(b, !i)).join('')
+        : `<span class="bk-nofit">Không loại nào chứa ${xo} mm${r.near ? ` — gần nhất <b>${esc(clean(r.near.b.name))}</b> (${r.near.b.min}–${r.near.b.max}, lệch ${Math.round(r.near.d)} mm${r.near.d <= B.TOL ? ': đệm bản mã / đục tỉa được' : ''})` : ''}</span>`}</div></div>`);
+    }
+    if (q && xz === null && xo === null) {
+      const m = [...B.Z, ...B.O].filter((b) => normId(b.name).includes(q));
+      res.push(m.length ? `<div class="bk-lkblk"><h3>Mã khớp “${esc($('lkQ').value.trim())}”</h3><div class="bk-lkrow">${m.map((b) => `<span class="bk-fit"><b>${esc(clean(b.name))}</b> ${b.fam ? 'SF' : 'SG'} ${b.min}–${b.max} mm</span>`).join('')}</div></div>`
+        : `<p class="bk-nofit">Không có mã bracket nào khớp “${esc($('lkQ').value.trim())}”.</p>`);
+    }
+    $('lkRes').innerHTML = res.join('') || '<p class="ni-muted">Nhập SF2 / SG hoặc mã bracket — bảng bên dưới tô các loại phù hợp.</p>';
+    // tô / lọc bảng
+    const show = (n) => !q || normId(n).includes(q);
+    document.querySelectorAll('#lkZ tbody tr[data-n]').forEach((tr) => { const n = tr.dataset.n, vis = (!fam || tr.dataset.fam === fam) && show(n);
+      tr.hidden = !vis; tr.classList.toggle('fit', fitZ.has(n)); tr.classList.toggle('on', bestSet.has(n)); });
+    document.querySelectorAll('#lkZ tbody tr.fam').forEach((tr) => { tr.hidden = ![...document.querySelectorAll(`#lkZ tbody tr[data-n][data-fam="${tr.dataset.fam}"]`)].some((x) => !x.hidden); });
+    document.querySelectorAll('#lkO tbody tr[data-n]').forEach((tr) => { const n = tr.dataset.n; tr.hidden = !show(n); tr.classList.toggle('fit', fitO.has(n)); tr.classList.toggle('on', bestSet.has(n)); });
+  }
+  function showTab(t) {
+    const look = t === 'lookup';
+    $('secLookup').hidden = !look; $('secList').hidden = look;
+    $('tabList').setAttribute('aria-selected', String(!look)); $('tabLookup').setAttribute('aria-selected', String(look));
+    try { localStorage.setItem('bk_tab', t); } catch (e) { /* bỏ qua */ }
+    if (look) lookup();
   }
 
   // ---------- Excel ----------
@@ -349,6 +409,9 @@
       const f = e.target.closest('[data-lmine]'); if (f) { lMine = f.dataset.lmine === '1'; document.querySelectorAll('[data-lmine]').forEach((x) => x.setAttribute('aria-pressed', String(x === f))); renderList(); }
     });
     $('listQ').addEventListener('input', (e) => { lQ = e.target.value; renderList(); });
+    $('bkTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
+    $('bkTabs').addEventListener('keydown', (e) => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; const t = $('tabList').getAttribute('aria-selected') === 'true' ? 'lookup' : 'list'; showTab(t); $(t === 'list' ? 'tabList' : 'tabLookup').focus(); });
+    ['lkSf2', 'lkSg', 'lkQ', 'lkFam'].forEach((id) => $(id).addEventListener('input', lookup));
     $('list').addEventListener('click', (e) => {
       const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
       const x = e.target.closest('[data-xls]'); if (x) { const s = surveys.find((v) => v.id === x.dataset.xls); if (s) openMenu(x, s); }
@@ -427,7 +490,10 @@
   if (me && me.name) $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ` + (SERVER ? 'phiếu lưu trên hệ thống — mọi người cùng xem; chỉ người tạo và Admin được sửa' : 'phiếu lưu trên máy này');
   $('listTitle').textContent = SERVER ? 'Phiếu khảo sát trên hệ thống' : 'Phiếu khảo sát trên máy này';
   $('listTools').hidden = !SERVER;
-  bracketOptions(); refTables(); bind();
+  bracketOptions(); refTables(); lookupTables(); bind();
+  let tab0 = 'list'; try { tab0 = localStorage.getItem('bk_tab') === 'lookup' ? 'lookup' : 'list'; } catch (e) { /* bỏ qua */ }
+  if (location.hash === '#tra') tab0 = 'lookup';
+  showTab(tab0);
   (async () => {
     if (SERVER) { if (!(await loadServer())) return; renderLocalBanner(); } else renderList();
     const h = location.hash.slice(1); if (h && surveys.some((s) => s.id === h)) open(h);
