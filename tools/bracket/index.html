@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 <link rel="stylesheet" href="report.css?v=2">
 <script src="../../js/pwa.js?v=36" defer></script>
 <script src="../../js/demo.js?v=3"></script>
@@ -20,7 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <script src="bracket.js?v=4"></script>
 <script src="report.js?v=1"></script>
-<script src="app.js?v=10" defer></script>
+<script src="app.js?v=11" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="bracket" data-tool="Khảo sát Bracket hố thang" data-help="#bracket"></script>
@@ -53,7 +53,14 @@
   <!-- tra nhanh dung sai / mã bracket — không cần tạo phiếu -->
   <section class="ni-card bk-look" id="secLookup" role="tabpanel" aria-labelledby="tabLookup" hidden>
     <h2>Tra dung sai bracket</h2>
-    <p class="ni-muted bk-hint">Nhập số đo để tìm loại bracket phù hợp, hoặc gõ mã bracket để xem dung sai — không cần tạo phiếu khảo sát.</p>
+    <p class="ni-muted bk-hint">Nhập số đo để tìm loại bracket phù hợp, hoặc gõ mã bracket / ID đặt hàng để xem dung sai — không cần tạo phiếu khảo sát.</p>
+    <div class="bk-docs" id="lkDocs" hidden>
+      <div class="bk-docsh"><b>📚 Tài liệu tham chiếu</b><span class="ni-muted">Selection Rule gốc — tài liệu mật của Schindler, chỉ Site Sup, Quản lý dự án, Admin xem; không gửi ra ngoài.</span>
+        <label class="ni-btn small" id="lkDocAdd" hidden>＋ Tải tài liệu lên<input type="file" id="lkDocFile" accept=".pdf" multiple hidden></label>
+        <label class="ni-btn small" id="lkImport" hidden title="Nhập ID đặt hàng cho nhiều loại bracket từ file .json">⬆ Nhập ID từ file<input type="file" id="lkImportFile" accept=".json,application/json" hidden></label></div>
+      <ul class="bk-files" id="lkDocList"></ul>
+      <p class="bk-dlgs" id="lkDocMsg" aria-live="polite"></p>
+    </div>
     <div class="bk-lkin">
       <label class="ni-field">SF2 đo được (mm) · Z Bracket<input id="lkSf2" inputmode="decimal" autocomplete="off" placeholder="VD: 147"></label>
       <label class="ni-field">Dòng Z Bracket<select id="lkFam"><option value="">Tất cả các dòng</option><option value="AL">Dòng AL</option><option value="CL">Dòng CL</option><option value="CHL">Dòng CHL</option><option value="CH">Dòng CH</option></select></label>
@@ -173,9 +180,10 @@
   <div class="bk-dlgh"><h2 id="bkdTitle"></h2><button type="button" class="ni-btn ghost small" id="bkdClose">Đóng</button></div>
   <p class="bk-dlgr" id="bkdRange"></p>
   <div class="bk-dlgg">
-    <label class="ni-field">ID đặt hàng<input id="bkdId" maxlength="200" autocomplete="off" placeholder="VD: mã vật tư / part number dùng khi đặt hàng"></label>
+    <label class="ni-field">ID đặt hàng<textarea id="bkdId" rows="1" maxlength="2000" autocomplete="off" placeholder="VD: 57642328 — nhiều biến thể: mỗi dòng “mô tả: ID”"></textarea></label>
     <label class="ni-field">Ghi chú<textarea id="bkdNote" rows="2" maxlength="1000" placeholder="VD: ES1 / ES5.0, lưu ý khi đặt hàng…"></textarea></label>
   </div>
+  <div id="bkdIds"></div>
   <div class="bk-dlgrow"><span class="ni-muted bk-dlgs" id="bkdIdHint"></span><button type="button" class="ni-btn primary small" id="bkdSave">Lưu ID</button></div>
   <h3>Bản vẽ</h3>
   <ul class="bk-files" id="bkdFiles"></ul>

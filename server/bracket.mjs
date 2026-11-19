@@ -12,6 +12,9 @@
 //   POST   /api/bracket/files?bracket=&name= thân yêu cầu = nội dung file (≤ 10 MB; PDF, ảnh, DWG/DXF) — mọi người dùng
 //   GET    /api/bracket/files/:id            tải / xem file
 //   DELETE /api/bracket/files/:id            người đính kèm hoặc Admin
+//   POST   /api/bracket/catalog/import       {items:[{name, orderId, note}]} — nhập ID hàng loạt (người sửa được ID)
+// Tài liệu tham chiếu (bracket = '#docs', VD tài liệu Selection Rule gốc): chỉ Site Sup / Quản lý dự án / Admin dự án / Admin
+// xem được; chỉ Admin tải lên / xoá; PDF ≤ 25 MB.
 const MAX_DATA = 60000;
 const parse = (s) => { try { return JSON.parse(s || '{}'); } catch (e) { return {}; } };
 const lc = (s) => String(s || '').trim().toLowerCase();
@@ -35,6 +38,8 @@ const MAX_FILE = 10 * 1024 * 1024, CHUNK = 900 * 1024;
 const FILE_TYPES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', dwg: 'application/acad', dxf: 'image/vnd.dxf' };
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 ./_()-]{0,59}$/;          // tên loại bracket (VD Z-CL3, O-A1 / O-A2  106-1)
 const canEditId = (me) => !!(me.isAdmin || me.isProjAdmin || me.roles.includes('pm'));
+const DOCS = '#docs', MAX_DOC = 25 * 1024 * 1024;
+const canReadDocs = (me) => !!(me.isAdmin || me.isProjAdmin || me.roles.includes('pm') || me.roles.includes('sitesup'));
 const fileOut = (f, me) => ({ id: f.id, name: f.file_name, mime: f.mime, size: f.size, createdAt: f.created_at, createdBy: f.created_by,
   canDelete: !!me.isAdmin || (!!f.owner_key && lc(f.owner_key) === ownerKey(me)) });
 
@@ -47,8 +52,30 @@ async function routeCatalog(h, env, me, path, method, request) {
     ]);
     const info = {}, files = {};
     a.results.forEach(r => { info[r.name] = { orderId: r.order_id, note: r.note, updatedAt: r.updated_at, updatedBy: r.updated_by }; });
-    b.results.forEach(f => { (files[f.bracket] || (files[f.bracket] = [])).push(fileOut(f, me)); });
-    return h.json({ info, files, canEditId: canEditId(me) });
+    b.results.forEach(f => { if (f.bracket === DOCS && !canReadDocs(me)) return; (files[f.bracket] || (files[f.bracket] = [])).push(fileOut(f, me)); });
+    return h.json({ info, files, canEditId: canEditId(me), canReadDocs: canReadDocs(me), canAddDocs: !!me.isAdmin });
+  }
+  if (path === '/api/bracket/catalog/import' && method === 'POST') {
+    if (!canEditId(me)) throw new h.HttpError(403, 'Chỉ Admin, Quản lý dự án hoặc Admin dự án được nhập ID đặt hàng');
+    const body = await h.readJson(request);
+    const list = Array.isArray(body.items) ? body.items : [];
+    if (!list.length || list.length > 300) throw new h.HttpError(400, 'File không có danh sách ID hợp lệ (items)');
+    const t = h.now(); let changed = 0; const skipped = [];
+    const { results } = await env.DB.prepare('SELECT * FROM bracket_info').all();
+    const cur = Object.fromEntries(results.map(r => [r.name, r]));
+    const st = [];
+    for (const it of list) {
+      const name = String(it && it.name || '').trim();
+      if (!NAME_RE.test(name)) { skipped.push(name || '(trống)'); continue; }
+      const orderId = h.str(it.orderId, 2000), note = h.str(it.note, 1000);
+      const c = cur[name];
+      if (c && c.order_id === orderId && c.note === note) continue;
+      changed++;
+      st.push(env.DB.prepare('INSERT INTO bracket_info (name, order_id, note, updated_at, updated_by) VALUES (?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET order_id = excluded.order_id, note = excluded.note, updated_at = excluded.updated_at, updated_by = excluded.updated_by').bind(name, orderId, note, t, by));
+    }
+    if (st.length) await env.DB.batch(st);
+    if (changed) await h.audit(env, me, 'bracket_info_import', 'bracket', '', undefined, { changed, total: list.length, source: h.str(body.source, 200) });
+    return h.json({ ok: true, changed, unchanged: list.length - changed - skipped.length, skipped });
   }
   let m = path.match(/^\/api\/bracket\/catalog\/(.+)$/);
   if (m && method === 'PUT') {
@@ -56,7 +83,7 @@ async function routeCatalog(h, env, me, path, method, request) {
     const name = decodeURIComponent(m[1]);
     if (!NAME_RE.test(name)) throw new h.HttpError(400, 'Tên loại bracket không hợp lệ');
     const body = await h.readJson(request);
-    const orderId = h.str(body.orderId, 200), note = h.str(body.note, 1000);
+    const orderId = h.str(body.orderId, 2000), note = h.str(body.note, 1000);
     const cur = await env.DB.prepare('SELECT * FROM bracket_info WHERE name = ?').bind(name).first();
     if (cur && cur.order_id === orderId && cur.note === note) return h.json({ ok: true, unchanged: true });
     const t = h.now();
@@ -68,13 +95,16 @@ async function routeCatalog(h, env, me, path, method, request) {
   if (path === '/api/bracket/files' && method === 'POST') {
     const u = new URL(request.url);
     const bracket = String(u.searchParams.get('bracket') || '').trim(), fname = h.str(u.searchParams.get('name'), 150);
-    if (!NAME_RE.test(bracket)) throw new h.HttpError(400, 'Tên loại bracket không hợp lệ');
+    const isDoc = bracket === DOCS;
+    if (!isDoc && !NAME_RE.test(bracket)) throw new h.HttpError(400, 'Tên loại bracket không hợp lệ');
+    if (isDoc && !me.isAdmin) throw new h.HttpError(403, 'Chỉ Admin được tải tài liệu tham chiếu lên');
     const ext = (fname.match(/\.([A-Za-z0-9]+)$/) || [])[1];
     const mime = ext && FILE_TYPES[ext.toLowerCase()];
     if (!mime) throw new h.HttpError(415, 'Chỉ nhận bản vẽ PDF, ảnh (PNG, JPG, WEBP, GIF) hoặc DWG / DXF');
+    if (isDoc && mime !== 'application/pdf') throw new h.HttpError(415, 'Tài liệu tham chiếu chỉ nhận file PDF');
     const buf = new Uint8Array(await request.arrayBuffer());
     if (!buf.length) throw new h.HttpError(400, 'File rỗng');
-    if (buf.length > MAX_FILE) throw new h.HttpError(413, 'File quá lớn — tối đa 10 MB (nén PDF hoặc giảm độ phân giải ảnh)');
+    if (buf.length > (isDoc ? MAX_DOC : MAX_FILE)) throw new h.HttpError(413, isDoc ? 'Tài liệu quá lớn — tối đa 25 MB' : 'File quá lớn — tối đa 10 MB (nén PDF hoặc giảm độ phân giải ảnh)');
     const n = await env.DB.prepare('SELECT COUNT(*) c FROM bracket_files WHERE bracket = ?').bind(bracket).first();
     if (n && n.c >= 30) throw new h.HttpError(409, 'Loại bracket này đã có 30 file — xoá bớt bản cũ trước');
     const t = h.now(), parts = Math.ceil(buf.length / CHUNK);
@@ -95,6 +125,7 @@ async function routeCatalog(h, env, me, path, method, request) {
   if (!m) return null;
   const f = await env.DB.prepare('SELECT * FROM bracket_files WHERE id = ?').bind(Number(m[1])).first();
   if (!f) throw new h.HttpError(404, 'File không còn (có thể đã bị xoá)');
+  if (f.bracket === DOCS && !canReadDocs(me)) throw new h.HttpError(403, 'Tài liệu tham chiếu chỉ dành cho Site Sup, Quản lý dự án và Admin');
   if (method === 'GET') {
     const { results } = await env.DB.prepare('SELECT data FROM bracket_file_chunks WHERE file_id = ? ORDER BY seq').bind(f.id).all();
     const out = new Uint8Array(f.size); let pos = 0;

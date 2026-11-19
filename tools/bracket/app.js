@@ -212,7 +212,7 @@
   function refresh() {
     const c = B.compute(cur);
     const zb = c.zb, ob = c.ob;
-    const idTag = (n) => SERVER && n ? ` · <button type="button" class="hs-link bk-idl" data-bk="${esc(n)}">${oid(n) ? 'ID đặt hàng <b>' + esc(oid(n)) + '</b>' : 'Chưa có ID đặt hàng'}${nFiles(n) ? ' · 📎 ' + nFiles(n) + ' bản vẽ' : ''}</button>` : '';
+    const idTag = (n) => SERVER && n ? ` · <button type="button" class="hs-link bk-idl" data-bk="${esc(n)}">${oid(n) ? 'ID đặt hàng <b>' + esc(oidShort(n)) + '</b>' : 'Chưa có ID đặt hàng'}${nFiles(n) ? ' · 📎 ' + nFiles(n) + ' bản vẽ' : ''}</button>` : '';
     $('rangeZ').innerHTML = zb ? `SFmin / SFmax: <b>${zb.min} – ${zb.max} mm</b> · dòng <b>${zb.fam}</b>${idTag(zb.name)}` : '';
     $('rangeO').innerHTML = ob ? `SGmin / SGmax: <b>${ob.min} – ${ob.max} mm</b>${idTag(ob.name)}${B.NOTE_O[ob.name] ? `<br><span class="bk-warn">⚠ ${esc(B.NOTE_O[ob.name])}</span>` : ''}` : '';
     // phiếu cũ chọn bracket đã bị bỏ khỏi danh mục mới (vd. Z-AL2, Z-AL3 không còn SC-AP từ bản Ae25)
@@ -283,13 +283,57 @@
   let CAT = { info: {}, files: {}, canEditId: false, loaded: false };
   async function loadCatalog() {
     if (!SERVER) return;
-    try { const r = await api('GET', '/api/bracket/catalog'); CAT = { info: r.info || {}, files: r.files || {}, canEditId: !!r.canEditId, loaded: true }; }
+    try { const r = await api('GET', '/api/bracket/catalog'); CAT = { info: r.info || {}, files: r.files || {}, canEditId: !!r.canEditId, canReadDocs: !!r.canReadDocs, canAddDocs: !!r.canAddDocs, loaded: true }; }
     catch (e) { CAT.err = e.message; }
-    lookupTables(); lookup(); if (cur) refresh();
+    lookupTables(); lookup(); renderDocs(); if (cur) refresh();
   }
   const oid = (n) => (CAT.info[n] && CAT.info[n].orderId) || '';
+  // ID có thể nhiều dòng (Omega: mỗi biến thể / BG một ID) → ô bảng hiện ID đầu + số còn lại
+  const oidList = (n) => oid(n).split('\n').map((x) => x.trim()).filter(Boolean);
+  const idOnly = (line) => { const m = /(\d{6,})\s*$/.exec(line); return m ? m[1] : line; };
+  const oidShort = (n) => { const L = oidList(n); return L.length ? idOnly(L[0]) + (L.length > 1 ? ` +${L.length - 1}` : '') : ''; };
   const nFiles = (n) => (CAT.files[n] || []).length;
-  const extra = (n) => SERVER ? `<td class="bk-oid">${oid(n) ? esc(oid(n)) : '<span class="ni-muted">—</span>'}</td><td class="bk-nf">${nFiles(n) ? '📎 ' + nFiles(n) : ''}</td>` : '';
+  const extra = (n) => SERVER ? `<td class="bk-oid" title="${esc(oid(n))}">${oid(n) ? esc(oidShort(n)) : '<span class="ni-muted">—</span>'}</td><td class="bk-nf">${nFiles(n) ? '📎 ' + nFiles(n) : ''}</td>` : '';
+  // ---------- tài liệu tham chiếu (Selection Rule gốc) — Site Sup / QLDA / Admin ----------
+  function renderDocs() {
+    const box = $('lkDocs'); if (!box) return;
+    box.hidden = !(SERVER && CAT.canReadDocs);
+    if (box.hidden) return;
+    const list = CAT.files['#docs'] || [];
+    $('lkDocList').innerHTML = list.length ? list.map((f) => `<li><a href="/api/bracket/files/${f.id}" target="_blank" rel="noopener">📄 ${esc(f.name)}</a> <span class="ni-muted">${fmtSize(f.size)} · ${esc(f.createdBy || '')} · ${new Date(f.createdAt).toLocaleDateString('vi-VN')}</span>${f.canDelete ? ` <button type="button" class="ni-btn small ghost" data-ddel="${f.id}">Xoá</button>` : ''}</li>`).join('')
+      : `<li class="ni-muted">Chưa có tài liệu.${CAT.canAddDocs ? ' Bấm “＋ Tải tài liệu lên” để thêm tài liệu Selection Rule (PDF).' : ''}</li>`;
+    $('lkDocAdd').hidden = !CAT.canAddDocs;
+    $('lkImport').hidden = !CAT.canEditId;
+  }
+  async function uploadDocs(files) {
+    const msg = $('lkDocMsg');
+    for (const f of files) {
+      if (f.size > 25 * 1024 * 1024) { msg.textContent = `⚠ ${f.name} quá 25 MB.`; continue; }
+      msg.textContent = `Đang tải lên ${f.name}…`;
+      try {
+        const resp = await fetch(`/api/bracket/files?bracket=${encodeURIComponent('#docs')}&name=${encodeURIComponent(f.name)}`, { method: 'POST', credentials: 'same-origin', redirect: 'manual',
+          headers: { 'content-type': 'application/octet-stream', 'x-ts-upload': '1' }, body: f });
+        let data = {}; try { data = await resp.json(); } catch (e) { /* bỏ qua */ }
+        if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+        (CAT.files['#docs'] || (CAT.files['#docs'] = [])).push(data.file);
+        msg.textContent = `✓ Đã tải lên ${f.name}`;
+      } catch (e) { msg.textContent = `⚠ Không tải lên được ${f.name}: ${e.message}`; }
+    }
+    renderDocs();
+  }
+  async function importIds(file) {
+    const msg = $('lkDocMsg');
+    try {
+      const j = JSON.parse(await file.text());
+      const items = Array.isArray(j) ? j : j.items;
+      if (!Array.isArray(items) || !items.length) throw new Error('file không có danh sách items');
+      const unknown = items.filter((x) => !(B.findZ(x.name) || B.findO(x.name))).map((x) => x.name);
+      if (!confirm(`Nhập ID đặt hàng cho ${items.length - unknown.length} loại bracket${unknown.length ? ` (bỏ qua ${unknown.length} tên không có trong danh mục)` : ''}?\nID / ghi chú hiện có của các loại này sẽ được thay bằng nội dung trong file.`)) return;
+      const r = await api('POST', '/api/bracket/catalog/import', { source: j.source || file.name, items: items.filter((x) => !unknown.includes(x.name)) });
+      msg.textContent = `✓ Đã nhập: ${r.changed} loại cập nhật, ${r.unchanged} loại không đổi${r.skipped.length ? `, bỏ qua ${r.skipped.length}` : ''}.`;
+      await loadCatalog();
+    } catch (e) { msg.textContent = '⚠ Không nhập được: ' + e.message; }
+  }
   function lookupTables() {
     const famName = { AL: 'Dòng AL', CL: 'Dòng CL', CHL: 'Dòng CHL', CH: 'Dòng CH' };
     const hx = SERVER ? '<th>ID đặt hàng</th><th><span class="sr-only">Bản vẽ</span>📎</th>' : '', cs = SERVER ? 6 : 4;
@@ -310,7 +354,7 @@
   function lookup() {
     const xz = B.num($('lkSf2').value), xo = B.num($('lkSg').value), fam = $('lkFam').value, q = normId($('lkQ').value);
     const zList = fam ? B.Z.filter((b) => b.fam === fam) : B.Z;
-    const chip = (b, best) => `<button type="button" class="bk-fit${best ? ' best' : ''}" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.min}–${b.max}${oid(b.name) ? ` · ID <b>${esc(oid(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}${best ? ' · <i>gợi ý: dải hẹp nhất</i>' : ''}</button>`;
+    const chip = (b, best) => `<button type="button" class="bk-fit${best ? ' best' : ''}" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.min}–${b.max}${oid(b.name) ? ` · ID <b>${esc(oidShort(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}${best ? ' · <i>gợi ý: dải hẹp nhất</i>' : ''}</button>`;
     const res = [], fitZ = new Set(), fitO = new Set(), bestSet = new Set();
     ['lkSf2', 'lkSg'].forEach((id) => { const el = $(id), bad = el.value.trim() !== '' && B.num(el.value) === null; el.setAttribute('aria-invalid', bad ? 'true' : 'false'); });
     if (xz !== null) {
@@ -330,7 +374,7 @@
     }
     if (q && xz === null && xo === null) {
       const m = [...B.Z, ...B.O].filter((b) => normId(b.name).includes(q) || (oid(b.name) && normId(oid(b.name)).includes(q)));
-      res.push(m.length ? `<div class="bk-lkblk"><h3>Mã khớp “${esc($('lkQ').value.trim())}”</h3><div class="bk-lkrow">${m.map((b) => `<button type="button" class="bk-fit" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.fam ? 'SF' : 'SG'} ${b.min}–${b.max} mm${oid(b.name) ? ` · ID <b>${esc(oid(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}</button>`).join('')}</div></div>`
+      res.push(m.length ? `<div class="bk-lkblk"><h3>Mã khớp “${esc($('lkQ').value.trim())}”</h3><div class="bk-lkrow">${m.map((b) => `<button type="button" class="bk-fit" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.fam ? 'SF' : 'SG'} ${b.min}–${b.max} mm${oid(b.name) ? ` · ID <b>${esc(oidShort(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}</button>`).join('')}</div></div>`
         : `<p class="bk-nofit">Không có mã bracket nào khớp “${esc($('lkQ').value.trim())}”.</p>`);
     }
     $('lkRes').innerHTML = res.join('') || '<p class="ni-muted">Nhập SF2 / SG hoặc mã bracket — bảng bên dưới tô các loại phù hợp.</p>';
@@ -353,6 +397,9 @@
     $('bkdTitle').textContent = clean(name);
     $('bkdRange').innerHTML = `${b.fam ? `Z Bracket · dòng <b>${b.fam}</b> · SFmin / SFmax` : 'Omega Bracket · SGmin / SGmax'}: <b>${b.min} – ${b.max} mm</b> (dải ${b.max - b.min} mm)`;
     $('bkdId').value = info.orderId || ''; $('bkdNote').value = info.note || '';
+    $('bkdId').rows = Math.min(10, Math.max(1, oidList(name).length));
+    const L = oidList(name);
+    $('bkdIds').innerHTML = L.length > 1 ? `<table class="ni-table bk-idt"><thead><tr><th>Biến thể (họ · giá L/H · BG · TG · số)</th><th>ID</th></tr></thead><tbody>${L.map((l) => { const id = idOnly(l), d = l.replace(/[:\s]*\d{6,}\s*$/, ''); return `<tr><td>${esc(d)}</td><td><b>${esc(id)}</b></td></tr>`; }).join('')}</tbody></table>` : '';
     [$('bkdId'), $('bkdNote')].forEach((el) => { el.readOnly = !CAT.canEditId; });
     $('bkdSave').hidden = !CAT.canEditId;
     $('bkdIdHint').textContent = CAT.canEditId ? (info.updatedAt ? `Sửa lần cuối: ${info.updatedBy || ''} · ${new Date(info.updatedAt).toLocaleString('vi-VN')}` : 'Chưa có ID — nhập rồi bấm Lưu ID.')
@@ -386,6 +433,12 @@
     renderFiles(); lookupTables(); lookup(); if (cur) refresh();
   }
 
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ddel]'); if (!b) return;
+    if (!confirm('Xoá tài liệu này khỏi hệ thống?')) return;
+    try { await api('DELETE', '/api/bracket/files/' + b.dataset.ddel, {}); CAT.files['#docs'] = (CAT.files['#docs'] || []).filter((f) => String(f.id) !== b.dataset.ddel); renderDocs(); }
+    catch (err) { $('lkDocMsg').textContent = '⚠ ' + err.message; }
+  });
   function showTab(t) {
     const look = t === 'lookup';
     $('secLookup').hidden = !look; $('secList').hidden = look;
@@ -488,6 +541,8 @@
         lookupTables(); lookup(); if (cur) refresh();
       } catch (e) { msg.textContent = '⚠ ' + e.message; }
     });
+    $('lkDocFile').addEventListener('change', (e) => { uploadDocs([...e.target.files]); e.target.value = ''; });
+    $('lkImportFile').addEventListener('change', (e) => { if (e.target.files[0]) importIds(e.target.files[0]); e.target.value = ''; });
     $('bkdFile').addEventListener('change', (e) => { uploadFiles([...e.target.files]); e.target.value = ''; });
     const dz = $('bkdDrop');
     ['dragenter', 'dragover'].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.add('over'); }));
