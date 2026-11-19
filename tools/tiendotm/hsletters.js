@@ -5,6 +5,7 @@
 (function (root) {
   'use strict';
   const K = (typeof module !== 'undefined' && module.exports) ? require('./docxkit.js') : root.DocxKit;
+  const PV = (typeof module !== 'undefined' && module.exports) ? require('./hspreview.js') : root.HsPreview;
   const { r, p, bullet, table, ngayVN, dmy, orDots } = K;
   const lines = (s) => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
   const NHA_THAU = 'CHI NHÁNH CÔNG TY TNHH SCHINDLER VIỆT NAM TẠI HÀ NỘI';
@@ -503,9 +504,11 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
     { id: 'bbxn', name: 'Biên bản xác nhận thiết bị đến công trường', fn: 'exportBBXN' },
     { id: 'bangiao', name: 'Biên bản bàn giao thang máy (song ngữ)', fn: 'exportBanGiao' },
   ];
+  // thân văn bản (XML) từ ô thông tin — chưa áp sửa tay; xem trước dùng cái này
+  const compose = (def, I, f) => def.body({ I, f: f || {}, K });
   async function build(JSZip, templateBuf, def, I, f) {
     const zip = await JSZip.loadAsync(templateBuf);
-    const xml = def.body({ I, f, K });
+    const xml = PV && f && f._ed ? PV.applyEdits(compose(def, I, f), f._ed).xml : compose(def, I, f);   // sửa tay trên bản xem trước
     await K.letterheadDocx(zip, xml);
     return zip;
   }
@@ -519,6 +522,6 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
     const n = String(+m[2] + 1).padStart(m[2].length, '0');
     return m[1] + n + m[3];
   }
-  const api = { LETTERS, EXISTING, build, fileName, nextSo, header, closing, docSo, quoteCalc, money, validity, payLine };
+  const api = { LETTERS, EXISTING, build, compose, fileName, nextSo, header, closing, docSo, quoteCalc, money, validity, payLine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HsLetters = api;
 })(typeof window !== 'undefined' ? window : globalThis);

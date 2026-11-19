@@ -212,8 +212,9 @@
   function refresh() {
     const c = B.compute(cur);
     const zb = c.zb, ob = c.ob;
-    $('rangeZ').innerHTML = zb ? `SFmin / SFmax: <b>${zb.min} – ${zb.max} mm</b> · dòng <b>${zb.fam}</b>` : '';
-    $('rangeO').innerHTML = ob ? `SGmin / SGmax: <b>${ob.min} – ${ob.max} mm</b>${B.NOTE_O[ob.name] ? `<br><span class="bk-warn">⚠ ${esc(B.NOTE_O[ob.name])}</span>` : ''}` : '';
+    const idTag = (n) => SERVER && n ? ` · <button type="button" class="hs-link bk-idl" data-bk="${esc(n)}">${oid(n) ? 'ID đặt hàng <b>' + esc(oidShort(n)) + '</b>' : 'Chưa có ID đặt hàng'}${nFiles(n) ? ' · 📎 ' + nFiles(n) + ' bản vẽ' : ''}</button>` : '';
+    $('rangeZ').innerHTML = zb ? `SFmin / SFmax: <b>${zb.min} – ${zb.max} mm</b> · dòng <b>${zb.fam}</b>${idTag(zb.name)}` : '';
+    $('rangeO').innerHTML = ob ? `SGmin / SGmax: <b>${ob.min} – ${ob.max} mm</b>${idTag(ob.name)}${B.NOTE_O[ob.name] ? `<br><span class="bk-warn">⚠ ${esc(B.NOTE_O[ob.name])}</span>` : ''}` : '';
     // phiếu cũ chọn bracket đã bị bỏ khỏi danh mục mới (vd. Z-AL2, Z-AL3 không còn SC-AP từ bản Ae25)
     if (cur.zBracket && !zb) $('rangeZ').innerHTML = `<span class="bk-warn">⚠ ${esc(cur.zBracket)} không còn trong danh mục SC-AP (J 45350713 Ae25) — chọn lại loại Z Bracket.</span>`;
     if (cur.oBracket && !ob) $('rangeO').innerHTML = `<span class="bk-warn">⚠ ${esc(cur.oBracket.replace(/\s{2,}/g, ' '))} không có trong danh mục — chọn lại loại Omega Bracket.</span>`;
@@ -257,7 +258,7 @@
   function open(id) {
     cur = surveys.find((s) => s.id === id) || null;
     if (!cur) return;
-    $('secList').hidden = true; $('editor').hidden = false;
+    $('secList').hidden = true; $('secLookup').hidden = true; $('bkTabs').hidden = true; $('editor').hidden = false;
     document.querySelectorAll('#editor [data-k]').forEach((el) => { el.value = cur[el.dataset.k] == null ? '' : cur[el.dataset.k]; });
     setSaved(SERVER ? (cur._m.updatedAt ? `Lưu trên hệ thống · sửa lần cuối ${hhmm(cur._m.updatedAt)} ${new Date(cur._m.updatedAt).toLocaleDateString('vi-VN')}${cur._m.updatedBy ? ' bởi ' + cur._m.updatedBy : ''}` : 'Lưu trên hệ thống') : 'Đã lưu trên máy này');
     const ro = !editable(cur);
@@ -271,9 +272,179 @@
   }
   function close() {
     clearTimeout(saveTimer); if (cur && editable(cur)) persist();
-    cur = null; $('editor').hidden = true; $('secList').hidden = false;
+    cur = null; $('editor').hidden = true; $('bkTabs').hidden = false; showTab('list');
     history.replaceState(null, '', location.pathname + location.search);
     renderList();
+  }
+
+  // ---------- tab Tra dung sai (không cần phiếu) ----------
+  const fmtMm = (v) => String(v);
+  // ---------- danh mục trên hệ thống: ID đặt hàng + bản vẽ của từng loại ----------
+  let CAT = { info: {}, files: {}, canEditId: false, loaded: false };
+  async function loadCatalog() {
+    if (!SERVER) return;
+    try { const r = await api('GET', '/api/bracket/catalog'); CAT = { info: r.info || {}, files: r.files || {}, canEditId: !!r.canEditId, canReadDocs: !!r.canReadDocs, canAddDocs: !!r.canAddDocs, loaded: true }; }
+    catch (e) { CAT.err = e.message; }
+    lookupTables(); lookup(); renderDocs(); if (cur) refresh();
+  }
+  const oid = (n) => (CAT.info[n] && CAT.info[n].orderId) || '';
+  // ID có thể nhiều dòng (Omega: mỗi biến thể / BG một ID) → ô bảng hiện ID đầu + số còn lại
+  const oidList = (n) => oid(n).split('\n').map((x) => x.trim()).filter(Boolean);
+  const idOnly = (line) => { const m = /(\d{6,})\s*$/.exec(line); return m ? m[1] : line; };
+  const oidShort = (n) => { const L = oidList(n); return L.length ? idOnly(L[0]) + (L.length > 1 ? ` +${L.length - 1}` : '') : ''; };
+  const nFiles = (n) => (CAT.files[n] || []).length;
+  const extra = (n) => SERVER ? `<td class="bk-oid" title="${esc(oid(n))}">${oid(n) ? esc(oidShort(n)) : '<span class="ni-muted">—</span>'}</td><td class="bk-nf">${nFiles(n) ? '📎 ' + nFiles(n) : ''}</td>` : '';
+  // ---------- tài liệu tham chiếu (Selection Rule gốc) — Site Sup / QLDA / Admin ----------
+  function renderDocs() {
+    const box = $('lkDocs'); if (!box) return;
+    box.hidden = !(SERVER && CAT.canReadDocs);
+    if (box.hidden) return;
+    const list = CAT.files['#docs'] || [];
+    $('lkDocList').innerHTML = list.length ? list.map((f) => `<li><a href="/api/bracket/files/${f.id}" target="_blank" rel="noopener">📄 ${esc(f.name)}</a> <span class="ni-muted">${fmtSize(f.size)} · ${esc(f.createdBy || '')} · ${new Date(f.createdAt).toLocaleDateString('vi-VN')}</span>${f.canDelete ? ` <button type="button" class="ni-btn small ghost" data-ddel="${f.id}">Xoá</button>` : ''}</li>`).join('')
+      : `<li class="ni-muted">Chưa có tài liệu.${CAT.canAddDocs ? ' Bấm “＋ Tải tài liệu lên” để thêm tài liệu Selection Rule (PDF).' : ''}</li>`;
+    $('lkDocAdd').hidden = !CAT.canAddDocs;
+    $('lkImport').hidden = !CAT.canEditId;
+  }
+  async function uploadDocs(files) {
+    const msg = $('lkDocMsg');
+    for (const f of files) {
+      if (f.size > 25 * 1024 * 1024) { msg.textContent = `⚠ ${f.name} quá 25 MB.`; continue; }
+      msg.textContent = `Đang tải lên ${f.name}…`;
+      try {
+        const resp = await fetch(`/api/bracket/files?bracket=${encodeURIComponent('#docs')}&name=${encodeURIComponent(f.name)}`, { method: 'POST', credentials: 'same-origin', redirect: 'manual',
+          headers: { 'content-type': 'application/octet-stream', 'x-ts-upload': '1' }, body: f });
+        let data = {}; try { data = await resp.json(); } catch (e) { /* bỏ qua */ }
+        if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+        (CAT.files['#docs'] || (CAT.files['#docs'] = [])).push(data.file);
+        msg.textContent = `✓ Đã tải lên ${f.name}`;
+      } catch (e) { msg.textContent = `⚠ Không tải lên được ${f.name}: ${e.message}`; }
+    }
+    renderDocs();
+  }
+  async function importIds(file) {
+    const msg = $('lkDocMsg');
+    try {
+      const j = JSON.parse(await file.text());
+      const items = Array.isArray(j) ? j : j.items;
+      if (!Array.isArray(items) || !items.length) throw new Error('file không có danh sách items');
+      const unknown = items.filter((x) => !(B.findZ(x.name) || B.findO(x.name))).map((x) => x.name);
+      if (!confirm(`Nhập ID đặt hàng cho ${items.length - unknown.length} loại bracket${unknown.length ? ` (bỏ qua ${unknown.length} tên không có trong danh mục)` : ''}?\nID / ghi chú hiện có của các loại này sẽ được thay bằng nội dung trong file.`)) return;
+      const r = await api('POST', '/api/bracket/catalog/import', { source: j.source || file.name, items: items.filter((x) => !unknown.includes(x.name)) });
+      msg.textContent = `✓ Đã nhập: ${r.changed} loại cập nhật, ${r.unchanged} loại không đổi${r.skipped.length ? `, bỏ qua ${r.skipped.length}` : ''}.`;
+      await loadCatalog();
+    } catch (e) { msg.textContent = '⚠ Không nhập được: ' + e.message; }
+  }
+  function lookupTables() {
+    const famName = { AL: 'Dòng AL', CL: 'Dòng CL', CHL: 'Dòng CHL', CH: 'Dòng CH' };
+    const hx = SERVER ? '<th>ID đặt hàng</th><th><span class="sr-only">Bản vẽ</span>📎</th>' : '', cs = SERVER ? 6 : 4;
+    const row = (b, f) => `<tr data-n="${esc(b.name)}"${f ? ` data-fam="${f}"` : ''}${SERVER ? ' tabindex="0" class="bk-click" title="Bấm để xem ID đặt hàng, bản vẽ"' : ''}><td>${esc(clean(b.name))}${SERVER ? ' <span class="bk-more" aria-hidden="true">›</span>' : ''}</td><td>${b.min}</td><td>${b.max}</td><td>${b.max - b.min}</td>${extra(b.name)}</tr>`;
+    $('lkZ').innerHTML = `<thead><tr><th>Mã bracket</th><th>SFmin</th><th>SFmax</th><th>Dải</th>${hx}</tr></thead><tbody>` + B.FAMILIES.map((f) => `<tr class="fam" data-fam="${f}"><td colspan="${cs}">${famName[f]}</td></tr>` +
+      B.Z.filter((b) => b.fam === f).map((b) => row(b, f)).join('')).join('') + '</tbody>';
+    $('lkO').innerHTML = `<thead><tr><th>Mã bracket</th><th>SGmin</th><th>SGmax</th><th>Dải</th>${hx}</tr></thead><tbody>` + B.O.map((b) => row(b)).join('') + '</tbody>';
+    $('lkSrc').textContent = 'Nguồn: ' + B.SOURCE + ' · Chỉ áp dụng thị trường SC-AP.';
+  }
+  const normId = (t) => String(t || '').toUpperCase().replace(/\s+/g, '').replace(/^Z-?/, '').replace(/^O-?/, '');
+  // bracket chứa số đo: dải hẹp nhất trước; không loại nào chứa → loại gần nhất (và mức lệch)
+  function fits(list, x) {
+    const hit = list.filter((b) => b.min <= x && b.max >= x).sort((a, b) => (a.max - a.min) - (b.max - b.min) || a.min - b.min);
+    if (hit.length) return { hit, near: null };
+    const near = list.map((b) => ({ b, d: x < b.min ? b.min - x : x - b.max })).sort((a, b) => a.d - b.d)[0];
+    return { hit: [], near };
+  }
+  function lookup() {
+    const xz = B.num($('lkSf2').value), xo = B.num($('lkSg').value), fam = $('lkFam').value, q = normId($('lkQ').value);
+    const zList = fam ? B.Z.filter((b) => b.fam === fam) : B.Z;
+    const chip = (b, best) => `<button type="button" class="bk-fit${best ? ' best' : ''}" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.min}–${b.max}${oid(b.name) ? ` · ID <b>${esc(oidShort(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}${best ? ' · <i>gợi ý: dải hẹp nhất</i>' : ''}</button>`;
+    const res = [], fitZ = new Set(), fitO = new Set(), bestSet = new Set();
+    ['lkSf2', 'lkSg'].forEach((id) => { const el = $(id), bad = el.value.trim() !== '' && B.num(el.value) === null; el.setAttribute('aria-invalid', bad ? 'true' : 'false'); });
+    if (xz !== null) {
+      const parts = (fam ? [fam] : B.FAMILIES).map((f) => {
+        const r = fits(B.Z.filter((b) => b.fam === f), xz);
+        r.hit.forEach((b, i) => { fitZ.add(b.name); if (!i) bestSet.add(b.name); });
+        return r.hit.length ? `<div class="bk-lkrow"><span class="bk-lkf">Dòng ${f}</span>${r.hit.map((b, i) => chip(b, !i)).join('')}</div>`
+          : `<div class="bk-lkrow"><span class="bk-lkf">Dòng ${f}</span><span class="bk-nofit">Không loại nào chứa ${xz} mm${r.near ? ` — gần nhất <b>${esc(r.near.b.name)}</b> (${r.near.b.min}–${r.near.b.max}, lệch ${Math.round(r.near.d)} mm${r.near.d <= B.TOL ? ': đệm bản mã / đục tỉa được' : ''})` : ''}</span></div>`;
+      }).join('');
+      res.push(`<div class="bk-lkblk"><h3>Z Bracket cho SF2 = ${xz} mm</h3>${parts}</div>`);
+    }
+    if (xo !== null) {
+      const r = fits(B.O, xo);
+      r.hit.forEach((b, i) => { fitO.add(b.name); if (!i) bestSet.add(b.name); });
+      res.push(`<div class="bk-lkblk"><h3>Omega Bracket cho SG = ${xo} mm</h3><div class="bk-lkrow">${r.hit.length ? r.hit.map((b, i) => chip(b, !i)).join('')
+        : `<span class="bk-nofit">Không loại nào chứa ${xo} mm${r.near ? ` — gần nhất <b>${esc(clean(r.near.b.name))}</b> (${r.near.b.min}–${r.near.b.max}, lệch ${Math.round(r.near.d)} mm${r.near.d <= B.TOL ? ': đệm bản mã / đục tỉa được' : ''})` : ''}</span>`}</div></div>`);
+    }
+    if (q && xz === null && xo === null) {
+      const m = [...B.Z, ...B.O].filter((b) => normId(b.name).includes(q) || (oid(b.name) && normId(oid(b.name)).includes(q)));
+      res.push(m.length ? `<div class="bk-lkblk"><h3>Mã khớp “${esc($('lkQ').value.trim())}”</h3><div class="bk-lkrow">${m.map((b) => `<button type="button" class="bk-fit" data-bk="${esc(b.name)}"${SERVER ? '' : ' disabled'}><b>${esc(clean(b.name))}</b> ${b.fam ? 'SF' : 'SG'} ${b.min}–${b.max} mm${oid(b.name) ? ` · ID <b>${esc(oidShort(b.name))}</b>` : ''}${nFiles(b.name) ? ' · 📎' + nFiles(b.name) : ''}</button>`).join('')}</div></div>`
+        : `<p class="bk-nofit">Không có mã bracket nào khớp “${esc($('lkQ').value.trim())}”.</p>`);
+    }
+    $('lkRes').innerHTML = res.join('') || '<p class="ni-muted">Nhập SF2 / SG hoặc mã bracket — bảng bên dưới tô các loại phù hợp.</p>';
+    // tô / lọc bảng
+    const show = (n) => !q || normId(n).includes(q) || (oid(n) && normId(oid(n)).includes(q));
+    document.querySelectorAll('#lkZ tbody tr[data-n]').forEach((tr) => { const n = tr.dataset.n, vis = (!fam || tr.dataset.fam === fam) && show(n);
+      tr.hidden = !vis; tr.classList.toggle('fit', fitZ.has(n)); tr.classList.toggle('on', bestSet.has(n)); });
+    document.querySelectorAll('#lkZ tbody tr.fam').forEach((tr) => { tr.hidden = ![...document.querySelectorAll(`#lkZ tbody tr[data-n][data-fam="${tr.dataset.fam}"]`)].some((x) => !x.hidden); });
+    document.querySelectorAll('#lkO tbody tr[data-n]').forEach((tr) => { const n = tr.dataset.n; tr.hidden = !show(n); tr.classList.toggle('fit', fitO.has(n)); tr.classList.toggle('on', bestSet.has(n)); });
+  }
+  // ---------- hộp chi tiết một loại bracket: ID đặt hàng, ghi chú, bản vẽ ----------
+  let dlgName = '';
+  const fmtSize = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  const fIcon = (m) => /pdf/.test(m) ? '📄' : /^image\/(png|jpe?g|webp|gif)/.test(m) ? '🖼' : '📐';
+  function openBk(name) {
+    if (!SERVER) return;
+    const b = B.findZ(name) || B.findO(name); if (!b) return;
+    dlgName = name;
+    const d = $('bkDlg'), info = CAT.info[name] || {};
+    $('bkdTitle').textContent = clean(name);
+    $('bkdRange').innerHTML = `${b.fam ? `Z Bracket · dòng <b>${b.fam}</b> · SFmin / SFmax` : 'Omega Bracket · SGmin / SGmax'}: <b>${b.min} – ${b.max} mm</b> (dải ${b.max - b.min} mm)`;
+    $('bkdId').value = info.orderId || ''; $('bkdNote').value = info.note || '';
+    $('bkdId').rows = Math.min(10, Math.max(1, oidList(name).length));
+    const L = oidList(name);
+    $('bkdIds').innerHTML = L.length > 1 ? `<table class="ni-table bk-idt"><thead><tr><th>Biến thể (họ · giá L/H · BG · TG · số)</th><th>ID</th></tr></thead><tbody>${L.map((l) => { const id = idOnly(l), d = l.replace(/[:\s]*\d{6,}\s*$/, ''); return `<tr><td>${esc(d)}</td><td><b>${esc(id)}</b></td></tr>`; }).join('')}</tbody></table>` : '';
+    [$('bkdId'), $('bkdNote')].forEach((el) => { el.readOnly = !CAT.canEditId; });
+    $('bkdSave').hidden = !CAT.canEditId;
+    $('bkdIdHint').textContent = CAT.canEditId ? (info.updatedAt ? `Sửa lần cuối: ${info.updatedBy || ''} · ${new Date(info.updatedAt).toLocaleString('vi-VN')}` : 'Chưa có ID — nhập rồi bấm Lưu ID.')
+      : (info.updatedAt ? `Cập nhật bởi ${info.updatedBy || ''} · ${new Date(info.updatedAt).toLocaleString('vi-VN')}. ` : '') + 'Chỉ Admin, Quản lý dự án, Admin dự án được sửa ID đặt hàng.';
+    $('bkdMsg').textContent = '';
+    renderFiles();
+    if (!d.open) d.showModal();
+  }
+  function renderFiles() {
+    const list = CAT.files[dlgName] || [];
+    $('bkdFiles').innerHTML = list.length ? list.map((f) => `<li><a href="/api/bracket/files/${f.id}" target="_blank" rel="noopener">${fIcon(f.mime)} ${esc(f.name)}</a>
+      <span class="ni-muted">${fmtSize(f.size)} · ${esc(f.createdBy || '')} · ${new Date(f.createdAt).toLocaleDateString('vi-VN')}</span>
+      ${f.canDelete ? `<button type="button" class="ni-btn small ghost" data-fdel="${f.id}" aria-label="Xoá ${esc(f.name)}">Xoá</button>` : ''}</li>`).join('')
+      : '<li class="ni-muted">Chưa có bản vẽ nào cho loại này.</li>';
+  }
+  async function uploadFiles(files) {
+    const name = dlgName; if (!name || !files.length) return;
+    const msg = $('bkdMsg');
+    for (const f of files) {
+      if (f.size > 10 * 1024 * 1024) { msg.textContent = `⚠ ${f.name} quá 10 MB — nén PDF hoặc giảm độ phân giải ảnh rồi thử lại.`; continue; }
+      msg.textContent = `Đang tải lên ${f.name}…`;
+      try {
+        const resp = await fetch(`/api/bracket/files?bracket=${encodeURIComponent(name)}&name=${encodeURIComponent(f.name)}`, { method: 'POST', credentials: 'same-origin', redirect: 'manual',
+          headers: { 'content-type': 'application/octet-stream', 'x-ts-upload': '1' }, body: f });
+        let data = {}; try { data = await resp.json(); } catch (e) { /* bỏ qua */ }
+        if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+        (CAT.files[name] || (CAT.files[name] = [])).push(data.file);
+        msg.textContent = `✓ Đã đính kèm ${f.name}`;
+      } catch (e) { msg.textContent = `⚠ Không tải lên được ${f.name}: ${e.message}`; }
+    }
+    renderFiles(); lookupTables(); lookup(); if (cur) refresh();
+  }
+
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ddel]'); if (!b) return;
+    if (!confirm('Xoá tài liệu này khỏi hệ thống?')) return;
+    try { await api('DELETE', '/api/bracket/files/' + b.dataset.ddel, {}); CAT.files['#docs'] = (CAT.files['#docs'] || []).filter((f) => String(f.id) !== b.dataset.ddel); renderDocs(); }
+    catch (err) { $('lkDocMsg').textContent = '⚠ ' + err.message; }
+  });
+  function showTab(t) {
+    const look = t === 'lookup';
+    $('secLookup').hidden = !look; $('secList').hidden = look;
+    $('tabList').setAttribute('aria-selected', String(!look)); $('tabLookup').setAttribute('aria-selected', String(look));
+    try { localStorage.setItem('bk_tab', t); } catch (e) { /* bỏ qua */ }
+    if (look) lookup();
   }
 
   // ---------- Excel ----------
@@ -349,6 +520,43 @@
       const f = e.target.closest('[data-lmine]'); if (f) { lMine = f.dataset.lmine === '1'; document.querySelectorAll('[data-lmine]').forEach((x) => x.setAttribute('aria-pressed', String(x === f))); renderList(); }
     });
     $('listQ').addEventListener('input', (e) => { lQ = e.target.value; renderList(); });
+    $('bkTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
+    $('bkTabs').addEventListener('keydown', (e) => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; const t = $('tabList').getAttribute('aria-selected') === 'true' ? 'lookup' : 'list'; showTab(t); $(t === 'list' ? 'tabList' : 'tabLookup').focus(); });
+    ['lkSf2', 'lkSg', 'lkQ', 'lkFam'].forEach((id) => $(id).addEventListener('input', lookup));
+    // mở chi tiết loại bracket: bấm dòng bảng, thẻ kết quả, hoặc liên kết ID trong phiếu
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-bk]'); if (b) { openBk(b.dataset.bk); return; }
+      const tr = e.target.closest('#lkZ tr[data-n], #lkO tr[data-n]'); if (tr && SERVER) openBk(tr.dataset.n);
+    });
+    document.addEventListener('keydown', (e) => { const tr = e.target.closest && e.target.closest('#lkZ tr[data-n], #lkO tr[data-n]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openBk(tr.dataset.n); } });
+    $('bkDlg').addEventListener('cancel', (e) => e.preventDefault());   // chỉ đóng bằng nút Đóng
+    $('bkdClose').addEventListener('click', () => $('bkDlg').close());
+    $('bkdSave').addEventListener('click', async () => {
+      const name = dlgName, msg = $('bkdMsg'); msg.textContent = 'Đang lưu…';
+      try {
+        const r = await api('PUT', '/api/bracket/catalog/' + encodeURIComponent(name), { orderId: $('bkdId').value, note: $('bkdNote').value });
+        if (r.info) CAT.info[name] = r.info;
+        msg.textContent = r.unchanged ? 'Không có gì thay đổi.' : '✓ Đã lưu ID đặt hàng.';
+        openBk(name); msg.textContent = r.unchanged ? 'Không có gì thay đổi.' : '✓ Đã lưu ID đặt hàng.';
+        lookupTables(); lookup(); if (cur) refresh();
+      } catch (e) { msg.textContent = '⚠ ' + e.message; }
+    });
+    $('lkDocFile').addEventListener('change', (e) => { uploadDocs([...e.target.files]); e.target.value = ''; });
+    $('lkImportFile').addEventListener('change', (e) => { if (e.target.files[0]) importIds(e.target.files[0]); e.target.value = ''; });
+    $('bkdFile').addEventListener('change', (e) => { uploadFiles([...e.target.files]); e.target.value = ''; });
+    const dz = $('bkdDrop');
+    ['dragenter', 'dragover'].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
+    dz.addEventListener('drop', (e) => uploadFiles([...(e.dataTransfer.files || [])]));
+    $('bkdFiles').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-fdel]'); if (!b) return;
+      if (!confirm('Xoá bản vẽ này khỏi hệ thống? Mọi người sẽ không còn thấy.')) return;
+      try {
+        await api('DELETE', '/api/bracket/files/' + b.dataset.fdel, {});
+        CAT.files[dlgName] = (CAT.files[dlgName] || []).filter((f) => String(f.id) !== b.dataset.fdel);
+        renderFiles(); lookupTables(); lookup(); if (cur) refresh();
+      } catch (err) { $('bkdMsg').textContent = '⚠ ' + err.message; }
+    });
     $('list').addEventListener('click', (e) => {
       const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
       const x = e.target.closest('[data-xls]'); if (x) { const s = surveys.find((v) => v.id === x.dataset.xls); if (s) openMenu(x, s); }
@@ -427,7 +635,10 @@
   if (me && me.name) $('who').innerHTML = `Đăng nhập: <b>${esc(me.name)}</b> · ` + (SERVER ? 'phiếu lưu trên hệ thống — mọi người cùng xem; chỉ người tạo và Admin được sửa' : 'phiếu lưu trên máy này');
   $('listTitle').textContent = SERVER ? 'Phiếu khảo sát trên hệ thống' : 'Phiếu khảo sát trên máy này';
   $('listTools').hidden = !SERVER;
-  bracketOptions(); refTables(); bind();
+  bracketOptions(); refTables(); lookupTables(); bind(); loadCatalog();
+  let tab0 = 'list'; try { tab0 = localStorage.getItem('bk_tab') === 'lookup' ? 'lookup' : 'list'; } catch (e) { /* bỏ qua */ }
+  if (location.hash === '#tra') tab0 = 'lookup';
+  showTab(tab0);
   (async () => {
     if (SERVER) { if (!(await loadServer())) return; renderLocalBanner(); } else renderList();
     const h = location.hash.slice(1); if (h && surveys.some((s) => s.id === h)) open(h);

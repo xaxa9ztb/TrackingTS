@@ -188,3 +188,32 @@ test('thư xác nhận ngày giao vật tư về công trường: cùng khuôn c
     '1. Thời gian giao hàng về công trình', '2. Trường hợp tiến độ lắp đặt chậm', '3. Các công việc cần hoàn thiện / chuẩn bị trước khi hàng về', 'Chuẩn bị nguồn điện 3 pha',
     'XÁC NHẬN CỦA QUÝ KHÁCH HÀNG', 'Đồng ý với kế hoạch hàng về như trên', 'Ý kiến khác']) assert.ok(t.includes(s), 'thiếu ' + s);
 });
+
+test('Công văn — xem trước & sửa tay: mỗi đoạn một ô, sửa tay áp vào bản Word, đổi ô khác vẫn giữ, đoạn gốc đổi thì báo không khớp', async () => {
+  const PV = require('../../tools/tiendotm/hspreview.js');
+  const L = require('../../tools/tiendotm/hsletters.js');
+  const d = L.LETTERS.find(x => x.id === 'xn_hangve');
+  const I = { congTrinh: 'TOÀ MẪU', chuDauTu: 'Công ty A', soHD: '01/HĐ', ngayHD: '2026-01-05' };
+  const x = L.compose(d, I, { so: '1/CV' });
+  const ps = PV.paragraphs(x);
+  const h = PV.toHtml(x);
+  assert.equal((h.html.match(/class="pv-p"/g) || []).length, ps.filter(p => p.text.trim()).length, 'mỗi đoạn có chữ = một ô sửa');
+  assert.match(h.html, /<table class="pv-t"/);
+  const t = ps.find(p => p.text === 'Trân trọng kính chào.');
+  const ed = { [t.i]: { o: t.text, x: '<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">Trân trọng cảm ơn.</w:t></w:r>' } };
+  // áp vào bản xuất
+  const A = PV.applyEdits(x, ed);
+  assert.equal(PV.paragraphs(A.xml)[t.i].text, 'Trân trọng cảm ơn.');
+  assert.equal(PV.paragraphs(A.xml).length, ps.length);
+  // đổi số công văn: đoạn khác đổi, sửa tay vẫn khớp; xem trước đánh dấu đoạn đã sửa
+  const x2 = L.compose(d, I, { so: '2/CV' });
+  const h2 = PV.toHtml(x2, { ed });
+  assert.equal(h2.count, 1); assert.deepEqual(h2.miss, []);
+  assert.match(h2.html, /class="pv-p ed"[^>]*data-k="\d+"[^>]*>.*Trân trọng cảm ơn/);
+  // đoạn gốc đổi chữ → không còn khớp
+  const ed2 = { 3: { o: 'đoạn không còn tồn tại', x: '<w:r><w:t>x</w:t></w:r>' } };
+  assert.deepEqual(PV.applyEdits(x, ed2).miss, ['3']);
+  // so sánh định dạng: cùng chữ + cùng kiểu, khác cách chia run → bằng nhau
+  assert.equal(PV.canon('<w:r><w:t xml:space="preserve">A</w:t></w:r><w:r><w:t>B</w:t></w:r>'), PV.canon('<w:r><w:t>AB</w:t></w:r>'));
+  assert.notEqual(PV.canon('<w:r><w:rPr><w:b/></w:rPr><w:t>AB</w:t></w:r>'), PV.canon('<w:r><w:t>AB</w:t></w:r>'));
+});

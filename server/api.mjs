@@ -1116,7 +1116,10 @@ async function handleApi(request, env, opts = {}) {
     // Yêu cầu ghi bắt buộc là JSON: trang lạ không gửi được kiểu này sang (chặn giả mạo yêu cầu)
     if (method !== 'GET' && method !== 'HEAD') {
       const ct = (request.headers.get('content-type') || '').toLowerCase();
-      if (!ct.startsWith('application/json')) throw new HttpError(415, 'Yêu cầu ghi phải gửi dạng JSON');
+      // ngoại lệ duy nhất: tải bản vẽ bracket (nội dung file thô) — bắt buộc header riêng x-ts-upload: trang lạ không gửi được
+      // header tự đặt sang tên miền khác mà không qua kiểm tra CORS (máy chủ không cho phép) → vẫn chặn được giả mạo
+      const upload = path === '/api/bracket/files' && method === 'POST' && request.headers.get('x-ts-upload') === '1' && ct.startsWith('application/octet-stream');
+      if (!ct.startsWith('application/json') && !upload) throw new HttpError(415, 'Yêu cầu ghi phải gửi dạng JSON');
     }
     const { email } = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), env, opts);
     if (demo) env.DEMO_EMAIL = String(email || '').toLowerCase();

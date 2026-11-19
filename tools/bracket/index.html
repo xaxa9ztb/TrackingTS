@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" href="../../icons/favicon-64.png">
 <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
 <link rel="stylesheet" href="../../css/ni.css?v=4">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=11">
 <link rel="stylesheet" href="report.css?v=2">
 <script src="../../js/pwa.js?v=36" defer></script>
 <script src="../../js/demo.js?v=3"></script>
@@ -20,7 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 <script src="bracket.js?v=4"></script>
 <script src="report.js?v=1"></script>
-<script src="app.js?v=8" defer></script>
+<script src="app.js?v=11" defer></script>
 </head>
 <body>
 <script src="../toolset-nav.js?v=39" data-app="bracket" data-tool="Khảo sát Bracket hố thang" data-help="#bracket"></script>
@@ -38,6 +38,7 @@
       Z Bracket chỉ đề xuất cùng dòng (AL / CL / CHL / CH) với loại đã đặt; Omega đề xuất trong cả danh mục.
       <b>4.</b> Bấm <b>Xuất báo cáo</b>: <b>PDF</b> — bản trình bày A4 (kết luận, biểu đồ, việc cần làm, ký tên) để gửi / in; hoặc <b>Excel</b> — mẫu "Phiếu khảo sát trước khi đặt hàng" (tối đa 30 vị trí / phiếu).
       Phiếu lưu trên <b>hệ thống</b>: mọi người cùng xem; chỉ <b>người tạo phiếu</b> và <b>Admin</b> được sửa / xóa — phiếu của người khác mở ở chế độ chỉ xem (vẫn xuất báo cáo, nhân bản được).
+      <br>Chỉ cần tra dung sai hoặc mã bracket: dùng tab <b>📏 Tra dung sai bracket</b> — không cần tạo phiếu.
       <br><span class="ni-muted">Chỉ áp dụng thị trường <b>SC-AP</b>. Dung sai: J 45350713 <b>Ae25</b> (24/10/2026 — Z Bracket, ES1 &amp; ES5.0) và J 44928432 <b>Ae29</b> (Omega Family A &amp; B có SC-AP ở mục 6: chỉ loại 106).</span>
     </div></details>
     <p class="ni-who" id="who"></p>
@@ -45,8 +46,36 @@
 </header>
 
 <main class="ni-wrap bk-main">
+  <nav class="ni-tabs bk-tabs" id="bkTabs" role="tablist" aria-label="Chức năng">
+    <button type="button" role="tab" id="tabList" data-tab="list" aria-controls="secList" aria-selected="true">📋 Phiếu khảo sát</button>
+    <button type="button" role="tab" id="tabLookup" data-tab="lookup" aria-controls="secLookup" aria-selected="false">📏 Tra dung sai bracket</button>
+  </nav>
+  <!-- tra nhanh dung sai / mã bracket — không cần tạo phiếu -->
+  <section class="ni-card bk-look" id="secLookup" role="tabpanel" aria-labelledby="tabLookup" hidden>
+    <h2>Tra dung sai bracket</h2>
+    <p class="ni-muted bk-hint">Nhập số đo để tìm loại bracket phù hợp, hoặc gõ mã bracket / ID đặt hàng để xem dung sai — không cần tạo phiếu khảo sát.</p>
+    <div class="bk-docs" id="lkDocs" hidden>
+      <div class="bk-docsh"><b>📚 Tài liệu tham chiếu</b><span class="ni-muted">Selection Rule gốc — tài liệu mật của Schindler, chỉ Site Sup, Quản lý dự án, Admin xem; không gửi ra ngoài.</span>
+        <label class="ni-btn small" id="lkDocAdd" hidden>＋ Tải tài liệu lên<input type="file" id="lkDocFile" accept=".pdf" multiple hidden></label>
+        <label class="ni-btn small" id="lkImport" hidden title="Nhập ID đặt hàng cho nhiều loại bracket từ file .json">⬆ Nhập ID từ file<input type="file" id="lkImportFile" accept=".json,application/json" hidden></label></div>
+      <ul class="bk-files" id="lkDocList"></ul>
+      <p class="bk-dlgs" id="lkDocMsg" aria-live="polite"></p>
+    </div>
+    <div class="bk-lkin">
+      <label class="ni-field">SF2 đo được (mm) · Z Bracket<input id="lkSf2" inputmode="decimal" autocomplete="off" placeholder="VD: 147"></label>
+      <label class="ni-field">Dòng Z Bracket<select id="lkFam"><option value="">Tất cả các dòng</option><option value="AL">Dòng AL</option><option value="CL">Dòng CL</option><option value="CHL">Dòng CHL</option><option value="CH">Dòng CH</option></select></label>
+      <label class="ni-field">SG đo được (mm) · Omega Bracket<input id="lkSg" inputmode="decimal" autocomplete="off" placeholder="VD: 120"></label>
+      <label class="ni-field">Tìm mã bracket<input id="lkQ" type="search" autocomplete="off" placeholder="VD: CL3, CH11, O-B 106-2"></label>
+    </div>
+    <div class="bk-lkres" id="lkRes" aria-live="polite"></div>
+    <div class="bk-refgrid">
+      <div><h3>Z Bracket — SFmin / SFmax (mm)</h3><table class="ni-table bk-reft bk-lkt" id="lkZ"></table></div>
+      <div><h3>Omega Bracket — SGmin / SGmax (mm)</h3><table class="ni-table bk-reft bk-lkt" id="lkO"></table></div>
+    </div>
+    <p class="ni-muted bk-src" id="lkSrc"></p>
+  </section>
   <!-- danh sách phiếu đã lưu trên máy -->
-  <section class="ni-card bk-list" id="secList" aria-labelledby="listTitle">
+  <section class="ni-card bk-list" id="secList" role="tabpanel" aria-labelledby="tabList">
     <div class="bk-row">
       <h2 id="listTitle">Phiếu khảo sát trên máy này</h2>
       <button class="ni-btn primary small" type="button" id="btnNew">+ Phiếu mới</button>
@@ -146,6 +175,22 @@
     </div>
   </div>
 </main>
+<!-- chi tiết một loại bracket: ID đặt hàng, ghi chú, bản vẽ (bản máy chủ) -->
+<dialog class="bk-dlg" id="bkDlg" aria-labelledby="bkdTitle">
+  <div class="bk-dlgh"><h2 id="bkdTitle"></h2><button type="button" class="ni-btn ghost small" id="bkdClose">Đóng</button></div>
+  <p class="bk-dlgr" id="bkdRange"></p>
+  <div class="bk-dlgg">
+    <label class="ni-field">ID đặt hàng<textarea id="bkdId" rows="1" maxlength="2000" autocomplete="off" placeholder="VD: 57642328 — nhiều biến thể: mỗi dòng “mô tả: ID”"></textarea></label>
+    <label class="ni-field">Ghi chú<textarea id="bkdNote" rows="2" maxlength="1000" placeholder="VD: ES1 / ES5.0, lưu ý khi đặt hàng…"></textarea></label>
+  </div>
+  <div id="bkdIds"></div>
+  <div class="bk-dlgrow"><span class="ni-muted bk-dlgs" id="bkdIdHint"></span><button type="button" class="ni-btn primary small" id="bkdSave">Lưu ID</button></div>
+  <h3>Bản vẽ</h3>
+  <ul class="bk-files" id="bkdFiles"></ul>
+  <label class="bk-drop" id="bkdDrop"><input type="file" id="bkdFile" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.dwg,.dxf" hidden>
+    <b>＋ Đính kèm bản vẽ</b><span>Bấm để chọn hoặc kéo file thả vào đây · PDF, ảnh, DWG / DXF · tối đa 10 MB mỗi file · mọi người cùng xem</span></label>
+  <p class="bk-dlgs" id="bkdMsg" aria-live="polite"></p>
+</dialog>
 <!-- menu Xuất báo cáo -->
 <div class="bk-menu" id="exportMenu" role="menu" hidden>
   <button type="button" role="menuitem" data-out="pdf"><b>📄 Báo cáo PDF</b><span>Bản trình bày khổ A4: kết luận, biểu đồ, việc cần làm — xem trước rồi In / Lưu PDF</span></button>
