@@ -7,7 +7,9 @@
   'use strict';
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const unx = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
-  const P_RE = /<w:p>([\s\S]*?)<\/w:p>/g;
+  // thẻ có thể kèm thuộc tính (file Word thật: <w:p w:rsidR=…>, <w:r w:rsidRPr=…>, <w:tr …>); (?=[\s>]) loại <w:pPr>, <w:rPr>…
+  const P_RE = /(<w:p(?=[\s>])[^>]*>)([\s\S]*?)<\/w:p>/g;
+  const R_RE = /<w:r(?=[\s>])[^>]*>([\s\S]*?)<\/w:r>/g;
   const split = (inner) => { const m = /^(<w:pPr>[\s\S]*?<\/w:pPr>)?([\s\S]*)$/.exec(inner); return { ppr: m[1] || '', runs: m[2] || '' }; };
   // chữ thuần của một đoạn: \n = xuống dòng, \t = tab
   function runsText(runs) {
@@ -18,7 +20,7 @@
   // mọi đoạn theo thứ tự trong văn bản (cả đoạn trong bảng)
   function paragraphs(xml) {
     const out = []; let m; P_RE.lastIndex = 0;
-    while ((m = P_RE.exec(xml))) { const s = split(m[1]); out.push({ i: out.length, start: m.index, end: m.index + m[0].length, ppr: s.ppr, runs: s.runs, text: runsText(s.runs) }); }
+    while ((m = P_RE.exec(xml))) { const s = split(m[2]); out.push({ i: out.length, start: m.index, end: m.index + m[0].length, open: m[1], ppr: s.ppr, runs: s.runs, text: runsText(s.runs) }); }
     return out;
   }
   // áp sửa tay; trả { xml, plan: Map(chỉ số đoạn → khoá), miss: [khoá không còn khớp] }
@@ -36,7 +38,7 @@
     });
     if (!plan.size) return { xml, plan, miss };
     let res = '', pos = 0;
-    ps.forEach((p) => { if (plan.has(p.i)) { res += xml.slice(pos, p.start) + '<w:p>' + p.ppr + ed[plan.get(p.i)].x + '</w:p>'; pos = p.end; } });
+    ps.forEach((p) => { if (plan.has(p.i)) { res += xml.slice(pos, p.start) + (p.open || '<w:p>') + p.ppr + ed[plan.get(p.i)].x + '</w:p>'; pos = p.end; } });
     return { xml: res + xml.slice(pos), plan, miss };
   }
 
@@ -50,13 +52,13 @@
     if (/<w:u\s/.test(rpr)) c.push('text-decoration:underline');
     if (/<w:caps\/>/.test(rpr)) c.push('text-transform:uppercase');
     const sz = /<w:sz w:val="(\d+)"/.exec(rpr); if (sz) c.push('font-size:' + (sz[1] / 2) + 'pt');
-    const f = /<w:rFonts w:ascii="([^"]*)"/.exec(rpr); if (f) c.push(`font-family:'${f[1].replace(/'/g, '')}',sans-serif`);
+    const f = /<w:rFonts[^>]*w:ascii="([^"]*)"/.exec(rpr); if (f) c.push(`font-family:'${f[1].replace(/'/g, '')}',sans-serif`);
     const col = /<w:color w:val="([0-9A-Fa-f]{6})"/.exec(rpr); if (col) c.push('color:#' + col[1]);
     return c.join(';');
   }
   function runsHtml(runs, tabW) {
     let h = '';
-    String(runs).replace(/<w:r>([\s\S]*?)<\/w:r>/g, (m, inner) => {
+    String(runs).replace(R_RE, (m, inner) => {
       const rp = /^<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(inner), rpr = rp ? rp[0] : '';
       const body = rp ? inner.slice(rp[0].length) : inner;
       body.replace(/<w:br\/>|<w:tab\/>|<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g, (t, x) => {
@@ -90,9 +92,9 @@
     const total = widths.reduce((a, b) => a + b, 0) || 9000;
     const bd = /<w:tblBorders>[\s\S]*?w:val="none"/.test(tbl) ? 'none' : '1px solid #000';
     let h = `<table class="pv-t" style="width:${Math.min(100, total / 9026 * 100).toFixed(1)}%"><colgroup>${widths.map((w) => `<col style="width:${(w / total * 100).toFixed(2)}%">`).join('')}</colgroup>`;
-    tbl.replace(/<w:tr>([\s\S]*?)<\/w:tr>/g, (m, tr) => {
+    tbl.replace(/<w:tr(?=[\s>])[^>]*>([\s\S]*?)<\/w:tr>/g, (m, tr) => {
       h += '<tr>';
-      tr.replace(/<w:tc>([\s\S]*?)<\/w:tc>/g, (m2, tc) => {
+      tr.replace(/<w:tc(?=[\s>])[^>]*>([\s\S]*?)<\/w:tc>/g, (m2, tc) => {
         const pr = (/<w:tcPr>([\s\S]*?)<\/w:tcPr>/.exec(tc) || ['', ''])[1];
         const span = Number(attr((/<w:gridSpan [^>]*>/.exec(pr) || [''])[0], 'val')) || 1;
         const fill = attr((/<w:shd [^>]*>/.exec(pr) || [''])[0], 'fill');
@@ -116,8 +118,8 @@
     const ctx = { plan: A.plan, base, editable: o.editable !== false };
     const next = () => ps[pi++];
     let html = '';
-    A.xml.replace(/<w:tbl>[\s\S]*?<\/w:tbl>|<w:p>[\s\S]*?<\/w:p>/g, (m) => {
-      if (m.startsWith('<w:tbl>')) html += tableHtml(m, ctx, next);
+    A.xml.replace(/<w:tbl(?=[\s>])[\s\S]*?<\/w:tbl>|<w:p(?=[\s>])[^>]*>[\s\S]*?<\/w:p>/g, (m) => {
+      if (m.startsWith('<w:tbl')) html += tableHtml(m, ctx, next);
       else html += paraHtml(next(), ctx);
       return m;
     });
@@ -173,7 +175,7 @@
   // dạng chuẩn để so hai dãy run (cùng chữ + cùng định dạng → giống nhau dù cách chia run khác)
   function canon(runs) {
     const seq = [];
-    String(runs).replace(/<w:r>([\s\S]*?)<\/w:r>/g, (m, inner) => {
+    String(runs).replace(R_RE, (m, inner) => {
       const rp = /^<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(inner), rpr = rp ? rp[1] : '';
       (rp ? inner.slice(rp[0].length) : inner).replace(/<w:br\/>|<w:tab\/>|<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g, (t, x) => {
         const tok = t === '<w:br/>' ? '\n' : t === '<w:tab/>' ? '\t' : unx(x);
@@ -186,6 +188,63 @@
     });
     return JSON.stringify(seq);
   }
-  const api = { paragraphs, applyEdits, runsText, toHtml, domToRuns, canon, esc };
+  // ---------- (trình duyệt) khung xem trước + sửa tay dùng lại được ----------
+  // o = { build: async () => xml thân văn bản, getEd: () => {..}, setEd: (ed|undefined) => {}, editable: () => bool,
+  //       pageClass, onMiss: (n) => {} }  →  { render, host }
+  function mount(host, o) {
+    host.innerHTML = `<div class="hs-pvbar"><b>Xem trước &amp; sửa tay</b>
+        <span class="hs-pvtools" role="toolbar" aria-label="Định dạng chữ"><button type="button" data-fmt="bold" title="In đậm (Ctrl+B)"><b>B</b></button><button type="button" data-fmt="italic" title="In nghiêng (Ctrl+I)"><i>I</i></button><button type="button" data-fmt="underline" title="Gạch chân (Ctrl+U)"><u>U</u></button></span>
+        <button type="button" class="btn gho sm" data-pvreset disabled>↺ Bỏ sửa đoạn này</button>
+        <button type="button" class="btn gho sm" data-pvresetall hidden>↺ Bỏ mọi sửa tay</button></div>
+      <p class="hs-pvhint">Bấm vào <b>từng đoạn</b> để sửa trực tiếp; đoạn đã sửa có <span class="hs-pvmark">vạch vàng</span>. Sửa tay được lưu cùng hồ sơ và dùng khi xuất Word.</p>
+      <p class="hs-pvmiss" data-pvmiss hidden></p>
+      <div class="hs-pvs pv-free"><div class="pv-page ${o.pageClass || ''}" data-pvpage></div></div>`;
+    const page = host.querySelector('[data-pvpage]'), sc = host.querySelector('.hs-pvs');
+    let xml = '', focus = null, timer = 0;
+    const fit = () => { const k = Math.min(1, (sc.clientWidth - 16) / page.offsetWidth); page.style.transform = k < 1 ? `scale(${k})` : ''; page.style.transformOrigin = 'top left'; sc.style.height = k < 1 ? Math.ceil(page.offsetHeight * k + 16) + 'px' : ''; };
+    const tools = () => { host.querySelector('[data-pvreset]').disabled = !(focus && focus.isConnected && focus.classList.contains('ed')); };
+    const counts = (n, miss) => {
+      const ra = host.querySelector('[data-pvresetall]'); ra.hidden = !(n || miss); ra.textContent = `↺ Bỏ mọi sửa tay (${n + miss})`;
+      const mi = host.querySelector('[data-pvmiss]'); mi.hidden = !miss;
+      if (miss) mi.innerHTML = `⚠ ${miss} đoạn sửa tay không còn khớp vì nội dung tự sinh đã đổi — sẽ <b>không</b> được dùng khi xuất. <button type="button" class="hs-link" data-pvdropmiss>Xoá các sửa tay này</button>`;
+    };
+    async function render() {
+      try { xml = await o.build(); } catch (e) { page.innerHTML = `<p style="padding:20px">⚠ Chưa xem trước được: ${esc(e.message)}</p>`; return; }
+      const out = toHtml(xml, { ed: o.getEd(), editable: o.editable ? o.editable() : true });
+      page.innerHTML = out.html; focus = null;
+      counts(out.count, o.missFilter ? o.missFilter(out.miss).length : out.miss.length);
+      fit(); tools();
+    }
+    function save(el) {
+      if (!el || (o.editable && !o.editable())) return;
+      const ed = Object.assign({}, o.getEd() || {});
+      const runs = domToRuns(el), base = paragraphs(xml)[+el.dataset.pi];
+      let k = el.dataset.k;
+      if (base && canon(runs) === canon(base.runs)) { if (k != null) delete ed[k]; delete el.dataset.k; el.classList.remove('ed'); }
+      else {
+        if (k == null) { k = String(el.dataset.pi); if (ed[k]) k = k + '_' + Date.now().toString(36); el.dataset.k = k; }
+        ed[k] = { o: el.dataset.o || '', x: runs }; el.classList.add('ed');
+      }
+      o.setEd(Object.keys(ed).length ? ed : undefined);
+      const n = Object.keys(ed).length; const ra = host.querySelector('[data-pvresetall]'); ra.hidden = !n; ra.textContent = `↺ Bỏ mọi sửa tay (${n})`;
+      tools();
+    }
+    host.addEventListener('input', (e) => { const pe = e.target.closest && e.target.closest('.pv-p'); if (pe) { clearTimeout(timer); timer = setTimeout(() => save(pe), 500); } });
+    host.addEventListener('focusin', (e) => { const pe = e.target.closest('.pv-p'); if (pe) { focus = pe; tools(); } });
+    host.addEventListener('focusout', (e) => { const pe = e.target.closest('.pv-p'); if (pe) { clearTimeout(timer); save(pe); } });
+    host.addEventListener('keydown', (e) => { const pe = e.target.closest && e.target.closest('.pv-p'); if (!pe) return; if (e.key === 'Enter') { e.preventDefault(); document.execCommand('insertLineBreak'); } if (e.key === 'Escape') pe.blur(); });
+    host.addEventListener('paste', (e) => { if (!e.target.closest || !e.target.closest('.pv-p')) return; e.preventDefault(); document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain')); });
+    host.addEventListener('mousedown', (e) => { if (e.target.closest('[data-fmt]')) e.preventDefault(); });
+    host.addEventListener('click', (e) => {
+      const fm = e.target.closest('[data-fmt]'); if (fm) { if (focus && focus.isConnected) { focus.focus(); document.execCommand(fm.dataset.fmt); save(focus); } return; }
+      if (e.target.closest('[data-pvreset]') && focus && focus.dataset.k != null) { const ed = Object.assign({}, o.getEd() || {}); delete ed[focus.dataset.k]; o.setEd(Object.keys(ed).length ? ed : undefined); render(); return; }
+      if (e.target.closest('[data-pvresetall]')) { if (confirm('Bỏ mọi sửa tay của văn bản này? Văn bản trở về đúng nội dung tự sinh.')) { o.setEd(undefined); render(); } return; }
+      if (e.target.closest('[data-pvdropmiss]')) { const ed = Object.assign({}, o.getEd() || {}); const A = applyEdits(xml, ed); (o.missFilter ? o.missFilter(A.miss) : A.miss).forEach((k) => delete ed[k]); o.setEd(Object.keys(ed).length ? ed : undefined); render(); }
+    });
+    window.addEventListener('resize', () => { if (host.offsetParent) fit(); });
+    return { render, host };
+  }
+
+  const api = { paragraphs, applyEdits, runsText, toHtml, domToRuns, canon, mount, esc };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HsPreview = api;
 })(typeof window !== 'undefined' ? window : globalThis);
