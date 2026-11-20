@@ -147,6 +147,9 @@
     'Nước sạch, nhà vệ sinh, khu vực nghỉ cho công nhân |',
   ].join('\n');
 const DEF_XN_CV = 'Sắp xếp nhân sự nhận hàng và tham gia các công tác giám định đồng bộ, đánh giá hợp quy và nghiệm thu hàng hoá\nHoàn tất xây dựng các giếng thang theo bản vẽ được duyệt để thi công lắp đặt\nChuẩn bị nguồn điện 3 pha cho công tác lắp đặt, vận hành';
+const DEF_TD_CDT = 'Bàn giao mặt bằng phòng máy / đỉnh giếng thang hoàn thiện | \nCấp nguồn điện thi công 3 pha ổn định tại tầng trên cùng | ';
+const DEF_TD_NTXD = 'Hoàn thiện vách giếng thang, xử lý các vị trí sai lệch kích thước | \nHoàn thiện khung bao, đổ bù cửa tầng; lắp lan can an toàn trước cửa tầng | \nDọn vệ sinh hố pít, xử lý thấm nước hố pít | ';
+const DEF_TD_CONLAI = 'Lắp đặt máy kéo, cabin, đối trọng | 10\nKéo cáp tải, lắp cửa tầng | 10\nĐi dây điện, lắp tủ điều khiển | 7\nCăn chỉnh, chạy thử | 5\nKiểm định, bàn giao | 3';
 const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thiện lỗ thông gió giếng thang\nHoàn thiện lan can an toàn trước cửa tầng\nCung cấp nguồn điện chính thức cho thang máy';
   const LETTERS = [
     {
@@ -280,6 +283,57 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
         para('Trong suốt thời gian qua, chúng tôi luôn cố gắng thực hiện công việc của Hợp đồng một cách nhanh chóng, an toàn và đảm bảo chất lượng tốt nhất. Tuy nhiên, trong quá trình thực hiện Hợp đồng đã xảy ra việc tạm dừng / chậm trễ không do lỗi và không nằm trong tầm kiểm soát của chúng tôi. Thời gian tạm dừng như vậy không được cộng thêm vào thời gian bảo hành và bảo trì miễn phí.') +
         para(`Căn cứ ${f.dieu || 'Điều 7.1'} của Hợp đồng, chúng tôi xin thông báo: thời gian bảo hành và bảo trì miễn phí chính thức của Hợp đồng là ${f.soThangBH || 18} tháng tính từ ngày thiết bị đến công trường hoặc được lưu kho bên ngoài (nếu có), tức bắt đầu từ ngày ${dmy(f.tuNgay)} và kết thúc vào ngày ${dmy(f.denNgay)}, không phụ thuộc vào tình trạng hoàn thành của công tác lắp đặt hay công tác bàn giao theo Hợp đồng.`) +
         closing(I, f, { thanks: 'Trân trọng cảm ơn sự hợp tác của Quý Công ty.' })),
+    },
+    {
+      id: 'tam_dung', kind: 'letter', name: 'Thông báo tạm dừng thi công lắp đặt thang máy', subject: 'Thông báo tạm dừng thi công lắp đặt thang máy',
+      fields: [{ k: 'ngayDung', label: 'Tạm dừng thi công từ ngày', type: 'date' }, { k: 'thang', label: 'Thang / phạm vi tạm dừng', ph: 'VD: PL1–PL4 (để trống = toàn bộ thang của Hợp đồng)' },
+        { k: 'lyDo', label: 'Lý do tạm dừng (tóm tắt)', def: 'Mặt bằng và điều kiện thi công chưa đáp ứng để tiếp tục lắp đặt do còn các tồn đọng nêu tại mục 1', wide: true },
+        { k: 'tonCDT', label: '1.1 Tồn đọng phía Chủ đầu tư — mỗi dòng: nội dung | hạn đề nghị hoàn thành (tuỳ chọn)', type: 'textarea', rows: 5, def: DEF_TD_CDT },
+        { k: 'nhaThauXD', label: 'Tên nhà thầu xây dựng (tuỳ chọn)', ph: 'VD: Công ty CP Xây dựng ABC', wide: true },
+        { k: 'tonNTXD', label: '1.2 Tồn đọng phía Nhà thầu xây dựng — mỗi dòng: nội dung | hạn đề nghị hoàn thành (tuỳ chọn)', type: 'textarea', rows: 5, def: DEF_TD_NTXD },
+        { k: 'hienTrang', label: '2. Hiện trạng đã thi công — mỗi dòng: thang | công việc đã hoàn thành | tỷ lệ hoàn thành', type: 'textarea', rows: 4, ph: 'VD:\nPL1 | Lắp đặt ray dẫn hướng cabin, đối trọng và bracket | 40%\nPL2 | Lắp đặt ray, bracket, máy kéo | 55%' },
+        { k: 'conLai', label: '3. Khối lượng còn lại — mỗi dòng: công việc còn lại | số ngày làm việc', type: 'textarea', rows: 6, def: DEF_TD_CONLAI },
+        { k: 'tgConLai', label: 'Tổng thời gian thi công còn lại (ngày làm việc) — để trống = cộng cột số ngày ở mục 3', ph: 'VD: 35' },
+        { k: 'baoTruoc', label: 'Báo trước khi quay lại thi công (ngày làm việc)', def: '07' },
+        { k: 'ghiChu', label: 'Ghi chú thêm (tuỳ chọn)', type: 'textarea', rows: 2 }],
+      body: letter('Thông báo tạm dừng thi công lắp đặt thang máy', ({ I, f }) => {
+        const cut = (ln) => { const c = ln.split('|').map(x => x.trim()); return c; };
+        const issueTbl = (txt) => {
+          const rows = lines(txt).map(cut);
+          if (!rows.length) return para('Không có.');
+          return table([['STT', 'Nội dung tồn đọng cần giải quyết', 'Hạn đề nghị hoàn thành'],
+            ...rows.map((c, i) => [{ t: String(i + 1), align: 'center' }, c[0], { t: c[1] ? (/^\d{4}-\d{2}-\d{2}$/.test(c[1]) ? dmy(c[1]) : c[1]) : '…/…/……', align: 'center' }])],
+            { widths: [650, 6176, 2200], header: 1 });
+        };
+        const done = lines(f.hienTrang).map(cut);
+        const rest = lines(f.conLai || DEF_TD_CONLAI).map(cut);
+        const sumDays = rest.reduce((a, c) => a + (Number(String(c[1] || '').replace(',', '.').match(/[\d.]+/)) || 0), 0);
+        const total = String(f.tgConLai || '').trim() || (sumDays ? String(sumDays) : '……');
+        const bt = String(f.baoTruoc || '07').trim(), btN = Number(bt);
+        const btTxt = btN > 0 && btN < 100 ? `${String(btN).padStart(2, '0')} (${read3(btN, false)})` : bt;
+        const where = f.thang ? `thang máy ${f.thang}` : `${qtyThang(I, f)} thang máy`;
+        const ntxd = f.nhaThauXD ? ` (${f.nhaThauXD})` : '';
+        return salute() +
+          para(`Trước hết, ${short(I)} xin chân thành cảm ơn sự hợp tác của Quý Khách hàng trong quá trình thực hiện Hợp đồng.`) +
+          para(`Trong thời gian qua, ${short(I)} đã triển khai công tác lắp đặt ${where} tại công trình ${orDots(I.congTrinh)}. Tuy nhiên, hiện nay ${(f.lyDo || 'mặt bằng và điều kiện thi công chưa đáp ứng để tiếp tục lắp đặt').replace(/^./, (x) => x.toLowerCase())}. Vì vậy, ${short(I)} xin thông báo tạm dừng thi công kể từ ngày ${dmy(f.ngayDung)} cho đến khi các tồn đọng dưới đây được giải quyết.`) +
+          head2('1. Các tồn đọng cần giải quyết trước khi tiếp tục thi công') +
+          p(r('1.1. Phía Chủ đầu tư', { b: true, i: true }), { before: 2, keep: true }) + issueTbl(f.tonCDT == null ? DEF_TD_CDT : f.tonCDT) +
+          p(r(`1.2. Phía Nhà thầu xây dựng${ntxd}`, { b: true, i: true }), { before: 2, keep: true }) + issueTbl(f.tonNTXD == null ? DEF_TD_NTXD : f.tonNTXD) +
+          head2(`2. Hiện trạng đã thi công (tính đến ngày ${dmy(f.ngayDung)})`) +
+          (done.length ? table([['STT', 'Thang', 'Công việc đã hoàn thành', 'Tỷ lệ hoàn thành'],
+            ...done.map((c, i) => [{ t: String(i + 1), align: 'center' }, { t: c[0] || '', align: 'center' }, c[1] || '', { t: c[2] || '', align: 'center' }])], { widths: [650, 1300, 5276, 1800], header: 1 }) : para('……')) +
+          head2('3. Khối lượng và thời gian thi công còn lại') +
+          table([['STT', 'Công việc còn lại', 'Thời gian (ngày làm việc)'],
+            ...rest.map((c, i) => [{ t: String(i + 1), align: 'center' }, c[0] || '', { t: c[1] || '', align: 'center' }]),
+            [{ t: 'Tổng thời gian thi công còn lại', b: true, span: 2, align: 'right' }, { t: total + ' ngày', b: true, align: 'center' }]], { widths: [650, 6176, 2200], header: 1 }) +
+          para(`Thời gian thi công còn lại dự kiến khoảng ${total} ngày làm việc, tính từ ngày ${short(I)} quay lại công trường sau khi các tồn đọng nêu tại mục 1 đã được giải quyết xong. Tiến độ hoàn thành và bàn giao thang máy theo Hợp đồng sẽ được điều chỉnh tương ứng với thời gian tạm dừng.`) +
+          head2('4. Đề nghị') +
+          list([`Quý Khách hàng chỉ đạo các bên liên quan (Chủ đầu tư, Nhà thầu xây dựng) sớm hoàn thành các tồn đọng nêu tại mục 1.`,
+            `Khi có kế hoạch hoàn thành các mục tồn đọng, đề nghị Quý Khách hàng thông báo bằng văn bản cho ${short(I)} trước tối thiểu ${btTxt} ngày làm việc để ${short(I)} thu xếp nhân sự, máy móc, thiết bị quay lại tiếp tục thi công.`,
+            `Trong thời gian tạm dừng, đề nghị Quý Khách hàng phối hợp bảo quản các thiết bị, vật tư đã lắp đặt và đang lưu kho tại công trường.`], '•') +
+          (f.ghiChu ? lines(f.ghiChu).map(para).join('') : '') +
+          closing(I, f, { thanks: 'Rất mong nhận được sự hỗ trợ và hợp tác của Quý Khách hàng.' });
+      }),
     },
     {
       id: 'bao_quan', kind: 'letter', name: 'Thông báo trách nhiệm bảo quản tài sản khi tạm dừng thi công', subject: 'Thông báo về việc bảo quản tài sản trên công trường',
