@@ -31,9 +31,9 @@ test('docxkit: escape ký tự đặc biệt, ngày tiếng Việt, ô trống i
   balanced(t);
 });
 
-test('công văn & biên bản: đủ 17 mẫu (gồm RFA, RFI, báo giá phát sinh, điều kiện công trường, thư xác nhận hàng về), cùng khuôn đầu thư, điền thông tin dự án', () => {
-  assert.equal(L.LETTERS.length, 17);
-  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 17, 'id không trùng');
+test('công văn & biên bản: đủ 18 mẫu (gồm tạm dừng thi công, RFA, RFI, báo giá phát sinh, điều kiện công trường, thư xác nhận hàng về), cùng khuôn đầu thư, điền thông tin dự án', () => {
+  assert.equal(L.LETTERS.length, 18);
+  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 18, 'id không trùng');
   for (const d of L.LETTERS) {
     const f = { so: '01/CV', ngay: '2026-11-12' };
     (d.fields || []).forEach(x => { f[x.k] = x.type === 'date' ? '2026-12-01' : (x.def || 'giá trị'); });
@@ -216,4 +216,21 @@ test('Công văn — xem trước & sửa tay: mỗi đoạn một ô, sửa tay
   // so sánh định dạng: cùng chữ + cùng kiểu, khác cách chia run → bằng nhau
   assert.equal(PV.canon('<w:r><w:t xml:space="preserve">A</w:t></w:r><w:r><w:t>B</w:t></w:r>'), PV.canon('<w:r><w:t>AB</w:t></w:r>'));
   assert.notEqual(PV.canon('<w:r><w:rPr><w:b/></w:rPr><w:t>AB</w:t></w:r>'), PV.canon('<w:r><w:t>AB</w:t></w:r>'));
+});
+
+test('Công văn tạm dừng thi công: tồn đọng CĐT / nhà thầu XD, hiện trạng, khối lượng + tổng ngày còn lại, báo trước 07 ngày làm việc', () => {
+  const PV = require('../../tools/tiendotm/hspreview.js');
+  const d = L.LETTERS.find(x => x.id === 'tam_dung');
+  const f = { so: '130/2026/SCH-HN', ngay: '2026-11-20', ngayDung: '2026-11-25', thang: 'PL1–PL4', nhaThauXD: 'Công ty XD Mẫu',
+    tonCDT: 'Cấp điện 3 pha | 2026-12-05', tonNTXD: 'Hoàn thiện vách giếng thang', hienTrang: 'PL1 | Lắp ray | 40%', conLai: 'Lắp cabin | 10\nChạy thử | 4,5' };
+  const t = PV.paragraphs(L.compose(d, { congTrinh: 'TOÀ MẪU', chuDauTu: 'Công ty A' }, f)).map(p => p.text).join('\n');
+  assert.match(t, /tạm dừng thi công kể từ ngày 25\/11\/2026/);
+  assert.match(t, /1\.1\. Phía Chủ đầu tư[\s\S]*Cấp điện 3 pha[\s\S]*05\/12\/2026/);
+  assert.match(t, /1\.2\. Phía Nhà thầu xây dựng \(Công ty XD Mẫu\)[\s\S]*Hoàn thiện vách giếng thang/);
+  assert.match(t, /PL1\nLắp ray\n40%/);
+  assert.match(t, /14\.5 ngày/, 'tự cộng số ngày còn lại');
+  assert.match(t, /trước tối thiểu 07 \(bảy\) ngày làm việc để Schindler Việt Nam thu xếp nhân sự, máy móc/);
+  assert.doesNotMatch(t, /undefined|NaN/);
+  const t2 = PV.paragraphs(L.compose(d, {}, { ...f, tgConLai: '30', baoTruoc: '10' })).map(p => p.text).join('\n');
+  assert.match(t2, /30 ngày/); assert.match(t2, /10 \(mười\) ngày làm việc/);
 });

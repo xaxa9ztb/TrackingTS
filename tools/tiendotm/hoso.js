@@ -407,6 +407,7 @@
   const letterTpl = async () => tplBuf || (tplBuf = await fetch('thu_hangve_template.docx', { cache: 'force-cache' }).then(r => { if (!r.ok) throw new Error('Không tải được khuôn công văn'); return r.arrayBuffer(); }));
   // biểu tượng (nét, 24×24) cho từng văn bản
   const LI = {
+    pause: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7M14 8.5v7"/>',
     stamp: '<path d="M9 3h6l-1 6h-4z"/><path d="M5 13h14a1 1 0 0 1 1 1v3H4v-3a1 1 0 0 1 1-1z"/><path d="M10 9v4M14 9v4M5 21h14"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.3a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.5h.01"/>',
     calc: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 11h5M10 14.5h5M10 18h3"/><path d="M4 8v10" opacity=".55"/>',
@@ -443,6 +444,7 @@
       { jump: 'hsBBPanel', focus: 'bx_ngay', key: 'bbxn', bb: true, ic: 'clip', t: 'BB xác nhận thiết bị đến công trường', s: 'Lấy dữ liệu chứng từ từ Hồ sơ chất lượng' }] },
     { id: 'kd', name: 'Thi công & kiểm định', note: 'lắp đặt, nghiệm thu', c: '#0891b2', items: [
       { id: 'defect_ld', ic: 'cone', t: 'Tồn tại giếng thang & điều kiện công trường trước lắp đặt', s: 'Danh sách tồn tại + bảng kiểm tra kho, điện, lan can, móc treo…' },
+      { id: 'tam_dung', ic: 'pause', t: 'Thông báo tạm dừng thi công', s: 'Tồn đọng CĐT / nhà thầu XD, hiện trạng, khối lượng còn lại; báo trước 07 ngày để quay lại' },
       { id: 'bao_quan', ic: 'lock', t: 'Bảo quản tài sản khi tạm dừng', s: 'Trách nhiệm bảo quản thiết bị khi công trường dừng' },
       { id: 'defect_kd', ic: 'warn', t: 'Tồn tại giếng thang trước kiểm định', s: 'Các hạng mục cần khắc phục trước khi kiểm định' },
       { id: 'moi_kd', ic: 'mail', t: 'Thư mời kiểm định thang máy', s: 'Mời CĐT / TVGS tham gia kiểm định' },
