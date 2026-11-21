@@ -96,7 +96,7 @@
       const el = $(id); if (!el || el.type === 'file' || SKIP.has(id)) return;
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!f[id]; else el.value = f[id];
     });
-    ['renderQElevs', 'renderQPhases'].forEach(R);
+    ['renderQElevs', 'renderQPhases', 'upgradeHolidays'].forEach(R);
     if (typeof qTogglePL === 'function') { try { qTogglePL(); } catch (e) { /* bỏ qua */ } }
     Object.keys(LT).forEach(k => delete LT[k]); Object.assign(LT, d.lt || {});
     Object.assign(LG, { ngay: '', people: [], machines: [], docs: {}, khOld: '', khNew: '', ed: {} }, d.lg || {});

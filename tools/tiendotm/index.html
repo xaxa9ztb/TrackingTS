@@ -19,6 +19,7 @@
 <script src="../../js/config.js?v=37"></script>
 <script src="../../js/db.js?v=37"></script>
 <script src="../../js/cloud.js?v=43"></script>
+<script src="../timesheet/labor.js?v=40"></script>
 <link rel="stylesheet" href="../../css/ni.css?v=4">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
@@ -34,7 +35,7 @@
 <script src="hsletters.js?v=8"></script>
 <script src="hslegal.js?v=2"></script>
 <script src="hsdrawing.js?v=3"></script>
-<script src="hoso.js?v=20"></script>
+<script src="hoso.js?v=21"></script>
 <style>
 :root{
   --navy:#1F3864; --navy-2:#2E74B5; --red:#DC0000; --green:#00B050;
@@ -303,6 +304,9 @@ table.gx{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 .gx .gx-id{left:22px;width:44px;min-width:44px;text-align:center;font-weight:700;color:var(--muted)}
 .gx .gx-nm{left:66px;width:270px;min-width:270px;max-width:270px}
 .gx .gx-dt:nth-of-type(4){left:336px}.gx .gx-n{left:450px}.gx .gx-dt:nth-of-type(6){left:506px}.gx .gx-lk{left:620px;box-shadow:2px 0 0 #d5dae2}
+/* màn hình hẹp: các cột cố định (≈650px) che hết vùng Gantt → chỉ giữ STT + tên công việc cố định, phần còn lại cuộn ngang */
+@media (max-width:1100px){.gx .gx-dt,.gx .gx-n,.gx .gx-lk,.gx thead .gx-dt,.gx thead .gx-n,.gx thead .gx-lk{position:static}.gx .gx-lk{box-shadow:none}.gx .gx-nm{box-shadow:2px 0 0 #d5dae2}}
+@media (max-width:640px){.gx .gx-hd{width:18px;min-width:18px}.gx .gx-id{left:18px;width:36px;min-width:36px}.gx .gx-nm{left:54px;width:132px;min-width:132px;max-width:132px}.gx-ph{display:none}.gx-nmw.ind{padding-left:8px}.gx thead .gx-nm{white-space:normal;line-height:1.2}}
 .gx .gx-dt{width:114px;min-width:114px;text-align:center}.gx .gx-n{width:56px;min-width:56px;text-align:center}.gx .gx-lk{width:30px;min-width:30px;text-align:center}
 .gx td input,.gx td select{font:inherit;font-size:12.5px;border:1px solid transparent;border-radius:6px;background:transparent;padding:4px 5px;width:100%;box-sizing:border-box;color:var(--ni-ink)}
 .gx td input:hover,.gx td select:hover{border-color:#d5dae2}.gx td input:focus,.gx td select:focus{border-color:var(--ni-action);background:#fff;outline:0;box-shadow:0 0 0 2px var(--ni-focus)}
@@ -371,7 +375,7 @@ table.gx{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:10
 .pv-page.pv-legal{font:13pt/1.25 'Times New Roman',Times,serif;padding:60px 60px 60px 100px}
 .hs-edtag{display:inline-block;font-size:11.5px;font-weight:600;color:#92400e;background:#fef3c7;border-radius:6px;padding:0 6px;margin-left:4px}
 .gx-tip{position:fixed;z-index:50;background:#111827;color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap}
-@media(max-width:720px){.gx .gx-nm{width:180px;min-width:180px;max-width:180px}.gx .gx-dt:nth-of-type(4){left:246px}.gx .gx-n{left:368px}.gx .gx-dt:nth-of-type(6){left:432px}.gx .gx-lk{left:554px}}
+
 .hs-tabs{flex-basis:100%;margin:2px -4px -4px;background:var(--ni-sunk,#eef1f5)}
 .hs-tabs[hidden]{display:none}
 .hs-tabs>button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
@@ -1238,6 +1242,10 @@ function lunar2Solar(lD,lM,lY,leap,tz){
   return jdToDate(newMoonDay(k+off,tz)+lD-1);
 }
 function vnHolidays(year){
+  if(window.LaborVN&&LaborVN.holidaysBetween)return new Set(LaborVN.holidaysBetween(`${year}-01-01`,`${year}-12-31`,"mon-sat").map(h=>h.date));
+  return vnHolidaysBasic(year);
+}
+function vnHolidaysBasic(year){
   const tz=7,out=new Set(),P2=n=>String(n).padStart(2,"0"),I=(d,m,y)=>`${y}-${P2(m)}-${P2(d)}`;
   out.add(I(1,1,year));                 // Tết Dương lịch
   out.add(I(30,4,year));                // Giải phóng miền Nam 30/4
@@ -1256,8 +1264,17 @@ function autoFillHolidays(force){
   const y=parseInt((document.getElementById("baseline").value||"").slice(0,4))||new Date().getUTCFullYear();
   const set=new Set();[y,y+1].forEach(yr=>vnHolidays(yr).forEach(d=>set.add(d)));
   const arr=[...set].sort();el.value=arr.join(", ");_holAuto=el.value;
-  const note=document.getElementById("holnote");if(note)note.textContent=`Đã liệt kê ${arr.length} ngày nghỉ lễ VN (${y}–${y+1}) gồm Tết & Giỗ Tổ — sửa tay được.`;
+  const note=document.getElementById("holnote");if(note)note.textContent=`Đã liệt kê ${arr.length} ngày nghỉ lễ VN (${y}–${y+1}) gồm Tết, Giỗ Tổ, Quốc khánh, Ngày Văn hóa VN 24/11 và ngày nghỉ bù — sửa tay được.`;
   const h2=document.getElementById("holidays2");if(h2)h2.value=el.value;
+}
+// hồ sơ cũ còn danh sách ngày lễ tự điền theo cách cũ (thiếu 24/11 Ngày Văn hóa VN, nghỉ bù…) → điền lại theo quy định mới
+function upgradeHolidays(){
+  const el=document.getElementById("holidays");if(!el||!window.LaborVN)return false;
+  const y=parseInt((document.getElementById("baseline").value||"").slice(0,4))||new Date().getUTCFullYear();
+  const old=new Set();[y,y+1].forEach(yr=>vnHolidaysBasic(yr).forEach(d=>old.add(d)));
+  const cur=el.value.split(",").map(x=>x.trim()).filter(Boolean).sort().join(", ");
+  if(cur&&cur===[...old].sort().join(", ")){autoFillHolidays(true);return true;}
+  return false;
 }
 function iso(d){return d.toISOString().slice(0,10);}
 // ngày làm việc: chế độ "work" loại T7, CN và ngày lễ; chế độ "cal" (ngày lịch) chỉ loại ngày lễ
