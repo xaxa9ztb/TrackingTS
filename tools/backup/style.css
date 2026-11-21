@@ -1,0 +1,14 @@
+/* Sao lưu & khôi phục — dùng chung khung ac-* của trang Tài khoản */
+.bk-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.bk-head h2 { margin: 0; }
+.bk-prog { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.bk-bar { flex: 1 1 240px; max-width: 420px; height: 8px; border-radius: 999px; background: var(--ni-sunk, #eef1f5); overflow: hidden; }
+.bk-bar i { display: block; height: 100%; width: 0; background: var(--ni-action, #1d4ed8); transition: width .2s; }
+.bk-restore { border-color: var(--ni-danger-line, #fecdca); }
+.bk-confirm { min-height: 36px; padding: 6px 10px; border: 1px solid var(--ni-line-strong, #c9d0db); border-radius: 6px; width: 160px; font-size: 15px; }
+.ac-table td.num, .ac-table th.num { text-align: right; white-space: nowrap; }
+.bk-tag { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--ni-sunk, #eef1f5); color: var(--ink-2); }
+.bk-tag.auto { background: #ecfdf5; color: #047857; }
+.btn.danger { background: var(--ni-danger, #b42318); border-color: var(--ni-danger, #b42318); color: #fff; }
+.btn.danger:disabled { opacity: .45; }
+.bk-acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }

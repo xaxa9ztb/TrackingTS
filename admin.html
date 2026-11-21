@@ -31,6 +31,7 @@
       <button class="tab-btn" data-tab="projects">Dự án</button>
       <button class="tab-btn" data-tab="timesheet">Bảng công</button>
       <button class="tab-btn" data-tab="accounts" id="tabAccounts" style="display:none">Tài khoản &amp; phân quyền</button>
+      <button class="tab-btn" data-tab="backup" id="tabBackup" style="display:none">Sao lưu &amp; khôi phục</button>
     </nav>
     <div class="header-actions">
       <span id="dataStatus" class="data-status">Chưa có dữ liệu</span>
@@ -116,6 +117,13 @@
       </div>
     </section>
 
+    <!-- ================= SAO LƯU & KHÔI PHỤC (chỉ bản máy chủ, chỉ Admin) ================= -->
+    <section id="tab-backup" class="tab-panel">
+      <div class="swat-frame-wrap">
+        <iframe id="backupFrame" data-src="tools/backup/index.html?embed=1" title="Sao lưu và khôi phục dữ liệu"></iframe>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -137,6 +145,6 @@ window.SwatPage = { load() { return Promise.resolve(); }, wire() {} };
 <script src="js/projects.js?v=38"></script>
 <script src="js/timesheet.js?v=37"></script>
 <script src="js/employees.js?v=38"></script>
-<script src="js/main.js?v=44"></script>
+<script src="js/main.js?v=45"></script>
 </body>
 </html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi" class="ni" data-app="accounts">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Sao lưu &amp; khôi phục — Bộ công cụ dự án</title>
+<meta name="theme-color" content="#0f1b2d">
+<link rel="icon" type="image/png" href="../../icons/favicon-64.png">
+<link rel="stylesheet" href="../../css/ni.css?v=4">
+<link rel="stylesheet" href="../accounts/style.css?v=8">
+<link rel="stylesheet" href="style.css?v=1">
+<script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');   // nhúng trong trang Quản trị: bỏ thanh đầu</script>
+<script src="../../js/demo.js?v=3"></script>
+</head>
+<body>
+<script src="../toolset-nav.js?v=39" data-app="accounts" data-tool="Sao lưu & khôi phục" data-help="#quantri"></script>
+
+<header class="ac-top">
+  <div class="ac-wrap">
+    <h1>Sao lưu &amp; khôi phục dữ liệu</h1>
+    <p class="ac-sub">Sao lưu toàn bộ dữ liệu của Bộ công cụ (mọi bảng trên máy chủ): tải file về máy hoặc lưu lên Google Drive; khôi phục từ Drive hoặc từ file trên máy.</p>
+  </div>
+</header>
+
+<main class="ac-wrap">
+  <div class="ac-msg" id="gate">Đang kiểm tra quyền…</div>
+
+  <section class="ac-card" id="secNow" hidden>
+    <h2>1. Sao lưu ngay</h2>
+    <p class="ac-help">Tạo bản sao lưu đầy đủ (file <b>.json.gz</b>): nhân viên, dự án, bảng công, duyệt, nghỉ phép / OT, hồ sơ dự án, khảo sát bracket, incentive, tài khoản, nhật ký…
+      File chứa <b>dữ liệu cá nhân</b> — lưu ở nơi an toàn, không gửi qua kênh công khai.</p>
+    <p class="ac-counts" id="dbSummary">Đang đọc cơ sở dữ liệu…</p>
+    <div class="ac-row">
+      <button class="btn primary" id="btnDownload" type="button">⬇ Tải bản sao lưu về máy</button>
+      <button class="btn" id="btnToDrive" type="button" disabled>☁ Sao lưu lên Google Drive ngay</button>
+    </div>
+    <div class="bk-prog" id="progNow" hidden><div class="bk-bar"><i></i></div><span class="ac-note" role="status"></span></div>
+  </section>
+
+  <section class="ac-card" id="secDrive" hidden>
+    <div class="bk-head"><h2>2. Bản sao lưu trên Google Drive</h2><button class="btn small" id="btnDriveReload" type="button">Tải lại</button></div>
+    <p class="ac-help"><b>Tự động 2 lần / tuần</b> (02:00 sáng thứ Hai và thứ Năm) + các lần bấm “Sao lưu lên Google Drive ngay”. Drive <b>giữ tối đa 10 bản</b> mới nhất — bản cũ hơn tự chuyển vào Thùng rác.</p>
+    <div class="ac-msg" id="driveOff" hidden></div>
+    <div class="ac-scroll"><table class="ac-table" id="driveTable" hidden>
+      <thead><tr><th>Bản sao lưu</th><th>Thời gian</th><th>Nguồn</th><th class="num">Dung lượng</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="ac-note" id="driveNote"></p>
+  </section>
+
+  <section class="ac-card" id="secFile" hidden>
+    <h2>3. Khôi phục từ file trên máy</h2>
+    <p class="ac-help">Chọn file sao lưu (<b>.json.gz</b> hoặc <b>.json</b>) đã tải về trước đó.</p>
+    <div class="ac-row"><input type="file" id="fileIn" accept=".gz,.json,application/gzip,application/json"></div>
+  </section>
+
+  <section class="ac-card bk-restore" id="secRestore" hidden>
+    <h2>Khôi phục dữ liệu</h2>
+    <p class="ac-help" id="rsInfo"></p>
+    <div class="ac-scroll ac-short"><table class="ac-table" id="rsTable"><thead><tr><th>Bảng</th><th class="num">Trong bản sao lưu</th><th class="num">Hiện tại</th></tr></thead><tbody></tbody></table></div>
+    <p class="ac-msg err">⚠ Khôi phục sẽ <b>xoá toàn bộ dữ liệu hiện tại</b> của các bảng trên và thay bằng dữ liệu trong bản sao lưu. Mọi thay đổi sau thời điểm sao lưu sẽ mất.</p>
+    <label class="ac-check"><input type="checkbox" id="rsSafety" checked> Tải bản sao lưu dữ liệu hiện tại về máy trước khi khôi phục (khuyến nghị)</label>
+    <div class="ac-row"><label for="rsConfirm" class="ac-note">Gõ <b>KHÔI PHỤC</b> để xác nhận:</label><input type="text" id="rsConfirm" autocomplete="off" class="bk-confirm"></div>
+    <div class="ac-row"><button class="btn danger" id="btnRestore" type="button" disabled>Khôi phục</button><button class="btn" id="btnRsCancel" type="button">Huỷ</button></div>
+    <div class="bk-prog" id="progRs" hidden><div class="bk-bar"><i></i></div><span class="ac-note" role="status"></span></div>
+  </section>
+</main>
+
+<div class="ac-toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="app.js?v=2"></script>
+</body>
+</html>

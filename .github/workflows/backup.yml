@@ -1,0 +1,60 @@
+# Sao lưu tự động toàn bộ dữ liệu (D1) lên Google Drive — 2 lần / tuần: 02:00 sáng thứ Hai và thứ Năm (giờ Việt Nam).
+# Cần: secret CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (như bước triển khai) + secret BACKUP_DRIVE_URL, BACKUP_DRIVE_TOKEN
+# (Web app Apps Script — tools/backup/apps-script/HUONG-DAN.md). Drive giữ tối đa 10 bản mới nhất.
+# Chạy tay: Actions → Backup → Run workflow. Nhật ký chỉ ghi số dòng từng bảng, KHÔNG ghi dữ liệu; không lưu file làm artifact.
+name: Backup
+
+on:
+  schedule:
+    - cron: '7 19 * * 0,3'   # 19:07 UTC Chủ nhật, thứ Tư = 02:07 thứ Hai, thứ Năm giờ Việt Nam
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_DRIVE_URL: ${{ secrets.BACKUP_DRIVE_URL }}
+      BACKUP_DRIVE_TOKEN: ${{ secrets.BACKUP_DRIVE_TOKEN }}
+      DB_NAME: trackingts
+    steps:
+      - name: Kiểm tra cấu hình
+        id: cfg
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$BACKUP_DRIVE_URL" ] || [ -z "$BACKUP_DRIVE_TOKEN" ]; then
+            echo "::warning::Chưa đủ secret (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, BACKUP_DRIVE_URL, BACKUP_DRIVE_TOKEN) — bỏ qua sao lưu tự động"
+            echo "ok=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ok == '1'
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.ok == '1'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.cfg.outputs.ok == '1'
+      - name: Gắn cơ sở dữ liệu D1
+        if: steps.cfg.outputs.ok == '1'
+        run: |
+          id="$(npx wrangler d1 list --json | node -e '
+            let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+              const db = JSON.parse(s).find(x => x.name === process.env.DB_NAME);
+              process.stdout.write(db ? db.uuid : "");
+            });')"
+          if [ -z "$id" ]; then echo "::error::Không tìm thấy D1 $DB_NAME"; exit 1; fi
+          sed -i "s/00000000-0000-0000-0000-000000000000/$id/" wrangler.toml
+      - name: Sao lưu lên Google Drive
+        if: steps.cfg.outputs.ok == '1'
+        run: node scripts/backup-d1.mjs

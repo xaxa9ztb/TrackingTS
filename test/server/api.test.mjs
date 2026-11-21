@@ -2480,3 +2480,99 @@ test('Bracket — nhập ID hàng loạt (người sửa được ID) + tài li�
   assert.equal(g.status, 200); assert.equal((await g.arrayBuffer()).byteLength, pdf.length);
   assert.equal((await call('DELETE', '/api/bracket/files/' + d.data.file.id, { email: A, body: {} })).status, 200);
 });
+
+test('Sao lưu & khôi phục toàn bộ dữ liệu: chỉ Admin; đọc từng trang (cả file nhị phân); khôi phục đúng từng dòng; Google Drive qua Apps Script', async () => {
+  const A = 'boss@example.com', SUP = 'sup@example.com';
+  // dữ liệu tự chuẩn bị (chạy riêng test này vẫn đủ): nhân viên + dự án + 1 file nhị phân
+  assert.equal((await call('POST', '/api/admin/import', { email: A, body: SAMPLE })).status, 200);
+  const fid = (await env.DB.prepare("INSERT INTO bracket_files (bracket, file_name, mime, size, chunks) VALUES ('BK-TEST', 'b.pdf', 'application/pdf', 4, 1) RETURNING id").first()).id;
+  await env.DB.prepare('INSERT INTO bracket_file_chunks (file_id, seq, data) VALUES (?, 0, ?)').bind(fid, new Uint8Array([0, 255, 16, 7])).run();
+  assert.equal((await call('GET', '/api/admin/backup/tables', { email: SUP })).status, 403, 'không phải Admin');
+  assert.equal((await call('POST', '/api/admin/backup/restore/clear', { email: SUP, body: { tables: ['employees'] } })).status, 403);
+  const meta = (await call('GET', '/api/admin/backup/tables', { email: A })).data;
+  const names = meta.tables.map(t => t.name);
+  assert.ok(names.includes('employees') && names.includes('bracket_file_chunks') && !names.some(n => /^(sqlite_|_cf_|d1_migrations)/.test(n)));
+  assert.ok(names.indexOf('employees') < names.indexOf('project_staff') && names.indexOf('projects') < names.indexOf('project_staff'), 'bảng cha trước');
+  assert.deepEqual(meta.tables.find(t => t.name === 'bracket_file_chunks').blobs, ['data']);
+  assert.ok(meta.tables.find(t => t.name === 'bracket_file_chunks').rows >= 1);
+  assert.equal(meta.drive, false);
+  // đọc toàn bộ như trình duyệt
+  const dump = async () => {
+    const m = (await call('GET', '/api/admin/backup/tables', { email: A })).data, out = {};
+    for (const t of m.tables) {
+      const rows = []; let after = 0;
+      for (;;) {
+        const p = (await call('GET', `/api/admin/backup/rows?table=${t.name}&after=${after}`, { email: A })).data;
+        rows.push(...p.rows); after = p.last; if (p.done || !p.rows.length) break;
+      }
+      out[t.name] = { columns: t.columns, blobs: t.blobs, rows };
+    }
+    return { m, out };
+  };
+  assert.equal((await call('GET', '/api/admin/backup/rows?table=khong_co&after=0', { email: A })).status, 400);
+  const before = await dump();
+  const chunk0 = await env.DB.prepare('SELECT hex(data) h FROM bracket_file_chunks ORDER BY rowid LIMIT 1').first();
+  assert.equal(before.out.bracket_file_chunks.rows[0][before.out.bracket_file_chunks.columns.indexOf('data')], chunk0.h.toLowerCase(), 'nhị phân dạng hex');
+  // làm hỏng dữ liệu
+  await env.DB.prepare("UPDATE projects SET project_name = 'HỎNG' WHERE wbs = 'W-100'").run();
+  await env.DB.prepare("DELETE FROM employees WHERE emp_id = 'F02'").run();
+  await env.DB.prepare('DELETE FROM bracket_file_chunks').run();
+  await env.DB.prepare("INSERT INTO kv_store (key, version, data, saved_at, saved_by) VALUES ('rac', 1, 'x', '', '')").run();
+  // khôi phục: xoá sạch rồi chèn lại theo thứ tự máy chủ
+  const order = before.m.tables.filter(t => before.out[t.name]);
+  const cl = await call('POST', '/api/admin/backup/restore/clear', { email: A, body: { tables: order.map(t => t.name) } });
+  assert.equal(cl.status, 200, JSON.stringify(cl.data));
+  for (const t of order) {
+    const src = before.out[t.name];
+    for (let i = 0; i < src.rows.length; i += 200) {
+      const r = await call('POST', '/api/admin/backup/restore/rows', { email: A, body: { table: t.name, columns: src.columns, blobs: src.blobs, rows: src.rows.slice(i, i + 200) } });
+      assert.equal(r.status, 200, t.name + ': ' + JSON.stringify(r.data));
+    }
+  }
+  assert.equal((await call('POST', '/api/admin/backup/restore/done', { email: A, body: { name: 'x.json.gz', from: 'file', rows: { employees: 4 } } })).status, 200);
+  const after = await dump();
+  for (const n of Object.keys(before.out).filter(n => n !== 'audit_log')) assert.deepEqual(after.out[n].rows, before.out[n].rows, 'bảng ' + n + ' khôi phục đúng');
+  assert.equal((await env.DB.prepare("SELECT project_name n FROM projects WHERE wbs = 'W-100'").first()).n, 'Toà nhà A');
+  assert.equal((await env.DB.prepare("SELECT hex(data) h FROM bracket_file_chunks ORDER BY rowid LIMIT 1").first()).h, chunk0.h);
+  assert.equal(await env.DB.prepare("SELECT 1 FROM kv_store WHERE key = 'rac'").first(), null, 'dữ liệu sau thời điểm sao lưu bị xoá');
+  assert.ok(await env.DB.prepare("SELECT 1 FROM audit_log WHERE action = 'backup_restore'").first());
+  // cột lạ trong bản sao lưu (cấu trúc cũ / mới) bị bỏ qua; hex hỏng → 400
+  assert.equal((await call('POST', '/api/admin/backup/restore/rows', { email: A, body: { table: 'kv_store', columns: ['key', 'version', 'data', 'saved_at', 'saved_by', 'cot_la'], rows: [['k2', 1, 'y', '', '', 'z']] } })).status, 200);
+  assert.ok(await env.DB.prepare("SELECT 1 FROM kv_store WHERE key = 'k2'").first());
+  assert.equal((await call('POST', '/api/admin/backup/restore/rows', { email: A, body: { table: 'bracket_file_chunks', columns: ['file_id', 'seq', 'data'], blobs: ['data'], rows: [[999, 0, 'zz']] } })).status, 400);
+
+  // Google Drive (Apps Script giả)
+  assert.deepEqual((await call('GET', '/api/admin/backup/drive', { email: A })).data, { configured: false, files: [] });
+  const store = [], calls = [];
+  const fakeGas = async (url, init) => {
+    const b = JSON.parse(init.body); calls.push({ url, action: b.action });
+    if (b.token !== 'tok-0123456789abcdefghijklmn') return { ok: true, json: async () => ({ error: 'Sai mã bí mật' }) };
+    if (b.action === 'list') return { ok: true, json: async () => ({ files: store.map(f => ({ id: f.id, name: f.name, size: f.size, created: f.created })), keep: 10 }) };
+    if (b.action === 'upload') { store.unshift({ id: 'file' + String(store.length).padStart(8, '0'), name: b.name, b64: b.b64, size: Buffer.from(b.b64, 'base64').length, created: new Date().toISOString() }); const pruned = Math.max(0, store.length - 10); store.length = Math.min(store.length, 10); return { ok: true, json: async () => ({ ok: true, file: { id: store[0].id, name: b.name }, pruned }) }; }
+    if (b.action === 'get') { const f = store.find(x => x.id === b.id); return { ok: true, json: async () => (f ? { name: f.name, b64: f.b64 } : { error: 'Không tìm thấy bản sao lưu' }) }; }
+    return { ok: true, json: async () => ({ error: 'Thao tác không hợp lệ' }) };
+  };
+  const DRV = { BACKUP_DRIVE_URL: 'https://script.google.com/macros/s/ABCDEFGHIJKLMNOPQRSTUVWXYZ/exec', BACKUP_DRIVE_TOKEN: 'tok-0123456789abcdefghijklmn', BACKUP_FETCH: fakeGas };
+  assert.equal((await call('GET', '/api/admin/backup/tables', { email: A, envOver: DRV })).data.drive, true);
+  const { gzipSync, gunzipSync } = await import('node:zlib');
+  const gz = gzipSync(Buffer.from(JSON.stringify({ format: 'trackingts-backup', version: 1, tables: before.out })));
+  const upload = async (name, bytes, email = A, hdr = true) => {
+    const headers = { 'cf-access-jwt-assertion': await tokenFor(email), 'content-type': 'application/octet-stream' };
+    if (hdr) headers['x-ts-upload'] = '1';
+    const resp = await handle(new Request('https://trackingts.pages.dev/api/admin/backup/drive?name=' + encodeURIComponent(name), { method: 'POST', headers, body: bytes }), { ...env, ...DRV }, { getKeys });
+    return { status: resp.status, data: await resp.json() };
+  };
+  assert.equal((await upload('trackingts-backup-x.json.gz', gz, A, false)).status, 415, 'thiếu header tải lên');
+  assert.equal((await upload('trackingts-backup-x.json.gz', gz, SUP)).status, 403);
+  assert.equal((await upload('../evil.json.gz', gz)).status, 400, 'tên file lạ');
+  assert.equal((await upload('trackingts-backup-x.json.gz', Buffer.from('not gzip'))).status, 400, 'không phải gzip');
+  for (let i = 0; i < 11; i++) { const r = await upload(`trackingts-backup-2026${String(i).padStart(2, '0')}.json.gz`, gz); assert.equal(r.status, 200, JSON.stringify(r.data)); if (i === 10) assert.equal(r.data.pruned, 1, 'giữ tối đa 10 bản'); }
+  const list = (await call('GET', '/api/admin/backup/drive', { email: A, envOver: DRV })).data;
+  assert.equal(list.files.length, 10); assert.equal(list.configured, true);
+  const resp = await handle(new Request('https://trackingts.pages.dev/api/admin/backup/drive/file?id=' + list.files[0].id, { headers: { 'cf-access-jwt-assertion': await tokenFor(A) } }), { ...env, ...DRV }, { getKeys });
+  assert.equal(resp.status, 200); assert.equal(resp.headers.get('content-type'), 'application/gzip');
+  assert.equal(JSON.parse(gunzipSync(Buffer.from(await resp.arrayBuffer()))).format, 'trackingts-backup', 'tải về đúng nội dung');
+  assert.equal((await call('GET', '/api/admin/backup/drive', { email: A, envOver: { ...DRV, BACKUP_DRIVE_TOKEN: 'sai-0123456789abcdefghijklmn' } })).status, 502, 'sai mã bí mật');
+  assert.ok(calls.every(c => c.url === DRV.BACKUP_DRIVE_URL));
+  assert.ok(!JSON.stringify(list).includes('tok-'), 'không lộ mã bí mật');
+});

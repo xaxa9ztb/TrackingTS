@@ -92,8 +92,8 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
   // tab Tài khoản (trang Quản trị): nhúng trang tools/accounts, chỉ tải khi mở lần đầu
-  const fr = document.getElementById('accountsFrame');
-  if (name === 'accounts' && fr && !fr.getAttribute('src')) fr.setAttribute('src', fr.dataset.src);
+  const fr = document.getElementById(name === 'backup' ? 'backupFrame' : 'accountsFrame');
+  if ((name === 'accounts' || name === 'backup') && fr && !fr.getAttribute('src')) fr.setAttribute('src', fr.dataset.src);
   if (window.PAGE_TOOL === 'admin') { try { history.replaceState(null, '', '#' + name); } catch (e) { /* ignore */ } }
   if (name === 'projmonth' && window.ProjMonth) ProjMonth.load();   // luôn tính lại theo dữ liệu mới nhất trên máy
 }
@@ -102,12 +102,14 @@ function wireAdminTabs() {
   if (window.PAGE_TOOL !== 'admin') return;
   const tabAcc = document.getElementById('tabAccounts');
   if (tabAcc && Session.SERVER) tabAcc.style.display = '';
+  const tabBk = document.getElementById('tabBackup');   // sao lưu toàn bộ dữ liệu: chỉ Admin (máy chủ kiểm tra lại)
+  if (tabBk && Session.SERVER && Auth.isAdmin()) tabBk.style.display = '';
   const note = document.getElementById('adminNote');
   if (note) note.textContent = Session.SERVER
     ? 'Dữ liệu nhân viên, dự án, bảng công lưu trên máy chủ Cloudflare. Bảng công có 2 nguồn chạy song song: nạp file Excel hàng tháng (“Cập nhật Data” → “Lưu lên máy chủ”) và bảng công nhân viên tự nộp, tự cập nhật sau khi Quản lý duyệt.'
     : 'Dữ liệu nhân viên, dự án, bảng công — nạp từ file Excel rồi “Lưu lên Drive” cho mọi người cùng xem.';
   const want = (location.hash || '').slice(1);
-  if (want && document.getElementById('tab-' + want) && (want !== 'accounts' || Session.SERVER)) switchTab(want);
+  if (want && document.getElementById('tab-' + want) && ((want !== 'accounts' && want !== 'backup') || Session.SERVER)) switchTab(want);
 }
 
 async function updateDataStatus() {

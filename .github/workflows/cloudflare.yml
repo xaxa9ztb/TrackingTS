@@ -135,6 +135,8 @@ jobs:
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
           MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME }}
+          BACKUP_DRIVE_URL: ${{ secrets.BACKUP_DRIVE_URL }}
+          BACKUP_DRIVE_TOKEN: ${{ secrets.BACKUP_DRIVE_TOKEN }}
         run: |
           # Bản trước đặt 3 giá trị này dạng "secret" của dự án Pages; xoá đi để không trùng tên với cấu hình mới
           for k in ADMIN_EMAILS ACCESS_TEAM_DOMAIN ACCESS_AUD BREVO_API_KEY MAIL_FROM MAIL_FROM_NAME; do
