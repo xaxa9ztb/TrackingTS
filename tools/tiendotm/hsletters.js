@@ -34,14 +34,16 @@
   function closing(I, f, o = {}) {
     const ky = f.nguoiKy || I.nguoiKy || '';
     const cv = f.chucVuKy || I.chucVuKy || 'Quản lý dự án';
+    // o.left: thay ô "Nơi nhận" bằng ô khác (vd. Khách hàng ký xác nhận) — nơi nhận chuyển xuống 1 dòng dưới khối ký
     const sign = table([[
-      { runs: [r('Nơi nhận:', { b: true, i: true, sz: 11 }), r('\n- Như trên;' + (o.cc ? '\n- ' + o.cc + ';' : '') + '\n- Lưu VP.', { sz: 11 })], vAlign: 'top' },
+      o.left ? { runs: o.left, align: 'center', vAlign: 'top' } : { runs: [r('Nơi nhận:', { b: true, i: true, sz: 11 }), r('\n- Như trên;' + (o.cc ? '\n- ' + o.cc + ';' : '') + '\n- Lưu VP.', { sz: 11 })], vAlign: 'top' },
       { runs: [r('TM. ' + CTY(I), { b: true, sz: 11 }), r('\n' + cv, { b: true, sz: 11 }), r('\n\n\n\n' + (ky || ''), { b: true })], align: 'center', vAlign: 'top' },
     ]], { widths: [3700, 5326], border: false, cantSplit: true });
     const lh = [I.pmTen, I.pmDT, I.pmEmail].filter(Boolean).join(' – ');
     return p(r(o.thanks || 'Rất mong nhận được sự hợp tác của Quý Khách hàng.'), { align: 'both', before: 4, keep: true }) +
       p(r('Trân trọng kính chào.'), { after: 8, keep: true }) + sign +
-      (lh ? p(r('Người liên hệ: ' + lh, { i: true, sz: 10 }), { before: 6 }) : '');
+      (o.left ? p([r('Nơi nhận: ', { b: true, i: true, sz: 10 }), r('Như trên; ' + (o.cc ? o.cc + '; ' : '') + 'Lưu VP.', { sz: 10 })], { before: 6, after: 0 }) : '') +
+      (lh ? p(r('Người liên hệ: ' + lh, { i: true, sz: 10 }), { before: o.left ? 0 : 6 }) : '');
   }
   const salute = () => p(r('Kính gửi Quý Khách hàng,'), { before: 4 });
   const intro = (I) => p(r(`Lời đầu tiên, ${CTY(I).replace(/^CHI NHÁNH/, 'Chi nhánh').replace(/CÔNG TY TNHH/, 'Công ty TNHH').replace(/SCHINDLER VIỆT NAM TẠI HÀ NỘI/, 'Schindler Việt Nam tại Hà Nội')} (“${short(I)}”) xin gửi đến Quý Khách hàng lời chào trân trọng và cảm ơn Quý Khách hàng đã tin tưởng, hợp tác và sử dụng sản phẩm, dịch vụ của chúng tôi trong thời gian qua.`), { align: 'both' });
@@ -171,6 +173,37 @@ const DEF_GIENG = 'Hoàn thiện che chắn, khung bao cửa tầng\nHoàn thi�
         closing(I, f) +
         tail(table([[{ runs: [r('XÁC NHẬN CỦA QUÝ KHÁCH HÀNG', { b: true }), r('\n'), ckbox(false), r('Đồng ý với kế hoạch hàng về như trên\n'), ckbox(false), r('Ý kiến khác: ………………………')], vAlign: 'top' },
           { runs: [r('Đại diện Khách hàng', { b: true }), r('\n(Ký, ghi rõ họ tên, chức vụ)\n\nNgày: …/…/……', { i: true, sz: 10 })], align: 'center', vAlign: 'top' }]], { widths: [4513, 4513], cantSplit: true }))),
+    },
+    {
+      // thông báo đã đủ điều kiện đặt hàng theo Hợp đồng → đã đặt hàng nhà máy, ngày hàng về dự kiến; có ô Khách hàng xác nhận
+      id: 'dat_hang', kind: 'letter', name: 'Thông báo đặt hàng thiết bị thang máy', subject: 'Thông báo đặt hàng sản xuất thiết bị thang máy',
+      fields: [
+        { k: 'ngayTamUng', label: 'Ngày nhận đủ tiền tạm ứng', type: 'date' }, { k: 'tamUng', label: 'Khoản tạm ứng (tuỳ chọn)', ph: 'VD: tạm ứng đợt 1 – 30% giá trị Hợp đồng' },
+        { k: 'ngayBanVe', label: 'Ngày phê duyệt bản vẽ thi công', type: 'date' }, { k: 'ngayTienDo', label: 'Ngày phê duyệt tiến độ', type: 'date' },
+        { k: 'ngayVatLieu', label: 'Ngày phê duyệt vật liệu hoàn thiện', type: 'date' }, { k: 'vatLieu', label: 'Vật liệu đã duyệt (tuỳ chọn)', ph: 'VD: cabin, cửa tầng inox sọc nhuyễn; sàn đá granite' },
+        { k: 'dkKhac', label: 'Điều kiện khác (tuỳ chọn) — mỗi dòng: nội dung | ngày', type: 'textarea', rows: 2, ph: 'VD: Xác nhận kích thước giếng thang thực tế | 2026-11-20' },
+        { k: 'ngayDatHang', label: 'Ngày đặt hàng nhà máy', type: 'date' }, { k: 'nhaMay', label: 'Nhà máy sản xuất', def: 'nhà máy Schindler' },
+        { k: 'soThang', label: 'Số lượng thang' }, { k: 'ngayVe', label: 'Ngày hàng về công trình (dự kiến)', type: 'date' },
+        { k: 'hanXN', label: 'Đề nghị Khách hàng xác nhận trước ngày (tuỳ chọn)', type: 'date' }],
+      body: letter('Thông báo đặt hàng sản xuất thiết bị thang máy', ({ I, f }) => {
+        const d = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '').trim()) ? dmy(v) : (String(v || '').trim() || '…/…/……'));
+        const rows = [
+          ['Thanh toán tạm ứng theo Hợp đồng' + (f.tamUng ? ` (${f.tamUng})` : ''), d(f.ngayTamUng)],
+          ['Phê duyệt bản vẽ thi công', d(f.ngayBanVe)],
+          ['Phê duyệt tiến độ thực hiện', d(f.ngayTienDo)],
+          ['Phê duyệt vật liệu hoàn thiện' + (f.vatLieu ? ` (${f.vatLieu})` : ''), d(f.ngayVatLieu)],
+          ...lines(f.dkKhac).map((ln) => { const c = ln.split('|').map((x) => x.trim()); return [c[0] || '', d(c[1])]; }),
+        ];
+        const n = qtyThang(I, f);
+        return salute() +
+          para(`Căn cứ Hợp đồng, ${short(I)} xác nhận đã nhận đủ các điều kiện đặt hàng sản xuất thiết bị như sau:`) +
+          table([['STT', 'Điều kiện đặt hàng theo Hợp đồng', 'Ngày hoàn thành'],
+            ...rows.map((c, i) => [{ t: String(i + 1), align: 'center' }, c[0], { t: c[1], align: 'center' }])], { widths: [650, 6176, 2200], header: 1 }) +
+          para(`Ngày ${d(f.ngayDatHang)}, ${short(I)} đã đặt hàng sản xuất thiết bị cho ${n} thang máy của công trình tới ${f.nhaMay || 'nhà máy Schindler'} theo đúng bản vẽ và vật liệu đã được phê duyệt. Theo kế hoạch sản xuất và vận chuyển, lô hàng dự kiến về đến công trình vào ngày ${d(f.ngayVe)}. Lịch giao hàng chi tiết và yêu cầu chuẩn bị mặt bằng sẽ được chúng tôi thông báo trước khi hàng về khoảng 30 ngày.`) +
+          para('Kể từ thời điểm đặt hàng, mọi thay đổi về thiết kế, chủng loại hoặc vật liệu hoàn thiện có thể ảnh hưởng đến tiến độ giao hàng và chi phí, cần được hai bên thống nhất bằng văn bản.') +
+          closing(I, f, { thanks: `Kính đề nghị Quý Khách hàng ký xác nhận và gửi lại cho chúng tôi${f.hanXN ? ` trước ngày ${dmy(f.hanXN)}` : ''}. Trân trọng cảm ơn sự hợp tác của Quý Khách hàng.`,
+            left: [r('XÁC NHẬN CỦA KHÁCH HÀNG', { b: true, sz: 11 }), r('\n'), ckbox(false), r('Đồng ý    ', { sz: 11 }), ckbox(false), r('Ý kiến khác:', { sz: 11 }), r('\n……………………………………', { sz: 11 }), r('\n(Ký, ghi rõ họ tên, chức vụ, đóng dấu)\n\n\nNgày: …/…/……', { i: true, sz: 10 })] });
+      }),
     },
     {
       id: 'hangve1', kind: 'letter', name: 'Thông báo hàng về công trường — lần 1 (trước 30 ngày)', subject: 'Thông báo thời gian lô hàng thang máy về đến công trình',
