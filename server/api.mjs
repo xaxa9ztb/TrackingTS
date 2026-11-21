@@ -14,6 +14,7 @@ import { routeTsImport, backfillMine } from './tsimport.mjs';
 import { routeIncentive } from './incentive.mjs';
 import { routeHsProject } from './hsproject.mjs';
 import { routeBracket } from './bracket.mjs';
+import { routeBackup } from './backup.mjs';
 import { tsInbox, reviewDoc, decideDoc, resendApproved, approvedList, settle, notifyStage, withdrawDoc, projectWbs, projectWbsKnown } from './tsflow.mjs';
 import { routeOtLeave, otPendingDays, isLead } from './otleave.mjs';
 
@@ -1118,7 +1119,7 @@ async function handleApi(request, env, opts = {}) {
       const ct = (request.headers.get('content-type') || '').toLowerCase();
       // ngoại lệ duy nhất: tải bản vẽ bracket (nội dung file thô) — bắt buộc header riêng x-ts-upload: trang lạ không gửi được
       // header tự đặt sang tên miền khác mà không qua kiểm tra CORS (máy chủ không cho phép) → vẫn chặn được giả mạo
-      const upload = path === '/api/bracket/files' && method === 'POST' && request.headers.get('x-ts-upload') === '1' && ct.startsWith('application/octet-stream');
+      const upload = (path === '/api/bracket/files' || path === '/api/admin/backup/drive') && method === 'POST' && request.headers.get('x-ts-upload') === '1' && ct.startsWith('application/octet-stream');
       if (!ct.startsWith('application/json') && !upload) throw new HttpError(415, 'Yêu cầu ghi phải gửi dạng JSON');
     }
     const { email } = await verifyAccessJwt(request.headers.get('cf-access-jwt-assertion'), env, opts);
@@ -1184,6 +1185,10 @@ async function handleApi(request, env, opts = {}) {
     }
     if (path.startsWith('/api/hs/')) {
       const r = await routeHsProject(H, env, me, path, method, request);
+      if (r) return r;
+    }
+    if (path.startsWith('/api/admin/backup/')) {
+      const r = await routeBackup(H, env, me, path, method, url, request);
       if (r) return r;
     }
     if (path.startsWith('/api/bracket/')) {

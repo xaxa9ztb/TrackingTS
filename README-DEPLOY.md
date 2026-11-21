@@ -262,6 +262,7 @@ Dữ liệu nền của hệ thống không còn nằm trong “Thống kê gi�
 | Dự án | Danh sách dự án, thông số thang, Swat Target Hour |
 | Bảng công | Bảng “Theo dõi giờ công” — **nạp Excel hàng tháng** (nút *Cập nhật Data*, rồi *Lưu lên máy chủ* / *Lưu lên Drive*) |
 | Tài khoản & phân quyền | (bản Cloudflare) gắn email, vai trò, phân công Site Sup / Quản lý dự án — trang `tools/accounts/` nhúng vào |
+| Sao lưu & khôi phục | (bản Cloudflare, chỉ Admin) sao lưu **toàn bộ dữ liệu** D1 ra file `.json.gz` (tải về máy / lên Google Drive), khôi phục từ Drive hoặc file — trang `tools/backup/`, API `server/backup.mjs`. Tự động lên Drive 2 lần / tuần bằng workflow `.github/workflows/backup.yml` (`scripts/backup-d1.mjs`); Drive giữ tối đa 10 bản. Cài đặt: [`tools/backup/apps-script/HUONG-DAN.md`](tools/backup/apps-script/HUONG-DAN.md) (Apps Script + 2 secret `BACKUP_DRIVE_URL`, `BACKUP_DRIVE_TOKEN`) |
 
 Trên bản Cloudflare, **hai nguồn bảng công chạy song song**: (1) admin nạp file Excel hàng tháng như bản GitHub; (2) bảng công do nhân viên tự chấm công (Timesheet cá nhân) tự đẩy vào bảng Theo dõi giờ công khi Quản lý bấm phê duyệt. Nạp lại Excel không làm mất các dòng đã duyệt (dòng có nguồn “approved” được giữ cho những ngày Excel chưa có). “Thống kê giờ công” chỉ còn Dashboard, Bảng công (xem) và SWAT.
 
