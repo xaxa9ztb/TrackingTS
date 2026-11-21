@@ -211,7 +211,9 @@
     async function render() {
       try { xml = await o.build(); } catch (e) { page.innerHTML = `<p style="padding:20px">⚠ Chưa xem trước được: ${esc(e.message)}</p>`; return; }
       const out = toHtml(xml, { ed: o.getEd(), editable: o.editable ? o.editable() : true });
-      page.innerHTML = out.html; focus = null;
+      const fr = o.frame ? o.frame() : null;
+      page.innerHTML = fr ? fr.head + '<div class="pv-body">' + out.html + '</div>' + fr.foot : out.html; focus = null;
+      if (o.afterRender) o.afterRender(page);
       counts(out.count, o.missFilter ? o.missFilter(out.miss).length : out.miss.length);
       fit(); tools();
     }

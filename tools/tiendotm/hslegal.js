@@ -156,10 +156,20 @@
       },
     },
   ];
+  // thân văn bản (XML) tự sinh — dùng cho xem trước; L.ed[id] = sửa tay trên bản xem trước (hspreview.js)
+  function compose(id, I, L) {
+    const d = DOCS.find(x => x.id === id);
+    if (!d) throw new Error('Không có tài liệu ' + id);
+    return d.body(I, L || {});
+  }
   async function build(JSZip, id, I, L) {
     const d = DOCS.find(x => x.id === id);
     if (!d) throw new Error('Không có tài liệu ' + id);
-    return K.blankDocx(JSZip, d.body(I, L || {}), { title: d.name, pageNumbers: id !== 'bia' });
+    let xml = compose(id, I, L);
+    const ed = L && L.ed && L.ed[id];
+    const PV = (typeof module !== 'undefined' && module.exports) ? require('./hspreview.js') : root.HsPreview;
+    if (ed && PV) xml = PV.applyEdits(xml, ed).xml;
+    return K.blankDocx(JSZip, xml, { title: d.name, pageNumbers: id !== 'bia' });
   }
   const fileName = (d, i) => `${String(i + 1).padStart(2, '0')}. ${d.name}.docx`;
   // Thay tên công trình cũ → mới trong file Word mẫu do người dùng tải lên (VD: Kế hoạch an toàn tổng hợp).
@@ -186,6 +196,6 @@
     }
     return { zip, count };
   }
-  const api = { DOCS, ROLES, MAY_MOC, build, fileName, replaceInDocx };
+  const api = { DOCS, ROLES, MAY_MOC, build, compose, fileName, replaceInDocx };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HsLegal = api;
 })(typeof window !== 'undefined' ? window : globalThis);

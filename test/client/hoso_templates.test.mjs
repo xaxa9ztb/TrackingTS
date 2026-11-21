@@ -73,3 +73,15 @@ test('nhật ký: bìa ghi nhãn và giá trị theo dữ liệu nhập, trang n
     assert.ok(t.replace(/\s+/g, ' ').includes(k), 'thiếu ' + k);
   assert.ok(!t.includes('hoặc CHỦ ĐẦU TƯ'));
 });
+
+test('BB hàng về + BB bàn giao: đầu / chân trang giống mẫu công văn; số BB bàn giao in dưới tiêu đề', () => {
+  assert.ok(html.includes('zipToDocx(zip,bbxnFill(),bbEd("bbxn"),true)'), 'BB hàng về dùng letterhead');
+  assert.ok(html.includes('zipToDocx(zip,bgFill(e,k),bbEd("bangiao"),true)'), 'BB bàn giao dùng letterhead');
+  assert.ok(/async function applyLetterhead\(zip\)/.test(html) && html.includes('rIdLhH') && html.includes('fetch("thu_hangve_template.docx")'));
+  assert.ok(html.includes('Số / No.: {{SO_BB}}') && html.includes('LIFT HANDOVER CERTIFICATE'));
+  // mẫu công văn có header/footer mặc định để chép sang
+  const doc = execFileSync('unzip', ['-p', path.join(dir, 'thu_hangve_template.docx'), 'word/document.xml']).toString('utf8');
+  const sect = doc.slice(doc.lastIndexOf('<w:sectPr'));
+  assert.ok(/<w:headerReference w:type="default"/.test(sect) && /<w:footerReference w:type="default"/.test(sect));
+  assert.ok(html.includes('frame:LH_FRAME,afterRender:LH_AFTER'), 'xem trước có đầu / chân trang');
+});

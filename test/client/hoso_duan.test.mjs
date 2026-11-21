@@ -248,3 +248,18 @@ test('Xem trước & sửa tay trên file Word thật (BB hàng về / bàn giao
   assert.match(A.xml, /<w:p w:rsidR="3"><w:r><w:t>CÔNG TY B<\/w:t><\/w:r><\/w:p>/, 'giữ nguyên thẻ mở đoạn gốc');
   assert.equal(PV.paragraphs(A.xml)[0].text, 'BIÊN BẢN BÀN GIAO');
 });
+
+test('Hồ sơ pháp lý: xem trước (compose) + sửa tay áp vào bản Word khi xuất (L.ed[id])', async () => {
+  const PV = require('../../tools/tiendotm/hspreview.js');
+  const I = { congTrinh: 'TOÀ MẪU', chuDauTu: 'Công ty A' };
+  const L = { ngay: '2026-11-21', people: [{ ten: 'Nguyễn Văn A', gioi: 'Ông', role: 'cht', bch: true, pccc: true }], machines: G.MAY_MOC, docs: {} };
+  const x = G.compose('qd_bch', I, L);
+  const p = PV.paragraphs(x).find(q => q.text.trim().length > 20);
+  L.ed = { qd_bch: { [p.i]: { o: p.text, x: '<w:r><w:t>ĐOẠN ĐÃ SỬA TAY</w:t></w:r>' } } };
+  let body = '';
+  const fakeZip = function () { const files = {}; return { file: (n, d) => { files[n] = d; if (n === 'word/document.xml') body = d; } }; };
+  await G.build(fakeZip, 'qd_bch', I, L);
+  assert.match(body, /ĐOẠN ĐÃ SỬA TAY/);
+  await G.build(fakeZip, 'pccc', I, L);
+  assert.doesNotMatch(body, /ĐOẠN ĐÃ SỬA TAY/, 'sửa tay chỉ áp cho đúng văn bản');
+});
