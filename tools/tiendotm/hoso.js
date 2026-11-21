@@ -64,7 +64,7 @@
   const st = { cur: null, lastJson: '', saving: null, timer: null, draftT: null, booted: false };
   // dữ liệu riêng của 3 chức năng mới (lưu cùng hồ sơ)
   const LT = {};                                              // công văn: LT[id] = {so, ngay, ...ô riêng}
-  const LG = { ngay: '', people: [], machines: [], docs: {}, khOld: '', khNew: '' };   // hồ sơ pháp lý
+  const LG = { ngay: '', people: [], machines: [], docs: {}, khOld: '', khNew: '', ed: {} };   // hồ sơ pháp lý
   // bìa & trang ký bản vẽ: 2 loại — bản vẽ thi công (shop drawing) và bản vẽ hoàn công (as-built), mỗi loại một bộ dữ liệu riêng
   const DWK = {
     shop: { label: 'Bản vẽ thi công (Shop drawing)', short: 'Bản vẽ thi công', tieuDe: 'BẢN VẼ THI CÔNG', phuDe: '(SHOP DRAWING)', kyTitle: 'DUYỆT BẢN VẼ THI CÔNG', prefix: 'TM', file: 'Ban ve thi cong' },
@@ -99,7 +99,7 @@
     ['renderQElevs', 'renderQPhases'].forEach(R);
     if (typeof qTogglePL === 'function') { try { qTogglePL(); } catch (e) { /* bỏ qua */ } }
     Object.keys(LT).forEach(k => delete LT[k]); Object.assign(LT, d.lt || {});
-    Object.assign(LG, { ngay: '', people: [], machines: [], docs: {}, khOld: '', khNew: '' }, d.lg || {});
+    Object.assign(LG, { ngay: '', people: [], machines: [], docs: {}, khOld: '', khNew: '', ed: {} }, d.lg || {});
     Object.keys(DWS).forEach(k => { const src = (d.dws && d.dws[k]) || (k === 'shop' ? d.dw : null); DWS[k] = Object.assign(blankDW(k), src || {}, { kind: k }); });
     DW = DWS[dwKind];
   }
@@ -623,7 +623,9 @@
       <td class="c"><input type="checkbox" data-pk="bch"${x.bch ? ' checked' : ''}></td><td class="c"><input type="checkbox" data-pk="pccc"${x.pccc ? ' checked' : ''}></td>
       <td><button class="icb" data-pdel="${i}" title="Xoá">×</button></td></tr>`).join('');
     $('hsMachines').tBodies[0].innerHTML = LG.machines.map((x, i) => `<tr data-i="${i}"><td>${i + 1}</td><td><input data-mk="ten" value="${esc(x.ten)}"></td><td><input data-mk="dvt" value="${esc(x.dvt)}"></td><td><input data-mk="sl" value="${esc(x.sl)}"></td><td><button class="icb" data-mdel="${i}" title="Xoá">×</button></td></tr>`).join('');
-    $('hsLgDocs').innerHTML = HsLegal.DOCS.map((d, i) => `<label class="chk hs-doc"><input type="checkbox" data-doc="${d.id}"${LG.docs[d.id] === false ? '' : ' checked'}> ${i + 1}. ${esc(d.name)} <a href="#" data-one="${d.id}">tải riêng</a></label>`).join('');
+    $('hsLgDocs').innerHTML = HsLegal.DOCS.map((d, i) => `<label class="chk hs-doc"><input type="checkbox" data-doc="${d.id}"${LG.docs[d.id] === false ? '' : ' checked'}> ${i + 1}. ${esc(d.name)}${LG.ed && LG.ed[d.id] ? ' <span class="hs-edtag" title="Có sửa tay trên bản xem trước">✎ đã sửa</span>' : ''} <a href="#" data-lgpv="${d.id}">xem &amp; sửa</a> · <a href="#" data-one="${d.id}">tải riêng</a></label>`).join('');
+    const sel = $('hsLgPvDoc'); if (sel && !sel.options.length) sel.innerHTML = HsLegal.DOCS.map((d, i) => `<option value="${d.id}">${i + 1}. ${esc(d.name)}</option>`).join('');
+    if (lgPv && !$('hsLgPvWrap').hidden) lgPv.render();
     $('hsKhOld').value = LG.khOld || ''; $('hsKhNew').value = LG.khNew || (gv('hs_congtrinh') || '').toUpperCase();
     fillEmpList();
   }
@@ -655,6 +657,24 @@
       LG._last = new Date().toISOString();
       stEl.textContent = `✓ Đã xuất ${list.length} tài liệu`; markDone('legal'); saveSoon();
     } catch (e) { console.error(e); stEl.textContent = '⚠ ' + e.message; }
+  }
+  // xem trước + sửa tay từng văn bản pháp lý (khung chung HsPreview.mount)
+  let lgPv = null, lgPvT = 0;
+  function openLegalPreview(id) {
+    const wrap = $('hsLgPvWrap'), btn = $('hsLgPvBtn');
+    if (id) { $('hsLgPvDoc').value = id; wrap.hidden = false; }
+    else wrap.hidden = !wrap.hidden;
+    btn.textContent = wrap.hidden ? '👁 Xem trước & sửa tay' : '✕ Đóng xem trước'; btn.setAttribute('aria-expanded', String(!wrap.hidden));
+    if (wrap.hidden) return;
+    if (!lgPv) lgPv = HsPreview.mount($('hsLgPvHost'), {
+      pageClass: 'pv-legal',
+      build: async () => HsLegal.compose($('hsLgPvDoc').value, info(), LG),
+      getEd: () => (LG.ed || {})[$('hsLgPvDoc').value],
+      setEd: (ed) => { const id = $('hsLgPvDoc').value; LG.ed = LG.ed || {}; if (ed) LG.ed[id] = ed; else delete LG.ed[id]; saveSoon(); const t = document.querySelector(`#hsLgDocs [data-doc="${id}"]`); if (t) { const lab = t.closest('label'), tag = lab.querySelector('.hs-edtag'); if (ed && !tag) lab.querySelector('[data-lgpv]').insertAdjacentHTML('beforebegin', '<span class="hs-edtag" title="Có sửa tay trên bản xem trước">✎ đã sửa</span> '); if (!ed && tag) tag.remove(); } },
+      editable: () => !readOnly(),
+    });
+    lgPv.render();
+    wrap.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
   async function exportKh(file) {
     const stEl = $('hsKhSt');
@@ -857,7 +877,12 @@
     $('hsAddMachine').onclick = () => { LG.machines.push({ ten: '', dvt: 'Chiếc', sl: 1 }); renderLegal(); };
     $('hsResetMachines').onclick = () => { if (confirm('Đưa danh sách máy móc về danh sách mặc định?')) { LG.machines = HsLegal.MAY_MOC.map(x => ({ ...x })); renderLegal(); onEdit(); } };
     $('hsLgDocs').addEventListener('change', (e) => { const id = e.target.dataset.doc; if (id) LG.docs[id] = e.target.checked; });
-    $('hsLgDocs').addEventListener('click', (e) => { const a = e.target.closest('[data-one]'); if (a) { e.preventDefault(); exportLegal(a.dataset.one); } });
+    $('hsLgDocs').addEventListener('click', (e) => { const a = e.target.closest('[data-one]'); if (a) { e.preventDefault(); exportLegal(a.dataset.one); return; } const v = e.target.closest('[data-lgpv]'); if (v) { e.preventDefault(); openLegalPreview(v.dataset.lgpv); } });
+    $('hsLgPvBtn').addEventListener('click', () => openLegalPreview());
+    $('hsLgPvDoc').addEventListener('change', () => { if (lgPv) lgPv.render(); });
+    // đổi người, máy móc, ngày… → xem trước đang mở tự cập nhật
+    $('screenLegal').addEventListener('input', (e) => { if (!lgPv || $('hsLgPvWrap').hidden || e.target.closest('#hsLgPvWrap')) return; clearTimeout(lgPvT); lgPvT = setTimeout(() => lgPv.render(), 400); });
+    $('screenLegal').addEventListener('change', (e) => { if (!lgPv || $('hsLgPvWrap').hidden || e.target.closest('#hsLgPvWrap')) return; clearTimeout(lgPvT); lgPvT = setTimeout(() => lgPv.render(), 200); });
     $('hsLgGo').onclick = () => exportLegal();
     $('hsKhOld').addEventListener('input', (e) => { LG.khOld = e.target.value; });
     $('hsKhNew').addEventListener('input', (e) => { LG.khNew = e.target.value; });
