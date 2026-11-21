@@ -87,7 +87,7 @@
   }
   function restore(d) {
     if (!d || typeof d !== 'object') return;
-    S.gplan = null; S.hsDone = {};   // bảng Gantt đã chỉnh thuộc từng dự án — không mang sang dự án khác
+    S.gplan = null; S.hsDone = {}; S.bbEd = {};   // bảng Gantt đã chỉnh thuộc từng dự án — không mang sang dự án khác
     if (d.S) Object.keys(d.S).forEach(k => { S[k] = d.S[k]; });
     const R = (fn) => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.warn(fn, e); } };
     ['renderSigners', 'renderSteps', 'renderFactors', 'renderQElevs', 'renderQParties', 'renderQExtras', 'renderQPhases', 'pushForm'].forEach(R);

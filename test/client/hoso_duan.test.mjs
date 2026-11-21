@@ -234,3 +234,17 @@ test('Công văn tạm dừng thi công: tồn đọng CĐT / nhà thầu XD, hi
   const t2 = PV.paragraphs(L.compose(d, {}, { ...f, tgConLai: '30', baoTruoc: '10' })).map(p => p.text).join('\n');
   assert.match(t2, /30 ngày/); assert.match(t2, /10 \(mười\) ngày làm việc/);
 });
+
+test('Xem trước & sửa tay trên file Word thật (BB hàng về / bàn giao): thẻ có thuộc tính, giữ thẻ mở đoạn, bảng', () => {
+  const PV = require('../../tools/tiendotm/hspreview.js');
+  const xml = '<w:body><w:p w:rsidR="00A1" w14:paraId="1"><w:pPr><w:jc w:val="center"/></w:pPr><w:r w:rsidRPr="00B2"><w:rPr><w:b/></w:rPr><w:t>BIÊN BẢN</w:t></w:r><w:proofErr w:type="spellStart"/><w:r><w:t xml:space="preserve"> BÀN GIAO</w:t></w:r></w:p>'
+    + '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="5000"/></w:tblGrid><w:tr w:rsidR="1"><w:tc><w:tcPr/><w:p w:rsidR="2"><w:r><w:t>Bên Mua</w:t></w:r></w:p></w:tc><w:tc><w:tcPr/><w:p w:rsidR="3"><w:r><w:t>CÔNG TY A</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr/></w:body>';
+  const ps = PV.paragraphs(xml);
+  assert.deepEqual(ps.map(p => p.text), ['BIÊN BẢN BÀN GIAO', 'Bên Mua', 'CÔNG TY A']);
+  const h = PV.toHtml(xml);
+  assert.equal((h.html.match(/class="pv-p"/g) || []).length, 3);
+  assert.match(h.html, /<table class="pv-t"/);
+  const A = PV.applyEdits(xml, { 2: { o: 'CÔNG TY A', x: '<w:r><w:t>CÔNG TY B</w:t></w:r>' } });
+  assert.match(A.xml, /<w:p w:rsidR="3"><w:r><w:t>CÔNG TY B<\/w:t><\/w:r><\/w:p>/, 'giữ nguyên thẻ mở đoạn gốc');
+  assert.equal(PV.paragraphs(A.xml)[0].text, 'BIÊN BẢN BÀN GIAO');
+});

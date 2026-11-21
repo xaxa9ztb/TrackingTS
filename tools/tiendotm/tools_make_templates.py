@@ -115,7 +115,13 @@ def bangiao(x):
         (r'^4\.\s*Thời gian bảo hành', '4.  Thời gian bảo hành và bảo trì miễn phí: {{BBG_BH}}.', None),
         (r'^Warranty and free maintenance period', 'Warranty and free maintenance period: {{BBG_BH_EN}}.', None),
     ]
-    return apply_rules(x, rules)
+    x = apply_rules(x, rules)
+    # mẫu gốc tách tên chi nhánh làm 2 dòng ("… Schindler Việt Nam" + "tại Hà Nội"); {{NHA_THAU}} đã là tên đầy đủ
+    # → bỏ đoạn "tại Hà Nội" thừa (nếu không, biên bản in lặp "… TẠI HÀ NỘI / TẠI HÀ NỘI")
+    n0 = len(x)
+    x = PAR.sub(lambda m: '' if unicodedata.normalize('NFC', ptext(m.group(0))).strip() == 'tại Hà Nội' else m.group(0), x)
+    assert len(x) < n0, 'không thấy đoạn "tại Hà Nội" thừa'
+    return x
 
 def footer_fix(x):
     assert '03/BBBG/20884-SCH-PL2' in x

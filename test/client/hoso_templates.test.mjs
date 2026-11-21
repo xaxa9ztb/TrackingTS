@@ -53,8 +53,11 @@ test('nhật ký thi công: khối ngày có mốc và token ngày', () => {
   assert.equal((x.match(/\{\{NK_NGAY\}\}/g) || []).length, 1);
 });
 
-test('biên bản bàn giao riêng: số biên bản ở chân trang', () => {
+test('biên bản bàn giao riêng: số biên bản ở chân trang; tên Bên Bán không lặp "tại Hà Nội"', () => {
   assert.ok(text('bangiao_template.docx').includes('{{SO_BB}}'));
+  const t = text('bangiao_template.docx').replace(/<[^>]+>/g, '');
+  assert.ok(t.includes('{{NHA_THAU}}'));
+  assert.ok(!/tại Hà Nội/i.test(t), 'tên chi nhánh đầy đủ nằm trong {{NHA_THAU}} — không còn dòng "tại Hà Nội" thừa');
 });
 
 test('BB hàng về: header tên nhà thầu | Quốc hiệu như biên bản nghiệm thu; tên nhà thầu lấy theo dữ liệu nhập', () => {
