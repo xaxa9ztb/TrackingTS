@@ -85,3 +85,13 @@ test('BB hàng về + BB bàn giao: đầu / chân trang giống mẫu công vă
   assert.ok(/<w:headerReference w:type="default"/.test(sect) && /<w:footerReference w:type="default"/.test(sect));
   assert.ok(html.includes('frame:LH_FRAME,afterRender:LH_AFTER'), 'xem trước có đầu / chân trang');
 });
+
+test('Tiến độ: ngày lễ lấy từ LaborVN (có Ngày Văn hóa VN 24/11, nghỉ bù); hồ sơ cũ tự điền lại', async () => {
+  assert.ok(html.includes('<script src="../timesheet/labor.js'), 'tải labor.js');
+  assert.ok(html.includes('LaborVN.holidaysBetween(`${year}-01-01`,`${year}-12-31`,"mon-sat")'));
+  assert.ok(/function upgradeHolidays\(\)/.test(html));
+  const { createRequire } = await import('node:module');
+  const L = createRequire(import.meta.url)('../../tools/timesheet/labor.js');
+  const d = L.holidaysBetween('2026-01-01', '2026-12-31', 'mon-sat').map((h) => h.date);
+  assert.ok(d.includes('2026-11-24') && d.includes('2026-09-01'));
+});
