@@ -95,3 +95,11 @@ test('Tiến độ: ngày lễ lấy từ LaborVN (có Ngày Văn hóa VN 24/11,
   const d = L.holidaysBetween('2026-01-01', '2026-12-31', 'mon-sat').map((h) => h.date);
   assert.ok(d.includes('2026-11-24') && d.includes('2026-09-01'));
 });
+
+test('Tiến độ: mục 0 (mốc khởi tính) sửa được nội dung + ngày ở bước 1 và trên Gantt', () => {
+  assert.ok(html.includes('id="baseName" list="baseNameList"') && html.includes('THANH TOÁN TẠM ỨNG – MỐC KHỞI TÍNH TIẾN ĐỘ') && html.includes('PHÊ DUYỆT VẬT LIỆU – MỐC KHỞI TÍNH TIẾN ĐỘ'));
+  assert.ok(html.includes('rows.push({id:"0",name:baseName()'));
+  const g = readFileSync(path.join(dir, 'gantt.js'), 'utf8');
+  assert.ok(g.includes('data-f="base"') && g.includes("o.setBase(t.value)") && g.includes('o.setBaseName(t.value)'));
+  assert.ok(!g.includes('class="gx-fix"'), 'dòng 0 không còn chỉ đọc');
+});

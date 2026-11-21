@@ -28,7 +28,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="chungtu.js?v=1"></script>
 <script src="docxkit.js?v=2"></script>
-<script src="gantt.js?v=6"></script>
+<script src="gantt.js?v=7"></script>
 <script src="docread.js?v=1"></script>
 <script src="parties.js?v=1"></script>
 <script src="hspreview.js?v=3"></script>
@@ -626,8 +626,13 @@ table.edit td.c{text-align:center}
     <h2><span class="no">1</span>Mốc tiến độ &amp; cách tính ngày</h2>
     <div class="grid g3">
       <div class="f">
-        <label>Ngày ký phê duyệt bản vẽ (mốc khởi tính)</label>
+        <label>Ngày mốc khởi tính (mục 0)</label>
         <input type="date" id="baseline" value="2026-06-29">
+      </div>
+      <div class="f">
+        <label>Nội dung mốc khởi tính (mục 0)</label>
+        <input type="text" id="baseName" list="baseNameList" placeholder="XÁC NHẬN BẢN VẼ THI CÔNG – MỐC KHỞI TÍNH TIẾN ĐỘ" title="Chọn gợi ý hoặc gõ tự do — vd. thanh toán tạm ứng, phê duyệt vật liệu">
+        <datalist id="baseNameList"><option value="XÁC NHẬN BẢN VẼ THI CÔNG – MỐC KHỞI TÍNH TIẾN ĐỘ"><option value="THANH TOÁN TẠM ỨNG – MỐC KHỞI TÍNH TIẾN ĐỘ"><option value="PHÊ DUYỆT VẬT LIỆU – MỐC KHỞI TÍNH TIẾN ĐỘ"><option value="PHÊ DUYỆT VẬT LIỆU &amp; THANH TOÁN TẠM ỨNG – MỐC KHỞI TÍNH TIẾN ĐỘ"><option value="KÝ HỢP ĐỒNG – MỐC KHỞI TÍNH TIẾN ĐỘ"></datalist>
       </div>
       <div class="f">
         <label>Cách tính tiến độ</label>
@@ -685,7 +690,7 @@ table.edit td.c{text-align:center}
   <div class="panel">
     <h2><span class="no">4</span>Thời gian các giai đoạn <span class="pill" id="totpill"></span></h2>
     <div class="grid g2" style="margin-bottom:16px">
-      <div class="f"><label>Xác nhận ngày ký phê duyệt bản vẽ (mốc khởi tính)</label><input type="date" id="baseline2"></div>
+      <div class="f"><label>Xác nhận ngày mốc khởi tính (mục 0)</label><input type="date" id="baseline2"></div>
       <div class="f"><label>Ngày nghỉ lễ đang áp dụng (sửa ở bước 1)</label><input type="text" id="holidays2" disabled style="font-family:var(--mono);background:#f3f5f8"></div>
     </div>
     <div class="grid g3" style="margin-bottom:18px">
@@ -1312,6 +1317,8 @@ function computePhaseI(base,mode,H,prod){
   });
   return {subs,total,start:start||nextStart(base,mode,H),end:prev||taskEnd(nextStart(base,mode,H),prod,mode,H)};
 }
+const BASE_NAME_DEF="XÁC NHẬN BẢN VẼ THI CÔNG – MỐC KHỞI TÍNH TIẾN ĐỘ";
+function baseName(){const el=document.getElementById("baseName");return (el&&el.value.trim())||BASE_NAME_DEF;}
 function computeSchedule(){
   const mode=document.querySelector("input[name=daymode]:checked").value;
   const H=holSet();
@@ -1319,7 +1326,7 @@ function computeSchedule(){
   const prod=+document.getElementById("ph_prod").value||0;
   const hand=+document.getElementById("ph_hand").value||0;
   const rows=[];
-  rows.push({id:"0",name:"XÁC NHẬN BẢN VẼ THI CÔNG – MỐC KHỞI TÍNH TIẾN ĐỘ",days:"–",s:base,e:base,ph:"M",sec:true});
+  rows.push({id:"0",name:baseName(),days:"–",s:base,e:base,ph:"M",sec:true});
   const pI=computePhaseI(base,mode,H,prod);
   const prodTotal=pI.total;
   rows.push({id:"I",name:"SẢN XUẤT VÀ VẬN CHUYỂN THIẾT BỊ ĐẾN CÔNG TRÌNH",days:prodTotal,s:pI.start,e:pI.end,ph:"P",sec:true});
@@ -1744,6 +1751,8 @@ function gxMount(){
   const host=document.getElementById("gxHost");if(!host||typeof Gantt.mount!=="function")return;
   gxPlansRender();
   if(!gxUI)gxUI=Gantt.mount(host,{get:()=>S.gplan.items,set:(a)=>{S.gplan.items=a;},ctx:gxCtx,getTC:()=>S.gplan.typeColors||(S.gplan.typeColors={}),setTC:(t)=>{S.gplan.typeColors=t;},
+    setBase:(v)=>{if(!v)return;const b=document.getElementById("baseline");b.value=v;const b2=document.getElementById("baseline2");if(b2)b2.value=v;autoFillHolidays(false);},
+    setBaseName:(v)=>{const el=document.getElementById("baseName");if(el)el.value=v.trim()===BASE_NAME_DEF?"":v;},
     onChange:()=>{S.gplan.edited=true;clearTimeout(gxT);gxT=setTimeout(()=>{renderPreview();host.dispatchEvent(new Event("change",{bubbles:true}));},120);}});
   else gxUI.render();
 }
@@ -3608,6 +3617,12 @@ document.getElementById("ph_hand").onchange=syncInst;
 document.getElementById("ph_inst").onchange=function(){const t=Math.max(1,+this.value||0);scaleSteps(t);renderSteps();};
 
 document.getElementById("baseline").onchange=function(){autoFillHolidays(false);};
+// đổi nội dung mốc khởi tính (mục 0) ở bước 1 → cập nhật dòng 0 của mọi bảng Gantt
+document.getElementById("baseName").addEventListener("change",function(){
+  const n=baseName(),plans=new Set([...((S.gplans&&S.gplans.list)||[]),S.gplan].filter(Boolean));
+  plans.forEach(p=>(p.items||[]).forEach(it=>{if(it.kind==="base")it.name=n;}));
+  if(gxUI)gxUI.render();if(typeof renderPreview==="function")renderPreview();
+});
 document.getElementById("baseline2").onchange=function(){document.getElementById("baseline").value=this.value;autoFillHolidays(false);};
 document.getElementById("holidays").oninput=function(){document.getElementById("holidays2").value=this.value;};
 

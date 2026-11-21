@@ -275,15 +275,14 @@
           else if (r.summary) bar = `<div class="gx-sum" style="left:${L}px;width:${Wd}px;--c:${col}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit})"></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày</span>`;
           else { bar = `<div class="gx-b${r.sec ? ' grp' : ''}" data-drag="move" style="left:${L}px;width:${Wd}px;--c:${col}" title="${e(r.name)}: ${dmy(r.s)} → ${dmy(r.e)} (${r.days} ${unit}) — kéo để dời, kéo mép phải để đổi số ngày"><i class="gx-rz" data-drag="size"></i></div><span class="gx-lb" style="left:${L + Wd + 6}px">${r.days} ngày${r.link && r.lag ? ` · ${r.lag > 0 ? '+' : ''}${r.lag}` : ''}</span>`; }
           const fixed = r.kind === 'base' || r.summary;
-          const nm = r.kind === 'base' ? `<span class="gx-fix" title="Sửa ở bước 1 (Ngày ký phê duyệt bản vẽ)">${e(r.name)}</span>`
-            : `<input class="gx-in" data-f="name" value="${e(it.name)}" aria-label="Tên công việc dòng ${r.id}">`;
+          const nm = `<input class="gx-in" data-f="name" value="${e(it.name)}"${r.kind === 'base' ? ' list="baseNameList" title="Mốc khởi tính — vd. xác nhận bản vẽ, thanh toán tạm ứng, phê duyệt vật liệu"' : ''} aria-label="Tên công việc dòng ${r.id}">`;
           const sw = r.kind === 'base' ? '' : `<button type="button" class="gx-sw${r.ownColor ? ' own' : ''}" data-sw="${r.uid}" style="--c:${col}" title="Màu: ${e((TYPE[r.type] || TYPE.khac).n)}${r.ownColor ? ' (màu riêng)' : ''} — bấm để đổi màu / loại"></button>`;
           const phSel = it.kind === 'group' ? `<select class="gx-ph" data-f="ph" title="Màu / giai đoạn" style="--c:${col}">${Object.keys(PH_NAME).map((k) => `<option value="${k}"${it.ph === k ? ' selected' : ''}>${PH_NAME[k]}</option>`).join('')}</select>` : '';
           return `<tr class="gx-r ${r.sec ? 'sec' : ''} k-${r.kind}${st.sel === r.uid ? ' on' : ''}" data-uid="${r.uid}">
             <td class="gx-hd">${r.kind === 'base' ? '' : '<span class="gx-grip" title="Kéo để đổi thứ tự">⋮⋮</span>'}</td>
             <td class="gx-id">${e(r.id)}</td>
             <td class="gx-nm"><div class="gx-nmw${r.sec || r.kind === 'base' ? '' : ' ind'}">${sw}${nm}${phSel}</div></td>
-            <td class="gx-dt">${fixed ? `<span>${DOW[r.s.getUTCDay()]} ${dmy(r.s)}</span>` : `<input type="date" data-f="start" value="${iso(r.s)}" aria-label="Bắt đầu">`}</td>
+            <td class="gx-dt">${r.kind === 'base' ? `<input type="date" data-f="base" value="${iso(r.s)}" aria-label="Ngày mốc khởi tính" title="Ngày mốc khởi tính — cả tiến độ tự dời theo">` : fixed ? `<span>${DOW[r.s.getUTCDay()]} ${dmy(r.s)}</span>` : `<input type="date" data-f="start" value="${iso(r.s)}" aria-label="Bắt đầu">`}</td>
             <td class="gx-n">${fixed || r.kind === 'ms' ? `<span>${r.kind === 'ms' || r.kind === 'base' ? '–' : r.days}</span>` : `<input type="number" min="0" data-f="days" value="${r.days}" aria-label="Số ngày">`}</td>
             <td class="gx-dt">${fixed || r.kind === 'ms' ? `<span>${DOW[r.e.getUTCDay()]} ${dmy(r.e)}</span>` : `<input type="date" data-f="end" value="${iso(r.e)}" aria-label="Kết thúc">`}</td>
             <td class="gx-lk">${fixed ? '' : `<input type="checkbox" data-f="link" ${r.link ? 'checked' : ''} title="Nối tiếp việc phía trên (tự dời theo)">`}</td>
@@ -369,7 +368,8 @@
         const t = ev.target, tr = t.closest('tr[data-uid]'); if (!tr || !t.dataset.f) return;
         const id = tr.dataset.uid, items = o.get(), f = t.dataset.f;
         st.sel = id;
-        if (f === 'name') commit(patch(items, id, { name: t.value }), true);
+        if (f === 'name') { const it = items.find((x) => x.uid === id); if (it && it.kind === 'base' && o.setBaseName) o.setBaseName(t.value); commit(patch(items, id, { name: t.value }), true); }
+        else if (f === 'base') { if (t.value && o.setBase) { o.setBase(t.value); render(); o.onChange && o.onChange(); } }
         else if (f === 'ph') commit(patch(items, id, { ph: t.value }), true);
         else if (f === 'days') commit(setDays(items, id, t.value), true);
         else if (f === 'start') commit(setStart(items, id, t.value, ctx()), true);
