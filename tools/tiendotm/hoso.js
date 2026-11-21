@@ -437,6 +437,7 @@
       { id: 'rfi', ic: 'help', t: 'RFI — Yêu cầu cung cấp thông tin', s: 'Hỏi CĐT làm rõ cao độ, nguồn điện, kích thước…' },
       { id: 'bao_gia_ps', ic: 'calc', t: 'Báo giá công việc phát sinh', s: 'Tự tính tổng, VAT, bằng chữ; điều khoản thanh toán' }] },
     { id: 'hv', name: 'Trước khi hàng về', note: 'chuẩn bị mặt bằng, giao hàng', c: '#2563eb', items: [
+      { id: 'dat_hang', ic: 'stamp', t: 'Thông báo đặt hàng thiết bị', s: 'Đã đủ điều kiện (tạm ứng, bản vẽ, tiến độ, vật liệu), đã đặt nhà máy, ngày hàng về — có ô Khách hàng xác nhận' },
       { id: 'xn_hangve', ic: 'pkgok', t: 'Thư xác nhận ngày giao vật tư về công trường', s: 'Ngày hàng về, mặt bằng lưu kho — có ô Khách hàng xác nhận' },
       { id: 'hangve1', ic: 'cal', t: 'Thông báo hàng về — lần 1', s: 'Gửi trước 30 ngày: lịch hàng về, yêu cầu mặt bằng' },
       { id: 'hangve2', ic: 'truck', t: 'Thông báo hàng về — lần 2', s: 'Gửi trước 1 tuần: ngày giao, kho bãi, đường vận chuyển' },

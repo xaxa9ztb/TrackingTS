@@ -31,9 +31,9 @@ test('docxkit: escape ký tự đặc biệt, ngày tiếng Việt, ô trống i
   balanced(t);
 });
 
-test('công văn & biên bản: đủ 18 mẫu (gồm tạm dừng thi công, RFA, RFI, báo giá phát sinh, điều kiện công trường, thư xác nhận hàng về), cùng khuôn đầu thư, điền thông tin dự án', () => {
-  assert.equal(L.LETTERS.length, 18);
-  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 18, 'id không trùng');
+test('công văn & biên bản: đủ 19 mẫu (gồm thông báo đặt hàng, tạm dừng thi công, RFA, RFI, báo giá phát sinh, điều kiện công trường, thư xác nhận hàng về), cùng khuôn đầu thư, điền thông tin dự án', () => {
+  assert.equal(L.LETTERS.length, 19);
+  assert.equal(new Set(L.LETTERS.map(x => x.id)).size, 19, 'id không trùng');
   for (const d of L.LETTERS) {
     const f = { so: '01/CV', ngay: '2026-11-12' };
     (d.fields || []).forEach(x => { f[x.k] = x.type === 'date' ? '2026-12-01' : (x.def || 'giá trị'); });
@@ -262,4 +262,26 @@ test('Hồ sơ pháp lý: xem trước (compose) + sửa tay áp vào bản Word
   assert.match(body, /ĐOẠN ĐÃ SỬA TAY/);
   await G.build(fakeZip, 'pccc', I, L);
   assert.doesNotMatch(body, /ĐOẠN ĐÃ SỬA TAY/, 'sửa tay chỉ áp cho đúng văn bản');
+});
+
+test('Công văn thông báo đặt hàng: bảng điều kiện (tạm ứng, bản vẽ, tiến độ, vật liệu), ngày đặt hàng, ngày hàng về, ô Khách hàng xác nhận', () => {
+  const PV = require('../../tools/tiendotm/hspreview.js');
+  const d = L.LETTERS.find(x => x.id === 'dat_hang');
+  assert.ok(d);
+  const f = { ngayTamUng: '2026-10-05', tamUng: 'đợt 1 – 30%', ngayBanVe: '2026-10-12', ngayTienDo: '2026-10-15', ngayVatLieu: '2026-10-20',
+    dkKhac: 'Xác nhận kích thước giếng | 2026-10-22', ngayDatHang: '2026-10-25', soThang: '04', ngayVe: '2027-02-15', hanXN: '2026-11-30' };
+  const t = PV.paragraphs(L.compose(d, { congTrinh: 'TOÀ MẪU', chuDauTu: 'Công ty A' }, f)).map(p => p.text).join('\n');
+  assert.match(t, /Thanh toán tạm ứng theo Hợp đồng \(đợt 1 – 30%\)\n05\/10\/2026/);
+  assert.match(t, /Phê duyệt bản vẽ thi công\n12\/10\/2026/);
+  assert.match(t, /Phê duyệt tiến độ thực hiện\n15\/10\/2026/);
+  assert.match(t, /Phê duyệt vật liệu hoàn thiện\n20\/10\/2026/);
+  assert.match(t, /Xác nhận kích thước giếng\n22\/10\/2026/);
+  assert.match(t, /Ngày 25\/10\/2026, Schindler Việt Nam đã đặt hàng sản xuất thiết bị cho 04 thang máy/);
+  assert.match(t, /về đến công trình vào ngày 15\/02\/2027/);
+  assert.match(t, /trước ngày 30\/11\/2026/);
+  assert.match(t, /XÁC NHẬN CỦA KHÁCH HÀNG[\s\S]*TM\. /, 'ô Khách hàng xác nhận cạnh khối ký');
+  assert.match(t, /Nơi nhận: Như trên; Lưu VP\./);
+  assert.doesNotMatch(t, /undefined|NaN/);
+  const t2 = PV.paragraphs(L.compose(d, {}, {})).map(p => p.text).join('\n');
+  assert.match(t2, /…\/…\/……/); assert.doesNotMatch(t2, /undefined|NaN/);
 });
